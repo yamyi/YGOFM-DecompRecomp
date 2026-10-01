@@ -89,6 +89,7 @@ def build_parser():
     parser.add_argument("--version", action="store_true", help="show the editor build and supported mod API")
     parser.add_argument("--game", help="the game: a folder with SLUS_014.11 and DATA/WA_MRG.MRG, or the .bin")
     parser.add_argument("--mod", help="a mod folder to open")
+    parser.add_argument("--modern", action="store_true", help="open the modern PySide6 interface (Cards first)")
     commands = parser.add_subparsers(dest="command")
     check = commands.add_parser("check", help="validate a mod folder against the retail tables")
     check.add_argument("mod")
@@ -120,5 +121,8 @@ def main(argv=None) -> int:
         return command_check(arguments)
     if arguments.command == "import":
         return command_import(arguments)
+    if arguments.modern:
+        from .pyside_app import main as window
+        return window(arguments.game, arguments.mod)
     from .app import main as window
     return window(arguments.game, arguments.mod)
