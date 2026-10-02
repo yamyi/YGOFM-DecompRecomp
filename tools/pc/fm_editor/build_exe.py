@@ -57,7 +57,15 @@ def main() -> int:
     parser.add_argument("--console", action="store_true", help="keep a console window (for the command line)")
     parser.add_argument("--version", default="", help="the release, vX.Y.Z[-PRE], for the version information")
     parser.add_argument("--commit", default=os.environ.get("GITHUB_SHA"), help="source commit (default: Git checkout)")
+    parser.add_argument("--without-qt", action="store_true",
+                        help="build without PySide6 installed: the old Tk window alone")
     arguments = parser.parse_args()
+    try:
+        import PySide6      # noqa: F401
+    except ImportError:
+        print("PySide6 is not installed: install it or pass --without-qt.", file=sys.stderr)
+        if not arguments.without_qt:
+            return 1
     dist = arguments.dist.resolve()
     work = dist / "build"
     work.mkdir(parents=True, exist_ok=True)
@@ -68,7 +76,9 @@ def main() -> int:
     build = ["--noconfirm", "--clean", "--distpath", str(dist), "--workpath", str(work)]
     program = ["--name", "fm-editor", "--specpath", str(work), "--paths", str(HERE.parent),
                "--hidden-import", "text_listing", "--collect-submodules", "fm_editor",
-               "--add-data", f"{identity}{os.pathsep}fm_editor"]
+               "--add-data", f"{identity}{os.pathsep}fm_editor",
+               # The Qt window loads these forms at run time.
+               "--add-data", f"{HERE / 'ui'}{os.pathsep}fm_editor/ui"]
     if sys.platform == "win32":
         version_file = work / "version.txt"
         version_file.write_text(version_info(arguments.version), encoding="utf-8")
