@@ -514,6 +514,15 @@ void Starter_Check(void)
                       draws, STARTER_DECK_SIZE, own);
         }
     }
+    if (pool_count) {
+        int draws = Starter_PoolDraws();
+        LOG(LOG_MODS, "starter: %d pool%s offered, drawing %d of %d cards", pool_count, pool_count == 1 ? "" : "s",
+            draws, STARTER_DECK_SIZE);
+        if (draws != STARTER_DECK_SIZE) {
+            LOG(LOG_MODS, "starter: the pools draw %d cards, not the %d a deck holds; the disc's rows stand",
+                draws, STARTER_DECK_SIZE);
+        }
+    }
 }
 
 int Starter_Count(void)

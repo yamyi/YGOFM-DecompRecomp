@@ -29,6 +29,13 @@ static unsigned NameEntry_StarterRandom(void)
    a mod name the cards costs. Cards_MarkSeen rather than the Library's flag
    directly: a card a mod added sits past the range those flags cover, and is
    remembered beside them (cards.c). */
+/* The game's own generator, handed to Starter_DealPools so the numbers a new
+ * game spends stay the ones the game spends. */
+static unsigned NameEntry_StarterRandom(void)
+{
+    return (unsigned)rand();
+}
+
 static s32 NameEntry_DealModStarterDeck(void)
 {
     unsigned short cards[STARTER_DECK_SIZE];
