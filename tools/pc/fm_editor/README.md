@@ -26,6 +26,18 @@ Without it (or with `--classic`) the old Tk window opens instead, over the
 same editor underneath; both read and write the same mod folder, so a mod may
 be opened in either.
 
+The editor checks that Qt can really start before it commits to it, because
+importing PySide6 does not settle the question: Qt loads its platform plugin
+when the window is made, and a plugin that cannot find a system library it
+wants (`libxcb-cursor0` is the usual one on Linux) calls `abort` rather than
+raising anything — the process is simply gone, with no window and no message
+worth reading. So the first run asks a throwaway process whether a
+`QApplication` can be made, which costs about a tenth of a second, and
+remembers a yes; a no goes quietly to the Tk window. A no is not remembered,
+so installing the missing library is enough to get the Qt window back. A
+released build skips the check: it carries its own Qt and has no other window
+to fall back to.
+
 The Tk window is on its way out: it is kept for a release or two so there is
 something to fall back to, and `--classic` goes with it. PySide6 is therefore
 not optional for long — `build_exe.py` already refuses to build without it

@@ -207,8 +207,6 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
     # and changed without the rest of the page around it. The page's form
     # keeps the empty tab widget; these fill it, in this order.
     PAGE_TABS = {
-        # The campaign's story pages come with the campaign work, in a PR of
-        # their own; this page is the map.
         "Campaign": ("campaignTabs", (("campaign_map.ui", "Map"),)),
         "Fusions": ("fusionPages", (("fusions_fusion_list.ui", "Fusion list"),
                                     ("fusions_generic_fusions.ui", "Generic fusions"))),
@@ -817,7 +815,12 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
                 return True
         return False
     def _build_menus(self):
-        file_menu = self.menuBar().addMenu("File")
+        # Kept here, and not only on the menu bar: on PySide6 6.9.3, the one
+        # the release pins, a menu with no Python name to it can have its C++
+        # side collected while the bar still lists it, and reaching for the
+        # menu afterwards raises "Internal C++ object already deleted".
+        self.menus = {}
+        file_menu = self.menus["File"] = self.menuBar().addMenu("File")
         entries = (("New mod", self.new_mod, "Ctrl+N"),
                    ("Open mod folder…", self.open_mod, "Ctrl+O"),
                    ("Save", self.save_mod, "Ctrl+S"),
@@ -837,14 +840,14 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
         exit_action.setShortcut("Ctrl+Q")
         exit_action.triggered.connect(self.close)
 
-        tools_menu = self.menuBar().addMenu("Tools")
+        tools_menu = self.menus["Tools"] = self.menuBar().addMenu("Tools")
         for title, callback in (("Check the mod", self.check_mod),
                                 ("Preview mod.json", self.preview_manifest),
                                 ("Card text preview", self.preview_card_text),
                                 ("Remove every pack of the mod", self._reset_packs)):
             tools_menu.addAction(title).triggered.connect(callback)
 
-        view_menu = self.menuBar().addMenu("View")
+        view_menu = self.menus["View"] = self.menuBar().addMenu("View")
         self.dark_action = view_menu.addAction("Dark mode")
         self.dark_action.setCheckable(True)
         self.dark_action.setChecked(settings.load().get("modern_dark", True))
@@ -858,7 +861,7 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
         refresh_action.setShortcut("F5")
         refresh_action.triggered.connect(self._render_preview)
 
-        help_menu = self.menuBar().addMenu("Help")
+        help_menu = self.menus["Help"] = self.menuBar().addMenu("Help")
         help_menu.addAction("About").triggered.connect(self.show_about)
     @staticmethod
     def _apply_palette(dark):

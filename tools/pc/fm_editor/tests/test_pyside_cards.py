@@ -121,7 +121,12 @@ class CardsTest(unittest.TestCase):
             self.assertEqual(expected_files, actual_files)
 
     def test_menu_parity(self):
-        menus = {action.text(): action.menu() for action in self.window.menuBar().actions()}
+        # The window's own menus, not QAction.menu(): on PySide6 6.9.3, the
+        # one the release pins, asking an action for its menu hands back a
+        # wrapper that takes the C++ menu with it when it goes, and the menu
+        # bar is left holding four dead objects.
+        menus = self.window.menus
+        self.assertEqual(list(menus), [action.text() for action in self.window.menuBar().actions()])
         expected = {
             'File': ['New mod', 'Open mod folder', 'Save', 'Save as', 'Import a modified game',
                      "Convert an old recomp's", 'Game files', 'Exit'],
@@ -2048,11 +2053,10 @@ class CardsTest(unittest.TestCase):
             w._add_filtered_pack_cards()
         self.assertEqual(c['contents'].rowCount(), 3)
 
-    # --- the Campaign page while the story tabs are away ---------------------
+    # --- the Campaign page ---------------------------------------------------
 
-    def test_the_campaign_page_is_the_map_for_now(self):
-        """The scene editor, the timeline and the story assets come with the
-        campaign work, in a PR of their own. This page is the map."""
+    def test_the_campaign_page_is_the_map(self):
+        """The campaign page is the map, and the map is all of it."""
         w = self.window
         w.select_workspace('Campaign')
         c = w.workspace_controls['Campaign']
