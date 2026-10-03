@@ -24,7 +24,7 @@ import re
 import shutil
 from pathlib import Path
 
-from .gamedata import (FUSION_GROUPS, RITUAL_REQUIREMENT_KEYS, fusion_group_named, ATTRIBUTE_NAMES, CARD_COUNT, DECK_SIZE, DUELIST_NAMES, FRAME_NAMES, POOLS, STAR_NAMES,
+from .gamedata import (FUSION_GROUPS, RITUAL_REQUIREMENT_KEYS, fusion_group_named, ATTRIBUTE_NAMES, CARD_COUNT, DECK_SIZE, DUELIST_NAMES, FRAME_NAMES, POOLS, STAR_NAMES, STARCHIP_MAX,
                        STARTER_WEIGHT_LIMIT, TYPE_NAMES, TYPE_MAGIC, GameData)
 from .model import AddedCard, ModInfo, Project, StarterDeck, duelist_named, type_named, KEY_RE
 from . import art, campaign_map, fixed_decks, guardian_stars, packs as packmath, pools as poolmath
@@ -369,20 +369,32 @@ def build_packs(project: Project):
 
 def build_passwords(project: Project):
     """"passwords" (gameplay-tables.md): the entries the mod had, with the
-    disc cards' passwords the editor changed written into them. None when
-    there is nothing to write, or when the mod's "passwords" is not an object
-    (kept as written)."""
+    disc cards' passwords and starchip prices the editor changed written into
+    them. None when there is nothing to write, or when the mod's "passwords"
+    is not an object (kept as written)."""
     kept = project.other.get("passwords")
     if kept is not None and not isinstance(kept, dict):
         return None
     table = copy.deepcopy(kept) if kept else {}
-    for cid in sorted(project.passwords):
-        if cid not in project.retail.cards:
-            continue
+
+    def entry_for(cid):
         key = project.password_keys.get(cid) or str(project.ref(cid))
         if not isinstance(table.get(key), dict):
             table[key] = {}
-        table[key]["password"] = project.passwords[cid]
+        return table[key]
+
+    for cid in sorted(project.passwords):
+        if cid in project.retail.cards:
+            entry_for(cid)["password"] = project.passwords[cid]
+    for cid in sorted(project.prices):
+        if cid not in project.retail.cards:
+            continue
+        entry = entry_for(cid)
+        entry["starchips"] = project.prices[cid]
+        # A price the editor set is a number, not a share of the disc's, and
+        # the port takes "starchips" over "starchips_percent" with a note
+        # about being given both (tables.c read_shop_entry). Out it goes.
+        entry.pop("starchips_percent", None)
     return table or None
 
 
@@ -1126,11 +1138,20 @@ def read_packs(project: Project, manifest: dict, messages: list):
         project.pack_shop = None
 
 
+def starchip_number(value):
+    """A "starchips" as the port reads it (tables.c read_shop_entry): a whole
+    number from 0 to 999999. None for anything else, which the editor keeps as
+    written rather than guess at."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value if 0 <= value <= STARCHIP_MAX else None
+
+
 def read_passwords(project: Project, messages: list):
-    """The "password" of each "passwords" entry that names a disc card (the
-    Password screen's; gameplay-tables.md) becomes the card's in the editor.
-    Everything else ("all", "starchips", "card number", an added card, which
-    the screen does not know) stays as written in project.other."""
+    """The "password" and "starchips" of each "passwords" entry that names a
+    disc card (the Password screen's; gameplay-tables.md) become the card's in
+    the editor. Everything else ("all", "starchips_percent", "card number", an
+    added card, which the screen does not know) stays in project.other."""
     table = project.other.get("passwords")
     if table is None:
         return
@@ -1138,19 +1159,35 @@ def read_passwords(project: Project, messages: list):
         messages.append("\"passwords\" is not an object; kept as written")
         return
     kept = {}
-    # With an "all" that sets passwords, a card's own entry keeps it out of
-    # "all" even when it names the disc's password: kept as an edit.
-    every = any(same_all(key) and isinstance(entry, dict) and "password" in entry for key, entry in table.items())
+    # With an "all" that sets passwords or prices, a card's own entry keeps it
+    # out of "all" even when it names the disc's: kept as an edit.
+    def across(field):
+        return any(same_all(key) and isinstance(entry, dict) and field in entry
+                   for key, entry in table.items())
+
+    every, every_price = across("password"), across("starchips")
     for key, entry in table.items():
         cid = 0 if same_all(key) else project.resolve(key)
-        password = password_text(entry.get("password")) if isinstance(entry, dict) and "password" in entry else None
-        if cid in project.retail.cards and password is not None and cid not in project.password_keys:
-            if every:
-                project.passwords[cid] = password
-            else:
-                project.set_password(cid, password)
+        fields = entry if isinstance(entry, dict) else {}
+        password = password_text(fields.get("password")) if "password" in fields else None
+        price = starchip_number(fields.get("starchips")) if "starchips" in fields else None
+        taken = []
+        if cid in project.retail.cards and cid not in project.password_keys:
+            if password is not None:
+                if every:
+                    project.passwords[cid] = password
+                else:
+                    project.set_password(cid, password)
+                taken.append("password")
+            if price is not None:
+                if every_price:
+                    project.prices[cid] = price
+                else:
+                    project.set_price(cid, price)
+                taken.append("starchips")
+        if taken:
             project.password_keys[cid] = key
-            rest = {k: v for k, v in entry.items() if k != "password"}
+            rest = {k: v for k, v in entry.items() if k not in taken}
             if rest:
                 kept[key] = rest
             continue

@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .gamedata import (CARD_COUNT, DECK_COPY_LIMIT, DECK_POOL_MIN_CARDS, DECK_SIZE, DUELIST_NAMES, POOLS,
-                       POOL_LABELS, POOL_TOTAL, TYPE_MAGIC, TYPE_EQUIP, TYPE_RITUAL, exodia_piece)
+                       POOL_LABELS, POOL_TOTAL, STARCHIP_MAX, TYPE_MAGIC, TYPE_EQUIP, TYPE_RITUAL, exodia_piece)
 from . import art, campaign_map, card_text, fixed_decks, guardian_stars, limits, packs as packmath
 from . import starter_pools
 from .model import KEY_RE, Project, duelist_named
@@ -147,6 +147,7 @@ def _check_card(project: Project, cid: int, out: list):
     if any(ord(c) < 32 and c != "\n" for c in card.name + card.description):
         add("error", "a control character in its name or text")
     _check_password(project, cid, add)
+    _check_price(project, cid, add)
     if cid in project.added:
         added = project.added[cid]
         base = project.cards.get(added.base)
@@ -183,6 +184,19 @@ def _check_password(project: Project, cid: int, add):
     if others:
         named = ", ".join(project.card_label(o) for o in others[:3]) + (" and more" if len(others) > 3 else "")
         add("error", f"password {value} is also {named}'s: the Password screen gives the lower card number")
+
+
+def _check_price(project: Project, cid: int, add):
+    """What the Password screen charges: 0 to 999999 starchips, all a save
+    file can hold (tables.c read_shop_entry). A card the mod adds is not on
+    that screen, so a price on one would go nowhere."""
+    if not project.price_changed(cid):
+        return
+    value = project.prices[cid]
+    if not isinstance(value, int) or isinstance(value, bool) or not 0 <= value <= STARCHIP_MAX:
+        add("error", f"a starchip price is a whole number, 0 to {STARCHIP_MAX:,}")
+    elif cid in project.added:
+        add("warning", "a card the mod adds is not sold on the Password screen, so its price does nothing")
 
 
 def _check_tables(project: Project, out: list):

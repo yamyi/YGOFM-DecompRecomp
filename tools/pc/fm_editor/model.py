@@ -181,6 +181,10 @@ class Project:
         # "passwords" named a disc card, so the entry is written back there.
         self.passwords = {}
         self.password_keys = {}
+        # What the Password screen charges for a disc card, in starchips: the
+        # same "passwords" entry's "starchips". An added card is not on that
+        # screen, so it has no price of its own.
+        self.prices = {}
         # card id -> the card's "notes": the modder's own text, which the game
         # plays by none of; a code mod may read <tag: value> from it (API 7).
         self.notes = {}
@@ -215,6 +219,24 @@ class Project:
 
     def password_changed(self, cid: int) -> bool:
         return cid in self.passwords
+
+    def price(self, cid: int) -> int:
+        """What the Password screen charges for the card as the mod leaves it,
+        in starchips. An added card is not sold there and costs nothing."""
+        if cid in self.prices:
+            return self.prices[cid]
+        return self.retail.prices.get(cid, 0) if cid in self.retail.cards else 0
+
+    def set_price(self, cid: int, value: int):
+        """Set it; back at the disc's price sets nothing."""
+        retail = self.retail.prices.get(cid, 0) if cid in self.retail.cards else 0
+        if value == retail:
+            self.prices.pop(cid, None)
+        else:
+            self.prices[cid] = value
+
+    def price_changed(self, cid: int) -> bool:
+        return cid in self.prices
 
     def identity(self, cid: int) -> str:
         return f"{self.info.id}:{self.added[cid].key}:1"
@@ -274,6 +296,7 @@ class Project:
         del self.added[cid]
         del self.cards[cid]
         self.passwords.pop(cid, None)
+        self.prices.pop(cid, None)
         self.notes.pop(cid, None)
         made = {p for p, r in self.fusions.items() if r == cid and cid not in p}
         self.fusions = {p: r for p, r in self.fusions.items() if cid not in p and r != cid}
@@ -311,11 +334,13 @@ class Project:
         if cid in self.added:
             self.cards[cid] = self.cards[self.added[cid].base].copy(id=cid)
             self.passwords.pop(cid, None)
+            self.prices.pop(cid, None)
         elif cid in self.retail.cards:
             self.cards[cid] = self.retail.cards[cid].copy()
             self.card_extra.pop(cid, None)
             self._own_pairs = None
             self.passwords.pop(cid, None)
+            self.prices.pop(cid, None)
 
     def card_changed(self, cid: int) -> bool:
         if cid in self.added:

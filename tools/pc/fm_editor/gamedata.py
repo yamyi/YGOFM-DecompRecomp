@@ -117,6 +117,7 @@ STARTER_LENGTH = 7 * (2 + 2 * CARD_COUNT)
 # both little-endian words. PASSWORD_NONE is a card the screen cannot give.
 PASSWORD_TABLE = 0xFB9800
 PASSWORD_NONE = 0xFFFFFFFE
+STARCHIP_MAX = 999999               # SAVE_DATA_STARCHIP_MAX (tables.c): all the save file can hold
 # Program images the game loads at 0x80168000 (sector, sectors, what): the
 # port runs its own code for them, over their data in guest memory, so a
 # mod's code or data there cannot work (src/pc/guest/modules.c).
@@ -169,6 +170,7 @@ class GameData:
     rituals: dict = field(default_factory=dict)        # ritual id -> (t1, t2, t3, result)
     pools: list = field(default_factory=list)          # [duelist][pool] -> {card id: weight}
     passwords: dict = field(default_factory=dict)      # id -> the Password screen's 8 digits, "" for none
+    prices: dict = field(default_factory=dict)         # id -> what that screen charges for it, in starchips
     notes: list = field(default_factory=list)          # oddities found while reading
     campaign_map: object = None                        # campaign_map.MapData, None without the overworld packages
 
@@ -411,10 +413,24 @@ def read_passwords(wa: bytes) -> dict:
     return out
 
 
+def read_prices(wa: bytes) -> dict:
+    """{card id: what the Password screen charges for it, in starchips}.
+
+    The other word of each record read_passwords reads, and a plain number
+    rather than the password's digit-per-nibble: card 1 is 0x000F423F, which
+    is 999999, the most the save file can hold; card 100 is 40. {} when the
+    archive stops short of the table."""
+    if len(wa) < PASSWORD_TABLE + 8 * (CARD_COUNT + 1):
+        return {}
+    return {cid: struct.unpack_from("<I", wa, PASSWORD_TABLE + 8 * cid)[0]
+            for cid in range(1, CARD_COUNT + 1)}
+
+
 def read_game(slus: bytes, wa: bytes) -> GameData:
     data = GameData(cards=read_cards(slus, wa))
     read_archive(wa, data)
     data.passwords = read_passwords(wa)
+    data.prices = read_prices(wa)
     from . import campaign_map
     data.campaign_map = campaign_map.read(slus, wa)
     if data.campaign_map is not None:
