@@ -631,6 +631,7 @@ class DuelistsMixin:
         table.setRowCount(0)
         c["rows"] = {}
         table.setIconSize(QSize(34, 34))
+        wanted = 0
         for index, name in enumerate(self._limit_names()):
             player, opponent = self.limits_duelists.get(name, (None, None))
             row = table.rowCount()
@@ -653,7 +654,13 @@ class DuelistsMixin:
                 spin.setValue(stored or 0)
                 spin.valueChanged.connect(self._limits_edited)
                 table.setCellWidget(row, column, spin)
+                wanted = max(wanted, spin.sizeHint().height())
                 c["rows"].setdefault(name, {})[column] = spin
+        # Room for the boxes, measured off a box that is actually in the table.
+        # A bare QSpinBox() is not the same box: the window's stylesheet reaches
+        # the ones in here and makes them half again as tall (23 against 35), so
+        # a row sized from an unstyled one clips them.
+        table.verticalHeader().setDefaultSectionSize(max(36, wanted + 4))
         table.blockSignals(False)
         header = table.horizontalHeader()
         for column, width in ((0, 54), (2, 130), (3, 130)):

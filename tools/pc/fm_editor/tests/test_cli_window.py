@@ -5,6 +5,7 @@
 import builtins
 import contextlib
 import io
+import pathlib
 import tempfile
 import sys
 import unittest
@@ -38,7 +39,8 @@ class WindowTest(unittest.TestCase):
         """Which window `argv` would open, without opening one."""
         which = {}
         with patched("fm_editor.pyside_app.main", which, "qt"), \
-             patched("fm_editor.app.main", which, "tk"):
+             patched("fm_editor.app.main", which, "tk"), \
+             mock.patch.object(cli, "qt_opens", lambda *a, **k: True):
             self.assertEqual(cli.main(argv), 0)
         return which.get("w")
 
@@ -97,8 +99,96 @@ class WindowTest(unittest.TestCase):
         self.assertEqual(said.getvalue(), "")
 
 
-if __name__ == "__main__":
-    unittest.main()
+class QtStartsTest(unittest.TestCase):
+    """Whether Qt can open a window, asked where an abort costs nothing.
+
+    Qt does not raise when the platform plugin cannot load what it needs: it
+    calls abort, which no except clause can see. These put a real aborting
+    process through the same path to prove the answer comes back as "no"
+    rather than taking the test runner down with it.
+    """
+
+    def setUp(self):
+        self.store = tempfile.TemporaryDirectory()
+        self.addCleanup(self.store.cleanup)
+        path = pathlib.Path(self.store.name) / "settings.json"
+        self.settings = mock.patch("fm_editor.settings.path", lambda: path)
+        self.settings.start()
+        self.addCleanup(self.settings.stop)
+        self.path = path
+
+    def probe(self, source):
+        return mock.patch.object(cli, "QT_PROBE", source)
+
+    @unittest.skipUnless(HAS_QT, "PySide6 is not installed")
+    def test_a_qt_that_starts_is_a_yes(self):
+        self.assertTrue(cli.qt_opens())
+
+    @unittest.skipIf(HAS_QT, "PySide6 is installed")
+    def test_no_pyside_is_a_no_without_asking_a_second_process(self):
+        with mock.patch.object(cli.subprocess, "run", side_effect=AssertionError("asked anyway")):
+            self.assertFalse(cli.qt_opens())
+
+    @unittest.skipUnless(HAS_QT, "PySide6 is not installed")
+    def test_a_qt_that_aborts_is_a_no_rather_than_the_end_of_the_process(self):
+        """A missing libxcb-cursor0 looks exactly like this: the process dies
+        on a signal, with no exception for anyone to catch."""
+        with self.probe("import os; os.abort()"):
+            self.assertFalse(cli.qt_opens())
+
+    @unittest.skipUnless(HAS_QT, "PySide6 is not installed")
+    def test_a_qt_that_leaves_with_a_complaint_is_a_no(self):
+        with self.probe("raise SystemExit('no platform plugin')"):
+            self.assertFalse(cli.qt_opens())
+
+    @unittest.skipUnless(HAS_QT, "PySide6 is not installed")
+    def test_a_probe_that_never_answers_lets_qt_try_anyway(self):
+        """A plugin that cannot load aborts at once, so a slow probe is not
+        the symptom: an unanswered question must not cost the Qt window."""
+        with self.probe("import time; time.sleep(30)"):
+            self.assertTrue(cli.qt_opens(timeout=0.5))
+
+    @unittest.skipUnless(HAS_QT, "PySide6 is not installed")
+    def test_a_yes_is_remembered_so_only_the_first_run_pays_for_it(self):
+        self.assertTrue(cli.qt_opens())
+        self.assertIn("qt_opens", self.path.read_text(encoding="utf-8"))
+        # Remembered means not asked again: a probe that would fail is never
+        # reached.
+        with self.probe("import os; os.abort()"):
+            self.assertTrue(cli.qt_opens())
+
+    @unittest.skipUnless(HAS_QT, "PySide6 is not installed")
+    def test_a_no_is_not_remembered_so_a_fixed_install_is_not_held_to_it(self):
+        with self.probe("import os; os.abort()"):
+            self.assertFalse(cli.qt_opens())
+        self.assertFalse(self.path.exists())
+
+    @unittest.skipUnless(HAS_QT, "PySide6 is not installed")
+    def test_a_built_editor_does_not_probe_itself(self):
+        """sys.executable is the editor in a built one: asking would start a
+        second copy of it rather than a probe."""
+        with mock.patch.object(sys, "frozen", True, create=True), \
+             self.probe("import os; os.abort()"):
+            self.assertTrue(cli.qt_opens())
+
+    @unittest.skipUnless(HAS_QT, "PySide6 is not installed")
+    def test_no_second_process_to_be_had_lets_qt_try_anyway(self):
+        """A sandbox that forbids subprocesses must not cost the Qt window."""
+        with mock.patch.object(cli.subprocess, "run", side_effect=OSError("no fork")):
+            self.assertTrue(cli.qt_opens())
+
+    @unittest.skipUnless(HAS_QT and HAS_TK, "both windows are needed to fall between them")
+    def test_a_qt_that_cannot_open_falls_back_to_the_old_window(self):
+        said = io.StringIO()
+        which = {}
+        with self.probe("import os; os.abort()"), \
+             patched("fm_editor.pyside_app.main", which, "qt"), \
+             patched("fm_editor.app.main", which, "tk"), \
+             mock.patch("sys.stderr", said):
+            self.assertEqual(cli.main([]), 0)
+        self.assertEqual(which.get("w"), "tk")
+        self.assertIn("could not start", said.getvalue())
+        self.assertNotIn("Traceback", said.getvalue())
 
 
 class BuildTest(unittest.TestCase):
@@ -180,3 +270,7 @@ class BuildTest(unittest.TestCase):
             build_exe.say("makespec /tmp/Jos\u00e9-\u00e9-\u042f-\u6771\u4eac-\U0001f600/build")
         narrow.seek(0)
         self.assertIn("makespec", narrow.buffer.getvalue().decode("cp1252"))
+
+
+if __name__ == "__main__":
+    unittest.main()
