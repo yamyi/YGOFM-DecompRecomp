@@ -68,10 +68,6 @@ class LimitsMixin:
             get(QLabel, label).setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
         for panel in ("limitSettingsPanel", "startingLpPanel"):
             get(QFrame, panel).setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
-        # Room for the spin boxes, measured rather than guessed: 36 was short
-        # of what a larger system font asks for and the boxes were clipped.
-        spin_height = QSpinBox().sizeHint().height()
-        table.verticalHeader().setDefaultSectionSize(max(36, spin_height + 4))
         settings_scroll = get(QScrollArea, "limitSettingsScroll")
         settings_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         get(QFrame, "limitSettingsPanel").setMinimumWidth(430)

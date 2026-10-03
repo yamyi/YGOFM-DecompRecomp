@@ -44,12 +44,30 @@ or the disc's price if there is none. **Apply**, then **File > Save**.
 Unedited percentage prices stay as percentages. Added cards use a default
 price of 999999 and stable identities in the `passwords` table.
 
-The window has a tab per table:
+    python -m pip install PySide6
 
-The modern interface is being added one workspace at a time. Install its optional PySide6 dependency with
-`python -m pip install -r tools/pc/fm_editor/requirements-modern.txt`, then start it with
-`python tools/pc/fm_editor --modern`. The first modern workspace is Cards; the other workspaces remain in
-the original editor until their modern versions are ported.
+Without it (or with `--classic`) the old Tk window opens instead, over the
+same editor underneath; both read and write the same mod folder, so a mod may
+be opened in either.
+
+The editor checks that Qt can really start before it commits to it, because
+importing PySide6 does not settle the question: Qt loads its platform plugin
+when the window is made, and a plugin that cannot find a system library it
+wants (`libxcb-cursor0` is the usual one on Linux) calls `abort` rather than
+raising anything — the process is simply gone, with no window and no message
+worth reading. So the first run asks a throwaway process whether a
+`QApplication` can be made, which costs about a tenth of a second, and
+remembers a yes; a no goes quietly to the Tk window. A no is not remembered,
+so installing the missing library is enough to get the Qt window back. A
+released build skips the check: it carries its own Qt and has no other window
+to fall back to.
+
+The Tk window is on its way out: it is kept for a release or two so there is
+something to fall back to, and `--classic` goes with it. PySide6 is therefore
+not optional for long — `build_exe.py` already refuses to build without it
+unless `--without-qt` says to.
+
+The window has a tab per table:
 
 | Tab | What you edit |
 |---|---|

@@ -16,9 +16,11 @@
 from __future__ import annotations
 
 import argparse
+import os
+import subprocess
 import sys
 
-from . import disc, gamedata, importer, manifest, validate
+from . import disc, gamedata, importer, manifest, settings, validate
 
 
 def load_retail(game):
@@ -115,6 +117,60 @@ def main(argv=None) -> int:
     return command_window(arguments)
 
 
+# A process of its own is the only honest way to ask whether Qt can start:
+# importing PySide6 proves nothing, because Qt loads its platform plugin when
+# the QApplication is made, and a plugin that cannot find a system library it
+# wants (libxcb-cursor0 is the usual one on Linux) calls abort. An abort is
+# not an exception. There is nothing to catch, no traceback, and no fallback
+# either -- the process is simply gone, and the player is left with nothing.
+# So the question goes to a throwaway process, where an abort costs no more
+# than an exit code.
+QT_PROBE = "from PySide6.QtWidgets import QApplication; QApplication([])"
+
+
+def qt_opens(timeout: float = 20.0) -> bool:
+    """Whether Qt really starts here, not merely whether PySide6 imports.
+
+    A yes is remembered, so only the first run of a healthy install pays for
+    the extra process. A no is not: somebody who installs the system library
+    they were missing should get the Qt window the next time they ask, rather
+    than be held to an answer from before they fixed it.
+    """
+    if getattr(sys, "frozen", False):
+        # A released build carries its own Qt and has no other window to fall
+        # back to, and sys.executable is the editor itself: asking would start
+        # a second copy of it rather than a probe.
+        return True
+    try:
+        from PySide6 import __version__ as version
+    except ImportError:
+        return False
+    # The answer belongs to this Python, this PySide6 and this screen; any of
+    # them changing makes it worth asking again.
+    key = f"{sys.executable}|{version}|{sys.platform}|{os.environ.get('QT_QPA_PLATFORM', '')}" \
+          f"|{os.environ.get('WAYLAND_DISPLAY', '')}|{os.environ.get('DISPLAY', '')}"
+    try:
+        if settings.load().get("qt_opens") == key:
+            return True
+    except Exception:      # noqa: BLE001 - unreadable settings are no settings
+        pass
+    try:
+        done = subprocess.run([sys.executable, "-c", QT_PROBE], timeout=timeout,
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except (OSError, subprocess.SubprocessError):
+        # The probe could not be run or could not finish: a sandbox with no
+        # subprocesses, an interpreter that is not there, a machine slow
+        # enough to outlast the timeout. None of that is the symptom we are
+        # after -- a plugin that cannot load aborts at once -- so let Qt try
+        # in this process rather than refuse it over a question that went
+        # unanswered. The worst case is the abort we hoped to get ahead of.
+        return True
+    if done.returncode != 0:
+        return False
+    settings.save("qt_opens", key)
+    return True
+
+
 def say_no_qt(problem):
     """The Qt window is not to be had: say so where it can be read.
 
@@ -138,13 +194,15 @@ def command_window(arguments) -> int:
             from .pyside_app import main as window
         except ImportError as problem:
             say_no_qt(problem)
-        except Exception as problem:        # noqa: BLE001 - see below
-            # Qt aborts rather than raises ImportError when a system library
-            # it wants is missing (libxcb-cursor0 and the like), and a player
-            # should get the old window instead of nothing at all.
+        except Exception as problem:        # noqa: BLE001 - a broken install
+            # Importing PySide6 can fail in ways that are not an ImportError
+            # (a half-installed wheel, a shared library of the wrong build).
+            # The old window is better than a traceback.
             say_no_qt(problem)
         else:
-            return window(arguments.game, arguments.mod)
+            if qt_opens():
+                return window(arguments.game, arguments.mod)
+            say_no_qt("Qt could not open a window")
     try:
         # The import and the call both reach for tkinter (app.py takes it at
         # the top, and its main() pulls in importers, which takes it too), so
