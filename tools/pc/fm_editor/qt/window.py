@@ -700,6 +700,13 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
         cid = self.project.resolve(int(text) if text.isdigit() else text)
         return cid or None
     def eventFilter(self, watched, event):
+        # The card picture is as wide as the preview panel, and the panel is
+        # as wide as the splitter leaves it. Asked again whenever that changes,
+        # which the window's own resizeEvent does not always see (opening a
+        # card before the first layout gives the panel no width yet).
+        if watched is getattr(self, "preview_panel", None) and event.type() == QEvent.Type.Resize:
+            if getattr(self, "current", None):
+                self._render_preview()
         controls = getattr(self, "workspace_controls", {}).get("Fusions", {})
         image_list = controls.get("image_list")
         if image_list is not None and watched is image_list.viewport():
@@ -1139,7 +1146,10 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
         self.base_card_info.clear()
         self.preview_image.setPixmap(QPixmap())
         self.preview_image.clear()
-        self.reference_info.setText("Select a card to edit.")
+        self.reference_title.setText("Retail card")
+        for value in self.reference_values.values():
+            value.setText("—")
+            value.setToolTip("")
         self.extra_info.clear()
         self.description_status.clear()
         self.validation.clear()

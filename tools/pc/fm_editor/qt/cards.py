@@ -163,13 +163,21 @@ class CardsMixin:
             "defense": widget(QSpinBox, "defenseSpinBox"),
             "frame": widget(QComboBox, "frameCombo"),
             "password": widget(QLineEdit, "passwordEdit"),
+            "starchips": widget(QSpinBox, "starchipsSpin"),
         }
-        self.reference_info = QLabel()
-        self.reference_info.setWordWrap(True)
+        # Password and Starchips share Card Data's two columns, so the right
+        # one starts where Attribute, Frame, DEF and Guardian Star 2 do. Their
+        # grid is its own, and without this the password field takes the width
+        # it likes and pushes Starchips out of line.
+        password_grid = page.findChild(QGridLayout, "passwordGrid")
+        for column in (0, 1):
+            password_grid.setColumnStretch(column, 1)
+        self.preview_panel = self.preview_image.parentWidget()
+        self.preview_panel.installEventFilter(self)
+        self._build_card_reference(parent)
         self.extra_info = QLabel()
         self.extra_info.setWordWrap(True)
         form_layout = self.validation.parentWidget().layout()
-        form_layout.insertWidget(form_layout.indexOf(self.validation), self.reference_info)
         form_layout.insertWidget(form_layout.indexOf(self.validation), self.extra_info)
         self.revert_button = widget(QPushButton, "revertButton")
         for field in self.fields.values():
@@ -433,6 +441,12 @@ class CardsMixin:
         self._set_monster_fields_enabled(True)
         self.fields["frame"].setCurrentIndex(card.frame + 1)
         self.fields["password"].setText(self.project.password(cid))
+        # The Password screen sells the disc's cards and knows nothing of an
+        # added one, so there is no price to put on it.
+        sold = cid in self.project.retail.cards
+        self.fields["starchips"].setValue(self.project.price(cid) if sold else 0)
+        self.fields["starchips"].setEnabled(sold)
+        self.fields["starchips"].setSpecialValueText("free" if sold else "not sold there")
         self.description.setPlainText(card.description)
         self.notes.setPlainText(self.project.notes.get(cid, ""))
         added = self.project.added.get(cid)
@@ -445,14 +459,7 @@ class CardsMixin:
             f"Copy of {self.project.card_label(added.base)}; identity {self.project.identity(cid)}\n"
             "Its password is for the card view; the Password screen sells disc cards."
             if added else "")
-        reference = self.project.retail.cards.get(cid) or self.project.cards[self.project.base_of(cid)]
-        values = [f"Name: {reference.name}", f"Type: {TYPE_NAMES[reference.type]}",
-                  f"Attribute: {(ATTRIBUTE_NAMES + ['6 (magic)', '7 (trap)'])[reference.attribute]}",
-                  f"Level: {reference.level}", f"ATK: {reference.attack}", f"DEF: {reference.defense}",
-                  f"Stars: {reference.star1}, {reference.star2}",
-                  f"Frame: {FRAME_NAMES[reference.frame] if reference.frame >= 0 else 'By type'}"]
-        values.append(f"password: {self.project.retail.passwords.get(cid) or 'none'}" if not added else "password: card view only")
-        self.reference_info.setText(("Base: " if added else "Retail: ") + " · ".join(values))
+        self._show_card_reference(cid, added)
         extra = added.extra if added else self.project.card_extra.get(cid, {})
         self.extra_info.setText("Kept as written in mod.json: " + ", ".join(sorted(extra)) if extra else "")
         self.revert_button.setText("Revert to Base" if added else "Revert to Retail")
@@ -470,6 +477,80 @@ class CardsMixin:
         self._last_type_index = index
         if not self._loading:
             self._render_preview()
+
+    # What the card was before the mod: the same fields as Card Data, in the
+    # same order and two columns, set smaller and read-only under the picture.
+    REFERENCE_ROWS = (("Name",), ("Type", "Attribute"), ("Level", "Frame"),
+                      ("ATK", "DEF"), ("Guardian Star 1", "Guardian Star 2"),
+                      ("Password", "Starchips"))
+    REFERENCE_QSS = """
+QLabel#referenceCaption { color: #8aa0bd; font-size: 10px; }
+QLabel#referenceValue { background: #162337; border: 1px solid #2a3d55; border-radius: 5px;
+  padding: 2px 6px; color: #dce6f4; font-size: 11px; }
+QLabel#referenceTitle { color: #c9d8ed; font-weight: 600; }
+"""
+
+    def _build_card_reference(self, parent):
+        """The retail card under the preview: Card Data's fields, read-only."""
+        panel = QWidget()
+        panel.setObjectName("cardReferencePanel")
+        panel.setStyleSheet(self.REFERENCE_QSS)
+        column = QVBoxLayout(panel)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(5)
+        self.reference_title = QLabel("Retail card")
+        self.reference_title.setObjectName("referenceTitle")
+        column.addWidget(self.reference_title)
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(10)
+        grid.setVerticalSpacing(4)
+        self.reference_values = {}
+        for row, names in enumerate(self.REFERENCE_ROWS):
+            for col, name in enumerate(names):
+                caption = QLabel(name)
+                caption.setObjectName("referenceCaption")
+                value = QLabel("—")
+                value.setObjectName("referenceValue")
+                value.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+                span = 2 if len(names) == 1 else 1
+                grid.addWidget(caption, row * 2, col, 1, span)
+                grid.addWidget(value, row * 2 + 1, col, 1, span)
+                self.reference_values[name] = value
+        grid.setColumnStretch(0, 1)
+        grid.setColumnStretch(1, 1)
+        column.addLayout(grid)
+        # As tall as its rows and no taller: the picture above is the one
+        # thing in the column that grows, up to a card of its own width, and
+        # a stretch here would halve what it gets.
+        panel.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        self.reference_panel = panel
+        self.preview_image.parentWidget().layout().addWidget(panel)
+
+    def _show_card_reference(self, cid, added):
+        """Fill it from the disc's card, or from the base of an added one."""
+        reference = self.project.retail.cards.get(cid) or self.project.cards[self.project.base_of(cid)]
+        self.reference_title.setText("Base card" if added else "Retail card")
+        attributes = ATTRIBUTE_NAMES + ["6 (magic)", "7 (trap)"]
+        stars = guardian_stars.choices(self.project.other.get("guardian_stars"))
+        star = lambda n: stars[n] if 0 <= n < len(stars) else str(n)
+        shown = {
+            "Name": reference.name or "—",
+            "Type": TYPE_NAMES[reference.type] if 0 <= reference.type < len(TYPE_NAMES) else str(reference.type),
+            "Attribute": attributes[reference.attribute] if 0 <= reference.attribute < len(attributes) else str(reference.attribute),
+            "Level": str(reference.level),
+            "Frame": FRAME_NAMES[reference.frame] if reference.frame >= 0 else "By card type",
+            "ATK": f"{reference.attack:,}",
+            "DEF": f"{reference.defense:,}",
+            "Guardian Star 1": star(reference.star1),
+            "Guardian Star 2": star(reference.star2),
+            # The Password screen sells the disc's cards and knows no other.
+            "Password": "card view only" if added else (self.project.retail.passwords.get(cid) or "none"),
+            "Starchips": "not sold there" if added else f"{self.project.retail.prices.get(cid, 0):,}",
+        }
+        for name, value in shown.items():
+            self.reference_values[name].setText(value)
+            self.reference_values[name].setToolTip(value)
+
     def _render_preview(self):
         if not self.current or self._loading: return
         try:
@@ -493,6 +574,16 @@ class CardsMixin:
             pixmap = _card_image(preview_project, self.files.wa, self.current, self.frame_cache, scale)
             interpolation = (Qt.TransformationMode.SmoothTransformation if scale == 4
                              else Qt.TransformationMode.FastTransformation)
+            # A card of this width is this tall, and the label is no taller:
+            # it used to take the whole column, leaving a strip of nothing
+            # under the card. The width comes from the panel rather than from
+            # the label, so the picture cannot drive the size that drives the
+            # picture; resizeEvent asks again once the panel has a width.
+            panel = self.preview_image.parentWidget()
+            edges = panel.layout().contentsMargins()
+            room = panel.width() - edges.left() - edges.right()
+            if room > 0:
+                self.preview_image.setMaximumHeight(round(room * pixmap.height() / max(1, pixmap.width())))
             self.preview_image.setPixmap(pixmap.scaled(
                 self.preview_image.contentsRect().size(), Qt.AspectRatioMode.KeepAspectRatio, interpolation))
             card = preview_project.cards[self.current]
@@ -543,6 +634,10 @@ class CardsMixin:
             self.project.set_notes(cid, notes); changed = True
         if password != self.project.password(cid):
             self.project.set_password(cid, password); changed = True
+        if cid in self.project.retail.cards:
+            starchips = self.fields["starchips"].value()
+            if starchips != self.project.price(cid):
+                self.project.set_price(cid, starchips); changed = True
         if changed:
             self.project.cards[cid] = card
             problems = validate.validate_card(self.project, cid)
