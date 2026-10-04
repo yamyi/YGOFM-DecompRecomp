@@ -192,7 +192,7 @@ class DuelistsMixin:
         except (OSError,ValueError,TypeError,json.JSONDecodeError):
             pass
         try:
-            wa=self.files.wa;offset=0xF55000+base*0x980
+            wa=self.preview_wa;offset=0xF55000+base*0x980
             palette=image_extract.read_palette(wa,offset+0x900,64)
             palette.extend([0]*(256-len(palette)))
             width,height,rgba=image_extract.decode(wa,offset,24,48,8,palette)
@@ -216,11 +216,20 @@ class DuelistsMixin:
                 continue
             tile=QWidget();tile.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents,True)
             tile_layout=QVBoxLayout(tile);tile_layout.setContentsMargins(2,2,2,2);tile_layout.setSpacing(1)
-            portrait=QLabel();portrait.setFixedSize(54,54);portrait.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            portrait=QLabel();portrait.setFixedSize(48,48);portrait.setAlignment(Qt.AlignmentFlag.AlignCenter)
             pix=self._duelist_portrait_pixmap(record)
             if not pix.isNull():portrait.setPixmap(pix.scaled(portrait.size(),Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.FastTransformation))
             else:portrait.setText("—")
-            label=QLabel(f"{slot:03d} · {record['name']}");label.setAlignment(Qt.AlignmentFlag.AlignCenter);label.setWordWrap(True)
+            # One line, cut with an ellipsis rather than wrapped: wrapped, a
+            # name of two or three words was taller than the cell and only
+            # its middle line showed -- "001 · Simon Muran" read as "Simon".
+            label=QLabel();label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            # The cell's width, taken off the grid rather than off a column
+            # that has not been laid out yet. The number is in the tooltip:
+            # on a tile this wide it ate the name it was labelling.
+            room=max(48,grid.viewport().width()//max(1,grid.columnCount())-8)
+            label.setText(QFontMetrics(label.font()).elidedText(
+                record["name"],Qt.TextElideMode.ElideRight,room))
             # A duelist the mod has touched reads as touched, as the Tk list's
             # "changed"/"fixed" column says.
             base=int(record.get("base",0) or 0)
@@ -233,7 +242,7 @@ class DuelistsMixin:
             if state:
                 ink=self._state_colour("added" if state in ("added","fixed") else state)
                 if ink is not None:label.setStyleSheet(f"color:{ink.name()}")
-            label.setToolTip(record["name"]+(f"  ({state})" if state else ""))
+            label.setToolTip(f"{slot:03d} · {record['name']}"+(f"  ({state})" if state else ""))
             tile_layout.addWidget(portrait,0,Qt.AlignmentFlag.AlignHCenter);tile_layout.addWidget(label)
             grid.setCellWidget(row,col,tile)
         current=getattr(self,"duelist_selected_slot",1)
@@ -1039,7 +1048,7 @@ QLabel#statsRank { color: #8aa0bd; }
             cache = self._pool_icons = {}
         if cid not in cache:
             try:
-                picture = _card_image(self.project, self.files.wa, cid, self.frame_cache)
+                picture = _card_image(self.project, self.preview_wa, cid, self.frame_cache)
                 cache[cid] = picture.scaled(18, 18, Qt.AspectRatioMode.KeepAspectRatio,
                                             Qt.TransformationMode.SmoothTransformation)
             except (OSError, ValueError, IndexError, struct.error):

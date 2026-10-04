@@ -17,10 +17,11 @@ import re
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QSize, QRect, QPoint, QFile, QIODevice, QTimer, QEvent
-from PySide6.QtGui import QColor, QFont, QIcon, QImage, QPainter, QPainterPath, QPalette, QPen, QPixmap
+from PySide6.QtGui import (QColor, QFont, QFontMetrics, QIcon, QImage, QPainter, QPainterPath, QPalette, QPen,
+                           QPixmap)
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog, QHeaderView, QDialogButtonBox, QInputDialog,
     QButtonGroup, QDialog, QFormLayout, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMessageBox,
-    QPushButton, QScrollArea, QSpinBox, QSplitter, QStackedWidget, QTableWidget, QTableWidgetItem,
+    QProgressDialog, QPushButton, QScrollArea, QSpinBox, QSplitter, QStackedWidget, QTableWidget, QTableWidgetItem,
     QListWidget, QListWidgetItem, QListView, QTreeWidget, QStyledItemDelegate, QStyle, QStyleOptionViewItem, QTextEdit, QPlainTextEdit,
     QVBoxLayout, QWidget, QAbstractItemView, QRadioButton, QGroupBox, QTabBar, QTabWidget, QLayout, QSizePolicy, QMenu,
     QToolButton)
@@ -464,17 +465,15 @@ class CardIdSpinBox(QSpinBox):
 
 
 def _card_plate(inks, scale: int):
-    """The title texture's non-zero inks over the card frame.
-
-    A title record stores index zero as transparent.  Keeping it transparent
-    here lets the frame's bevel show through as it does in the card viewer.
-    """
-    image = art.plate_image(inks, background=art.GOLD)
-    rgba = bytearray(image.rgba)
+    """The title's subtractive ink, transparent over its actual frame."""
+    rgba = bytearray()
     for index, ink in enumerate(inks):
-        if not ink:
-            rgba[index * 4 + 3] = 0
-    return pngio.scale_nearest(pngio.Image(image.width, image.height, bytes(rgba)), scale)
+        coverage = art.INK_SHARE[ink] if 0 <= ink < len(art.INK_SHARE) else 0
+        # The game blends the plate's dark ink over the frame below.  The
+        # old fixed gold backdrop was only correct for a Monster frame and
+        # turned titles yellow on Magic, Trap and Ritual frames.
+        rgba += bytes((0, 0, 0, round(coverage * 220)))
+    return pngio.scale_nearest(pngio.Image(96, 14, bytes(rgba)), scale)
 
 
 def _card_title(project: Project, wa: bytes, cid: int, frame_cache: dict, scale: int):
@@ -482,8 +481,8 @@ def _card_title(project: Project, wa: bytes, cid: int, frame_cache: dict, scale:
     try:
         state = art.state(project)
         if (cid, "title") in state.images:
-            image, _ = art.shown_image(project, wa, cid, "title")
-            return None if image is None else pngio.scale_nearest(image, scale)
+            image = art.replacement_image(project, cid, "title")
+            return None if image is None else _card_plate(art.plate_inks(image), scale)
         if not art.own_name(project, cid):
             return _card_plate(art.disc_plate_inks(wa, project.base_of(cid)), scale)
     except (IndexError, KeyError, OSError, ValueError, art.pngio.PngError):
@@ -519,6 +518,75 @@ def _draw_hd_card_title(painter: QPainter, name: str, scale: int):
     painter.restore()
 
 
+def _pack_texture(project: Project, frame_cache: dict, offset: int, words: int, rows: int,
+                  bpp: int, clut_offset: int, entries: int):
+    """The texture-pack image for one exact game texture reading, if any."""
+    identity = (offset, words, rows, bpp, clut_offset, entries)
+    # CardsMixin makes a shallow Project copy for each live form edit.  Its
+    # retail game and texture pack are shared, so key cache entries by that
+    # stable object rather than by the short-lived preview copy.
+    project_key = id(getattr(project, "retail", project))
+    key = ("card-preview-pack", project_key, identity)
+    if key not in frame_cache:
+        image = None
+        st = art.state(project)
+        folder = st.folder or project.source_dir
+        if folder is not None:
+            for entry in st.entries or ():
+                if all(entry.get(name) == value for name, value in zip(
+                        ("offset", "words", "rows", "bpp", "clut_offset", "clut_entries"), identity)) and \
+                        isinstance(entry.get("file"), str):
+                    try:
+                        image = pngio.read(Path(folder) / art.pack_dir(project) / entry["file"])
+                    except (OSError, pngio.PngError):
+                        pass
+                    break
+        frame_cache[key] = image
+    return frame_cache[key]
+
+
+def _card_detail_sprite(project: Project, wa: bytes, frame_cache: dict, kind: str, index: int = 0, scale: int = 1):
+    """A native 4-bit card-view detail sprite from the Library package.
+
+    The card's frame occupies the first two image columns.  The fourth has
+    the level star at (0, 144) and the eight attribute balls at (16*n, 128),
+    each with its own 16-colour CLUT.  These are the same locations used by
+    the game and by ``hd_assets_pack.py``; keeping the source pixels here
+    makes Disc Preview and HD Preview agree with the in-game card view.
+    """
+    if kind == "level":
+        key, x, y, words, rows, palette_offset = ("card-detail-level", 0, 144, 3, 9, 0x1180)
+    elif kind == "attribute" and 0 <= index < 8:
+        key, x, y, words, rows, palette_offset = (
+            "card-detail-attribute", 16 * index, 128, 4, 16, 0x1E00 + index * 0x20)
+    elif kind == "label" and 0 <= index < 3:
+        key, x, y, words, rows, palette_offset = ("card-detail-label", 0, 158 + 16 * index, 14, 16, 0x11E0)
+    else:
+        return None
+    key = (key, index, id(wa), id(getattr(project, "retail", project)), scale)
+    if key not in frame_cache:
+        # Library image column 3, laid out as 64 VRAM words by 256 rows.
+        image_base = 0xEE6800 + 3 * 0x8000
+        offset = image_base + (y * 64 + x // 4) * 2
+        palette_at = 0xF06800 + palette_offset
+        packed = _pack_texture(project, frame_cache, image_base, 64, 256, 4, palette_at, 16)
+        if packed is not None:
+            sheet = pngio.resample(packed, 256 * scale, 256 * scale)
+            sprite = _qimage(sheet.width, sheet.height, sheet.rgba).copy(x * scale, y * scale,
+                                                                           words * 4 * scale, rows * scale)
+        else:
+            if offset + (rows - 1) * 64 * 2 + words * 2 > len(wa) or palette_at + 32 > len(wa):
+                return None
+            palette = image_extract.read_palette(wa, palette_at, 16)
+            width, height, rgba = image_extract.decode(wa, offset, words, rows, 4, palette, stride=64)
+            sprite = _qimage(width, height, rgba)
+        # A nine-pixel star occupies three 16-bit words; keep the three
+        # padding texels out of the preview exactly as the game's 9x9 sprite
+        # extent does.
+        frame_cache[key] = sprite.copy(0, 0, 9 * scale, 9 * scale) if kind == "level" else sprite
+    return frame_cache[key]
+
+
 def _draw_card_details(painter: QPainter, project: Project, wa: bytes, cid: int, frame_cache: dict, scale: int):
     """Draw the data the game layers over a card's frame and illustration."""
     card = project.cards[cid]
@@ -532,30 +600,31 @@ def _draw_card_details(painter: QPainter, project: Project, wa: bytes, cid: int,
                               _qimage(title.width, title.height, title.rgba))
 
     if not card.is_monster():
+        # The card viewer places a 56x16 type label at (72, 31), where a
+        # monster has its level stars.  Ritual cards use the game's normal
+        # Magic Card label; the other two labels are Trap and Equip Magic.
+        label_index = {gamedata.TYPE_TRAP: 1, gamedata.TYPE_EQUIP: 2}.get(card.type, 0)
+        type_label = _card_detail_sprite(project, wa, frame_cache, "label", label_index, scale)
+        if type_label is not None:
+            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Darken)
+            painter.drawImage(QRect(72 * scale, 31 * scale, 56 * scale, 16 * scale), type_label)
+            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
         return
 
     painter.save()
     # func_80028B08 starts at x=119 and steps left by nine texels for each
-    # level icon.  The red rim and yellow centre retain the game's visual
-    # hierarchy while the card frame supplies the surrounding texture.
-    star_font = QFont("DejaVu Sans")
-    star_font.setPixelSize(max(5, 7 * scale))
-    painter.setFont(star_font)
+    # level icon.  Draw the actual 9x9 game sprite rather than an imitation.
+    level_star = _card_detail_sprite(project, wa, frame_cache, "level", scale=scale)
     for index in range(max(0, min(12, card.level))):
         x = (119 - 9 * index) * scale
-        painter.setPen(QPen(QColor("#b72b1d"), max(1, scale)))
-        painter.setBrush(QColor("#e7492c"))
-        painter.drawEllipse(QRect(x, 32 * scale, 8 * scale, 8 * scale))
-        painter.setPen(QColor("#ffd74d"))
-        painter.drawText(QRect(x, 31 * scale, 8 * scale, 9 * scale),
-                         Qt.AlignmentFlag.AlignCenter, "★")
+        if level_star is not None:
+            painter.drawImage(QRect(x, 32 * scale, 9 * scale, 9 * scale), level_star)
 
-    # Attribute is a separate card-view sprite.  Keep its circular medallion
-    # and colour on the face, rather than adding the attribute as text in the
-    # separate information panel.
-    painter.setPen(QPen(QColor("#f6d36a"), max(1, scale)))
-    painter.setBrush(QColor("#211b0c"))
-    painter.drawEllipse(QRect(110 * scale, 13 * scale, 16 * scale, 16 * scale))
+    # Attributes are their own 16x16 card-view sprites, one palette per
+    # attribute.  The game gives non-monster cards no ball at all.
+    attribute_ball = _card_detail_sprite(project, wa, frame_cache, "attribute", card.attribute, scale)
+    if attribute_ball is not None:
+        painter.drawImage(QRect(110 * scale, 13 * scale, 16 * scale, 16 * scale), attribute_ball)
 
     # The retail card viewer draws four 6x13 digit tiles at these positions.
     # The labels occupy the left half of the same stat plate.
@@ -579,44 +648,60 @@ def _card_image(project: Project, wa: bytes, cid: int, frame_cache: dict, scale:
     """Compose the full 140x196 card sprite from its atlas fragments."""
     card = project.cards[cid]
     frame_index = card.shown_frame()
-    texture_key = (frame_index, id(wa), "texture")
+    scale = 4 if scale >= 4 else 1
+    project_key = id(getattr(project, "retail", project))
+    texture_key = (frame_index, id(wa), project_key, scale, "texture")
     if texture_key not in frame_cache:
         palette = image_extract.read_palette(wa, 0xF06800 + (8 + frame_index) * 0x200, 256)
-        width, height, rgba = image_extract.decode(wa, 0xEE6800, 64, 256, 8, palette)
-        face = _qimage(width, height, rgba)
-        right_width, right_height, right_rgba = image_extract.decode(
-            wa, 0xEE6800 + 16 * image_extract.SECTOR, 64, 256, 8, palette)
-        frame_cache[texture_key] = (face, _qimage(right_width, right_height, right_rgba))
+        left = _pack_texture(project, frame_cache, 0xEE6800, 64, 256, 8,
+                             0xF06800 + (8 + frame_index) * 0x200, 256)
+        right = _pack_texture(project, frame_cache, 0xEE6800 + 16 * image_extract.SECTOR, 64, 256, 8,
+                              0xF06800 + (8 + frame_index) * 0x200, 256)
+        if left is not None and right is not None:
+            left = pngio.resample(left, 128 * scale, 256 * scale)
+            right = pngio.resample(right, 128 * scale, 256 * scale)
+            face = _qimage(left.width, left.height, left.rgba)
+            right_face = _qimage(right.width, right.height, right.rgba)
+            frame_cache[texture_key] = (face, right_face, scale)
+        else:
+            width, height, rgba = image_extract.decode(wa, 0xEE6800, 64, 256, 8, palette)
+            face = _qimage(width, height, rgba)
+            right_width, right_height, right_rgba = image_extract.decode(
+                wa, 0xEE6800 + 16 * image_extract.SECTOR, 64, 256, 8, palette)
+            frame_cache[texture_key] = (face, _qimage(right_width, right_height, right_rgba), 1)
 
     is_monster = card.is_monster()
-    frame_key = (frame_index, id(wa), "monster" if is_monster else "non-monster")
+    frame_key = (frame_index, id(wa), project_key, scale, "monster" if is_monster else "non-monster")
     if frame_key not in frame_cache:
-        atlas, right_atlas = frame_cache[texture_key]
+        atlas, right_atlas, texture_scale = frame_cache[texture_key]
         # Merge the 128x192 face, both right-side pieces, and both bottom
         # pieces before drawing the image into the preview label.
-        frame = QImage(140, 196, QImage.Format.Format_ARGB32_Premultiplied)
+        frame = QImage(140 * texture_scale, 196 * texture_scale, QImage.Format.Format_ARGB32_Premultiplied)
         frame.fill(QColor(0, 0, 0, 0))
         painter = QPainter(frame)
-        painter.drawImage(QRect(0, 0, 128, 192), atlas, QRect(0, 0, 128, 192))
+        painter.drawImage(QRect(0, 0, 128 * texture_scale, 192 * texture_scale), atlas,
+                          QRect(0, 0, 128 * texture_scale, 192 * texture_scale))
         # Four right strips are packed left-to-right: front top-right, back
         # top-right, front bottom-right, back bottom-right.
-        right_top = right_atlas.copy(4, 0, 12, 128)
-        right_bottom = right_atlas.copy(36, 0, 12, 68)
-        painter.drawImage(QRect(128, 0, 12, 128), right_top)
-        painter.drawImage(QRect(128, 128, 12, 68), right_bottom)
+        right_top = right_atlas.copy(4 * texture_scale, 0, 12 * texture_scale, 128 * texture_scale)
+        right_bottom = right_atlas.copy(36 * texture_scale, 0, 12 * texture_scale, 68 * texture_scale)
+        painter.drawImage(QRect(128 * texture_scale, 0, 12 * texture_scale, 128 * texture_scale), right_top)
+        painter.drawImage(QRect(128 * texture_scale, 128 * texture_scale,
+                                12 * texture_scale, 68 * texture_scale), right_bottom)
         if not is_monster:
-            painter.drawImage(QRect(0, 144, 128, 48), atlas, QRect(0, 208, 128, 48))
+            painter.drawImage(QRect(0, 144 * texture_scale, 128 * texture_scale, 48 * texture_scale), atlas,
+                              QRect(0, 208 * texture_scale, 128 * texture_scale, 48 * texture_scale))
         # Keep the existing lower outline and extend it with 62px left and
         # middle pieces plus the four-pixel corner at the right.
-        bottom = atlas.copy(0, 0, 128, 4).flipped(Qt.Orientation.Vertical)
-        bottom_left = bottom.copy(0, 0, 62, 4)
-        bottom_middle = bottom.copy(62, 0, 62, 4)
-        painter.drawImage(QRect(0, 192, 64, 4), bottom_left)
-        painter.drawImage(QRect(64, 192, 64, 4), bottom_middle)
+        bottom = atlas.copy(0, 0, 128 * texture_scale, 4 * texture_scale).flipped(Qt.Orientation.Vertical)
+        bottom_left = bottom.copy(0, 0, 62 * texture_scale, 4 * texture_scale)
+        bottom_middle = bottom.copy(62 * texture_scale, 0, 62 * texture_scale, 4 * texture_scale)
+        painter.drawImage(QRect(0, 192 * texture_scale, 64 * texture_scale, 4 * texture_scale), bottom_left)
+        painter.drawImage(QRect(64 * texture_scale, 192 * texture_scale,
+                                64 * texture_scale, 4 * texture_scale), bottom_middle)
         painter.end()
         frame_cache[frame_key] = frame
 
-    scale = 4 if scale >= 4 else 1
     out = QImage(140 * scale, 196 * scale, QImage.Format.Format_ARGB32_Premultiplied)
     out.fill(QColor(0, 0, 0, 0))
     p = QPainter(out)

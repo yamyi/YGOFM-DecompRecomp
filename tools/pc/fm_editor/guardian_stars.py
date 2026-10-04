@@ -73,12 +73,13 @@ ICON_SIDE = 16
 ICON_SPOTS = ((0, 0), (16, 0), (32, 0), (48, 0), (64, 0), (80, 0), (96, 0), (112, 0), (0, 16), (16, 16))
 
 
-def disc_icon(wa: bytes, star: int):
-    """The disc's symbol for star 1-10 as (width, height, RGBA), or None.
-    Index 0 of the CLUT is the transparent one the sheet leaves clear."""
-    if not 1 <= star <= RETAIL_COUNT or wa is None:
+def _sheet_icon(wa: bytes, star: int, spots):
+    """One 16-pixel symbol from the boot sheet.  ``spots`` says which
+    slots belong to the caller: retail uses only its ten published slots;
+    the importer may also read a community patch's unused slots."""
+    if not 1 <= star <= len(spots) or wa is None:
         return None
-    x, y = ICON_SPOTS[star - 1]
+    x, y = spots[star - 1]
     start = ICON_SHEET + y * ICON_STRIDE + x // 2
     if start + (ICON_SIDE - 1) * ICON_STRIDE + ICON_SIDE // 2 > len(wa) or ICON_CLUT + 32 > len(wa):
         return None
@@ -97,9 +98,25 @@ def disc_icon(wa: bytes, star: int):
             word = palette[index] & 0x7FFF
             out += bytes([(word & 31) * 255 // 31, ((word >> 5) & 31) * 255 // 31,
                           ((word >> 10) & 31) * 255 // 31, 255])
-    # Files that are not the retail disc leave the sheet clear; that is no
-    # icon, not a blank one the page would draw as an empty square.
     return (ICON_SIDE, ICON_SIDE, bytes(out)) if drawn else None
+
+
+def disc_icon(wa: bytes, star: int):
+    """The disc's symbol for star 1-10 as (width, height, RGBA), or None.
+    Index 0 of the CLUT is the transparent one the sheet leaves clear."""
+    return _sheet_icon(wa, star, ICON_SPOTS)
+
+
+def imported_icon(wa: bytes, star: int):
+    """A community guardian-star patch's slot in the same 8-wide sheet.
+
+    The retail game assigns only the first ten, but known 16-star patches
+    draw their added symbols in the five unused cells that follow them.
+    This is kept separate from :func:`disc_icon`: those cells do not have a
+    meaning in an unmodified game.
+    """
+    spots = tuple((16 * (i % 8), 16 * (i // 8)) for i in range(MAX_STARS))
+    return _sheet_icon(wa, star, spots)
 
 
 def retail_matchup(a0: int, a1: int) -> int:

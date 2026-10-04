@@ -28,7 +28,7 @@
      <widget class="QWidget" name="ritualListPane">
       <property name="minimumSize">
        <size>
-        <width>290</width>
+        <width>360</width>
         <height>0</height>
        </size>
       </property>
@@ -339,7 +339,7 @@
               <item row="2" column="2">
                <widget class="QLabel" name="ritualSummonLevelLabel">
                 <property name="text">
-                 <string>Level (Stars)</string>
+                 <string>Level</string>
                 </property>
                </widget>
               </item>
@@ -514,7 +514,7 @@
               <item row="2" column="2">
                <widget class="QLabel" name="ritualTribute1LevelLabel">
                 <property name="text">
-                 <string>Level (Stars)</string>
+                 <string>Level</string>
                 </property>
                </widget>
               </item>
@@ -695,7 +695,7 @@
               <item row="2" column="2">
                <widget class="QLabel" name="ritualTribute2LevelLabel">
                 <property name="text">
-                 <string>Level (Stars)</string>
+                 <string>Level</string>
                 </property>
                </widget>
               </item>
@@ -876,7 +876,7 @@
               <item row="2" column="2">
                <widget class="QLabel" name="ritualTribute3LevelLabel">
                 <property name="text">
-                 <string>Level (Stars)</string>
+                 <string>Level</string>
                 </property>
                </widget>
               </item>

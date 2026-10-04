@@ -15,7 +15,7 @@ from fm_editor import card_text, glyph_cells, ttf, validate
 def rows_of(lay):
     """The text of each row, as the box lays it."""
     out = {}
-    for c, column, row in lay.glyphs:
+    for c, column, row, _ in lay.glyphs:
         out.setdefault(row, {})[column] = c
     return ["".join(out.get(r, {}).get(x, " ") for x in range(card_text.COLUMNS)).rstrip() for r in range(lay.rows)]
 
@@ -71,9 +71,14 @@ def synthetic_wa():
             at = base + tv * 128 + tu // 2
             wa[at] |= index << (4 * (tu & 1))
     ramp = card_text.RAMP_SECTOR * 2048
-    for i in range(16):
-        level = i * 31 // 15
-        struct.pack_into("<H", wa, ramp + 2 * i, level | level << 5 | level << 10)
+    for colour in range(8):
+        for i in range(16):
+            level = i * 31 // 15
+            struct.pack_into("<H", wa, ramp + (colour * 16 + i) * 2, level | level << 5 | level << 10)
+    # Icon 00: a single opaque red texel through its own CLUT at (512, 249).
+    at = base + 128 // 2
+    wa[at] = (wa[at] & 0xF0) | 1
+    struct.pack_into("<H", wa, (card_text.BOOT_SECTOR + 48) * 2048 + (256 + 1) * 2, 0x001F)
     return bytes(wa)
 
 
@@ -150,6 +155,13 @@ class RetailFontTest(unittest.TestCase):
         # The ninth row is the frame's; the smiley has no retail glyph: a red box.
         self.assertEqual(image.pixel(100, 8 * 24 + 5)[:3], card_text.FRAME)
         self.assertEqual(image.pixel(0, 0)[:3], card_text.MARK)
+
+    def test_card_text_controls_keep_colour_and_draw_icons(self):
+        font = card_text.RetailFont(synthetic_wa())
+        lay = card_text.layout("{f8 0A 05}A{f8 0A 06}A")
+        self.assertEqual([colour for _, _, _, colour in lay.glyphs], [5, 6])
+        image, _ = card_text.Renderer(font).render("{f8 0B 00}A", 1)
+        self.assertEqual(image.pixel(0, 0), (248, 0, 0, 255))
 
 
 def tiny_font(path):

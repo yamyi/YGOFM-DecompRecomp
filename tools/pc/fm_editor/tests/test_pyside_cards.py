@@ -2,6 +2,7 @@
 import os
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 import json
+import struct
 import tempfile
 from pathlib import Path
 import unittest
@@ -77,6 +78,32 @@ class CardsTest(unittest.TestCase):
         self.assertIn("unavailable", w.model_preview.text())
         self.assertIsNone(w.model_preview.model)
         self.assertIsNone(getattr(w, "model_preview_dialog", None))
+
+    def test_card_preview_uses_the_game_attribute_and_level_sprites(self):
+        from fm_editor.qt.common import _card_detail_sprite
+        # The Library package's fourth column is a 64-word-wide 4-bit sheet.
+        # Put distinct palette entries under the game's documented level-star,
+        # non-monster label and Light-attribute locations, then verify the
+        # decoder preserves their native dimensions and indexed colours.
+        wa = bytearray(0xF06800 + 0x1E00 + 6 * 0x20 + 32)
+        image_base = 0xEE6800 + 3 * 0x8000
+        struct.pack_into("<H", wa, image_base + (144 * 64) * 2, 1)
+        struct.pack_into("<16H", wa, 0xF06800 + 0x1180, *([0, 0x001F] + [0] * 14))
+        struct.pack_into("<H", wa, image_base + (158 * 64) * 2, 3)
+        struct.pack_into("<16H", wa, 0xF06800 + 0x11E0, *([0, 0, 0, 0x7C00] + [0] * 12))
+        struct.pack_into("<H", wa, image_base + (128 * 64) * 2, 2)
+        struct.pack_into("<16H", wa, 0xF06800 + 0x1E00, *([0, 0, 0x03E0] + [0] * 13))
+        cache = {}
+        project = SimpleNamespace(source_dir=None, other={}, card_extra={}, added={})
+        star = _card_detail_sprite(project, wa, cache, "level")
+        label = _card_detail_sprite(project, wa, cache, "label", 0)
+        attribute = _card_detail_sprite(project, wa, cache, "attribute", 0)
+        self.assertEqual((star.width(), star.height()), (9, 9))
+        self.assertEqual((label.width(), label.height()), (56, 16))
+        self.assertEqual((attribute.width(), attribute.height()), (16, 16))
+        self.assertEqual(star.pixelColor(0, 0).red(), 255)
+        self.assertEqual(label.pixelColor(0, 0).blue(), 255)
+        self.assertEqual(attribute.pixelColor(0, 0).green(), 255)
 
     def test_browse_all_cards_preserves_manifest(self):
         w = self.window

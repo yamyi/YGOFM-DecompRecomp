@@ -39,7 +39,17 @@ class RitualsMixin:
         self._loading_workspace=True
         held=sort_paused(cards)
         cards.setRowCount(0)
-        rituals=sorted(set(self.project.ritual_cards())|set(self.project.rituals)|set(self.project.retail.rituals))
+        # A ritual card of the mod's, or one whose recipe the mod has had a
+        # hand in. A card the mod made something other than a ritual drops out
+        # of the list: every project holds the disc's recipes
+        # (model.Project.__init__), so listing by those alone kept a card here
+        # long after it stopped summoning anything. One with a recipe the mod
+        # did change stays, since that recipe is the modder's to see and take
+        # away.
+        # What the card is now, as the Equips page lists its own: a recipe
+        # left on a card the mod made something else summons nothing, and the
+        # Problems page names it rather than this list carrying it.
+        rituals=self.project.ritual_cards()
         for ritual in rituals:
             if ritual not in self.project.cards:continue
             row=cards.rowCount();cards.insertRow(row)
