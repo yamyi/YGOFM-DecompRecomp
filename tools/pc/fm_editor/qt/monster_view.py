@@ -9,6 +9,8 @@ from .common import _qimage
 
 class ModelCanvas(QLabel):
     doubleClicked = Signal()
+    FRAME_INTERVAL = 1000 // 60
+    INTERACTIVE_SIDE = 160
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -26,6 +28,10 @@ class ModelCanvas(QLabel):
         self.timer = QTimer(self)
         self.timer.setSingleShot(True)
         self.timer.timeout.connect(self.render)
+        self.settle_timer = QTimer(self)
+        self.settle_timer.setSingleShot(True)
+        self.settle_timer.timeout.connect(self._settle)
+        self.interacting = False
 
     def show_card(self, project, files, cid):
         self.timer.stop()
@@ -61,18 +67,30 @@ class ModelCanvas(QLabel):
     def render(self):
         if self.model is None:
             return
-        # This is a software renderer.  Keep enough source pixels for a
-        # smooth Qt-scaled preview without making each mouse move redraw a
-        # needlessly large texture-mapped frame.
-        side = max(192, min(288, max(self.contentsRect().width(), self.contentsRect().height())))
+        # This is a software renderer.  During a gesture it draws a compact
+        # frame every 16 ms; the idle redraw restores the full preview.
+        side = self.INTERACTIVE_SIDE if self.interacting else max(
+            192, min(288, max(self.contentsRect().width(), self.contentsRect().height())))
         picture = monster_view.render(self.model, self.yaw, self.pitch, self.zoom, (side, side))
         self.setPixmap(QPixmap.fromImage(_qimage(picture.width, picture.height, picture.rgba)).scaled(
             self.contentsRect().size(), Qt.AspectRatioMode.KeepAspectRatio,
             Qt.TransformationMode.SmoothTransformation))
 
     def reset(self):
+        self.interacting = False
+        self.settle_timer.stop()
         self.yaw, self.pitch, self.zoom = 30., -10., 1.
         self.render()
+
+    def _settle(self):
+        self.interacting = False
+        self.render()
+
+    def _interactive_render(self):
+        self.interacting = True
+        self.settle_timer.start(140)
+        if not self.timer.isActive():
+            self.timer.start(self.FRAME_INTERVAL)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -89,16 +107,16 @@ class ModelCanvas(QLabel):
             self.drag = event.position()
             self.yaw = (self.yaw + delta.x() * .6) % 360
             self.pitch = max(-89., min(89., self.pitch - delta.y() * .6))
-            if not self.timer.isActive():
-                self.timer.start(75)
+            self._interactive_render()
 
     def mouseReleaseEvent(self, event):
         self.drag = None
         self.setCursor(Qt.CursorShape.OpenHandCursor)
+        self.settle_timer.start(140)
 
     def wheelEvent(self, event):
         self.zoom = max(.25, min(4., self.zoom * 1.15 ** (event.angleDelta().y() / 120)))
-        self.timer.start(75)
+        self._interactive_render()
         event.accept()
 
 
