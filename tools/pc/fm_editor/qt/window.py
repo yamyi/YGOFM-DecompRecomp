@@ -902,7 +902,7 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
             action.setShortcut(shortcut)
             action.triggered.connect(callback)
         file_menu.addSeparator()
-        file_menu.addAction("Import a modified game (.bin or SLUS_014.11)…").triggered.connect(self.import_modded_game)
+        file_menu.addAction("Import a modified game (experiment)…").triggered.connect(self.import_modded_game)
         file_menu.addAction("Convert an old recomp's .ygomods package (one way)…").triggered.connect(self.import_ygomods)
         file_menu.addSeparator()
         game_action = file_menu.addAction("Game files…")
@@ -1050,6 +1050,19 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
 
     def import_modded_game(self):
         if not self.confirm_discard():
+            return
+        warning = ("This is an experimental feature. No support can be provided if an import fails or has "
+                   "unexpected results.\n\n"
+                   "It only supports a modified game that keeps the retail file structure: SLUS_014.11 at the "
+                   "disc root, with WA_MRG.MRG in its DATA directory and the retail files in their normal places. "
+                   "Rebuilt, rearranged, or renamed disc images are not supported.\n\n"
+                   "To check an image, open its .bin/.iso in PowerISO. At the root, confirm that SLUS_014.11 is "
+                   "present; then open DATA and confirm that it contains WA_MRG.MRG. Continue only when that "
+                   "layout matches the retail game.")
+        answer = QMessageBox.question(self, "Experimental import", warning,
+                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                                      QMessageBox.StandardButton.No)
+        if answer != QMessageBox.StandardButton.Yes:
             return
         path, _ = QFileDialog.getOpenFileName(self, "Modified disc image or SLUS_014.11", "",
             "Game files (*.bin *.iso *.img *.11);;All files (*)")

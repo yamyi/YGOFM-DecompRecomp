@@ -7,6 +7,12 @@ from tkinter import filedialog, messagebox
 from . import disc, importer, settings, ygomods
 from .importer import slug
 
+MODDED_IMPORT_WARNING = """This is an experimental feature. No support can be provided if an import fails or has unexpected results.
+
+It only supports a modified game that keeps the retail file structure: SLUS_014.11 at the disc root, with WA_MRG.MRG in its DATA directory and the retail files in their normal places. Rebuilt, rearranged, or renamed disc images are not supported.
+
+To check an image, open its .bin/.iso in PowerISO. At the root, confirm that SLUS_014.11 is present; then open DATA and confirm that it contains WA_MRG.MRG. Continue only when that layout matches the retail game."""
+
 
 def _failed(app, problem: Exception):
     """Anything the importer did not expect, said in a window: a program
@@ -43,6 +49,8 @@ def ask_modded_files(app):
 
 def import_modded_game(app):
     if not app.need_game() or not app.confirm_discard():
+        return
+    if not messagebox.askyesno("Experimental import", MODDED_IMPORT_WARNING, parent=app):
         return
     files, name = ask_modded_files(app)
     if files is None:

@@ -16,9 +16,9 @@ except ImportError:
 from fm_editor import manifest, gamedata
 from fm_editor.gamedata import DUELIST_NAMES
 try:
-    from PySide6.QtWidgets import QGridLayout, QPlainTextEdit
+    from PySide6.QtWidgets import QGridLayout, QPlainTextEdit, QMessageBox
 except ImportError:
-    QGridLayout = QPlainTextEdit = None
+    QGridLayout = QPlainTextEdit = QMessageBox = None
 
 
 def Qt_UserRole():
@@ -222,8 +222,9 @@ class CardsTest(unittest.TestCase):
             w = self.window
             project = Project(w.retail)
             with mock.patch.object(w, 'confirm_discard', return_value=True), mock.patch.object(w, '_report'), \
+                 mock.patch('fm_editor.pyside_app.QMessageBox.question', return_value=QMessageBox.StandardButton.Yes), \
                  mock.patch('fm_editor.pyside_app.QFileDialog.getOpenFileName', return_value=('example.ygomods' if package else 'example.bin', '')), \
-                 mock.patch('fm_editor.pyside_app.disc.load'), \
+                 mock.patch('fm_editor.pyside_app.disc.load', return_value=SimpleNamespace(wa=w.files.wa)), \
                  mock.patch('fm_editor.pyside_app.importer.import_modded', return_value=SimpleNamespace(project=project, report=['Imported'])), \
                  mock.patch('fm_editor.pyside_app.ygomods.import_package', return_value=(project, ['Converted'])):
                 (w.import_ygomods if package else w.import_modded_game)()
