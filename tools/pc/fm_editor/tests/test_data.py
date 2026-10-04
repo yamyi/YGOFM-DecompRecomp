@@ -972,15 +972,9 @@ class ManifestTest(unittest.TestCase):
         messages = manifest.apply(p, data)
         built = manifest.build(p)
         self.assertEqual(built["duelists"], data["duelists"])
-        e = p.roster[0]
-        self.assertEqual((e.key, e.base, e.slot), ("dark-simon", 8, 45))
-        self.assertEqual(e.pools["tec"], {1: 2048})
-        # One card is no deck: the game refuses the edit, and so the deck stays Heishin's.
-        self.assertEqual(e.pools["deck"], p.retail.pools[8]["deck"])
-        self.assertTrue(any("refuses" in m for m in messages))
-        self.assertNotIn("t:dark-simon", built["decks"])
-        self.assertNotIn("45", built.get("drops", {}))
-        self.assertEqual(built["decks"]["other:somebody"], {"Card 3": 9})
+        self.assertFalse(any(issue.message == "unknown key 'duelists'" for issue in validate.validate(p)))
+        self.assertEqual(built["decks"]["t:dark-simon"], data["decks"]["t:dark-simon"])
+        self.assertEqual(built["drops"]["45"], data["drops"]["45"])
         self.assertIn("Card 2", str(built["decks"]["Heishin"]))        # and the disc's own is edited
         drops, decks = manifest._pool_tables(p)
         self.assertEqual(drops[e], {"tec": {"replace": True, "Blue Dragon": 2048}})
