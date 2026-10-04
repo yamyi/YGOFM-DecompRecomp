@@ -477,7 +477,7 @@ class CardsMixin:
         # The Password screen sells the disc's cards and knows nothing of an
         # added one, so there is no price to put on it.
         sold = cid in self.project.retail.cards
-        self.fields["starchips"].setValue(self.project.price(cid) if sold else 0)
+        self.fields["starchips"].setValue((self.project.starchip_cost(cid) or 0) if sold else 0)
         self.fields["starchips"].setEnabled(sold)
         self.fields["starchips"].setSpecialValueText("free" if sold else "not sold there")
         self.description.setPlainText(card.description)
@@ -583,7 +583,7 @@ QLabel#referenceTitle { color: #c9d8ed; font-weight: 600; }
             "Guardian Star 2": star(reference.star2),
             # The Password screen sells the disc's cards and knows no other.
             "Password": "card view only" if added else (self.project.retail.passwords.get(cid) or "none"),
-            "Starchips": "not sold there" if added else f"{self.project.retail.prices.get(cid, 0):,}",
+            "Starchips": "not sold there" if added else f"{self.project.retail.starchips.get(cid, 0):,}",
         }
         for name, value in shown.items():
             self.reference_values[name].setText(value)
@@ -680,8 +680,8 @@ QLabel#referenceTitle { color: #c9d8ed; font-weight: 600; }
             self.project.set_password(cid, password); changed = True
         if cid in self.project.retail.cards:
             starchips = self.fields["starchips"].value()
-            if starchips != self.project.price(cid):
-                self.project.set_price(cid, starchips); changed = True
+            if starchips != self.project.starchip_cost(cid):
+                self.project.set_starchips(cid, starchips); changed = True
         if changed:
             self.project.cards[cid] = card
             problems = validate.validate_card(self.project, cid)
