@@ -588,10 +588,11 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
             table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         if name == "Problems":
             # After the shared pass above: a level and the page it names are
-            # short, and what is left belongs to the message.
+            # short, and what is left belongs to the message.  Those first
+            # two columns stay adjustable, so a long location can be read.
             header=controls["table"].horizontalHeader()
             for column,width in ((0,90),(1,280)):
-                header.setSectionResizeMode(column,QHeaderView.ResizeMode.Fixed)
+                header.setSectionResizeMode(column,QHeaderView.ResizeMode.Interactive)
                 header.resizeSection(column,width)
             header.setSectionResizeMode(2,QHeaderView.ResizeMode.Stretch)
         elif name == "Equips":
@@ -902,7 +903,7 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
             action.setShortcut(shortcut)
             action.triggered.connect(callback)
         file_menu.addSeparator()
-        file_menu.addAction("Import a modified game (experiment)…").triggered.connect(self.import_modded_game)
+        file_menu.addAction("Import a modified game (experimental)…").triggered.connect(self.import_modded_game)
         file_menu.addAction("Convert an old recomp's .ygomods package (one way)…").triggered.connect(self.import_ygomods)
         file_menu.addSeparator()
         game_action = file_menu.addAction("Game files…")
