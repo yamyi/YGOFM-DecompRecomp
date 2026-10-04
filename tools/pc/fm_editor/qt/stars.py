@@ -134,6 +134,17 @@ class StarsMixin:
         table.blockSignals(True)
         held = sort_paused(table)
         table.setRowCount(0)
+        # Every card with no star at all, above the stars themselves: 0 is not
+        # a star to be named, given an icon or taken away, so the row is there
+        # to be read rather than chosen, and the column adds up to every card.
+        starless = sum(1 for card in self.project.cards.values() if not card.star1 and not card.star2)
+        table.insertRow(0)
+        for column, text in enumerate(("—", "(none)", "—", str(starless))):
+            item = TableItem(text)
+            item.setFlags(Qt.ItemFlag.ItemIsEnabled)
+            item.setForeground(QColor("#8aa0bd"))
+            table.setItem(0, column, item)
+        table.item(0, 1).setToolTip("Cards with no guardian star: every magic, trap, ritual and equip card")
         for star in range(1, model.count + 1):
             entry = model.stars.get(star)
             row = table.rowCount()
@@ -565,7 +576,62 @@ class StarsMixin:
         cards_holder = QWidget()
         cards_holder.setLayout(cards_column)
         chooser_layout.addWidget(cards_holder)
+
+        # The rest of what a card can be chosen by, as the generic fusions
+        # tab offers: the same CardFilter reads both, so a rule can name a
+        # band of ATK, a level, a word in the name or text, and the star a
+        # card already carries.
+        # "(none)" first, at its own number: on the disc every monster has
+        # both stars and every magic, trap or ritual card has neither, so it
+        # is how a rule says "everything that has not got one yet".
+        stars_list = self._checkable_list(
+            ["(none)"] + [f"{n} {self.stars_model.name(n)}" for n in range(1, self.stars_model.count + 1)],
+            chooser, height=6)
+        stars_column = QVBoxLayout()
+        stars_caption = QLabel("Has the star")
+        stars_caption.setStyleSheet("color:#9aacc4")
+        stars_column.addWidget(stars_caption)
+        stars_column.addWidget(stars_list)
+        stars_holder = QWidget()
+        stars_holder.setLayout(stars_column)
+        chooser_layout.addWidget(stars_holder)
         layout.addWidget(chooser)
+
+        more = QGroupBox("And, where given")
+        more_layout = QGridLayout(more)
+        more_layout.setHorizontalSpacing(10)
+        more_layout.setVerticalSpacing(6)
+        bounds = {}
+
+        def bound(key, title, row, column):
+            edit = QLineEdit()
+            edit.setPlaceholderText("any")
+            edit.setMaximumWidth(90)
+            bounds[key] = edit
+            caption = QLabel(title)
+            caption.setStyleSheet("color:#9aacc4")
+            more_layout.addWidget(caption, row, column * 2)
+            more_layout.addWidget(edit, row, column * 2 + 1)
+            return edit
+
+        for row, (low, high, title) in enumerate((("atk_min", "atk_max", "ATK"),
+                                                  ("def_min", "def_max", "DEF"),
+                                                  ("level_min", "level_max", "Level"))):
+            bound(low, f"{title} from", row, 0)
+            bound(high, "to", row, 1)
+        name_edit = QLineEdit()
+        name_edit.setPlaceholderText("the name holds these letters")
+        text_edit = QLineEdit()
+        text_edit.setPlaceholderText("the card text does")
+        results_only = QCheckBox("Only cards a fusion makes")
+        for row, (title, field) in enumerate((("Name", name_edit), ("Text", text_edit))):
+            caption = QLabel(title)
+            caption.setStyleSheet("color:#9aacc4")
+            more_layout.addWidget(caption, row, 4)
+            more_layout.addWidget(field, row, 5)
+        more_layout.addWidget(results_only, 2, 4, 1, 2)
+        more_layout.setColumnStretch(5, 1)
+        layout.addWidget(more)
 
         mapping_box = QGroupBox("The star each one gets")
         mapping_layout = QFormLayout(mapping_box)
@@ -612,12 +678,31 @@ class StarsMixin:
         layout.addLayout(buttons)
         close.clicked.connect(dialog.accept)
 
+        def whole(key, title):
+            """A bound as a number, or None for the empty field."""
+            written = bounds[key].text().strip()
+            if not written:
+                return None
+            try:
+                return int(written)
+            except ValueError:
+                raise ValueError(f"{title} is a whole number, or empty for any") from None
+
         def spec():
+            numbers = {}
+            for low, high, title in (("atk_min", "atk_max", "ATK"), ("def_min", "def_max", "DEF"),
+                                     ("level_min", "level_max", "Level")):
+                numbers[low], numbers[high] = whole(low, title), whole(high, title)
+                if numbers[low] is not None and numbers[high] is not None and numbers[low] > numbers[high]:
+                    raise ValueError(f"{title} from is more than {title} to")
             card_filter = bulk_fusions.CardFilter(
                 kinds={"monster"} if all_monsters.isChecked() else set(),
                 types={item.data(Qt.ItemDataRole.UserRole) for item in self._checked_items(types)},
                 attributes={item.data(Qt.ItemDataRole.UserRole) for item in self._checked_items(attributes)},
-                cards=cards.text())
+                stars={item.data(Qt.ItemDataRole.UserRole) for item in self._checked_items(stars_list)},
+                name=name_edit.text(), text=text_edit.text(),
+                results_only=results_only.isChecked(),
+                cards=cards.text(), **numbers)
             mapping = {key: box.currentData() for key, box in combos.items() if box.currentData()}
             return star_rules.RuleSpec(filter=card_filter, which=which.currentData(),
                                        source=source.currentData(), mapping=mapping)
@@ -682,8 +767,11 @@ class StarsMixin:
         which.currentIndexChanged.connect(show)
         cards.textChanged.connect(show)
         all_monsters.toggled.connect(show)
-        for listing in (types, attributes):
+        for listing in (types, attributes, stars_list):
             listing.itemChanged.connect(show)
+        for field in (name_edit, text_edit, *bounds.values()):
+            field.textChanged.connect(show)
+        results_only.toggled.connect(show)
         apply_button.clicked.connect(run)
         undo_button.clicked.connect(undo)
         rebuild_mapping()

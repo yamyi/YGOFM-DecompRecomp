@@ -7,8 +7,34 @@ from .common import (_qimage, _line_count, _pairs_text, _parse_pairs, _whole,
 
 
 class RitualsMixin:
+    def _fill_ritual_cards(self):
+        """The cards a tribute or the summon may name, kept up to date.
+
+        These were filled once with the window, so a card the mod added later
+        was never among them, and a renamed one kept its old name. Refilling
+        on every refresh costs nothing while nothing has changed: the list the
+        combos hold is compared with the one they should hold first.
+        """
+        c = self.workspace_controls.get("Rituals")
+        if not c:
+            return
+        wanted = [(cid, self.project.card_label(cid)) for cid in self.project.monsters()]
+        if c.get("card_choices") == wanted:
+            return
+        c["card_choices"] = wanted
+        for combo in c["tribute_combos"] + [c["summon_combo"]]:
+            chosen = combo.currentData()
+            combo.blockSignals(True)      # refilling is not the user choosing
+            combo.clear()
+            combo.addItem("Choose a card…", None)
+            for cid, label in wanted:
+                combo.addItem(label, cid)
+            found = combo.findData(chosen) if chosen is not None else 0
+            combo.setCurrentIndex(found if found >= 0 else 0)
+            combo.blockSignals(False)
     def _refresh_rituals(self):
         c=self.workspace_controls["Rituals"]; cards=c["cards"]
+        self._fill_ritual_cards()
         previous=getattr(self,"ritual_current",None)
         self._loading_workspace=True
         held=sort_paused(cards)

@@ -177,6 +177,16 @@
              </widget>
             </item>
             <item>
+             <widget class="QPushButton" name="duelistUnlockButton">
+              <property name="text">
+               <string>Unlock…</string>
+              </property>
+              <property name="toolTip">
+               <string>When this duelist appears in Free Duel.</string>
+              </property>
+             </widget>
+            </item>
+            <item>
              <widget class="QPushButton" name="addDuelistButton">
               <property name="text">
                <string>Add duelist</string>
@@ -212,7 +222,14 @@
        <item>
         <layout class="QHBoxLayout" name="duelistPoolHeader">
          <item>
-          <widget class="QComboBox" name="duelistPoolCombo"/>
+          <widget class="QWidget" name="duelistPoolTabsHost" native="true">
+           <layout class="QHBoxLayout" name="duelistPoolTabsLayout">
+            <property name="leftMargin"><number>0</number></property>
+            <property name="topMargin"><number>0</number></property>
+            <property name="rightMargin"><number>0</number></property>
+            <property name="bottomMargin"><number>0</number></property>
+           </layout>
+          </widget>
          </item>
          <item>
           <widget class="QLabel" name="duelistPoolSummary">

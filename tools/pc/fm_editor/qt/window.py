@@ -427,9 +427,8 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
             for combo in controls["tribute_combos"]+[controls["summon_combo"]]:
                 combo.setEditable(True)
                 combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
-                combo.addItem("Choose a card…", None)
-                for cid in self.project.monsters():
-                    combo.addItem(self.project.card_label(cid), cid)
+                # What they hold is filled on refresh (_fill_ritual_cards),
+                # so a card the mod adds later is among them too.
                 combo.currentIndexChanged.connect(self._stage_ritual_selector_recipe)
             for fields in [controls["card_meta"],*controls["tribute_fields"],controls["summon_fields"]]:
                 for key in ("type","attribute"):
@@ -461,7 +460,7 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
                             id=get(QLineEdit, "duelistIdEdit"),
                             base=get(QComboBox, "duelistBaseCombo"),
                             position=get(QComboBox, "duelistPositionCombo"),
-                            pool=get(QComboBox, "duelistPoolCombo"),
+                            pool=self._pool_tabs(get(QWidget, "duelistPoolTabsHost")),
                             summary=get(QLabel, "duelistPoolSummary"),
                             table=get(QTableWidget, "duelistPoolTable"),
                             weight=get(QSpinBox, "duelistWeightSpin"))
@@ -476,6 +475,8 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
                             mode_row=page.findChild(QHBoxLayout, "deckModeRow"),
                             fixed_actions=page.findChild(QHBoxLayout, "fixedDeckActionsLayout"),
                             pool_actions=page.findChild(QHBoxLayout, "duelistActionsLayout"))
+            # What the list adds up to, under it.
+            self._build_pool_statistics(controls, page.findChild(QVBoxLayout, "duelistDetailLayout"))
             controls["fixed_table"].setColumnCount(6)
             controls["fixed_table"].itemSelectionChanged.connect(self._select_fixed_card)
             get(QRadioButton, "weightedDeckRadio").toggled.connect(self._switch_deck_mode)
@@ -503,10 +504,10 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
                 if did:controls["base"].addItem(f"{did:02d} · {base_name}",did)
             controls["position"].addItem("Automatic · first empty",None)
             for slot in range(40,128):controls["position"].addItem(f"Position {slot}",slot)
-            controls["pool"].addItems([POOL_LABELS[p] for p in POOLS])
-            controls["pool"].currentIndexChanged.connect(self._refresh_duelist_pool)
+            controls["pool"].currentChanged.connect(self._refresh_duelist_pool)
             controls["table"].itemSelectionChanged.connect(self._select_pool_card)
             get(QPushButton,"duelistPortraitButton").clicked.connect(self._choose_duelist_portrait)
+            get(QPushButton,"duelistUnlockButton").clicked.connect(self._open_duelist_unlock)
             get(QPushButton,"addDuelistButton").clicked.connect(lambda: self._save_duelist(True))
             get(QPushButton,"applyDuelistButton").clicked.connect(lambda: self._save_duelist(False))
             controls["remove"].clicked.connect(self._remove_duelist)
@@ -553,6 +554,10 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
             controls["table"].cellDoubleClicked.connect(self._open_problem)
             controls["table"].setToolTip("Double-click a line to go to it.")
             controls["table"].setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        # Forty duelists, eighty-eight grid positions, seven hundred cards: a
+        # popup that long filled the screen.
+        for combo in page.findChildren(QComboBox):
+            short_popup(combo)
         for table in page.findChildren(QTableWidget):
             table.setAlternatingRowColors(True)
             table.verticalHeader().setVisible(False)
@@ -643,8 +648,22 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
             self._refresh_mod_info()
         elif name == "Problems":
             self._refresh_problems()
+    @staticmethod
+    def _pool_tabs(host):
+        """The four pools as tabs over the list. Built here because Designer
+        has no QTabBar, and a QTabWidget would draw a frame under a list that
+        is not inside it."""
+        tabs = QTabBar(host)
+        tabs.setObjectName("duelistPoolTabs")
+        tabs.setExpanding(False)
+        tabs.setDrawBase(False)
+        for name in POOLS:
+            tabs.addTab(POOL_LABELS[name])
+        host.layout().addWidget(tabs)
+        return tabs
+
     def _card_combo(self, parent, selected=None, ids=None):
-        combo = QComboBox(parent)
+        combo = short_popup(QComboBox(parent))
         for cid in sorted(ids if ids is not None else self.project.cards):
             card = self.project.cards.get(cid)
             if card is not None:
@@ -700,6 +719,12 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
         cid = self.project.resolve(int(text) if text.isdigit() else text)
         return cid or None
     def eventFilter(self, watched, event):
+        if (watched is getattr(self, "model_preview_button", None)
+                and event.type() == QEvent.Type.MouseButtonDblClick
+                and event.button() == Qt.MouseButton.LeftButton):
+            self.preview_card_model()
+            self._open_card_model_window()
+            return True
         # The card picture is as wide as the preview panel, and the panel is
         # as wide as the splitter leaves it. Asked again whenever that changes,
         # which the window's own resizeEvent does not always see (opening a
@@ -1124,7 +1149,8 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
     def _card_form_widgets(self):
         """Everything the card form edits, for enabling it with a selection."""
         return [*self.fields.values(), self.description, self.notes, self.key_edit,
-                self.drops, self.opponents, self.apply_button, self.revert_button, self.remove_button]
+                self.drops, self.opponents, self.apply_button, self.revert_button, self.remove_button,
+                self.model_preview_button]
     def _clear_card_form(self):
         """No card selected: an empty form nobody can type into, so an edit
         cannot be made against no card and then dropped (CardsTab.show(None))."""
@@ -1146,6 +1172,10 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
         self.base_card_info.clear()
         self.preview_image.setPixmap(QPixmap())
         self.preview_image.clear()
+        self.model_preview.show_card(self.project, self.files, None)
+        dialog = getattr(self, "model_preview_dialog", None)
+        if dialog is not None:
+            dialog.show_card(self.project, self.files, None)
         self.reference_title.setText("Retail card")
         for value in self.reference_values.values():
             value.setText("—")
@@ -1195,7 +1225,10 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
         self.current_art_card = 1
         self.refresh_art_list(select_id=1)
         for name in self.NAV[2:]: self._refresh_workspace(name)
+        description_added = self._sync_added_duelists_description()
         self.setWindowTitle(f"{self.project.info.name} — FM Editor")
+        if description_added:
+            self._mark_dirty()
         self.statusBar().showMessage(f"Opened {folder}" + (f" · {len(messages)} note(s)" if messages else ""))
         if messages:
             self._report("Opened with notes", "\n".join(messages))

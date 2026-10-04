@@ -7,6 +7,27 @@ from .common import (_qimage, _line_count, _pairs_text, _parse_pairs, _whole,
 
 
 class CardsMixin:
+    def preview_card_model(self):
+        self.model_preview_button.setChecked(True)
+        self.preview_image.hide()
+        self.model_preview.show()
+        self.model_preview.show_card(self.project, self.files, self.current)
+
+    def _open_card_model_window(self):
+        from .monster_view import MonsterDialog
+        dialog = getattr(self, "model_preview_dialog", None)
+        if dialog is None:
+            dialog = MonsterDialog(self)
+            self.model_preview_dialog = dialog
+        dialog.show_card(self.project, self.files, self.current)
+        dialog.canvas.yaw = self.model_preview.yaw
+        dialog.canvas.pitch = self.model_preview.pitch
+        dialog.canvas.zoom = self.model_preview.zoom
+        dialog.canvas.render()
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
+
     def preview_card_text(self):
         existing = getattr(self, "text_preview_dialog", None)
         if existing is not None:
@@ -152,6 +173,16 @@ class CardsMixin:
         self.preview_image = widget(QLabel, "previewImageLabel")
         self.disc_preview_button = widget(QPushButton, "discPreviewButton")
         self.hd_preview_button = widget(QPushButton, "hdPreviewButton")
+        self.model_preview_button = widget(QPushButton, "modelPreviewButton")
+        self.model_preview_button.clicked.connect(self.preview_card_model)
+        self.model_preview_button.installEventFilter(self)
+        from .monster_view import ModelCanvas
+        self.model_preview = ModelCanvas(self.preview_image.parentWidget())
+        self.model_preview.setObjectName("modelPreviewCanvas")
+        preview_layout = self.preview_image.parentWidget().layout()
+        preview_layout.insertWidget(preview_layout.indexOf(self.preview_image) + 1, self.model_preview, 1)
+        self.model_preview.hide()
+        self.model_preview.doubleClicked.connect(self._open_card_model_window)
         self.fields = {
             "name": widget(QLineEdit, "nameEdit"),
             "type": widget(QComboBox, "typeCombo"),
@@ -236,6 +267,8 @@ class CardsMixin:
         self.preview_mode_group.setExclusive(True)
         self.preview_mode_group.addButton(self.disc_preview_button)
         self.preview_mode_group.addButton(self.hd_preview_button)
+        self.preview_mode_group.addButton(self.model_preview_button)
+        self.model_preview_button.setCheckable(True)
         self.disc_preview_button.setCheckable(True)
         self.hd_preview_button.setCheckable(True)
         self.disc_preview_button.setChecked(True)
@@ -468,6 +501,11 @@ class CardsMixin:
         self.validation.setText("")
         self._loading = False
         self._render_preview()
+        if self.model_preview_button.isChecked():
+            self.model_preview.show_card(self.project, self.files, cid)
+        dialog = getattr(self, "model_preview_dialog", None)
+        if dialog is not None and dialog.isVisible():
+            dialog.show_card(self.project, self.files, cid)
         if getattr(self, "refresh_text_preview", None):
             self.refresh_text_preview()
     def _set_monster_fields_enabled(self, enabled):
@@ -553,6 +591,9 @@ QLabel#referenceTitle { color: #c9d8ed; font-weight: 600; }
 
     def _render_preview(self):
         if not self.current or self._loading: return
+        if self.model_preview_button.isChecked():
+            self.model_preview.show_card(self.project, self.files, self.current)
+            return
         try:
             card = self.project.cards[self.current].copy()
             card.name = self.fields["name"].text()
@@ -592,6 +633,9 @@ QLabel#referenceTitle { color: #c9d8ed; font-weight: 600; }
         except (IndexError, ValueError, OSError, art.pngio.PngError) as problem:
             self.preview_image.clear()
     def _set_preview_scale(self, scale):
+        self.model_preview.hide()
+        self.preview_image.show()
+        (self.hd_preview_button if scale == 4 else self.disc_preview_button).setChecked(True)
         self.preview_scale = scale
         self._render_preview()
     def update_text_count(self):
