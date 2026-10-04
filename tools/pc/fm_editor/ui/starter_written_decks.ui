@@ -33,7 +33,12 @@
          </column>
          <column>
           <property name="text">
-           <string>Cards</string>
+            <string>Cards</string>
+          </property>
+         </column>
+         <column>
+          <property name="text">
+           <string>State</string>
           </property>
          </column>
         </widget>

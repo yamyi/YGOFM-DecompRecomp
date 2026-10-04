@@ -116,7 +116,9 @@ DUELIST_BASE = 0xE99800
 DUELIST_STRIDE = 0x1800
 POOL_OFFSETS = {"deck": 0x000, "pow": 0x5B4, "bcd": 0xB68, "tec": 0x111C}
 STARTER_BASE = 0xF92BD4             # the seven starter deck pools the name entry deals from
-STARTER_LENGTH = 7 * (2 + 2 * CARD_COUNT)
+# Seven NameEntryStarterDeckPool records: draw count, 722 weights, then the
+# 18-byte padding the game keeps between consecutive rows.
+STARTER_LENGTH = 7 * (2 + 2 * CARD_COUNT + 18)
 # The Password screen's table (src/pc/cards/passwords.c): a record per card
 # id from 0, the price in starchips and the password, a BCD nibble per digit,
 # both little-endian words. PASSWORD_NONE is a card the screen cannot give.

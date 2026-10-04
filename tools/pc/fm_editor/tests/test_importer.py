@@ -38,6 +38,26 @@ def modded():
 
 
 class ImporterTest(unittest.TestCase):
+    def test_boot_enable_patch_is_not_imported(self):
+        f = fixture()
+        wa = bytearray(f.wa)
+        wa[0xB61902] ^= 0x62
+        result = importer.import_modded(GameFiles(f.slus, f.wa, "retail"),
+                                        GameFiles(f.slus, bytes(wa), "modded"), "community")
+        self.assertNotIn("data", manifest.build(result.project))
+
+    def test_passwords_and_prices_use_the_structured_table(self):
+        f = fixture()
+        wa = bytearray(f.wa)
+        struct.pack_into("<II", wa, g.PASSWORD_TABLE + 8 * 5, 4321, 0x12345678)
+        result = importer.import_modded(GameFiles(f.slus, f.wa, "retail"),
+                                        GameFiles(f.slus, bytes(wa), "modded"), "community")
+        built = manifest.build(result.project)
+        entry = built["passwords"][result.project.ref(5)]
+        self.assertEqual(entry, {"password": "12345678", "starchips": 4321})
+        self.assertNotIn("data", built)
+        self.assertIn("passwords: 1 password(s) and 1 starchip price(s) imported", result.report)
+
     def test_import(self):
         f = fixture()
         retail_files = GameFiles(f.slus, f.wa, "retail")

@@ -23,9 +23,9 @@ import struct
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import art, gamedata as g, guardian_stars, kit, manifest, pngio
+from . import art, gamedata as g, guardian_stars, kit, manifest, pngio, starter_pools
 from .fixed_decks import set_deck as set_fixed_deck
-from .model import Project
+from .model import Project, StarterDeck
 from .pools import normalize
 
 WA_FILE = "\\DATA\\WA_MRG.MRG;1"
@@ -35,6 +35,9 @@ PATCH_LIMIT = 4096          # longer runs become sector replacements
 # together (src/pc/mods/mods.c); past these a mod replaces the whole file.
 WA_PATCHES_MOST = 256
 WA_REGIONS_MOST = 16
+# A common rebuilt-disc enable patch: it changes the boot compliance branch,
+# rather than any game feature a generated mod should reproduce.
+IGNORED_WA_IMPORT_RANGES = ((0xB61902, 0xB61903),)
 
 # Executable regions the port has no data key for, by RAM address.
 SLUS_REGIONS = [
@@ -860,9 +863,45 @@ def import_guardian_stars(project: Project, retail, modded, retail_slus: bytes, 
     return handled
 
 
-def _starter_sums(wa: bytes) -> list:
+def _starter_rows(wa: bytes) -> list:
+    """The disc's seven starter rows as (draws, {card: weight})."""
     stride = g.STARTER_LENGTH // 7
-    return [sum(struct.unpack_from("<%dH" % g.CARD_COUNT, wa, g.STARTER_BASE + k * stride + 2)) for k in range(7)]
+    rows = []
+    for index in range(7):
+        at = g.STARTER_BASE + index * stride
+        draws = struct.unpack_from("<H", wa, at)[0]
+        weights = struct.unpack_from(f"<{starter_pools.RETAIL_SCAN}H", wa, at + 2)
+        rows.append((draws, {cid: weight for cid, weight in enumerate(weights, 1) if weight}))
+    return rows
+
+
+def import_starter_table(project: Project, retail_wa: bytes, modded_wa: bytes, report: list) -> list:
+    """Carry the disc's starter table in the port's equivalent form.
+
+    Retail's seven rows are weighted pools. Community mods sometimes replace
+    every row with forty card counts instead; the editor's written starter
+    decks represent that form directly.
+    """
+    start, end = g.STARTER_BASE, g.STARTER_BASE + g.STARTER_LENGTH
+    if end > len(modded_wa) or retail_wa[start:end] == modded_wa[start:end]:
+        return []
+    rows = _starter_rows(modded_wa)
+    totals = [sum(cards.values()) for _, cards in rows]
+    draws = [count for count, _ in rows]
+    if sum(draws) == starter_pools.DRAWS and all(total == g.POOL_TOTAL for total in totals):
+        project.other["starter_pools"] = [
+            {"name": starter_pools.RETAIL_NAMES[index], "draws": count,
+             "cards": {str(cid): weight for cid, weight in cards.items()}}
+            for index, (count, cards) in enumerate(rows)]
+        project.starter_pool_state = None
+        report.append("starter decks: imported seven weighted starter pools")
+        return [(start, end)]
+    if all(total == starter_pools.DRAWS for total in totals):
+        project.starter = [StarterDeck(name=f"Deck {index + 1}", cards=cards)
+                           for index, (_, cards) in enumerate(rows)]
+        report.append("starter decks: imported seven written 40-card decks")
+        return [(start, end)]
+    return []
 
 
 def port_wa(retail_wa: bytes, modded_wa: bytes, keep_retail) -> bytes:
@@ -885,9 +924,11 @@ def wa_data(project: Project, retail_files, modded_files, report: list, carried=
     apply over the disc's own tables."""
     wa_old, wa_new = retail_files.wa, modded_files.wa
     # The structured tables mod.json carries, and the pictures its PNGs do.
-    keep = wa_structured_regions() + list(carried)
-    starters = _starter_sums(wa_new) if len(wa_new) >= g.STARTER_BASE + g.STARTER_LENGTH else []
-    if starters and min(starters) < g.POOL_TOTAL // 2 and wa_new[g.STARTER_BASE:g.STARTER_BASE + g.STARTER_LENGTH] != \
+    keep = wa_structured_regions() + list(carried) + list(IGNORED_WA_IMPORT_RANGES)
+    starters = [sum(cards.values()) for _, cards in _starter_rows(wa_new)] \
+        if len(wa_new) >= g.STARTER_BASE + g.STARTER_LENGTH else []
+    starter_range = (g.STARTER_BASE, g.STARTER_BASE + g.STARTER_LENGTH)
+    if starter_range not in keep and starters and min(starters) < g.POOL_TOTAL // 2 and wa_new[g.STARTER_BASE:g.STARTER_BASE + g.STARTER_LENGTH] != \
             wa_old[g.STARTER_BASE:g.STARTER_BASE + g.STARTER_LENGTH]:
         keep.append((g.STARTER_BASE, g.STARTER_BASE + g.STARTER_LENGTH))
         report.append(f"WA_MRG.MRG: the starter decks are counts of cards (they add up to {', '.join(map(str, starters))}"
@@ -1174,6 +1215,26 @@ def import_modded(retail_files, modded_files, mod_id: str = "imported-mod", name
     project.rituals = dict(modded.rituals)
     ritual_notes = check_rituals(project, modded)
     project.pools = [{p: dict(modded.pools[d][p]) for p in g.POOLS} for d in range(len(modded.pools))]
+    # The Password screen table is one of the editor's normal mod.json
+    # tables.  Keep it out of raw WA patches when every changed record has a
+    # value the port's "passwords" reader can express.
+    password_changed = [cid for cid in retail.cards
+                        if modded.passwords.get(cid, "") != retail.passwords.get(cid, "")]
+    price_changed = [cid for cid in retail.cards
+                     if modded.starchips.get(cid, 0) != retail.starchips.get(cid, 0)]
+    password_handled = []
+    password_start = g.PASSWORD_TABLE
+    password_end = password_start + 8 * (g.CARD_COUNT + 1)
+    supported_passwords = password_end <= len(modded_files.wa) and \
+        retail_files.wa[password_start:password_start + 8] == modded_files.wa[password_start:password_start + 8] and \
+        all(modded.starchips.get(cid, 0) <= 999999 for cid in retail.cards)
+    if (password_changed or price_changed) and supported_passwords:
+        for cid in password_changed:
+            project.set_password(cid, modded.passwords[cid])
+        for cid in price_changed:
+            project.set_starchips(cid, modded.starchips[cid])
+        password_handled.append((password_start, password_end))
+        report.append(f"passwords: {len(password_changed)} password(s) and {len(price_changed)} starchip price(s) imported")
     changed_cards = sum(1 for cid in retail.cards if project.card_changed(cid))
     report.append(f"cards: {changed_cards} changed")
     if spaced:
@@ -1188,6 +1249,7 @@ def import_modded(retail_files, modded_files, mod_id: str = "imported-mod", name
     report.append(f"pools: {pools_changed} of {len(retail.pools) * len(g.POOLS)} differ")
     report += drop_notes
     report += fixed_decks(project, retail, modded, retail_files, modded_files)
+    starter_handled = import_starter_table(project, retail_files.wa, modded_files.wa, report)
     off_total = []
     for d in range(len(modded.pools)):
         for p in g.POOLS:
@@ -1272,7 +1334,8 @@ def import_modded(retail_files, modded_files, mod_id: str = "imported-mod", name
 
     # The rest of WA_MRG.MRG.
     say("The rest of WA_MRG.MRG")
-    data = wa_data(project, retail_files, modded_files, report, carried)
+    data = wa_data(project, retail_files, modded_files, report,
+                   carried + starter_handled + password_handled)
     if data:
         project.other["data"] = data
     if result.unhandled:
