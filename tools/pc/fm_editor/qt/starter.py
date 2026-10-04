@@ -23,13 +23,14 @@ class StarterMixin:
                         starter_tabs=get(QTabWidget, "starterTabs"))
         self.starter_pool_current = 0
         self.starter_pools_filling = False
-        controls["pools"].setColumnCount(5)
+        controls["pools"].setColumnCount(6)
         controls["pool_cards"].setColumnCount(6)
         controls["pools"].itemSelectionChanged.connect(self._select_starter_pool)
         controls["pool_cards"].itemSelectionChanged.connect(self._select_starter_pool_card)
         controls["pool_draws"].valueChanged.connect(self._set_starter_pool_draws)
         controls["pool_name"].editingFinished.connect(self._set_starter_pool_name)
         for key, callback in (("addStarterPoolButton", self._add_starter_pool),
+                              ("revertStarterPoolsButton", self._revert_starter_pools),
                               ("removeStarterPoolButton", self._remove_starter_pool),
                               ("moveStarterPoolUpButton", lambda: self._move_starter_pool(-1)),
                               ("moveStarterPoolDownButton", lambda: self._move_starter_pool(1)),
@@ -101,19 +102,21 @@ class StarterMixin:
         for index, pool in enumerate(pools):
             row = table.rowCount()
             table.insertRow(row)
+            state = "changed" if not getattr(self, "starter_pools_stock", False) else ""
             for column, value in enumerate((index + 1, pool.name or "(unnamed)", pool.draws,
-                                            pool.count(), pool.total())):
+                                            pool.count(), pool.total(), state.title() or "Retail")):
                 item = TableItem(str(value))
                 if column == 0:
                     item.setData(Qt.ItemDataRole.UserRole, index)
-                self._tint_state(item, "removed" if pool.kept else "")
+                self._tint_state(item, "removed" if pool.kept else state)
                 table.setItem(row, column, item)
         sort_resumed(table, held)
         header = table.horizontalHeader()
-        for column, width in ((0, 40), (2, 64), (3, 64), (4, 80)):
+        for column, width in ((0, 40), (2, 64), (3, 64), (4, 80), (5, 80)):
             header.setSectionResizeMode(column, QHeaderView.ResizeMode.Fixed)
             header.resizeSection(column, width)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)
         if pools:
             index = min(getattr(self, "starter_pool_current", 0), len(pools) - 1)
             self.starter_pool_current = index
@@ -143,6 +146,10 @@ class StarterMixin:
             button = form.findChild(QPushButton, name) if form is not None else None
             if button is not None:
                 button.setEnabled(not stock)
+        form = self.workspace_forms.get("Starter decks")
+        revert = form.findChild(QPushButton, "revertStarterPoolsButton") if form is not None else None
+        if revert is not None:
+            revert.setEnabled(not stock)
         self._fill_starter_pool_cards()
     def _select_starter_pool(self):
         table = self.workspace_controls["Starter decks"]["pools"]
@@ -229,6 +236,22 @@ class StarterMixin:
         pools.append(starter_pools.Pool(draws=0))
         self.starter_pool_current = len(pools) - 1
         self._starter_pools_edited()
+    def _revert_starter_pools(self):
+        if not starter_pools.state(self.project):
+            return
+        answer = QMessageBox.question(
+            self, "Revert weighted pools to retail",
+            "Remove this mod's weighted starter pools and use the retail rows again?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        self.project.other.pop("starter_pools", None)
+        self.project.starter_pool_state = None
+        self.starter_pools_retail = None
+        self.starter_pool_current = 0
+        self._mark_dirty()
+        self._refresh_starter_pools()
     def _remove_starter_pool(self):
         pools = self._starter_pools_own()
         index = getattr(self, "starter_pool_current", 0)
@@ -314,10 +337,11 @@ class StarterMixin:
         table.blockSignals(True);held=sort_paused(table);table.setRowCount(0)
         for index,deck in enumerate(self.project.starter):
             row=table.rowCount();table.insertRow(row)
-            values=(index+1,deck.name or "(unnamed)",deck.weight,f"{deck.total()}/{DECK_SIZE}")
+            values=(index+1,deck.name or "(unnamed)",deck.weight,f"{deck.total()}/{DECK_SIZE}","Changed")
             for col,value in enumerate(values):
                 item=TableItem(str(value))
                 if col==0:item.setData(Qt.ItemDataRole.UserRole,index)
+                self._tint_state(item,"changed")
                 table.setItem(row,col,item)
         sort_resumed(table,held)
         if self.project.starter:

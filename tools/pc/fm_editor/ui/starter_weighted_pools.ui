@@ -30,6 +30,7 @@
               <column><property name="text"><string>Draws</string></property></column>
               <column><property name="text"><string>Cards</string></property></column>
               <column><property name="text"><string>Weight</string></property></column>
+              <column><property name="text"><string>State</string></property></column>
              </widget>
             </item>
             <item>
@@ -38,6 +39,12 @@
               <item>
                <widget class="QPushButton" name="addStarterPoolButton">
                 <property name="text"><string>+  Add pool</string></property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="revertStarterPoolsButton">
+                <property name="text"><string>Revert to retail</string></property>
+                <property name="toolTip"><string>Remove the mod's weighted pools and use the retail starter rows</string></property>
                </widget>
               </item>
               <item>
