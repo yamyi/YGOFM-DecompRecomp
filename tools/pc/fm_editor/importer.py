@@ -656,6 +656,31 @@ def art_regions(cid: int) -> dict:
             "thumbnail": (small, small + art.THUMB_CLUT + 2 * 64)}
 
 
+def recognisable_card_art(retail_wa: bytes, modded_wa: bytes, cid: int, part: str) -> bool:
+    """Whether a changed picture looks like a picture replacement.
+
+    Every byte in an indexed picture can be decoded, including a normal code
+    or data patch that happens to fall in its sectors.  Preserve small edits
+    and large, nearly uniform runs as archive data: a real replacement has a
+    substantial range of palette indices, while those changes are otherwise
+    indistinguishable from a PNG to ``disc_image``.
+    """
+    start, _ = art_regions(cid)[part]
+    if part == "title":
+        length = 48 * art.SIZES[part][1]
+        changed = [new for old, new in zip(retail_wa[start:start + length], modded_wa[start:start + length])
+                   if old != new]
+        # Plates have two four-bit inks per byte; values above 7 cannot be
+        # drawn by the game as a plate.
+        return len(changed) >= 64 and all((byte & 0x0F) < 8 and byte >> 4 < 8 for byte in changed)
+
+    width, height = art.SIZES[part]
+    length = width * height
+    changed = [new for old, new in zip(retail_wa[start:start + length], modded_wa[start:start + length])
+               if old != new]
+    return len(changed) >= 128 and len(set(changed)) > 2
+
+
 def import_card_art(project: Project, retail_wa: bytes, modded_wa: bytes, report: list, say=None) -> list:
     """The pictures a mod changed, as PNGs of its own rather than as bytes.
 
@@ -676,6 +701,8 @@ def import_card_art(project: Project, retail_wa: bytes, modded_wa: bytes, report
         for part in art.PARTS:
             start, end = where[part]
             if end > len(modded_wa) or retail_wa[start:end] == modded_wa[start:end]:
+                continue
+            if not recognisable_card_art(retail_wa, modded_wa, cid, part):
                 continue
             try:
                 image = art.disc_image(modded_wa, cid, part)
