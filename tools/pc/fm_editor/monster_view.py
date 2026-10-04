@@ -241,6 +241,11 @@ def render(model, yaw=30, pitch=-10, zoom=1., size=(320, 320)):
         for v, uv in zip(vertices, uvs):
             x, y, z = transform(matrix, tuple(v[i] - model.centre[i] for i in range(3)))
             points.append((width / 2 + x * scale, height / 2 + y * scale, z, uv & 255, uv >> 8, 1.))
+        # The game rejects the back face before it reaches the ordering table.
+        # Doing it here avoids rasterising polygons the player cannot see.
+        if (points[1][0] - points[0][0]) * (points[2][1] - points[0][1]) - \
+                (points[2][0] - points[0][0]) * (points[1][1] - points[0][1]) <= 0:
+            continue
         for tri in ((0, 1, 2),) if len(points) == 3 else ((0, 1, 2), (1, 3, 2)):
             faces.append(([points[i] for i in tri], page, clut, None))
     out = bytearray(bytes((16, 26, 42, 255)) * (width * height))
