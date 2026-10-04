@@ -61,7 +61,11 @@ class ModelCanvas(QLabel):
     def render(self):
         if self.model is None:
             return
-        picture = monster_view.render(self.model, self.yaw, self.pitch, self.zoom, (400, 400))
+        # This is a software renderer.  Keep enough source pixels for a
+        # smooth Qt-scaled preview without making each mouse move redraw a
+        # needlessly large texture-mapped frame.
+        side = max(192, min(288, max(self.contentsRect().width(), self.contentsRect().height())))
+        picture = monster_view.render(self.model, self.yaw, self.pitch, self.zoom, (side, side))
         self.setPixmap(QPixmap.fromImage(_qimage(picture.width, picture.height, picture.rgba)).scaled(
             self.contentsRect().size(), Qt.AspectRatioMode.KeepAspectRatio,
             Qt.TransformationMode.SmoothTransformation))
@@ -86,7 +90,7 @@ class ModelCanvas(QLabel):
             self.yaw = (self.yaw + delta.x() * .6) % 360
             self.pitch = max(-89., min(89., self.pitch - delta.y() * .6))
             if not self.timer.isActive():
-                self.timer.start(30)
+                self.timer.start(75)
 
     def mouseReleaseEvent(self, event):
         self.drag = None
@@ -94,7 +98,7 @@ class ModelCanvas(QLabel):
 
     def wheelEvent(self, event):
         self.zoom = max(.25, min(4., self.zoom * 1.15 ** (event.angleDelta().y() / 120)))
-        self.timer.start(30)
+        self.timer.start(75)
         event.accept()
 
 
