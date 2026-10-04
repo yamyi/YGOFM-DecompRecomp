@@ -23,7 +23,7 @@ import struct
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import gamedata as g, kit, manifest
+from . import art, gamedata as g, guardian_stars, kit, manifest, pngio
 from .fixed_decks import set_deck as set_fixed_deck
 from .model import Project
 from .pools import normalize
@@ -125,22 +125,31 @@ def _merge(runs, gap: int):
 
 
 def _subtract(runs, regions):
-    """The parts of runs outside every region."""
+    """The parts of runs outside every region.
+
+    Walked rather than cut: the regions are merged and sorted once, and each
+    run only meets the few it overlaps. Cutting every run by every region
+    was fine for the handful of structured tables, but the pictures a mod
+    changes are hundreds more, and it went quadratic."""
+    merged = _merge(regions, 0)
+    starts = [low for low, _high in merged]
     out = []
     for start, end in runs:
-        pieces = [(start, end)]
-        for low, high in regions:
-            next_pieces = []
-            for s, e in pieces:
-                if e <= low or s >= high:
-                    next_pieces.append((s, e))
-                    continue
-                if s < low:
-                    next_pieces.append((s, low))
-                if e > high:
-                    next_pieces.append((high, e))
-            pieces = next_pieces
-        out += pieces
+        at = start
+        index = max(0, bisect.bisect_right(starts, at) - 1)
+        while index < len(merged) and at < end:
+            low, high = merged[index]
+            if high <= at:
+                index += 1
+                continue
+            if low >= end:
+                break
+            if at < low:
+                out.append((at, low))
+            at = high
+            index += 1
+        if at < end:
+            out.append((at, end))
     return out
 
 
@@ -442,7 +451,10 @@ def text_changes(retail_slus: bytes, modded_slus: bytes, report: list, modded_wa
         out += [new[k] + ("" if new[k].endswith("{cont}") else "\n") for k in keys]
         for k in keys:
             for cid in _card_ids(bank, k):
-                carried[(cid, CARD_BANKS[bank][1])] = new[k]
+                # What the editor shows for the card: the item with its jumps
+                # and calls followed, since a mod that shares a name between
+                # two cards leaves the card's own item a jump and nothing else.
+                carried[(cid, CARD_BANKS[bank][1])] = manifest.followed(new, new[k])
         report.append(f"text: {len(changed)} strings of the {bank} bank differ" +
                       ("; the bank is written whole (its strings jump)" if whole else ""))
     if not out:
@@ -583,6 +595,244 @@ def check_rituals(project: Project, modded) -> list:
                     "card: code, or another format); the rituals were imported as removed, as the game finds none there"]
 
 
+DUELIST_NAME_INDEX = 0x328      # the names bank: 0x328 + id (translation.c TEXT_DUELIST_NAMES)
+
+
+def duelist_names(slus: bytes) -> dict:
+    """{id: name} as the executable's names bank has them, or {} when it
+    cannot be read. The port keeps its own table of these (tables.c
+    Tables_DuelistNames) and never reads the disc's, so a modified name
+    reaches the game only as a "duelists" entry."""
+    from .gamedata import _tl
+    try:
+        image = g._image(slus)
+        glyphs = _tl.glyph_characters(image)
+    except Exception:
+        return {}
+    out = {}
+    for duelist in range(1, g.DUELIST_COUNT):
+        at = 0x801D0000 + image.u16(_tl.NAME_TABLE + (DUELIST_NAME_INDEX + duelist) * 2)
+        text = ""
+        try:
+            while len(text) < 32:
+                code = image.bytes(at, 1)[0]
+                if code >= 0xF0:
+                    break
+                text += glyphs.get(code, "?")
+                at += 1
+        except Exception:
+            return {}
+        out[duelist] = text.strip()
+    return out
+
+
+def renamed_duelists(project: Project, retail_slus: bytes, modded_slus: bytes, report: list) -> list:
+    """A "duelists" entry for each of the disc's own the mod renamed."""
+    was, now = duelist_names(retail_slus), duelist_names(modded_slus)
+    if not was or not now:
+        report.append("duelists: the executable's names could not be read; any renamed duelist is left out")
+        return []
+    entries = []
+    for duelist, name in sorted(now.items()):
+        if not name or name == was.get(duelist):
+            continue
+        entries.append({"id": slug(name) or f"duelist-{duelist}",
+                        "replace": g.DUELIST_NAMES[duelist], "name": name})
+    if entries:
+        project.other["duelists"] = entries
+        shown = ", ".join(f"{e['replace']} \u2192 {e['name']}" for e in entries[:3])
+        report.append(f"duelists: {len(entries)} renamed ({shown}{', ...' if len(entries) > 3 else ''}); the port "
+                      "keeps its own names (tables.c Tables_DuelistNames) and never reads the disc's, so they are "
+                      "carried as \"duelists\" entries rather than as bytes of the executable")
+    return entries
+
+
+def art_regions(cid: int) -> dict:
+    """Where each of a card's three pictures is stored in WA_MRG.MRG."""
+    base = art.record_base(cid)
+    small = (cid - 1) * art.SECTOR
+    return {"art": (base, base + art.TITLE_PIXELS),
+            "title": (base + art.TITLE_PIXELS, base + art.ART_SECTORS * art.SECTOR),
+            "thumbnail": (small, small + art.THUMB_CLUT + 2 * 64)}
+
+
+def import_card_art(project: Project, retail_wa: bytes, modded_wa: bytes, report: list, say=None) -> list:
+    """The pictures a mod changed, as PNGs of its own rather than as bytes.
+
+    A picture carried as a "data" patch reaches the game but nothing else: it
+    is seven sectors against a budget of sixteen runs, the editor draws the
+    disc's instead of it, and it cannot be edited again. Read out as a PNG it
+    is the mod's own art, which the editor shows and the port draws through
+    the same path as any other replacement.
+
+    Returns the byte ranges now carried as PNGs, for the caller to keep out of
+    the "data" diff."""
+    kept, counted = [], {part: 0 for part in art.PARTS}
+    unreadable = []
+    for cid in range(1, g.CARD_COUNT + 1):
+        if say is not None and not cid % 50:
+            say(f"Pictures ({cid} of {g.CARD_COUNT})")
+        where = art_regions(cid)
+        for part in art.PARTS:
+            start, end = where[part]
+            if end > len(modded_wa) or retail_wa[start:end] == modded_wa[start:end]:
+                continue
+            try:
+                image = art.disc_image(modded_wa, cid, part)
+                art.set_image(project, cid, part, image)
+            except (ValueError, OSError, IndexError, pngio.PngError) as problem:
+                unreadable.append(f"{project.card_label(cid)} {art.LABELS[part].lower()} ({problem})")
+                continue
+            counted[part] += 1
+            kept.append((start, end))
+    said = ", ".join(f"{counted[part]} {art.LABELS[part].lower()}" for part in art.PARTS if counted[part])
+    if said:
+        report.append(f"art: {said} read out of WA_MRG.MRG as the mod's own PNGs, so the editor shows them and "
+                      "they can be edited again")
+    if unreadable:
+        report.append(f"art: {len(unreadable)} pictures could not be read and stay as bytes of WA_MRG.MRG "
+                      f"({'; '.join(unreadable[:3])}{', ...' if len(unreadable) > 3 else ''})")
+    return kept
+
+
+STAR_NAME_INDEX = 0x317         # the names bank: Mars (star 1) is 0x318, Venus (10) is 0x321
+GUARDIAN_MATCHUP = 0x8002CB80
+
+
+def guardian_star_masks(slus: bytes):
+    """The 16-star routine used by TeaOnline-style community patches.
+
+    It replaces ``Duel_CalcGuardianStarMatchup`` with two directional tests
+    against sixteen u16 masks.  The table address is deliberately read from
+    the patch rather than fixed: authors commonly put its data in a nearby
+    free area of the executable.  Unknown code remains unknown; importing
+    arbitrary replacement routines as a matchup table would invent rules.
+    """
+    at = g.slus_offset(GUARDIAN_MATCHUP)
+    if at < 0 or at + 116 > len(slus):
+        return None
+    words = struct.unpack_from("<29I", slus, at)
+    fixed = (0x2484FFFF, 0x24A5FFFF, None, None, 0x00051840, 0x00431821, 0x94630000,
+             0x00000000, 0x00831806, 0x30630001, 0x1460000A, 0x2403FE0C,
+             0x00041840, 0x00431821, 0x94630000, 0x00000000, 0x00A31806,
+             0x30630001, 0x14600002, 0x240301F4, 0x24030000, 0x00601021,
+             0x03E00008, 0x00000000, 0x10850002, 0x2402FE0C, 0x00001021,
+             0x03E00008, 0x00000000)
+    if any(expected is not None and word != expected for word, expected in zip(words, fixed)) or \
+            words[2] >> 16 != 0x3C02 or words[3] >> 16 != 0x2442:
+        return None
+    base = ((words[2] & 0xFFFF) << 16) + struct.unpack("<h", struct.pack("<H", words[3] & 0xFFFF))[0]
+    table = g.slus_offset(base)
+    if table < 0 or table + 32 > len(slus):
+        return None
+    return list(struct.unpack_from("<16H", slus, table)), [(at, at + 116), (table, table + 32)]
+
+
+def star_names(slus: bytes) -> dict:
+    """{star: name} as the names bank has them.
+
+    Past Venus the disc keeps its own strings at those places, so a name
+    there is only a name when it differs from retail's -- which is how a mod
+    that adds stars writes them (TLM's eleventh, twelfth and thirteenth are
+    Fortuna, Transpluto and Ceres where the disc has "Dragon")."""
+    from .gamedata import _tl
+    try:
+        image = g._image(slus)
+        glyphs = _tl.glyph_characters(image)
+    except Exception:
+        return {}
+    out = {}
+    for star in range(1, guardian_stars.MAX_STARS + 1):
+        at = 0x801D0000 + image.u16(_tl.NAME_TABLE + (STAR_NAME_INDEX + star) * 2)
+        text = ""
+        try:
+            while len(text) < 24:
+                code = image.bytes(at, 1)[0]
+                if code >= 0xF0:
+                    break
+                text += glyphs.get(code, "?")
+                at += 1
+        except Exception:
+            return {}
+        out[star] = text.strip()
+    return out
+
+
+def import_guardian_stars(project: Project, retail, modded, retail_slus: bytes, modded_slus: bytes,
+                          modded_wa: bytes, report: list) -> list:
+    """The stars the modified game has: the disc's ten where it renamed them,
+    and any past them its cards use.
+
+    A star past the disc's ten has nowhere to live on the disc -- the names
+    bank holds the disc's own strings at those places (stars.c: "a new star
+    with no name: its number, not the disc's Dragon that the names bank has at
+    its place") -- so the only sure sign of one is a card wearing it: the stat
+    word keeps each star in four bits, and the port takes ids up to 15."""
+    was, now = star_names(retail_slus), star_names(modded_slus)
+    named = {star: now[star] for star in sorted(now) if now[star] and now[star] != was.get(star)}
+    worn = sorted({value for card in modded.cards.values() for value in (card.star1, card.star2)
+                   if value > guardian_stars.RETAIL_COUNT})
+    entries, renamed, bare = [], [], []
+    for star in sorted(set(named) | set(worn)):
+        entry = {"id": star}
+        if star in named:
+            entry["name"] = named[star]
+            if star <= guardian_stars.RETAIL_COUNT:
+                renamed.append(f"{was.get(star, star)} \u2192 {named[star]}")
+        elif star > guardian_stars.RETAIL_COUNT:
+            bare.append(star)
+        entries.append(entry)
+    masks = guardian_star_masks(modded_slus)
+    if not entries and masks is None:
+        return []
+    section = project.other.get("guardian_stars")
+    section = dict(section) if isinstance(section, dict) else {}
+    section["stars"] = entries
+    if masks is not None:
+        table, handled = masks
+        matchups = []
+        for attacker in range(1, guardian_stars.MAX_STARS + 1):
+            for defender in range(1, guardian_stars.MAX_STARS + 1):
+                if attacker == defender or table[defender - 1] & (1 << (attacker - 1)):
+                    bonus = -guardian_stars.RETAIL_BONUS
+                elif table[attacker - 1] & (1 << (defender - 1)):
+                    bonus = guardian_stars.RETAIL_BONUS
+                else:
+                    bonus = 0
+                if bonus != guardian_stars.retail_matchup(attacker, defender):
+                    matchups.append({"attacker": attacker, "defender": defender, "bonus": bonus})
+        section["matchups"] = matchups
+        for entry in entries:
+            if entry["id"] <= guardian_stars.RETAIL_COUNT:
+                continue
+            found = guardian_stars.imported_icon(modded_wa, entry["id"])
+            if found is None:
+                continue
+            path = f"icons/star-{entry['id']}.png"
+            project.files[path] = pngio.encode(pngio.Image(*found))
+            entry["icon"] = path
+        report.append(f"guardian stars: imported the 16-star matchup table ({len(matchups)} changed pairs)"
+                      + (" and custom icons" if any("icon" in entry for entry in entries) else ""))
+    else:
+        handled = []
+    project.other["guardian_stars"] = section
+    if renamed:
+        report.append(f"guardian stars: {len(renamed)} renamed ({', '.join(renamed[:3])}"
+                      f"{', ...' if len(renamed) > 3 else ''})")
+    past = [e for e in entries if e["id"] > guardian_stars.RETAIL_COUNT]
+    if past:
+        said = ", ".join(f"{e['id']} {e.get('name', '(unnamed)')}" for e in past)
+        report.append(f"guardian stars: {len(past)} past the disc's ten ({said}), found by the names the mod "
+                      "wrote past Venus and by the cards wearing them. "
+                      + ("Their matchups were read from the mod's 16-star table." if masks is not None else
+                         "What each beats is in the mod's own code, which the port runs none of, so every battle "
+                         "with one is neutral until the Guardian Stars page says otherwise"))
+    if bare:
+        report.append(f"guardian stars: {len(bare)} of them have no name of their own "
+                      f"({', '.join(str(s) for s in bare)}); the editor calls them \"Star n\"")
+    return handled
+
+
 def _starter_sums(wa: bytes) -> list:
     stride = g.STARTER_LENGTH // 7
     return [sum(struct.unpack_from("<%dH" % g.CARD_COUNT, wa, g.STARTER_BASE + k * stride + 2)) for k in range(7)]
@@ -600,14 +850,15 @@ def port_wa(retail_wa: bytes, modded_wa: bytes, keep_retail) -> bytes:
     return bytes(out)
 
 
-def wa_data(project: Project, retail_files, modded_files, report: list) -> list:
+def wa_data(project: Project, retail_files, modded_files, report: list, carried=()) -> list:
     """The "data" entries that carry the rest of WA_MRG.MRG: patches and
     sector replacements at the retail disc's sectors when they are few, the
     whole file otherwise. Either way the structured tables (mod.json's
     fusions, equips, rituals and pools) stay retail's, so the port's rules
     apply over the disc's own tables."""
     wa_old, wa_new = retail_files.wa, modded_files.wa
-    keep = wa_structured_regions()
+    # The structured tables mod.json carries, and the pictures its PNGs do.
+    keep = wa_structured_regions() + list(carried)
     starters = _starter_sums(wa_new) if len(wa_new) >= g.STARTER_BASE + g.STARTER_LENGTH else []
     if starters and min(starters) < g.POOL_TOTAL // 2 and wa_new[g.STARTER_BASE:g.STARTER_BASE + g.STARTER_LENGTH] != \
             wa_old[g.STARTER_BASE:g.STARTER_BASE + g.STARTER_LENGTH]:
@@ -703,6 +954,56 @@ OPPONENT_FIELD = 0x80024E08                     # func_80024DC8: the opponent's 
 CARD_FRAME = 0x8002C290                         # func_8002BFCC: the card's frame
 
 
+def card_frame_table(slus: bytes):
+    """The TeaOnline card-colour patch's packed frame table, if present.
+
+    The patch replaces the Library setup loop with a lookup of one 4-bit
+    frame number for each card.  Its first two instructions name the table;
+    the remaining instructions are checked exactly so unrelated library
+    changes are never mistaken for card colours.
+    """
+    at = g.slus_offset(CARD_FRAME)
+    if at < 0 or at + 100 > len(slus):
+        return None
+    words = struct.unpack_from("<25I", slus, at)
+    fixed = (None, None, 0xA0800056, 0xA6A00054, 0x2671FFFF, 0x00118842, 0x00518821,
+             0x92310000, 0x32720001, 0x12400002, 0x3232000F, 0x00119102,
+             0x2A510006, 0x16200002, 0, 0x24120000, 0x00129100, 0x24110160,
+             0x02328821, 0xA4910054, 0x24840004, 0x26730001, 0x2A7102D3,
+             0x1620FFEA, 0x24A50004)
+    if any(expected is not None and word != expected for word, expected in zip(words, fixed)) or \
+            words[0] >> 16 != 0x3C02 or words[1] >> 16 != 0x2442:
+        return None
+    address = ((words[0] & 0xFFFF) << 16) + struct.unpack("<h", struct.pack("<H", words[1] & 0xFFFF))[0]
+    table = g.slus_offset(address)
+    size = (g.CARD_COUNT + 2) // 2       # card 0 through card 722, two nibbles per byte
+    if table < 0 or table + size > len(slus):
+        return None
+    raw = slus[table:table + size]
+    values = [((raw[cid // 2] >> (4 * (cid & 1))) & 15) for cid in range(g.CARD_COUNT + 1)]
+    return values, [(at, at + 100), (table, table + size)]
+
+
+def import_card_frames(project: Project, modded, slus: bytes, report: list) -> list:
+    """Turn a recognised game's per-card frame colours into ``cards[]``."""
+    found = card_frame_table(slus)
+    if found is None:
+        return []
+    values, handled = found
+    changed = []
+    for cid in range(1, g.CARD_COUNT + 1):
+        card = project.cards[cid]
+        # The table's zero through five are the port's Monster through Orange
+        # palette rows.  A type-coloured card needs no explicit mod entry.
+        frame = values[cid] if values[cid] < len(g.FRAME_NAMES) else 0
+        frame = -1 if frame == g.type_frame(card.type) else frame
+        if card.frame != frame:
+            card.frame = frame
+            changed.append(cid)
+    report.append(f"cards: {len(changed)} frame colours imported from the mod's per-card frame table")
+    return handled
+
+
 def kit_rules(project: Project, modded, retail_files, modded_files) -> tuple:
     """(report lines, README lines): the rules the kit's code sets that
     mod.json has keys for, read from the code and its tables, and what it
@@ -778,7 +1079,7 @@ def kit_rules(project: Project, modded, retail_files, modded_files) -> tuple:
     if changed:
         missing.append(f"the opponents' play (AI): {len(changed)} of its script commands are the mod's code, and "
                        "the mod's scripts in WA_MRG.MRG expect them, so they play by the disc's commands")
-    if memory.bytes(CARD_FRAME, 16) != retail.bytes(CARD_FRAME, 16):
+    if memory.bytes(CARD_FRAME, 16) != retail.bytes(CARD_FRAME, 16) and card_frame_table(slus) is None:
         missing.append("each card's frame colour by its class (Effect, Union...)")
     if any(slus[0x88:0x800]):
         notes.append("rules: the executable's header holds code (0x8000B070 and up): a mod made with the kit "
@@ -806,7 +1107,12 @@ def write_readme(project: Project, readme: list, missing: list):
     project.files["README.txt"] = ("\n".join(lines) + "\n").encode("utf-8")
 
 
-def import_modded(retail_files, modded_files, mod_id: str = "imported-mod", name: str = None) -> ImportResult:
+def import_modded(retail_files, modded_files, mod_id: str = "imported-mod", name: str = None,
+                  progress=None) -> ImportResult:
+    """`progress(what)` is called as each stage starts, for a window that
+    would otherwise sit unpainted while a hundred megabytes are read."""
+    say = progress if progress is not None else lambda _what: None
+    say("Reading the retail tables")
     retail = g.load_game(retail_files)
     report = []
     try:
@@ -823,6 +1129,7 @@ def import_modded(retail_files, modded_files, mod_id: str = "imported-mod", name
         result.unhandled += 1
 
     # Cards and the rule tables: the editor's own diff.
+    say("Cards and the rule tables")
     spaced = 0
     for cid, card in modded.cards.items():
         card = card.copy()
@@ -867,6 +1174,7 @@ def import_modded(retail_files, modded_files, mod_id: str = "imported-mod", name
                       "in its code. They are scaled to 2048, keeping each card's share")
 
     # Text.
+    say("Text")
     card_fields = coded_card_texts(retail_files, modded_files)
     text, carried = text_changes(retail_files.slus, modded_files.slus, report, modded_files.wa, card_fields)
     if text:
@@ -890,7 +1198,15 @@ def import_modded(retail_files, modded_files, mod_id: str = "imported-mod", name
     if blank:
         report.append(f"cards: {len(blank)} names could not be read; kept as retail's")
 
+    say("Pictures")
+    carried = import_card_art(project, retail_files.wa, modded_files.wa, report, say)
+    renamed_duelists(project, retail_files.slus, modded_files.slus, report)
+    guardian_handled = import_guardian_stars(project, retail, modded, retail_files.slus, modded_files.slus,
+                                              modded_files.wa, report)
+    frame_handled = import_card_frames(project, modded, modded_files.slus, report)
+
     # Rules the kit's code sets.
+    say("Rules the mod's code sets")
     rule_notes, readme, missing = kit_rules(project, modded, retail_files, modded_files)
     report += rule_notes
     result.unhandled += len(missing)
@@ -902,7 +1218,7 @@ def import_modded(retail_files, modded_files, mod_id: str = "imported-mod", name
         report.append(f"executable: its size differs ({len(modded_files.slus)} bytes); only the tables were read")
         result.unhandled += 1
     text_read = text_spans(modded_files.slus) or []      # what text.txt carries; nothing when unreadable
-    handled = [(g.slus_offset(a), g.slus_offset(b)) for a, b in SLUS_HANDLED + text_read]
+    handled = [(g.slus_offset(a), g.slus_offset(b)) for a, b in SLUS_HANDLED + text_read] + guardian_handled + frame_handled
     named = [(g.slus_offset(a), g.slus_offset(b), label) for a, b, label in SLUS_REGIONS]
     for low, high, label in named:
         count = sum(min(e, high) - max(s, low) for s, e in slus_runs if s < high and e > low)
@@ -928,7 +1244,8 @@ def import_modded(retail_files, modded_files, mod_id: str = "imported-mod", name
         result.unhandled += 1
 
     # The rest of WA_MRG.MRG.
-    data = wa_data(project, retail_files, modded_files, report)
+    say("The rest of WA_MRG.MRG")
+    data = wa_data(project, retail_files, modded_files, report, carried)
     if data:
         project.other["data"] = data
     if result.unhandled:

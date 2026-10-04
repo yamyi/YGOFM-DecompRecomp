@@ -14,6 +14,10 @@
    <string>Problems</string>
   </property>
   <layout class="QVBoxLayout" name="pageLayout">
+   <property name="leftMargin"><number>14</number></property>
+   <property name="topMargin"><number>14</number></property>
+   <property name="rightMargin"><number>14</number></property>
+   <property name="bottomMargin"><number>14</number></property>
    <property name="spacing">
     <number>10</number>
    </property>

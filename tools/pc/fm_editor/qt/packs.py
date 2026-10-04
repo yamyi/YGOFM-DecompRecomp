@@ -49,14 +49,18 @@ class PacksMixin:
         c["simulation_timer"]=QTimer(self);c["simulation_timer"].setSingleShot(True);c["simulation_timer"].timeout.connect(self._pack_simulation_step)
         c["sim_results"].hide()
         get(QToolButton,"packContentsHelpButton").clicked.connect(self._explain_pack_weights)
-        # The card actions wrap rather than run off the panel.
+        # Keep the actions in two deliberate rows.  A flow layout made the
+        # two-row Tier/Weight control wrap as one unit, so narrow panels
+        # could grow to three rows and cover nearly all of the card table.
         host=get(QWidget,"contentsActionsHost")
-        flow=FlowLayout(spacing=8)
-        flow.setContentsMargins(0,0,0,0)
-        for name in ("addPackCardButton","addFilteredPackCardsButton"):flow.addWidget(get(QPushButton,name))
-        flow.addWidget(get(QWidget,"packSetControls"))
-        for name in ("addPackTierButton","removePackCardsButton"):flow.addWidget(get(QPushButton,name))
-        host.setLayout(flow)
+        actions=QVBoxLayout(host);actions.setContentsMargins(0,0,0,0);actions.setSpacing(6)
+        first=QHBoxLayout();first.setSpacing(8)
+        for name in ("addPackCardButton","addFilteredPackCardsButton","addPackTierButton"):
+            first.addWidget(get(QPushButton,name))
+        first.addStretch(1);first.addWidget(get(QPushButton,"removePackCardsButton"))
+        actions.addLayout(first)
+        second=QHBoxLayout();second.setContentsMargins(0,0,0,0);second.addWidget(get(QWidget,"packSetControls"));second.addStretch(1)
+        actions.addLayout(second)
         self._style_packs_page(page, get, c)
         self._refresh_packs()
     def _style_packs_page(self, page, get, c):
@@ -67,6 +71,9 @@ class PacksMixin:
         for index in range(page_layout.count()):
             page_layout.setStretch(index, 1 if page_layout.itemAt(index).widget() is panels else 0)
         panels.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        # A visible gutter keeps the three independent editing panels from
+        # reading as one large box, even with the theme's transparent handle.
+        panels.setHandleWidth(12)
         for label in ("pageTitleLabel", "pageSummaryLabel", "packsStatusLabel"):
             get(QLabel, label).setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
         get(QLabel, "pageTitleLabel").setStyleSheet("font-size:20px;font-weight:650;color:#f3f7fc")
@@ -102,14 +109,14 @@ class PacksMixin:
         # As needed, not off: off clipped the form's right-hand side away with
         # no way to reach it when the panel was narrow.
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        # These three add up to less than the splitter has at the window's own
-        # 1280: asking for more makes the panels overlap rather than scroll.
-        get(QFrame, "packListPanel").setMinimumWidth(306)
-        get(QFrame, "packSettingsPanel").setMinimumWidth(348)
-        get(QFrame, "packContentsPanel").setMinimumWidth(418)
-        for index, stretch in enumerate((3, 4, 6)):
+        # The cover controls need a real settings column, while the contents
+        # table gets the remaining room instead of squeezing its action bar.
+        get(QFrame, "packListPanel").setMinimumWidth(270)
+        get(QFrame, "packSettingsPanel").setMinimumWidth(390)
+        get(QFrame, "packContentsPanel").setMinimumWidth(560)
+        for index, stretch in enumerate((3, 4, 7)):
             panels.setStretchFactor(index, stretch)
-        panels.setSizes([340, 470, 740])
+        panels.setSizes([300, 410, 760])
         # The actions under the contents wrap (FlowLayout): on one line they
         # were wider than the window, and the panel beside them was drawn over.
         for key, width in (("tier", 130), ("weight", 110)):
@@ -134,6 +141,12 @@ class PacksMixin:
     def _pack_read(self):
         e=self._pack_entry()
         return packmath.read_pack(e,validate.pack_resolver(self.project),self.project.info.id,self.workspace_controls["Packs"].get("pack_index",0)) if e else (None,[])
+    def _set_packs_status(self, text):
+        """Hide the otherwise empty status row so the editor space belongs
+        to the pack form; show it again for an actual result or warning."""
+        label = self.workspace_controls["Packs"]["status"]
+        label.setText(text)
+        label.setVisible(bool(text))
     def _refresh_packs(self):
         c=self.workspace_controls.get("Packs")
         if not c:return
@@ -157,7 +170,7 @@ class PacksMixin:
         external=self.project.packs_file is not None
         # Before the form is filled: what it has to say about the picture is
         # the later word, and must not be wiped by this line.
-        c["status"].setText(f'"packs" points to {self.project.packs_file}; that external file is read-only here.' if external else "")
+        self._set_packs_status(f'"packs" points to {self.project.packs_file}; that external file is read-only here.' if external else "")
         self._fill_pack()
         for name in ("addPackButton","duplicatePackButton","removePackButton","movePackUpButton","movePackDownButton","addPackCardButton","addFilteredPackCardsButton","removePackCardsButton","setPackWeightButton","setPackTierButton","addPackTierButton","importPackImageButton"):
             b=c["page"].findChild(QPushButton,name)
@@ -247,9 +260,9 @@ class PacksMixin:
         picture,own=None,False
         if blob:
             try:picture,own=pngio.decode(blob),True
-            except pngio.PngError as problem:c["status"].setText(f"{path}: {problem}")
+            except pngio.PngError as problem:self._set_packs_status(f"{path}: {problem}")
         elif isinstance(path,str):
-            c["status"].setText(f"{path} is not in the mod folder: the game shows the cover.")
+            self._set_packs_status(f"{path} is not in the mod folder: the game shows the cover.")
         if picture is None:
             # No picture of its own: the cover card's art stands in, as the
             # game draws it (PacksTab.show_picture).
@@ -1211,7 +1224,7 @@ class PacksMixin:
         if not self._commit_packs():c["list"].setCurrentRow(c["pack_index"]);return
         c["pack_index"]=row;self._fill_pack()
     def _apply_pack(self):
-        if self._commit_packs():self._refresh_packs();self.workspace_controls["Packs"]["status"].setText("Changes applied to this mod.")
+        if self._commit_packs():self._refresh_packs();self._set_packs_status("Changes applied to this mod.")
     def _add_pack(self):
         if not self._commit_packs():return
         self.project.packs.append(packmath.new_pack(f"Pack {len(self.project.packs)+1}",{packmath.pack_id(x) for x in self.project.packs}));self.workspace_controls["Packs"]["pack_index"]=len(self.project.packs)-1;self._mark_dirty();self._refresh_packs()
@@ -1439,7 +1452,7 @@ class PacksMixin:
         c["simulation_engine"]=packmath.Simulator(pack,1)
         c["simulation_target"]=c["sim_count"].value()
         c["simulation"]=None
-        c["status"].setText(f"Simulating 0 of {c['simulation_target']:,} packs…")
+        self._set_packs_status(f"Simulating 0 of {c['simulation_target']:,} packs…")
         c["simulation_timer"].start(0)
     def _pack_simulation_step(self):
         c=self.workspace_controls["Packs"];engine=c.get("simulation_engine")
@@ -1447,10 +1460,10 @@ class PacksMixin:
         remaining=c["simulation_target"]-engine.opened
         engine.step(min(remaining,max(1,500//max(1,engine.pack.count))))
         if engine.opened<c["simulation_target"]:
-            c["status"].setText(f"Simulating {engine.opened:,} of {c['simulation_target']:,} packs…")
+            self._set_packs_status(f"Simulating {engine.opened:,} of {c['simulation_target']:,} packs…")
             c["simulation_timer"].start(1);return
         c["simulation"]=engine.result();c["simulation_engine"]=None
-        c["status"].setText(f"Simulated {c['simulation'].packs:,} packs.")
+        self._set_packs_status(f"Simulated {c['simulation'].packs:,} packs.")
         self._show_pack_results()
     def _show_pack_results(self):
         c=self.workspace_controls["Packs"];result=c.get("simulation")
@@ -1495,7 +1508,7 @@ class PacksMixin:
             self.project.files.pop(old,None)      # nothing else names it now
         self.project.files[name]=pngio.encode(image);e["image"]=name
         self._mark_dirty();self._refresh_packs()
-        self.workspace_controls["Packs"]["status"].setText(
+        self._set_packs_status(
             f"Pack picture from {Path(path).name}"+(": "+"; ".join(notes) if notes else ""))
     def _export_pack_image(self):
         e=self._pack_entry()

@@ -12,7 +12,17 @@ class EquipsMixin:
         if not c:return
         self._loading_workspace=True
         equips=c["equips"]; held=sort_paused(equips); equips.setRowCount(0)
-        cards=sorted(set(self.project.equip_cards())|set(self.project.equips))
+        # An equip card of the mod's, or one whose monsters the mod has had a
+        # hand in. A card the mod made something else drops out: the game
+        # plays a card on a monster only where its type is Equip
+        # (duel_scene_hand_actions.c), so the list it carries is dead, and an
+        # import holds every equip the modified game has. One the mod did
+        # change stays, since that list is the modder's to see and take away.
+        # What the card is now, and nothing else: the game plays a card on a
+        # monster only where its type is Equip (duel_scene_hand_actions.c), so
+        # a list left on a card the mod made something else does nothing. The
+        # Problems page names those rather than this list carrying them.
+        cards=self.project.equip_cards()
         for cid in cards:
             if cid not in self.project.cards:continue
             row=equips.rowCount(); equips.insertRow(row)

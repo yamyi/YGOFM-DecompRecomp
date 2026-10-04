@@ -219,23 +219,51 @@ def decode_text(image, address: int, glyphs: dict, limit: int = 1024) -> str:
 
 
 def plain_names(image, glyphs: dict) -> dict:
-    """Card names as text: a colour or icon code (F8 0A NN, F8 0B NN) at
-    the start or inside, as community mods write them, is skipped."""
+    """Card names as text.
+
+    A colour or icon code (F8 0A NN, F8 0B NN) at the start or inside, as
+    community mods write them, is skipped. FC and FD are followed the way the
+    game follows them (text_listing.py, pal_text.c): FC calls the string at
+    its target and comes back, FD goes there for good. A name written that way
+    read as empty or cut short before -- a mod that shares a word between two
+    names has every name after the code lost."""
     names = {}
     for cid in range(1, CARD_COUNT + 1):
-        at = NAME_BANK + image.u16(NAME_TABLE + cid * 2)
-        text = ""
-        while len(text) < 64:
-            code = image.bytes(at, 1)[0]
-            if code == 0xF8:
-                at += 3 if image.bytes(at + 1, 1)[0] in (0x0A, 0x0B) else 2
-                continue
-            if code >= 0xF0:
-                break
-            text += glyphs.get(code, "?")
-            at += 1
-        names[cid] = text
+        names[cid] = _name_at(image, glyphs, NAME_BANK + image.u16(NAME_TABLE + cid * 2))
     return names
+
+
+def _name_at(image, glyphs: dict, at: int, depth: int = 0) -> str:
+    """One name from `at`, following the calls and jumps in it."""
+    text, seen = "", set()
+    while len(text) < 64:
+        if at in seen or depth > 8:     # a mod that points a name at itself
+            break
+        seen.add(at)
+        try:
+            code = image.bytes(at, 1)[0]
+        except (IndexError, ValueError, struct.error):
+            break
+        if code == 0xF8:
+            at += 3 if image.bytes(at + 1, 1)[0] in (0x0A, 0x0B) else 2
+            continue
+        if code in (0xFC, 0xFD):
+            target = NAME_BANK + image.u16(at + 1)
+            if code == 0xFD:            # for good: carry on there
+                at, depth = target, depth + 1
+                continue
+            text += _name_at(image, glyphs, target, depth + 1)   # and come back
+            at += 3
+            continue
+        if code == 0xFE:                # a line of its own, a space in a name
+            text += " "
+            at += 1
+            continue
+        if code >= 0xF0:
+            break
+        text += glyphs.get(code, "?")
+        at += 1
+    return text
 
 
 def text_bytes(image, address: int, limit: int = 1024) -> bytes:

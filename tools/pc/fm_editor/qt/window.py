@@ -30,6 +30,13 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
         self.setMinimumSize(1280, 760)
         self.files = self._load_game(game)
         self.retail = gamedata.load_game(self.files)
+
+        # WA_MRG used by editor previews.
+        # Normally this is the retail archive. Importing a modified game can
+        # temporarily replace it with that game's WA_MRG without changing the
+        # retail reference used for project diffs.
+        self.preview_wa = self.files.wa
+
         self.project = Project(self.retail)
         self.frame_cache = {}
         self.fusion_art_cache = {}
@@ -265,7 +272,7 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
         if name == "Rituals":
             splitter=page.findChild(QSplitter,"ritualSplit")
             if splitter is not None:
-                splitter.setSizes([330,950])
+                splitter.setSizes([470,950])
                 splitter.setStretchFactor(0,0)
                 splitter.setStretchFactor(1,1)
             recipe_layout=page.findChild(QVBoxLayout,"ritualRecipeLayout")
@@ -554,12 +561,28 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
             controls["table"].cellDoubleClicked.connect(self._open_problem)
             controls["table"].setToolTip("Double-click a line to go to it.")
             controls["table"].setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        # The page's name and the line under it on one row: two rows of their
+        # own took eighty pixels off every page for a title and a sentence.
+        heading, muted = page.findChild(QLabel, "heading"), page.findChild(QLabel, "muted")
+        if heading is not None and muted is not None and page.layout() is not None:
+            page.layout().removeWidget(heading)
+            page.layout().removeWidget(muted)
+            title_row = QHBoxLayout()
+            title_row.setSpacing(12)
+            muted.setAlignment(Qt.AlignmentFlag.AlignBottom)
+            title_row.addWidget(heading)
+            title_row.addWidget(muted, 1)
+            page.layout().insertLayout(0, title_row)
         # Forty duelists, eighty-eight grid positions, seven hundred cards: a
         # popup that long filled the screen.
         for combo in page.findChildren(QComboBox):
             short_popup(combo)
         for table in page.findChildren(QTableWidget):
             table.setAlternatingRowColors(True)
+            # A long name elides rather than doubling its row, as the card
+            # list has always done: a list of rows two lines tall shows half
+            # as much and reads as though something is wrong with it.
+            table.setWordWrap(False)
             table.verticalHeader().setVisible(False)
             table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
             table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
@@ -596,12 +619,29 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
         elif name == "Rituals":
             # After the shared pass above, which stretches every column.
             card_header=controls["cards"].horizontalHeader()
-            for column,width in ((0,58),(1,190),(2,90)):
-                card_header.setSectionResizeMode(column,QHeaderView.ResizeMode.Fixed)
+            # Every column is the reader's to drag, and the recipe takes
+            # whatever is left over. The widths start inside the pane it is
+            # given, which three fixed columns of 338 never did -- the list
+            # scrolled sideways however wide the window was -- but the bar is
+            # there again for anyone who widens a column past the edge.
+            card_header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+            card_header.setStretchLastSection(True)
+            # The last section will not stretch below the header's smallest,
+            # and the default was wider than the recipe's share of a narrow
+            # pane -- which put the bar there before anyone touched a column.
+            card_header.setMinimumSectionSize(44)
+            for column,width in ((0,52),(1,110),(2,80)):
                 card_header.resizeSection(column,width)
-            card_header.setSectionResizeMode(3,QHeaderView.ResizeMode.Stretch)
             sort_keeps_filter(controls["cards"],
                               lambda: self._filter_ritual_cards(controls["search"].text()))
+        elif name == "Duelists":
+            # The portraits are a grid of cells, not a list of rows: the
+            # shared pass above selects whole rows, which lit all eight
+            # duelists of a row when one was clicked. The matrix below wants
+            # the same exception for the same reason.
+            grid = controls["duelists"]
+            grid.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
+            grid.setAlternatingRowColors(False)
         elif name == "Guardian Stars":
             # The shared pass above hides every vertical header, selects whole
             # rows and stretches every column. The matrix is a grid of cells
@@ -963,8 +1003,11 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
         close.clicked.connect(dialog.accept)
         layout.addWidget(close)
         dialog.exec()
-    def _use_import(self, project, report, source):
+    def _use_import(self, project, report, source, preview_wa=None):
         self.project = project
+
+        self.preview_wa = preview_wa if preview_wa is not None else self.files.wa
+
         self.current = None
         self.duelist_selected_slot = 0
         self.frame_cache.clear()
@@ -979,6 +1022,32 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
         self.statusBar().showMessage(f"Imported {source}: save it to write the mod folder.")
         self._report("Import report", "\n".join(report) +
                      "\n\nThe report is saved with the mod as import-report.txt.")
+    def _run_with_progress(self, title: str, what: str, work):
+        """Run `work(say)` with a window that keeps painting.
+
+        A hundred megabytes of disc take seconds to read, and a window that
+        does not come back to the event loop in that time is one the desktop
+        greys out and calls "not responding". The dialog is modal, so the
+        work cannot be re-entered by a click of the window behind it."""
+        waiting = QProgressDialog(what, "", 0, 0, self)
+        waiting.setWindowTitle(title)
+        waiting.setWindowModality(Qt.WindowModality.ApplicationModal)
+        waiting.setCancelButton(None)        # the work cannot be stopped part way
+        waiting.setMinimumDuration(0)
+        waiting.setAutoClose(False)
+        waiting.show()
+
+        def say(stage):
+            waiting.setLabelText(f"{what}\n{stage}\u2026")
+            QApplication.processEvents()
+
+        QApplication.processEvents()
+        try:
+            return work(say)
+        finally:
+            waiting.close()
+            waiting.deleteLater()
+
     def import_modded_game(self):
         if not self.confirm_discard():
             return
@@ -1001,11 +1070,13 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
                         return
                     wa = Path(chosen)
                 files, name = disc.load_pair(source, wa), source.parent.name
-            result = importer.import_modded(self.files, files, importer.slug(name), name)
+            result = self._run_with_progress(
+                "Import", f"Reading {source.name}\u2026",
+                lambda say: importer.import_modded(self.files, files, importer.slug(name), name, say))
         except Exception as problem:
             QMessageBox.critical(self, "Import", f"The import stopped: {type(problem).__name__}: {problem}")
             return
-        self._use_import(result.project, result.report, source)
+        self._use_import(result.project, result.report, source,preview_wa=files.wa,)
     def import_ygomods(self):
         if not self.confirm_discard():
             return
@@ -1195,6 +1266,7 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
     def new_mod(self):
         if not self.confirm_discard(): return
         self.project = Project(self.retail)
+        self.preview_wa = self.files.wa
         self.fusion_art_cache.clear()
         self.duelist_selected_slot=0
         self.project.source_dir = None
@@ -1216,6 +1288,7 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
         except (ValueError, OSError) as problem:
             QMessageBox.critical(self, "Could not open mod", str(problem)); return
         self.project = project
+        self.preview_wa = self.files.wa
         self.duelist_selected_slot=0
         self.current = None
         self.frame_cache.clear()

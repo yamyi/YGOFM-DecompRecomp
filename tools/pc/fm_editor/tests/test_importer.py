@@ -162,6 +162,63 @@ class ModdedGameTest(unittest.TestCase):
         self.assertEqual(project.pools[2]["bcd"], {10: 1024, 11: 1024})
         self.assertIn("scaled to 2048", report)
 
+    def test_known_guardian_star_patch_keeps_its_table_and_icons(self):
+        """TeaOnline's 16-star routine is data the port can represent,
+        unlike arbitrary code at the same game entry point."""
+        f = fixture()
+        cards = {cid: card.copy() for cid, card in f.cards.items()}
+        cards[1].star1 = 11
+        slus = bytearray(fixtures.make_slus(cards, f.other_names))
+        table_address = 0x80011000
+        words = [0x2484FFFF, 0x24A5FFFF, 0x3C020000 | (table_address >> 16),
+                 0x24420000 | (table_address & 0xFFFF), 0x00051840, 0x00431821, 0x94630000,
+                 0, 0x00831806, 0x30630001, 0x1460000A, 0x2403FE0C,
+                 0x00041840, 0x00431821, 0x94630000, 0, 0x00A31806,
+                 0x30630001, 0x14600002, 0x240301F4, 0x24030000, 0x00601021,
+                 0x03E00008, 0, 0x10850002, 0x2402FE0C, 0x00001021, 0x03E00008, 0]
+        struct.pack_into("<29I", slus, g.slus_offset(importer.GUARDIAN_MATCHUP), *words)
+        struct.pack_into("<16H", slus, g.slus_offset(table_address), *([2] + [0] * 15))
+        wa = bytearray(f.wa)
+        struct.pack_into("<16H", wa, importer.guardian_stars.ICON_CLUT, *([0, 0xFFFF] + [0] * 14))
+        # Star 11 is the third cell of the boot sheet's second row.
+        at = importer.guardian_stars.ICON_SHEET + 16 * importer.guardian_stars.ICON_STRIDE + 16
+        wa[at:at + 8] = b"\x11" * 8
+        retail = g.load_game(GameFiles(f.slus, f.wa, "retail"))
+        changed = GameFiles(bytes(slus), bytes(wa), "modded")
+        modded = g.load_game(changed)
+        project, report = Project(retail), []
+        handled = importer.import_guardian_stars(project, retail, modded, f.slus, changed.slus, changed.wa, report)
+        section = project.other["guardian_stars"]
+        self.assertEqual(section["stars"], [{"id": 11, "icon": "icons/star-11.png"}])
+        self.assertTrue(section["matchups"])
+        self.assertIn("icons/star-11.png", project.files)
+        self.assertEqual(handled, [(g.slus_offset(importer.GUARDIAN_MATCHUP),
+                                    g.slus_offset(importer.GUARDIAN_MATCHUP) + 116),
+                                   (g.slus_offset(table_address), g.slus_offset(table_address) + 32)])
+        self.assertIn("16-star matchup table", report[0])
+
+    def test_known_card_frame_patch_keeps_per_card_colours(self):
+        f = fixture()
+        table_address = 0x80011000
+        slus = bytearray(f.slus)
+        words = [0x3C020000 | (table_address >> 16), 0x24420000 | (table_address & 0xFFFF),
+                 0xA0800056, 0xA6A00054, 0x2671FFFF, 0x00118842, 0x00518821,
+                 0x92310000, 0x32720001, 0x12400002, 0x3232000F, 0x00119102,
+                 0x2A510006, 0x16200002, 0, 0x24120000, 0x00129100, 0x24110160,
+                 0x02328821, 0xA4910054, 0x24840004, 0x26730001, 0x2A7102D3,
+                 0x1620FFEA, 0x24A50004]
+        struct.pack_into("<25I", slus, g.slus_offset(importer.CARD_FRAME), *words)
+        # Card IDs are the nibbles directly: ID 1 is the high half of byte 0.
+        slus[g.slus_offset(table_address)] = 0x50       # card 1: Orange
+        retail = g.load_game(GameFiles(f.slus, f.wa, "retail"))
+        modded = g.load_game(GameFiles(bytes(slus), f.wa, "modded"))
+        project, report = Project(retail), []
+        handled = importer.import_card_frames(project, modded, bytes(slus), report)
+        self.assertEqual(project.cards[1].frame, g.FRAME_NAMES.index("Orange"))
+        self.assertEqual(handled, [(g.slus_offset(importer.CARD_FRAME), g.slus_offset(importer.CARD_FRAME) + 100),
+                                   (g.slus_offset(table_address), g.slus_offset(table_address) + 362)])
+        self.assertIn("frame colours imported", report[0])
+
     def test_changes_beside_the_pools(self):
         f = fixture()
         pools = [{p: dict(v) for p, v in d.items()} for d in f.pools]

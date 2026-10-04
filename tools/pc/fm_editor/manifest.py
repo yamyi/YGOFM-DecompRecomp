@@ -535,6 +535,28 @@ def plain_name(text: str) -> str:
     return re.sub(r"\{[^{}]*\}", "", listing_plain(text)).strip()
 
 
+GOES_TO = re.compile(r"\{(jump|call) (L[0-9A-Fa-f]{4})\}")
+
+
+def followed(items: dict, item: str, depth: int = 0) -> str:
+    """An item's text with its jumps and calls followed, as the game follows
+    them (pal_text.c): {call Lxxxx} reads that label and comes back, {jump
+    Lxxxx} goes there for good. A mod that shares a word or a whole name
+    between two cards writes them that way, and an item read without
+    following them is cut short or empty."""
+    if depth > 8:
+        return item
+
+    def reached(match):
+        target = items.get("{:%s}" % match.group(2))
+        if target is None:
+            return ""
+        body = target.split("\n", 1)[1] if "\n" in target else ""
+        return followed(items, body, depth + 1).replace("{end}", "").replace("{cont}", "")
+
+    return GOES_TO.sub(reached, item)
+
+
 def card_texts(listing: str) -> dict:
     """{(card id, "name" or "description"): text as the editor shows it} for
     the card names and texts a listing carries."""
@@ -542,10 +564,11 @@ def card_texts(listing: str) -> dict:
     items = listing_items(listing)
     for bank, first, field, plain in (("names", 0x8000, "name", plain_name),
                                       ("descriptions", 0xD100, "description", listing_plain)):
-        for key, item in items.get(bank, {}).items():
+        here = items.get(bank, {})
+        for key, item in here.items():
             for i in item_ids(key):
                 if 1 <= i - first <= CARD_COUNT:
-                    out[(i - first, field)] = plain(item)
+                    out[(i - first, field)] = plain(followed(here, item))
     return out
 
 

@@ -131,7 +131,14 @@
            </widget>
           </item>
           <item row="0" column="2">
-           <widget class="QLineEdit" name="duelistNameEdit"/>
+           <widget class="QLineEdit" name="duelistNameEdit">
+            <property name="maximumSize">
+             <size>
+              <width>320</width>
+              <height>16777215</height>
+             </size>
+            </property>
+           </widget>
           </item>
           <item row="1" column="1">
            <widget class="QLabel" name="duelistIdLabel">
@@ -145,6 +152,12 @@
             <property name="placeholderText">
              <string>new-duelist-id</string>
             </property>
+            <property name="maximumSize">
+             <size>
+              <width>320</width>
+              <height>16777215</height>
+             </size>
+            </property>
            </widget>
           </item>
           <item row="2" column="1">
@@ -155,7 +168,14 @@
            </widget>
           </item>
           <item row="2" column="2">
-           <widget class="QComboBox" name="duelistBaseCombo"/>
+           <widget class="QComboBox" name="duelistBaseCombo">
+            <property name="maximumSize">
+             <size>
+              <width>320</width>
+              <height>16777215</height>
+             </size>
+            </property>
+           </widget>
           </item>
           <item row="3" column="1">
            <widget class="QLabel" name="duelistSlotLabel">
@@ -165,14 +185,24 @@
            </widget>
           </item>
           <item row="3" column="2">
-           <widget class="QComboBox" name="duelistPositionCombo"/>
+           <widget class="QComboBox" name="duelistPositionCombo">
+            <property name="maximumSize">
+             <size>
+              <width>320</width>
+              <height>16777215</height>
+             </size>
+            </property>
+           </widget>
           </item>
-          <item row="4" column="0" colspan="3">
-           <layout class="QHBoxLayout" name="duelistEditButtonsLayout">
+          <item row="0" column="3" rowspan="5">
+           <layout class="QVBoxLayout" name="duelistEditButtonsLayout">
+            <property name="spacing">
+             <number>6</number>
+            </property>
             <item>
              <widget class="QPushButton" name="duelistPortraitButton">
               <property name="text">
-               <string>Choose portrait…</string>
+               <string>Portrait…</string>
               </property>
              </widget>
             </item>
@@ -206,11 +236,24 @@
                <bool>false</bool>
               </property>
               <property name="text">
-               <string>Remove duelist</string>
+               <string>Remove</string>
               </property>
              </widget>
             </item>
            </layout>
+          </item>
+          <item row="0" column="4" rowspan="5">
+           <spacer name="duelistFormSpacer">
+            <property name="orientation">
+             <enum>Qt::Orientation::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>20</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
           </item>
          </layout>
         </widget>

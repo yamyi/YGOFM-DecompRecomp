@@ -180,14 +180,14 @@ def describe(lay: card_text.Layout) -> list:
         many = len(lay.cut_rows) > 1
         out.append(f"A word longer than the box's 21 letters is cut where the red tick is (row{'s' if many else ''} "
                    f"{rows} start{'' if many else 's'} mid-word), and the rest of its line takes a row of its own.")
-    codes = sorted({c for c, _, _ in lay.glyphs if c.startswith("{")})
+    codes = sorted({c for c, _, _, _ in lay.glyphs if c.startswith("{g")})
     if codes:
-        out.append("Left empty here: " + " ".join(codes) + " (the game draws the icon or glyph).")
-    missing = sorted({c for c, _, _ in lay.glyphs if c != " " and not c.startswith("{")
+        out.append("Left empty here: " + " ".join(codes) + " (the port draws a numbered glyph from its font bank).")
+    missing = sorted({c for c, _, _, _ in lay.glyphs if c != " " and not c.startswith("{")
                       and not card_text.retail_character(c)})
     if missing:
         out.append("Red boxes: " + " ".join(missing) + " (no retail letter; the port sets one from a font).")
-    accented = sorted({c for c, _, _ in lay.glyphs if card_text.retail_character(c) and not c.isascii()})
+    accented = sorted({c for c, _, _, _ in lay.glyphs if card_text.retail_character(c) and not c.isascii()})
     if accented:
         out.append("Drawn plain here: " + " ".join(accented) + " (the port draws the mark on).")
     return out

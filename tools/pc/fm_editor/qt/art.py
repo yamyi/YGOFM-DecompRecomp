@@ -231,12 +231,12 @@ class ArtMixin:
         notes = []
         for part in art.PARTS:
             try:
-                disc_image = art.disc_image(self.files.wa, base, part)
+                disc_image = art.disc_image(self.preview_wa, base, part)
                 if part == "title":
-                    disc_image = art.plate_image(art.disc_plate_inks(self.files.wa, base), background=art.GOLD)
-                game_image = art.in_game(self.project, self.files.wa, cid, part, 1)
+                    disc_image = art.plate_image(art.disc_plate_inks(self.preview_wa, base), background=art.GOLD)
+                game_image = art.in_game(self.project, self.preview_wa, cid, part, 1)
                 internal = ART_INTERNAL.get(part)
-                internal_image = (art.in_game(self.project, self.files.wa, cid, part, internal)
+                internal_image = (art.in_game(self.project, self.preview_wa, cid, part, internal)
                                   if internal else None)
                 mod_image = art.replacement_image(self.project, cid, part)
                 gated = art.gated_image(self.project, cid, part) if mod_image is None and part != "title" else None
@@ -244,7 +244,7 @@ class ArtMixin:
                     mod_image = gated[0]
                 if part == "title" and mod_image is not None:
                     mod_image = art.plate_image(art.plate_inks(mod_image), background=art.GOLD)
-                _, where = art.shown_image(self.project, self.files.wa, cid, part)
+                _, where = art.shown_image(self.project, self.preview_wa, cid, part)
                 canvas = {"art": QSize(166, 156), "thumbnail": QSize(132, 106),
                           "title": QSize(222, 33)}[part]
                 self._show_art_image(self.art_previews[part]["disc"], disc_image,
@@ -315,8 +315,8 @@ class ArtMixin:
             return
         base = self.project.base_of(cid)
         try:
-            image = (art.plate_image(art.disc_plate_inks(self.files.wa, base)) if part == "title"
-                     else art.disc_image(self.files.wa, base, part))
+            image = (art.plate_image(art.disc_plate_inks(self.preview_wa, base)) if part == "title"
+                     else art.disc_image(self.preview_wa, base, part))
             self._save_art_image(cid, part, image, "disc")
         except (OSError, ValueError, art.pngio.PngError) as problem:
             QMessageBox.critical(self, "Could not export artwork", str(problem))
