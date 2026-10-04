@@ -7,6 +7,35 @@ from .common import (_qimage, _line_count, _pairs_text, _parse_pairs, _whole,
 
 
 class DuelistsMixin:
+    ADDED_DUELISTS_DESCRIPTION = re.compile(r"^Adds \d+ duelists to the free duel$")
+
+    def _sync_added_duelists_description(self):
+        """Add the editor's Free Duel note only to an otherwise blank
+        description, then keep that generated note's count current."""
+        count = sum(record.get("kind") == "added" for record in self.duelist_slots.values())
+        previous = self.project.info.description
+        lines = previous.splitlines()
+        line = f"Adds {count} duelists to the free duel"
+        managed = [index for index, text in enumerate(lines)
+                   if self.ADDED_DUELISTS_DESCRIPTION.fullmatch(text.strip())]
+        generated_only = len(lines) == 1 and bool(managed)
+        if count and not previous.strip():
+            lines = [line]
+        elif count and generated_only:
+            lines = [line]
+        elif not count and generated_only:
+            lines = []
+        else:
+            return False
+        updated = "\n".join(lines)
+        if updated == previous:
+            return False
+        self.project.info.description = updated
+        controls = self.workspace_controls.get("Mod info")
+        if controls is not None and controls["description"].toPlainText() == previous:
+            controls["description"].setPlainText(updated)
+        return True
+
     @staticmethod
     def _put_rows(table, rows):
         held = sort_paused(table)
@@ -106,6 +135,11 @@ class DuelistsMixin:
                          "base":self._duelist_base_index(entry.get("copy")),"kind":"added","entry":entry}
         self._duelist_entries_cache=(entries,mode,path,sources);self._duelist_entries_cache_project=self.project
         return slots
+    @staticmethod
+    def _duelist_base_name(base) -> str:
+        """The stock duelist a copy is of, as the port names them."""
+        base = int(base)
+        return DUELIST_NAMES[base] if 0 < base < len(DUELIST_NAMES) else str(base)
     @staticmethod
     def _duelist_base_index(value):
         from ..model import duelist_named
@@ -283,6 +317,20 @@ class DuelistsMixin:
         written=str(((record or {}).get("entry") or {}).get("id") or "")
         duelist_id=raw_id if raw_id and raw_id==written else self._duelist_slug(raw_id or name)
         existing=next((e for e in entries if str(e.get("id","")).casefold()==duelist_id.casefold()),None)
+        # Two duelists with one name cannot both be meant: "beat", "drops" and
+        # "decks" all name a duelist by it, and Duelists_Named answers with the
+        # first it finds, so the second would be unreachable.
+        # Editing, the duelist may keep its own name; adding, every other one
+        # counts, the duelist selected at the time included.
+        mine=None if adding else (record or {}).get("slot")
+        taken=next((other for other in self.duelist_slots.values()
+                    if other.get("slot")!=mine and other.get("name","").casefold()==name.casefold()),None)
+        if taken is not None:
+            QMessageBox.warning(self,"Name already used",
+                                f"{taken['name']} is at grid position {taken['slot']} already. "
+                                "Two duelists with one name cannot be told apart by \"beat\", \"drops\" or "
+                                "\"decks\".")
+            return
         if adding:
             if existing:
                 QMessageBox.warning(self,"ID already used",f"The ID {duelist_id!r} is already in use.");return
@@ -293,7 +341,12 @@ class DuelistsMixin:
             if chosen_slot is not None:
                 if chosen_slot in self.duelist_slots:
                     QMessageBox.warning(self,"Position occupied",f"Grid position {chosen_slot} is occupied. Choose another position or Automatic.");return
-            entry={"id":duelist_id,"copy":int(base),"name":name}
+            # The base by name, never by number: the port reads an entry's
+            # "copy" with Json_String and asks Duelists_Named for it
+            # (free_duel/duelists.c), so a number is no string, names no
+            # duelist, and the whole entry is dropped with a note. A card's
+            # "copy" takes either; a duelist's does not.
+            entry={"id":duelist_id,"copy":self._duelist_base_name(base),"name":name}
             if chosen_slot is not None:entry["slot"]=int(chosen_slot)
             entries.append(entry)
             target_id=duelist_id
@@ -311,7 +364,7 @@ class DuelistsMixin:
                     base=c["base"].currentData()
                     if base is None:
                         QMessageBox.warning(self,"Choose a base","Choose a stock duelist to copy.");return
-                    entry["copy"]=int(base)
+                    entry["copy"]=self._duelist_base_name(base)
                     chosen_slot=c["position"].currentData()
                     if chosen_slot is not None and chosen_slot in self.duelist_slots and chosen_slot!=slot:
                         QMessageBox.warning(self,"Position occupied",f"Grid position {chosen_slot} is occupied.");return
@@ -338,6 +391,7 @@ class DuelistsMixin:
         self._store_duelist_entries(entries)
         self._mark_dirty()
         self.duelist_slots=self._duelist_layout()
+        self._sync_added_duelists_description()
         slot=next((s for s,r in self.duelist_slots.items()
                    if (r.get("entry") or {}).get("id")==target_id),slot)
         if slot is not None:
@@ -347,6 +401,449 @@ class DuelistsMixin:
             c["page"].setCurrentIndex(slot//40)
         self._refresh_duelists()
         self.statusBar().showMessage(f"Applied edits to {name}. Use Save to write them to the mod.",8000)
+
+    # The unlock a duelist entry may carry (free_duel/duelists.c read_one_duelist):
+    # beaten duelist, card owned, wins, campaign flag. The pack's own Unlock
+    # tab has the same four and three more a pack alone can ask for.
+    DUELIST_UNLOCK_NUMBERS = (("wins", "Wins", "against Beat, or in all without it", 0, 9999),
+                              ("copies", "Copies", "of the card below (1 by default)", 0, 250))
+    # The save's flag array is 2048 bits, and the ranges the game gives them
+    # are known (notes/research/the-game.md, the flag array). A number is a
+    # poor thing to ask a modder for when the useful ones all read as a
+    # sentence, so the flag is picked as what it means, with the number itself
+    # left for the story's own flags (0x47-0x6F) and anything unmapped.
+    STORY_SUBJECTS = {"duelist": 0, "card": 1, "number": 2}
+    STORY_FLAG_KINDS = (("Duelist unlocked in Free Duel", "duelist", 0x6E0, 1, 38),
+                        ("Duelist beaten in the campaign", "duelist", 0x1F, 1, 38),
+                        ("Card seen in the Library", "card", 0x120, 1, CARD_COUNT),
+                        ("Card's password used", "card", 0x400, 1, CARD_COUNT),
+                        ("Flag number", "number", 0, 0, 0xFFFF))
+
+    def _story_flag_value(self, kind_box, subject):
+        """The flag number the two boxes name, or None for (none)."""
+        chosen = kind_box.currentData()
+        if chosen is None or chosen < 0:
+            return None
+        _title, kind, base, low, high = self.STORY_FLAG_KINDS[chosen]
+        # The stack holds them in the order STORY_SUBJECTS names.
+        if kind == "number":
+            return subject.widget(self.STORY_SUBJECTS["number"]).value()
+        if kind == "duelist":
+            return base + int(subject.widget(self.STORY_SUBJECTS["duelist"]).currentData() or 0)
+        return base + int(self._combo_card_id(subject.widget(self.STORY_SUBJECTS["card"])) or 0)
+
+    def _roster_names(self) -> list:
+        """Every duelist by name, in grid order: the disc's, the ones a mod
+        replaced (under the name it gave them) and the ones it added."""
+        seen, out = set(), []
+        for slot, record in sorted(getattr(self, "duelist_slots", {}).items()):
+            name = record.get("name")
+            if slot and name and name not in seen:
+                seen.add(name)
+                out.append(name)
+        for name in DUELIST_NAMES[1:]:
+            if name not in seen:
+                seen.add(name)
+                out.append(name)
+        return out
+
+    @staticmethod
+    def _unlock_number(value, fallback):
+        """A whole number an entry wrote, or the fallback for anything else."""
+        return value if isinstance(value, int) and not isinstance(value, bool) else fallback
+
+    @classmethod
+    def _story_flag_parts(cls, value):
+        """(which kind, the subject) for a flag, or (the number kind, it)."""
+        if isinstance(value, int) and not isinstance(value, bool):
+            for index, (_title, kind, base, low, high) in enumerate(cls.STORY_FLAG_KINDS):
+                if kind != "number" and low <= value - base <= high:
+                    return index, value - base
+        return len(cls.STORY_FLAG_KINDS) - 1, value
+
+    UNLOCK_CARD_STYLE = """
+QFrame#conditionCard { background: #101b2b; border: 1px solid #26374c; border-radius: 10px; }
+QFrame#conditionCard[on="true"] { border: 1px solid #2f6fd0; }
+QLabel#conditionTitle { font-size: 15px; font-weight: 600; color: #e5edf8; }
+QLabel#conditionWhat { color: #8aa0bd; }
+QLabel#fieldCaption { color: #9aacc4; font-size: 11px; }
+QFrame#sidePanel { background: #101b2b; border: 1px solid #26374c; border-radius: 10px; }
+QFrame#ruleRow { background: #152439; border: 1px solid #26374c; border-radius: 8px; }
+QLabel#ruleTitle { font-weight: 600; color: #e5edf8; }
+QLabel#ruleValue { color: #8aa0bd; font-size: 11px; }
+QFrame#noteBox { background: #112542; border: 1px solid #2f6fd0; border-radius: 8px; }
+QLabel#noteTitle { font-weight: 600; color: #cfe0f7; }
+QLabel#noteBody { color: #9fb6d6; }
+QLabel#sideHeading { font-size: 14px; font-weight: 600; color: #e5edf8; }
+QPushButton#ruleDrop { background: transparent; border: 0; color: #8aa0bd; padding: 0 6px; font-size: 15px; }
+QPushButton#ruleDrop:hover { color: #ffffff; }
+"""
+
+    def _open_duelist_unlock(self):
+        """When the duelist shows up in Free Duel: any of the four conditions
+        the port reads (free_duel/duelists.c read_one_duelist), each on its own
+        and all of them together."""
+        c = self.workspace_controls["Duelists"]
+        slot = getattr(self, "duelist_selected_slot", None)
+        record = self.duelist_slots.get(slot) if slot is not None else None
+        if not record or slot == 0:
+            QMessageBox.information(self, "Unlock conditions", "Choose a duelist first.")
+            return
+        entry = record.get("entry") or {}
+        unlock = entry.get("unlock") if isinstance(entry.get("unlock"), dict) else {}
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Unlock conditions")
+        dialog.setStyleSheet(self.UNLOCK_CARD_STYLE)
+        dialog.resize(1060, 700)
+        outer = QVBoxLayout(dialog)
+        outer.setContentsMargins(18, 16, 18, 16)
+        outer.setSpacing(14)
+
+        heading = QHBoxLayout()
+        titles = QVBoxLayout()
+        titles.setSpacing(2)
+        title = QLabel("Unlock conditions")
+        title.setStyleSheet("font-size:18px;font-weight:600;")
+        what = QLabel(f"When {record['name']} becomes available in Free Duel.")
+        what.setObjectName("conditionWhat")
+        titles.addWidget(title)
+        titles.addWidget(what)
+        heading.addLayout(titles)
+        heading.addStretch(1)
+        outer.addLayout(heading)
+
+        body = QHBoxLayout()
+        body.setSpacing(14)
+        outer.addLayout(body, 1)
+        column = QVBoxLayout()
+        column.setSpacing(10)
+        body.addLayout(column, 3)
+
+        boxes, cards = {}, {}
+
+        def card(key_name, title_text, what_text):
+            frame = QFrame()
+            frame.setObjectName("conditionCard")
+            inner = QVBoxLayout(frame)
+            inner.setContentsMargins(14, 12, 14, 12)
+            inner.setSpacing(6)
+            top = QHBoxLayout()
+            box = QCheckBox()
+            boxes[key_name] = box
+            top.addWidget(box)
+            name = QLabel(title_text)
+            name.setObjectName("conditionTitle")
+            top.addWidget(name)
+            top.addStretch(1)
+            inner.addLayout(top)
+            line = QLabel(what_text)
+            line.setObjectName("conditionWhat")
+            line.setWordWrap(True)
+            inner.addWidget(line)
+            fields = QGridLayout()
+            fields.setHorizontalSpacing(14)
+            fields.setVerticalSpacing(4)
+            inner.addLayout(fields)
+            cards[key_name] = frame
+            column.addWidget(frame)
+            return fields
+
+        def caption(grid, text, row, col):
+            label = QLabel(text)
+            label.setObjectName("fieldCaption")
+            grid.addWidget(label, row, col)
+
+        # Beat a duelist -------------------------------------------------
+        grid = card("beat", "Beat duelist",
+                    "Require that a duelist has been defeated -- that many times, with a number of wins. "
+                    "Without a duelist named, the wins are counted in all.")
+        caption(grid, "Duelist", 0, 0)
+        caption(grid, "Required wins", 0, 1)
+        beat = short_popup(QComboBox())
+        beat.setEditable(True)
+        # Every duelist the roster has, the mod's own among them: the port
+        # asks Duelists_Named for the name, which finds an added duelist as
+        # readily as one of the disc's.
+        beat.addItems([""] + [name for name in self._roster_names() if name != record["name"]])
+        wins = QSpinBox()
+        wins.setRange(1, 9999)
+        wins.setValue(1)
+        wins.setMaximumWidth(140)
+        grid.addWidget(beat, 1, 0)
+        grid.addWidget(wins, 1, 1)
+        grid.setColumnStretch(0, 1)
+
+        # Own a card -----------------------------------------------------
+        grid = card("card", "Own card", "Require that the player owns a specific card.")
+        caption(grid, "Card", 0, 0)
+        caption(grid, "Copies", 0, 1)
+        card_box = self._card_combo(dialog)
+        copies = QSpinBox()
+        copies.setRange(1, 250)
+        copies.setValue(1)
+        copies.setMaximumWidth(120)
+        grid.addWidget(card_box, 1, 0)
+        grid.addWidget(copies, 1, 1)
+        grid.setColumnStretch(0, 1)
+
+        # A story flag ---------------------------------------------------
+        grid = card("story", "Story flag", "Require something the save has already recorded.")
+        caption(grid, "What", 0, 0)
+        caption(grid, "Which", 0, 1)
+        story_kind = short_popup(QComboBox())
+        for index, (text, _kind, _base, _low, _high) in enumerate(self.STORY_FLAG_KINDS):
+            story_kind.addItem(text, index)
+        story_subject = QStackedWidget()
+        story_duelist = short_popup(QComboBox())
+        for number in range(1, len(DUELIST_NAMES)):
+            story_duelist.addItem(f"{number:02d} {DUELIST_NAMES[number]}", number)
+        story_card = self._card_combo(dialog)
+        story_number = QSpinBox()
+        story_number.setRange(0, 0xFFFF)
+        for widget in (story_duelist, story_card, story_number):
+            story_subject.addWidget(widget)
+        grid.addWidget(story_kind, 1, 0)
+        grid.addWidget(story_subject, 1, 1)
+        flag_note = QLabel("")
+        flag_note.setObjectName("fieldCaption")
+        grid.addWidget(flag_note, 2, 0, 1, 2)
+        grid.setColumnStretch(1, 1)
+        column.addStretch(1)
+
+        # The side: who it is, what is on, and what that means ------------
+        side = QFrame()
+        side.setObjectName("sidePanel")
+        side.setMinimumWidth(320)
+        side_column = QVBoxLayout(side)
+        side_column.setContentsMargins(14, 14, 14, 14)
+        side_column.setSpacing(10)
+        body.addWidget(side, 2)
+        chosen_heading = QLabel("Selected duelist")
+        chosen_heading.setObjectName("sideHeading")
+        side_column.addWidget(chosen_heading)
+        who = QHBoxLayout()
+        portrait = QLabel()
+        portrait.setFixedSize(72, 72)
+        portrait.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        picture = self._duelist_portrait_pixmap(record)
+        if not picture.isNull():
+            portrait.setPixmap(picture.scaled(portrait.size(), Qt.AspectRatioMode.KeepAspectRatio,
+                                              Qt.TransformationMode.FastTransformation))
+        who.addWidget(portrait)
+        about = QVBoxLayout()
+        about.setSpacing(2)
+        who_name = QLabel(record["name"])
+        who_name.setObjectName("conditionTitle")
+        about.addWidget(who_name)
+        for text in (f"Grid position {slot}",
+                     f"{'Added' if record['kind'] == 'added' else 'Replaces' if record['kind'] == 'replacement' else 'Stock'}"
+                     f" · plays as {DUELIST_NAMES[record['base']]}"):
+            line = QLabel(text)
+            line.setObjectName("ruleValue")
+            about.addWidget(line)
+        about.addStretch(1)
+        who.addLayout(about, 1)
+        side_column.addLayout(who)
+        rules_heading = QLabel("Active conditions")
+        rules_heading.setObjectName("sideHeading")
+        side_column.addWidget(rules_heading)
+        rules_column = QVBoxLayout()
+        rules_column.setSpacing(6)
+        side_column.addLayout(rules_column)
+        note = QFrame()
+        note.setObjectName("noteBox")
+        note_column = QVBoxLayout(note)
+        note_column.setContentsMargins(12, 10, 12, 10)
+        note_column.setSpacing(4)
+        note_title = QLabel("Any of them, or all of them")
+        note_title.setObjectName("noteTitle")
+        note_body = QLabel("Every condition that is on must hold. With none on, the duelist is there "
+                           "from the start.")
+        note_body.setObjectName("noteBody")
+        note_body.setWordWrap(True)
+        note_column.addWidget(note_title)
+        note_column.addWidget(note_body)
+        side_column.addWidget(note)
+        counted = QLabel("")
+        counted.setObjectName("ruleValue")
+        side_column.addWidget(counted)
+        side_column.addStretch(1)
+
+        # A coloured dot rather than a picture: the window's font carries no
+        # emoji, and a missing glyph draws as an empty box.
+        ICONS = {"beat": "#4f9cf5", "card": "#7fd49b", "story": "#c79bf0"}
+        TITLES = {"beat": "Beat duelist", "card": "Own card", "story": "Story flag"}
+
+        def worth(key_name):
+            """What the rule reads as in the list, or None when it is off."""
+            if not boxes[key_name].isChecked():
+                return None
+            if key_name == "beat":
+                who = beat.currentText().strip()
+                if wins.value() > 1:
+                    return f"{who}, {wins.value()} wins" if who else f"{wins.value()} wins in all"
+                return who or "any win"
+            if key_name == "card":
+                return f"{card_box.currentText().strip() or '(no card)'} ×{copies.value()}"
+            flag = self._story_flag_value(story_kind, story_subject)
+            return f"{self.STORY_FLAG_KINDS[story_kind.currentData()][0]} ({flag:#x})" if flag is not None else "-"
+
+        def redraw(*_):
+            while rules_column.count():
+                gone = rules_column.takeAt(0).widget()
+                if gone is not None:
+                    # Taken out of the layout is not taken off the panel:
+                    # deleteLater runs a turn later, and until it does the old
+                    # row is still a child, drawn where it last sat -- over the
+                    # headings. setParent(None) is what takes it away now.
+                    gone.setParent(None)
+                    gone.deleteLater()
+            on = 0
+            for key_name in ("beat", "card", "story"):
+                cards[key_name].setProperty("on", "true" if boxes[key_name].isChecked() else "false")
+                cards[key_name].style().unpolish(cards[key_name])
+                cards[key_name].style().polish(cards[key_name])
+                text = worth(key_name)
+                if text is None:
+                    continue
+                on += 1
+                row = QFrame()
+                row.setObjectName("ruleRow")
+                line = QHBoxLayout(row)
+                line.setContentsMargins(10, 7, 6, 7)
+                mark = QLabel("●")
+                mark.setStyleSheet(f"color:{ICONS[key_name]};font-size:13px;")
+                line.addWidget(mark)
+                stack = QVBoxLayout()
+                stack.setSpacing(0)
+                name = QLabel(TITLES[key_name])
+                name.setObjectName("ruleTitle")
+                value = QLabel(text)
+                value.setObjectName("ruleValue")
+                stack.addWidget(name)
+                stack.addWidget(value)
+                line.addLayout(stack, 1)
+                drop = QPushButton("✕")
+                drop.setObjectName("ruleDrop")
+                drop.setToolTip(f"Turn {TITLES[key_name]} off")
+                drop.clicked.connect(lambda _checked=False, which=key_name: boxes[which].setChecked(False))
+                line.addWidget(drop)
+                rules_column.addWidget(row)
+            counted.setText(f"{on} on · {len(boxes) - on} off" if on else "none on: there from the start")
+            kind = self.STORY_FLAG_KINDS[story_kind.currentData() or 0][1]
+            story_subject.setCurrentIndex(self.STORY_SUBJECTS.get(kind, 0))
+            flag = self._story_flag_value(story_kind, story_subject)
+            flag_note.setText(f"flag {flag:#x} in the save" if flag is not None else "")
+
+        for box in boxes.values():
+            box.toggled.connect(redraw)
+        for widget in (beat, card_box, story_kind, story_duelist, story_card):
+            widget.currentIndexChanged.connect(redraw)
+        for widget in (beat, card_box, story_card):
+            widget.editTextChanged.connect(redraw)
+        for widget in (copies, wins, story_number):
+            widget.valueChanged.connect(redraw)
+        for key_name, box in boxes.items():
+            box.toggled.connect(lambda on, which=key_name: self._unlock_card_enabled(cards[which], on))
+
+        # What the duelist already asks for ------------------------------
+        if unlock.get("beat") or self._unlock_number(unlock.get("wins"), 0) > 0:
+            boxes["beat"].setChecked(True)
+            beat.setCurrentText(str(unlock.get("beat", "")))
+            wins.setValue(max(1, min(9999, self._unlock_number(unlock.get("wins"), 1))))
+        if "card" in unlock:
+            boxes["card"].setChecked(True)
+            known = self.project.resolve(unlock["card"])
+            if known > 0:
+                self._set_combo_card(card_box, known)
+            else:
+                card_box.setCurrentText(str(unlock["card"]))
+            copies.setValue(max(1, min(250, self._unlock_number(unlock.get("copies"), 1))))
+        if self._unlock_number(unlock.get("story"), -1) >= 0:
+            boxes["story"].setChecked(True)
+            index, subject = self._story_flag_parts(unlock["story"])
+            story_kind.setCurrentIndex(story_kind.findData(index))
+            kind = self.STORY_FLAG_KINDS[index][1]
+            if kind == "duelist":
+                story_duelist.setCurrentIndex(max(0, story_duelist.findData(subject)))
+            elif kind == "card":
+                self._set_combo_card(story_card, subject)
+            elif isinstance(subject, int):
+                story_number.setValue(max(0, min(0xFFFF, subject)))
+        for key_name, box in boxes.items():
+            self._unlock_card_enabled(cards[key_name], box.isChecked())
+        redraw()
+
+        footer = QHBoxLayout()
+        clear = QPushButton("Clear all")
+        clear.clicked.connect(lambda: [box.setChecked(False) for box in boxes.values()])
+        footer.addWidget(clear)
+        footer.addStretch(1)
+        cancel = QPushButton("Cancel")
+        cancel.clicked.connect(dialog.reject)
+        save = QPushButton("Save conditions")
+        save.setObjectName("primary")
+        save.clicked.connect(dialog.accept)
+        footer.addWidget(cancel)
+        footer.addWidget(save)
+        outer.addLayout(footer)
+
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        written = {}
+        if boxes["beat"].isChecked():
+            if beat.currentText().strip():
+                written["beat"] = beat.currentText().strip()
+            if wins.value() > 1 or not written.get("beat"):
+                written["wins"] = wins.value()
+        if boxes["card"].isChecked():
+            chosen, typed = self._combo_card_id(card_box), card_box.currentText().strip()
+            if chosen:
+                written["card"] = (unlock["card"] if "card" in unlock
+                                   and self.project.resolve(unlock["card"]) == chosen
+                                   else self.project.ref(chosen))
+            elif typed:
+                written["card"] = typed
+            if written.get("card") is not None and copies.value() > 1:
+                written["copies"] = copies.value()
+        if boxes["story"].isChecked():
+            flag = self._story_flag_value(story_kind, story_subject)
+            if flag is not None:
+                written["story"] = flag
+        self._set_duelist_unlock(record, written)
+
+    @staticmethod
+    def _unlock_card_enabled(frame, on):
+        """A condition that is off keeps its fields, greyed."""
+        for child in frame.findChildren(QWidget):
+            if not isinstance(child, QCheckBox):
+                child.setEnabled(on)
+
+    def _set_duelist_unlock(self, record, unlock):
+        """Put it on the duelist's entry, making a stock duelist the mod's own
+        first: an unlock needs an entry to live on."""
+        entries, mode, path, sources = self._duelist_roster_source()
+        entry = record.get("entry")
+        if entry is None:
+            slot = record.get("slot", getattr(self, "duelist_selected_slot", 0))
+            entry = {"id": self._duelist_slug(record["name"]), "replace": DUELIST_NAMES[record["base"]],
+                     "name": record["name"]}
+            entries.append(entry)
+            if mode == "folder" and entry["id"] not in sources:
+                sources[entry["id"]] = f"duelists/{entry['id']}.json"
+        if unlock:
+            entry["unlock"] = unlock
+        else:
+            entry.pop("unlock", None)
+        self._duelist_entries_cache = (entries, mode, path, sources)
+        self._duelist_entries_cache_project = self.project
+        self._store_duelist_entries(entries)
+        self._mark_dirty()
+        self._refresh_duelists()
+        self.statusBar().showMessage(
+            f"{record['name']} is unlocked by {', '.join(sorted(unlock))}." if unlock
+            else f"{record['name']} is there from the start.", 8000)
     def _remove_duelist(self):
         c=self.workspace_controls["Duelists"]
         slot=getattr(self,"duelist_selected_slot",None)
@@ -375,9 +872,180 @@ class DuelistsMixin:
         self._store_duelist_entries(entries)
         self._duelist_portrait_pending=None
         self._mark_dirty()
+        self.duelist_slots=self._duelist_layout()
+        self._sync_added_duelists_description()
         self._refresh_duelists()
     def _selected_pool_name(self):
-        return POOLS[self.workspace_controls["Duelists"]["pool"].currentIndex()]
+        return POOLS[max(0, self.workspace_controls["Duelists"]["pool"].currentIndex())]
+    STAT_STYLE = """
+QFrame#statsPanel { background: #101b2b; border: 1px solid #26374c; border-radius: 10px; }
+QLabel#statsTitle { font-weight: 600; color: #e5edf8; }
+QLabel#statsWhat { color: #8aa0bd; font-size: 11px; }
+QLabel#statsCaption { color: #9aacc4; }
+QLabel#statsValue { color: #e5edf8; font-weight: 600; }
+QLabel#statsRank { color: #8aa0bd; }
+"""
+    # What a card counts as in the type bar, and the colour it is drawn in.
+    STAT_KINDS = (("Monsters", "#e8833a"), ("Equips", "#49a7e8"), ("Magic", "#2bc48a"),
+                  ("Traps", "#c062d6"), ("Rituals", "#e8c54a"))
+
+    def _build_pool_statistics(self, controls, parent_layout):
+        """The panel under a pool's list: what the weights add up to, what the
+        deal is made of, and the cards most likely to come out of it."""
+        panel = QFrame()
+        panel.setObjectName("statsPanel")
+        panel.setStyleSheet(self.STAT_STYLE)
+        # As tall as its own rows: stretched, it spread the numbers out and
+        # took the list's room with it.
+        panel.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        column = QVBoxLayout(panel)
+        column.setContentsMargins(12, 8, 12, 8)
+        column.setSpacing(4)
+        top = QHBoxLayout()
+        title = QLabel("Statistics")
+        title.setObjectName("statsTitle")
+        top.addWidget(title)
+        said = QLabel("(calculated)")
+        said.setObjectName("statsWhat")
+        top.addWidget(said)
+        top.addStretch(1)
+        column.addLayout(top)
+
+        body = QHBoxLayout()
+        body.setSpacing(16)
+        column.addLayout(body)
+        numbers = QGridLayout()
+        numbers.setHorizontalSpacing(16)
+        numbers.setVerticalSpacing(3)
+        body.addLayout(numbers, 1)
+        values = {}
+        for row, (key, text) in enumerate((("total", "Total weight"), ("average", "Average weight"),
+                                           ("unique", "Unique cards"))):
+            caption = QLabel(text)
+            caption.setObjectName("statsCaption")
+            value = QLabel("0")
+            value.setObjectName("statsValue")
+            numbers.addWidget(caption, row, 0)
+            numbers.addWidget(value, row, 1)
+            values[key] = value
+        kinds_caption = QLabel("Card types")
+        kinds_caption.setObjectName("statsCaption")
+        numbers.addWidget(kinds_caption, 3, 0, Qt.AlignmentFlag.AlignTop)
+        kinds = QVBoxLayout()
+        kinds.setSpacing(3)
+        bar = PoolTypeBar()
+        kinds.addWidget(bar)
+        legend = {}
+        legend_grid = QGridLayout()
+        legend_grid.setHorizontalSpacing(10)
+        legend_grid.setVerticalSpacing(1)
+        for index, (name, colour) in enumerate(self.STAT_KINDS):
+            line = QHBoxLayout()
+            line.setSpacing(4)
+            dot = QLabel("●")
+            dot.setStyleSheet(f"color:{colour};")
+            text = QLabel(name)
+            text.setObjectName("statsCaption")
+            count = QLabel("0")
+            count.setObjectName("statsCaption")
+            line.addWidget(dot)
+            line.addWidget(text)
+            line.addStretch(1)
+            line.addWidget(count)
+            legend_grid.addLayout(line, index // 2, index % 2)
+            legend[name] = count
+        kinds.addLayout(legend_grid)
+        numbers.addLayout(kinds, 3, 1)
+        numbers.setColumnStretch(1, 1)
+        numbers.setRowStretch(4, 1)
+
+        best_column = QVBoxLayout()
+        best_column.setSpacing(2)
+        body.addLayout(best_column, 1)
+        best_caption = QLabel("Highest weights")
+        best_caption.setObjectName("statsTitle")
+        best_column.addWidget(best_caption)
+        best_rows = []
+        for place in range(5):
+            line = QHBoxLayout()
+            line.setSpacing(8)
+            rank = QLabel(str(place + 1))
+            rank.setObjectName("statsRank")
+            rank.setFixedWidth(12)
+            icon = QLabel()
+            icon.setFixedSize(18, 18)
+            icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            name = QLabel("")
+            name.setObjectName("statsCaption")
+            weight = QLabel("")
+            weight.setObjectName("statsCaption")
+            line.addWidget(rank)
+            line.addWidget(icon)
+            line.addWidget(name, 1)
+            line.addWidget(weight)
+            best_column.addLayout(line)
+            best_rows.append((rank, icon, name, weight))
+        controls["stats"] = {"panel": panel, "values": values, "bar": bar, "legend": legend, "best": best_rows}
+        parent_layout.addWidget(panel)
+
+    POOL_CARD_KINDS = {gamedata.TYPE_MAGIC: "Magic", gamedata.TYPE_TRAP: "Traps",
+                       gamedata.TYPE_RITUAL: "Rituals", gamedata.TYPE_EQUIP: "Equips"}
+
+    def _pool_card_kind(self, cid) -> str:
+        """What the card counts as: one of the twenty monster types, or the
+        four the game keeps past them (card_constants.h)."""
+        card = self.project.cards.get(cid)
+        if card is None:
+            return "Monsters"
+        return self.POOL_CARD_KINDS.get(card.type, "Monsters")
+
+    def _show_pool_statistics(self, weights):
+        """Fill the panel from {card id: weight}; a card weighted 0 is not in
+        the deal and is left out of all of it."""
+        stats = self.workspace_controls["Duelists"].get("stats")
+        if not stats:
+            return
+        held = {cid: weight for cid, weight in weights.items() if weight}
+        total = sum(held.values())
+        unique = len(held)
+        stats["values"]["total"].setText(f"{total:,}")
+        stats["values"]["average"].setText(f"{total / unique:.2f}" if unique else "0")
+        stats["values"]["unique"].setText(str(unique))
+        counts = {name: 0 for name, _colour in self.STAT_KINDS}
+        for cid in held:
+            counts[self._pool_card_kind(cid)] += 1
+        for name, box in stats["legend"].items():
+            share = counts[name] * 100 / unique if unique else 0
+            box.setText(f"{counts[name]} ({share:.1f}%)")
+        stats["bar"].show_counts([(counts[name], colour) for name, colour in self.STAT_KINDS])
+        best = sorted(held.items(), key=lambda pair: (-pair[1], pair[0]))[:5]
+        for place, (rank, icon, name, weight) in enumerate(stats["best"]):
+            if place >= len(best):
+                for widget in (rank, name, weight):
+                    widget.setText("")
+                icon.setPixmap(QPixmap())
+                continue
+            cid, value = best[place]
+            rank.setText(str(place + 1))
+            name.setText(self.project.cards[cid].name if cid in self.project.cards else str(cid))
+            weight.setText(f"{value} ({value * 100 / total:.2f}%)" if total else str(value))
+            picture = self._pool_card_icon(cid)
+            icon.setPixmap(picture if picture is not None else QPixmap())
+
+    def _pool_card_icon(self, cid):
+        """A card's thumbnail for the statistics panel, kept between draws."""
+        cache = getattr(self, "_pool_icons", None)
+        if cache is None:
+            cache = self._pool_icons = {}
+        if cid not in cache:
+            try:
+                picture = _card_image(self.project, self.files.wa, cid, self.frame_cache)
+                cache[cid] = picture.scaled(18, 18, Qt.AspectRatioMode.KeepAspectRatio,
+                                            Qt.TransformationMode.SmoothTransformation)
+            except (OSError, ValueError, IndexError, struct.error):
+                cache[cid] = QPixmap()
+        return cache[cid]
+
     def _refresh_duelist_pool(self,*_):
         if "Duelists" not in self.workspace_controls:return
         c=self.workspace_controls["Duelists"];d=self._selected_duelist();name=self._selected_pool_name()
@@ -388,7 +1056,9 @@ class DuelistsMixin:
         if self._refresh_fixed_deck():
             return                      # the forty written down are what shows
         total=sum(pool.values())
-        c["summary"].setText(f"{title} · {POOL_LABELS[name]} · {total}/{POOL_TOTAL} weight" + (" · inherited from base" if is_added else ""))
+        # The tab names and selected duelist already identify this pool. Keep
+        # its header to the one useful figure: its current total weight.
+        c["summary"].setText(f"{total:,}/{POOL_TOTAL:,} weight")
         c["summary"].setStyleSheet("color:#7fd49b" if total==POOL_TOTAL else "color:#ff7777")
         for button_name in ("addPoolCardButton","setPoolWeightButton","removePoolCardButton","normalizePoolButton","revertPoolButton"):
             button=c["page"].findChild(QPushButton,button_name)
@@ -401,6 +1071,7 @@ class DuelistsMixin:
             state="" if weight==before else "added" if not before else "removed" if not weight else "changed"
             rows.append((cid,card.name if card else "?",TYPE_NAMES[card.type] if card else "",weight,
                          f"{weight*100/POOL_TOTAL:.2f}%",before,state.title()))
+        self._show_pool_statistics(pool)
         table=c["table"];held=sort_paused(table);table.setRowCount(len(rows))
         for i,row in enumerate(rows):
             for col,value in enumerate(row):
@@ -483,7 +1154,9 @@ class DuelistsMixin:
         total = deck.total()
         good = total == DECK_SIZE and not deck.kept
         title = DUELIST_NAMES[self._selected_duelist()]
-        c["summary"].setText(f"{title} · fixed deck · {total} / {DECK_SIZE} cards")
+        # The selected tab already says this is the deck: show only how many
+        # cards it holds beside the tabs.
+        c["summary"].setText(f"{total:,}/{DECK_SIZE:,} cards")
         c["summary"].setStyleSheet("color:#7fd49b" if good else "color:#ff7777")
         return True
     def _switch_deck_mode(self, *_):

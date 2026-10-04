@@ -1,6 +1,7 @@
 """Cards parity and no-op round trips using the optional Qt frontend."""
 import os
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+import json
 import tempfile
 from pathlib import Path
 import unittest
@@ -38,6 +39,44 @@ class CardsTest(unittest.TestCase):
         self.render.start()
         self.addCleanup(self.render.stop)
         self.addCleanup(self.window.deleteLater)
+
+    def test_model_preview_button_tracks_selection_and_empty_state(self):
+        from fm_editor import monster_view
+        from fm_editor.tests.test_monster_view import model_record
+        from PySide6.QtCore import Qt
+        from PySide6.QtTest import QTest
+        w = self.window
+        before = manifest.build(w.project)
+        with mock.patch.object(monster_view, "read_record", return_value=model_record()) as read:
+            w.show()
+            self.qt.processEvents()
+            w.show_card(1)
+            w.model_preview_button.click()
+            self.assertFalse(w.model_preview.isHidden())
+            self.assertTrue(w.preview_image.isHidden())
+            self.assertIsNotNone(w.model_preview.model)
+            self.assertFalse(w.model_preview.pixmap().isNull())
+            self.assertIsNone(getattr(w, "model_preview_dialog", None))
+            w.show_card(2)
+            self.assertEqual(read.call_args.args[1], 2)
+            QTest.mouseDClick(w.model_preview, Qt.MouseButton.LeftButton)
+            dialog = w.model_preview_dialog
+            self.assertTrue(dialog.isVisible())
+            self.assertIsNotNone(dialog.canvas.model)
+            w.show_card(None)
+            self.assertIsNone(w.model_preview.model)
+            self.assertFalse(w.model_preview_button.isEnabled())
+            dialog.close()
+            w.hide()
+        self.assertEqual(before, manifest.build(w.project))
+
+    def test_model_preview_missing_source_is_readable(self):
+        w = self.window
+        w.show_card(1)
+        w.model_preview_button.click()
+        self.assertIn("unavailable", w.model_preview.text())
+        self.assertIsNone(w.model_preview.model)
+        self.assertIsNone(getattr(w, "model_preview_dialog", None))
 
     def test_browse_all_cards_preserves_manifest(self):
         w = self.window
@@ -387,7 +426,8 @@ class CardsTest(unittest.TestCase):
         self.assertEqual(w.fields['name'].text(), '')
         self.assertEqual(w.description.toPlainText(), '')
         self.assertEqual(w.notes.toPlainText(), '')
-        self.assertIn('Select a card', w.reference_info.text())
+        self.assertEqual(w.reference_title.text(), 'Retail card')
+        self.assertEqual({value.text() for value in w.reference_values.values()}, {'—'})
         for widget in w._card_form_widgets():
             self.assertFalse(widget.isEnabled(), widget.objectName())
         self.assertTrue(w.add_button.isEnabled())       # a card may still be added
@@ -440,7 +480,8 @@ class CardsTest(unittest.TestCase):
         row = next(i for i, issue in enumerate(issues) if issue.area == 'Duelists')
         w._open_problem(row)
         self.assertEqual(w.current_workspace, 'Duelists')
-        self.assertEqual(w.workspace_controls['Duelists']['pool'].currentText(), 'Deck')
+        pool = w.workspace_controls['Duelists']['pool']
+        self.assertEqual(pool.tabText(pool.currentIndex()), 'Deck')
         # Cards, Fusions and Rituals reach their own page and selection too.
         w.go_to(SimpleNamespace(area='Cards', target=42, where='card 42', level='error'))
         self.assertEqual((w.current_workspace, w.current), ('Cards', 42))
@@ -760,9 +801,12 @@ class CardsTest(unittest.TestCase):
         from fm_editor import guardian_stars as gs
         w = self.window
         c = self.stars_page()
-        self.assertEqual(c['stars'].rowCount(), gs.RETAIL_COUNT)
+        # The stars, and above them the cards that have none (magic, trap and
+        # ritual cards), which is read rather than chosen.
+        self.assertEqual(c['stars'].rowCount(), gs.RETAIL_COUNT + 1)
         self.assertEqual(c['list_title'].text(), f'Guardian stars ({gs.RETAIL_COUNT})')
-        self.assertEqual([c['stars'].item(0, i).text() for i in range(3)], ['1', 'Mars', "disc's"])
+        self.assertEqual([c['stars'].item(0, i).text() for i in range(3)], ['—', '(none)', '—'])
+        self.assertEqual([c['stars'].item(1, i).text() for i in range(3)], ['1', 'Mars', "disc's"])
         self.assertEqual((c['matrix'].rowCount(), c['matrix'].columnCount()),
                          (gs.RETAIL_COUNT, gs.RETAIL_COUNT))
         # The disc's cycle: Mars beats Jupiter.
@@ -851,7 +895,7 @@ class CardsTest(unittest.TestCase):
         self.assertEqual(w.stars_model.stars[5].icon, 'icons/star-5.png')
         self.assertIn('icons/star-5.png', w.project.files)
         self.assertFalse(c['icon'].pixmap().isNull())
-        self.assertEqual(c['stars'].item(4, 2).text(), "mod's")
+        self.assertEqual(c['stars'].item(5, 2).text(), "mod's")     # star 5, under the "(none)" line
         w._remove_star_icon()
         self.assertNotIn('icons/star-5.png', w.project.files)
 
@@ -955,7 +999,7 @@ class CardsTest(unittest.TestCase):
         for star in range(1, gs.RETAIL_COUNT + 1):
             self.assertIsNotNone(w._star_icon_pixmap(star), star)
         self.assertTrue(all(not c['stars'].item(row, 1).icon().isNull()
-                            for row in range(gs.RETAIL_COUNT)))
+                            for row in range(1, gs.RETAIL_COUNT + 1)))
         self.assertFalse(c['icon'].pixmap().isNull())
         self.assertTrue(all(not c['matrix'].horizontalHeaderItem(i).icon().isNull()
                             for i in range(gs.RETAIL_COUNT)))
@@ -1385,7 +1429,7 @@ class CardsTest(unittest.TestCase):
         self.assertEqual(deck.total(), DECK_SIZE)
         self.assertTrue(w.dirty)
         self.assertGreater(c['fixed_table'].rowCount(), 0)
-        self.assertIn('fixed deck', c['summary'].text())
+        self.assertEqual(c['summary'].text(), '40/40 cards')
 
     def test_switching_back_to_weighted_keeps_the_fixed_deck_to_hand(self):
         from fm_editor import fixed_decks
@@ -1477,6 +1521,24 @@ class CardsTest(unittest.TestCase):
                              fixed_decks.most_likely(w.project.pools[duelist]['deck']))
         w._refresh_duelists()
         self.assertIn('fixed', self.duelist_name_label(duelist).toolTip())
+
+    def test_pool_header_and_statistics_use_concise_type_breakdown(self):
+        from fm_editor import gamedata
+        w = self.window
+        c = self.duelists_page()
+        duelist = w._selected_duelist()
+        cards = sorted(w.project.cards)[:5]
+        for cid, card_type in zip(cards, (0, gamedata.TYPE_EQUIP, gamedata.TYPE_MAGIC,
+                                          gamedata.TYPE_TRAP, gamedata.TYPE_RITUAL)):
+            w.project.cards[cid].type = card_type
+        w.project.pools[duelist]['deck'] = {cid: 10 * (index + 1)
+                                             for index, cid in enumerate(cards)}
+        w._refresh_duelist_pool()
+        self.assertEqual(c['summary'].text(), '150/2,048 weight')
+        stats = c['stats']
+        self.assertEqual(list(stats['legend']), ['Monsters', 'Equips', 'Magic', 'Traps', 'Rituals'])
+        self.assertEqual([box.text() for box in stats['legend'].values()],
+                         ['1 (20.0%)'] * 5)
 
     # --- Starter decks and the retail pools --------------------------------
 
@@ -2185,6 +2247,48 @@ class CardsTest(unittest.TestCase):
                                return_value=QMessageBox.StandardButton.Yes):
             w._remove_duelist()
         self.assertNotIn('tester', [e.get('id') for e in w._duelist_roster_source()[0]])
+
+    def test_added_duelists_update_the_mod_description_line(self):
+        from PySide6.QtWidgets import QMessageBox
+        w = self.window
+        w.project.info.description = ''
+        w.select_workspace('Duelists')
+        c = w.workspace_controls['Duelists']
+        for name in ('Tester One', 'Tester Two'):
+            c['name'].setText(name)
+            c['id'].clear()
+            c['base'].setCurrentIndex(1)
+            c['position'].setCurrentIndex(c['position'].findData(None))
+            w._save_duelist(adding=True)
+        self.assertEqual(w.project.info.description, 'Adds 2 duelists to the free duel')
+        self.assertEqual(manifest.build(w.project)['description'], w.project.info.description)
+        with mock.patch.object(QMessageBox, 'question',
+                               return_value=QMessageBox.StandardButton.Yes):
+            w._remove_duelist()
+        self.assertEqual(w.project.info.description, 'Adds 1 duelists to the free duel')
+        w.duelist_selected_slot = next(slot for slot, record in w.duelist_slots.items()
+                                       if record.get('kind') == 'added')
+        with mock.patch.object(QMessageBox, 'question',
+                               return_value=QMessageBox.StandardButton.Yes):
+            w._remove_duelist()
+        self.assertEqual(w.project.info.description, '')
+
+    def test_opened_mod_adds_the_duelist_line_only_to_a_blank_description(self):
+        w = self.window
+        with tempfile.TemporaryDirectory() as temp:
+            folder = Path(temp)
+            body = {'id': 'extra-duelist', 'duelists': [
+                {'id': 'extra', 'copy': 'Simon Muran', 'name': 'Extra Duelist'}]}
+            (folder / 'mod.json').write_text(json.dumps(body), encoding='utf-8')
+            w.open_mod_path(str(folder))
+            self.assertEqual(w.project.info.description, 'Adds 1 duelists to the free duel')
+            self.assertTrue(w.dirty)
+
+            body['description'] = 'A mod with a custom description.'
+            (folder / 'mod.json').write_text(json.dumps(body), encoding='utf-8')
+            w.open_mod_path(str(folder))
+            self.assertEqual(w.project.info.description, body['description'])
+            self.assertFalse(w.dirty)
 
     # --- the Art page's three renders ---------------------------------------
 

@@ -17,12 +17,12 @@ import re
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QSize, QRect, QPoint, QFile, QIODevice, QTimer, QEvent
-from PySide6.QtGui import QColor, QFont, QIcon, QImage, QPainter, QPalette, QPen, QPixmap
+from PySide6.QtGui import QColor, QFont, QIcon, QImage, QPainter, QPainterPath, QPalette, QPen, QPixmap
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog, QHeaderView, QDialogButtonBox, QInputDialog,
     QButtonGroup, QDialog, QFormLayout, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMessageBox,
     QPushButton, QScrollArea, QSpinBox, QSplitter, QStackedWidget, QTableWidget, QTableWidgetItem,
     QListWidget, QListWidgetItem, QListView, QTreeWidget, QStyledItemDelegate, QStyle, QStyleOptionViewItem, QTextEdit, QPlainTextEdit,
-    QVBoxLayout, QWidget, QAbstractItemView, QRadioButton, QGroupBox, QTabWidget, QLayout, QSizePolicy, QMenu,
+    QVBoxLayout, QWidget, QAbstractItemView, QRadioButton, QGroupBox, QTabBar, QTabWidget, QLayout, QSizePolicy, QMenu,
     QToolButton)
 from PySide6.QtUiTools import QUiLoader
 
@@ -32,7 +32,7 @@ from .. import limits
 from .. import fixed_decks
 from .. import starter_pools
 from .. import map_art, pngio
-from ..gamedata import (ATTRIBUTE_NAMES, FRAME_NAMES, FUSION_GROUPS, STAR_NAMES, TYPE_NAMES, DUELIST_NAMES, POOLS,
+from ..gamedata import (ATTRIBUTE_NAMES, CARD_COUNT, FRAME_NAMES, FUSION_GROUPS, STAR_NAMES, TYPE_NAMES, DUELIST_NAMES, POOLS,
                        POOL_LABELS, POOL_TOTAL, DECK_SIZE, DECK_COPY_LIMIT, STARTER_WEIGHT_LIMIT,
                        exodia_piece)
 from ..model import KEY_RE, Project, StarterDeck
@@ -69,6 +69,17 @@ QLabel#artPartHeading { color: #f3f7fc; font-size: 13pt; font-weight: 650; paddi
 QLineEdit, QTextEdit, QPlainTextEdit, QComboBox, QSpinBox { background: #162337; color: #e5edf8; border: 1px solid #344862;
   border-radius: 6px; padding: 7px 9px; selection-background-color: #246df2; }
 QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus, QComboBox:focus, QSpinBox:focus { border: 1px solid #3984ff; }
+/* A list of forty duelists or seven hundred cards opened as tall as the
+   screen. combobox-popup: 0 makes the popup a list that scrolls, so
+   maxVisibleItems is honoured and it is never taller than that. */
+QComboBox { combobox-popup: 0; }
+/* The pool a duelist's list shows, as tabs over it. */
+QTabBar#duelistPoolTabs::tab { background: #142236; color: #9aacc4; border: 1px solid #26374c;
+  border-bottom: 0; border-top-left-radius: 7px; border-top-right-radius: 7px; padding: 7px 14px;
+  margin-right: 3px; }
+QTabBar#duelistPoolTabs::tab:hover { background: #1b3151; color: #dce6f4; }
+QTabBar#duelistPoolTabs::tab:selected { background: #216cf1; border-color: #216cf1; color: #ffffff;
+  font-weight: 600; }
 /* The popup is its own window: without this its frame is drawn light. */
 QComboBox QAbstractItemView { background: #162337; color: #e5edf8; border: 1px solid #344862;
   border-radius: 6px; outline: 0; padding: 3px;
@@ -233,6 +244,15 @@ class TableItem(QTableWidgetItem):
         return left < right
 
 
+COMBO_ROWS = 12                 # what a popup shows before it scrolls
+
+
+def short_popup(combo, rows: int = COMBO_ROWS):
+    """Keep a long list from opening as tall as the screen."""
+    combo.setMaxVisibleItems(rows)
+    return combo
+
+
 def allow_sorting(table):
     """Let a click on a column header sort the list under it."""
     if table.objectName() in UNSORTED_TABLES:
@@ -275,6 +295,44 @@ def sort_keeps_filter(table, refilter):
     """
     table.horizontalHeader().sortIndicatorChanged.connect(
         lambda *_: QTimer.singleShot(0, refilter))
+
+
+class PoolTypeBar(QWidget):
+    """What a pool is made of, as one bar in the kinds' colours."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.parts = []
+        self.setFixedHeight(10)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
+    def show_counts(self, parts):
+        self.parts = [(count, colour) for count, colour in parts if count > 0]
+        self.update()
+
+    def paintEvent(self, event):
+        total = sum(count for count, _colour in self.parts)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(Qt.PenStyle.NoPen)
+        rect = self.rect().adjusted(0, 0, -1, -1)
+        radius = rect.height() / 2
+        if not total:
+            painter.setBrush(QColor("#162337"))
+            painter.drawRoundedRect(rect, radius, radius)
+            return
+        # One rounded run, the parts cut out of it: the ends stay round
+        # however many kinds the pool has.
+        path = QPainterPath()
+        path.addRoundedRect(rect, radius, radius)
+        painter.setClipPath(path)
+        left = rect.left()
+        for index, (count, colour) in enumerate(self.parts):
+            width = rect.width() - (left - rect.left()) if index == len(self.parts) - 1 \
+                else round(rect.width() * count / total)
+            painter.setBrush(QColor(colour))
+            painter.drawRect(left, rect.top(), width, rect.height())
+            left += width
 
 
 class FlowLayout(QLayout):
@@ -405,6 +463,118 @@ class CardIdSpinBox(QSpinBox):
         return f"{value:03d}"
 
 
+def _card_plate(inks, scale: int):
+    """The title texture's non-zero inks over the card frame.
+
+    A title record stores index zero as transparent.  Keeping it transparent
+    here lets the frame's bevel show through as it does in the card viewer.
+    """
+    image = art.plate_image(inks, background=art.GOLD)
+    rgba = bytearray(image.rgba)
+    for index, ink in enumerate(inks):
+        if not ink:
+            rgba[index * 4 + 3] = 0
+    return pngio.scale_nearest(pngio.Image(image.width, image.height, bytes(rgba)), scale)
+
+
+def _card_title(project: Project, wa: bytes, cid: int, frame_cache: dict, scale: int):
+    """The card record's title, or the title the PC game generates for a name."""
+    try:
+        state = art.state(project)
+        if (cid, "title") in state.images:
+            image, _ = art.shown_image(project, wa, cid, "title")
+            return None if image is None else pngio.scale_nearest(image, scale)
+        if not art.own_name(project, cid):
+            return _card_plate(art.disc_plate_inks(wa, project.base_of(cid)), scale)
+    except (IndexError, KeyError, OSError, ValueError, art.pngio.PngError):
+        return None
+
+    key = ("card-title-serif-font",)
+    if key not in frame_cache:
+        try:
+            path = packmath.serif_path()
+            frame_cache[key] = ttf.Font(path) if path else None
+        except (OSError, ttf.FontError):
+            frame_cache[key] = None
+    face = frame_cache[key]
+    if face is None:
+        return None
+    return _card_plate(packmath.name_plate_inks(project.cards[cid].name, face), scale)
+
+
+def _draw_hd_card_title(painter: QPainter, name: str, scale: int):
+    """The port's HD path: set the card name anew instead of enlarging its plate."""
+    painter.save()
+    font = QFont("Times New Roman")
+    font.setPixelSize(13 * scale)
+    painter.setFont(font)
+    width = painter.fontMetrics().horizontalAdvance(name)
+    if width > 90 * scale:
+        # art.c fits an overlong title in the same 90 texels as the disc
+        # plate.  QFont stretch preserves that rule for the Qt preview.
+        font.setStretch(max(1, round(100 * 90 * scale / width)))
+        painter.setFont(font)
+    painter.setPen(QColor("#211503"))
+    painter.drawText(15 * scale, 25 * scale, name)
+    painter.restore()
+
+
+def _draw_card_details(painter: QPainter, project: Project, wa: bytes, cid: int, frame_cache: dict, scale: int):
+    """Draw the data the game layers over a card's frame and illustration."""
+    card = project.cards[cid]
+    has_custom_title = (cid, "title") in art.state(project).images
+    if scale >= 2 and not has_custom_title:
+        _draw_hd_card_title(painter, card.name, scale)
+    else:
+        title = _card_title(project, wa, cid, frame_cache, scale)
+        if title is not None:
+            painter.drawImage(QRect(12 * scale, 14 * scale, 96 * scale, 14 * scale),
+                              _qimage(title.width, title.height, title.rgba))
+
+    if not card.is_monster():
+        return
+
+    painter.save()
+    # func_80028B08 starts at x=119 and steps left by nine texels for each
+    # level icon.  The red rim and yellow centre retain the game's visual
+    # hierarchy while the card frame supplies the surrounding texture.
+    star_font = QFont("DejaVu Sans")
+    star_font.setPixelSize(max(5, 7 * scale))
+    painter.setFont(star_font)
+    for index in range(max(0, min(12, card.level))):
+        x = (119 - 9 * index) * scale
+        painter.setPen(QPen(QColor("#b72b1d"), max(1, scale)))
+        painter.setBrush(QColor("#e7492c"))
+        painter.drawEllipse(QRect(x, 32 * scale, 8 * scale, 8 * scale))
+        painter.setPen(QColor("#ffd74d"))
+        painter.drawText(QRect(x, 31 * scale, 8 * scale, 9 * scale),
+                         Qt.AlignmentFlag.AlignCenter, "★")
+
+    # Attribute is a separate card-view sprite.  Keep its circular medallion
+    # and colour on the face, rather than adding the attribute as text in the
+    # separate information panel.
+    painter.setPen(QPen(QColor("#f6d36a"), max(1, scale)))
+    painter.setBrush(QColor("#211b0c"))
+    painter.drawEllipse(QRect(110 * scale, 13 * scale, 16 * scale, 16 * scale))
+
+    # The retail card viewer draws four 6x13 digit tiles at these positions.
+    # The labels occupy the left half of the same stat plate.
+    label_font = QFont("DejaVu Serif")
+    label_font.setPixelSize(max(6, 7 * scale))
+    label_font.setStretch(85)
+    painter.setFont(label_font)
+    painter.setPen(QColor("#251804"))
+    painter.drawText(77 * scale, 169 * scale, "ATK")
+    painter.drawText(77 * scale, 183 * scale, "DFD")
+    digit_font = QFont("DejaVu Serif")
+    digit_font.setPixelSize(max(8, 11 * scale))
+    digit_font.setStretch(80)
+    painter.setFont(digit_font)
+    painter.drawText(98 * scale, 169 * scale, f"{card.attack:04d}")
+    painter.drawText(98 * scale, 183 * scale, f"{card.defense:04d}")
+    painter.restore()
+
+
 def _card_image(project: Project, wa: bytes, cid: int, frame_cache: dict, scale: int = 1) -> QPixmap:
     """Compose the full 140x196 card sprite from its atlas fragments."""
     card = project.cards[cid]
@@ -462,6 +632,8 @@ def _card_image(project: Project, wa: bytes, cid: int, frame_cache: dict, scale:
                         _qimage(picture.width, picture.height, picture.rgba))
     except (OSError, ValueError, art.pngio.PngError):
         pass
+
+    _draw_card_details(p, project, wa, cid, frame_cache, scale)
 
     p.end()
     return QPixmap.fromImage(out)

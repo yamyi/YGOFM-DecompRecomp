@@ -67,6 +67,16 @@ something to fall back to, and `--classic` goes with it. PySide6 is therefore
 not optional for long — `build_exe.py` already refuses to build without it
 unless `--without-qt` says to.
 
+On the Cards page, **3D View** beside **HD Preview** replaces the card picture
+with its textured in-game model. Drag to rotate and scroll to zoom. Double-click
+the model (or the **3D View** button) to open a larger window with **Reset view**.
+Choose **Disc Preview** or **HD Preview** to return to the card picture.
+Copies and model overrides use their assigned disc model.
+The viewer shows the model's stored pose, without battle animations. It reads
+`DATA/MODEL.MRG` from the loaded disc or extracted game folder (or a disc image
+beside the extracted files); missing archives and cards without models are
+reported in the viewer.
+
 The window has a tab per table:
 
 | Tab | What you edit |
