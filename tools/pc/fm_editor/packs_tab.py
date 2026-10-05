@@ -99,29 +99,8 @@ def card_picture(art_image: pngio.Image, inks, zoom: int) -> pngio.Image:
     return pngio.Image(w, h, bytes(out))
 
 
-def full_picture(image: pngio.Image, zoom: int) -> pngio.Image:
-    """"image_style": "full": the picture fitted inside the card's 140x196,
-    its shape kept and centred, as the big card shows it (pack_shop.c), over
-    the Password screen's black, `zoom` times. At 1x as the console's
-    texture has it (art.c CardArt_IndexedImage): a texel under half opaque
-    is clear, the rest opaque; at 2x and 4x with the PNG's own alpha, as
-    the game draws the PNG itself there."""
-    w, h = packmath.fit_full(image.width, image.height)
-    picture = pngio.resample(image, w * zoom, h * zoom)
-    width, height = packmath.CARD_VIEW[0] * zoom, packmath.CARD_VIEW[1] * zoom
-    out = bytearray(b"\x00\x00\x00\xff") * (width * height)
-    left, top = (packmath.CARD_VIEW[0] - w) // 2 * zoom, (packmath.CARD_VIEW[1] - h) // 2 * zoom
-    for y in range(picture.height):
-        row = picture.rgba[y * picture.width * 4:(y + 1) * picture.width * 4]
-        start = ((top + y) * width + left) * 4
-        for x in range(picture.width):   # its clear parts show the black, as the game's do
-            r, g, b, a = row[x * 4:x * 4 + 4]
-            if zoom == 1:
-                if a * 2 >= 255:
-                    out[start + x * 4:start + x * 4 + 4] = bytes((r, g, b, 255))
-            elif a:
-                out[start + x * 4:start + x * 4 + 4] = bytes((r * a // 255, g * a // 255, b * a // 255, 255))
-    return pngio.Image(width, height, bytes(out))
+# "image_style": "full", drawn where the rest of the picture code is.
+full_picture = art.full_picture
 
 
 class PacksTab(Tab):

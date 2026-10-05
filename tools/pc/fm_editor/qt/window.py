@@ -591,8 +591,12 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
             self._style_mod_info_page(page, get, controls)
         elif name == "Problems":
             controls.update(table=get(QTableWidget, "problemsTable"),
-                            summary=get(QLabel, "problemSummaryLabel"), issues=[])
+                            summary=get(QLabel, "problemSummaryLabel"),
+                            others=get(QLabel, "otherModsLabel"), cross=False, issues=[])
             get(QPushButton, "checkModButton").clicked.connect(self._refresh_problems)
+            get(QPushButton, "checkOtherModsButton").clicked.connect(self._check_other_mods)
+            get(QPushButton, "otherModsFolderButton").clicked.connect(self._choose_other_mods)
+            controls["others"].setStyleSheet("color:#9aacc4")      # said quietly, as a page's line is
             controls["table"].cellDoubleClicked.connect(self._open_problem)
             controls["table"].setToolTip("Double-click a line to go to it.")
             controls["table"].setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)

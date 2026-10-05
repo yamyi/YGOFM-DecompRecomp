@@ -45,6 +45,14 @@
     </widget>
    </item>
    <item>
+    <widget class="QLabel" name="otherModsLabel">
+     <property name="text">
+      <string>The other installed mods are not checked yet.</string>
+     </property>
+     <property name="wordWrap"><bool>true</bool></property>
+    </widget>
+   </item>
+   <item>
     <widget class="QLabel" name="problemSummaryLabel">
      <property name="text">
       <string>Run validation to check the mod manifest and game data.</string>
@@ -76,6 +84,23 @@
       <widget class="QPushButton" name="checkModButton">
        <property name="text">
         <string>Check mod</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="checkOtherModsButton">
+       <property name="text">
+        <string>Check against installed mods</string>
+       </property>
+       <property name="toolTip">
+        <string>Where this mod meets the other mods installed, in the order the game would load them</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="otherModsFolderButton">
+       <property name="text">
+        <string>Other mods folder…</string>
        </property>
       </widget>
      </item>

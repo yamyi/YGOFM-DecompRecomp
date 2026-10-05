@@ -15,9 +15,10 @@ import struct
 import json
 import re
 import shutil
+from types import SimpleNamespace
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QSize, QRect, QPoint, QFile, QIODevice, QTimer, QEvent
+from PySide6.QtCore import Qt, QSize, QRect, QPoint, QFile, QIODevice, QTimer, QEvent, Signal
 from PySide6.QtGui import (QColor, QCursor, QFont, QFontMetrics, QGuiApplication, QIcon, QImage, QPainter,
                            QPainterPath, QPalette, QPen, QPixmap)
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog, QHeaderView, QDialogButtonBox, QInputDialog,
@@ -29,7 +30,7 @@ from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog, 
 from PySide6.QtUiTools import QUiLoader
 
 from .. import art, disc, gamedata, manifest, validate, pools as poolmath, bulk_fusions, guardian_stars, card_text, ttf, settings, importer, ygomods, packs as packmath, pngio
-from .. import history, recovery
+from .. import card_uses, history, recovery
 from .. import campaign_map as cm
 from .. import limits
 from .. import fixed_decks
@@ -168,6 +169,7 @@ STATE_COLOURS = {
     "notes": ("#9c6500", "#f2c04c"),
     "error": ("#c01c28", "#ff8f87"),
     "warning": ("#9c6500", "#f2c04c"),
+    "note": ("#5c6670", "#9aacc4"),      # cross_mod: changes that add up or agree
 }
 
 
@@ -298,6 +300,17 @@ def sort_keeps_filter(table, refilter):
     """
     table.horizontalHeader().sortIndicatorChanged.connect(
         lambda *_: QTimer.singleShot(0, refilter))
+
+
+class ClickableLabel(QLabel):
+    """A label that answers a click, for a value that puts itself back."""
+
+    clicked = Signal()
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton and self.rect().contains(event.position().toPoint()):
+            self.clicked.emit()
+        super().mouseReleaseEvent(event)
 
 
 class PoolTypeBar(QWidget):

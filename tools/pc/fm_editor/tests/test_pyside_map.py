@@ -27,6 +27,15 @@ class MapTest(unittest.TestCase):
         cls.qt = QApplication.instance() or QApplication([])
 
     def setUp(self):
+        # Never the user's own settings, and so never the recovery folder
+        # beside them: a window under test autosaves like any other.
+        from fm_editor import settings
+        self.config = tempfile.TemporaryDirectory()
+        self.addCleanup(self.config.cleanup)
+        patcher = mock.patch.object(settings, "path",
+                                    lambda: Path(self.config.name) / "fm-editor" / "settings.json")
+        patcher.start()
+        self.addCleanup(patcher.stop)
         f = mf.map_fixture()
         files = SimpleNamespace(wa=f.wa, slus=f.slus, source='synthetic')
         with mock.patch.object(ModernEditor, '_load_game', return_value=files), \

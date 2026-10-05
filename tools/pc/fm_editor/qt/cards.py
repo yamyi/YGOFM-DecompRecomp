@@ -302,6 +302,10 @@ class CardsMixin:
         splitter.setStretchFactor(2, 3)
         splitter.setSizes([520, 610, 490])
 
+        # A card in the list: where the mod uses it, and its picture
+        # (card_links.install does this for the Tk lists).
+        self.listing.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.listing.customContextMenuRequested.connect(self._card_list_menu)
         self.search.textChanged.connect(self.refresh_cards)
         self.disc_preview_button.clicked.connect(lambda: self._set_preview_scale(1))
         self.hd_preview_button.clicked.connect(lambda: self._set_preview_scale(4))
@@ -321,6 +325,101 @@ class CardsMixin:
             field.currentIndexChanged.connect(self._render_preview)
         for field in (self.level_box, self.attack_box, self.defense_box):
             field.valueChanged.connect(self._render_preview)
+        # The marks follow what is typed, not only what is applied.
+        for field in (self.fields["name"], self.fields["password"]):
+            field.textChanged.connect(self._marks_follow)
+        for field in (self.type_box, self.attribute_box, self.star1_box, self.star2_box, self.frame_box,
+                      self.fields["effect"]):
+            field.currentIndexChanged.connect(self._marks_follow)
+        for field in (self.level_box, self.attack_box, self.defense_box, self.fields["starchips"]):
+            field.valueChanged.connect(self._marks_follow)
+        self.description.textChanged.connect(self._marks_follow)
+    def _card_list_menu(self, point):
+        item = self.listing.itemAt(point)
+        if item is None:
+            return
+        row = self.listing.item(item.row(), 0)
+        cid = row.data(Qt.ItemDataRole.UserRole) if row is not None else None
+        if not cid:
+            return
+        menu = QMenu(self)
+        menu.addAction(f"Where {self.project.card_label(cid)} is used…").triggered.connect(
+            lambda: self.show_card_uses(cid))
+        menu.addAction("Show its picture in Art").triggered.connect(lambda: self.goto_art(cid))
+        menu.exec(self.listing.viewport().mapToGlobal(point))
+
+    def show_card_uses(self, cid):
+        """Everything in the mod that names this card, each line a way to the
+        page it is on (card_uses.where_used; the Tk window's is card_links.UsesWindow)."""
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"Where {self.project.card_label(cid)} is used")
+        dialog.resize(640, 440)
+        layout = QVBoxLayout(dialog)
+        summary = QLabel(dialog)
+        layout.addWidget(summary)
+        table = QTableWidget(0, 2, dialog)
+        table.setHorizontalHeaderLabels(["Where", "What"])
+        table.verticalHeader().setVisible(False)
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        table.setToolTip("Double-click a line to go to it.")
+        layout.addWidget(table, 1)
+        close = QPushButton("Close", dialog)
+        close.clicked.connect(dialog.accept)
+        row = QHBoxLayout()
+        row.addStretch(1)
+        row.addWidget(close)
+        layout.addLayout(row)
+        lines = []
+
+        def fill():
+            """Listed again each time it comes back, so it follows the edits."""
+            lines[:] = card_uses.where_used(self.project, cid) if cid in self.project.cards else []
+            table.setRowCount(len(lines))
+            for index, (where, what, target) in enumerate(lines):
+                for column, text in enumerate((where, what)):
+                    cell = QTableWidgetItem(str(text))
+                    cell.setData(Qt.ItemDataRole.UserRole, index)
+                    if target is None:
+                        cell.setForeground(QColor("#9aacc4"))      # nowhere to go from here
+                    table.setItem(index, column, cell)
+            table.resizeColumnToContents(0)
+            summary.setText(f"{len(lines)} use(s)" if lines else
+                            "Nothing in the mod uses this card: no fusion, equip, ritual, deck, drop, "
+                            "pack or starter pool.")
+            if lines:
+                table.selectRow(0)
+
+        def go(index):
+            if 0 <= index < len(lines) and lines[index][2] is not None:
+                self._go_to_use(lines[index][2])
+                fill()
+
+        table.cellDoubleClicked.connect(lambda r, _c=0: go(r))
+        fill()
+        self.card_uses_dialog = dialog
+        dialog.finished.connect(lambda *_: setattr(self, "card_uses_dialog", None))
+        dialog.show()
+        return dialog
+
+    def _go_to_use(self, target):
+        """Where a line of "Where it's used" points, in this window's pages.
+        The areas and targets the Problems page already goes to
+        (card_links.open_target does this for the Tk window)."""
+        kind = target[0]
+        area, where = {"card": ("Cards", lambda: target[1]),
+                       "fusions": ("Fusions", lambda: (target[1],)),
+                       "equips": ("Equips", lambda: target[1]),
+                       "rituals": ("Rituals", lambda: target[1]),
+                       "pool": ("Duelists", lambda: (target[1], target[2])),
+                       "starter": ("Starter decks", lambda: target[1]),
+                       "pack": ("Packs", lambda: target[1])}.get(kind, (None, None))
+        if area is None:
+            return
+        self.go_to(SimpleNamespace(area=area, where="", message="", target=where()))
+
     def _open_advanced_card_filter(self):
         dialog = QDialog(self)
         dialog.setWindowTitle("Advanced card filters")
@@ -683,12 +782,22 @@ class CardsMixin:
     # same order and two columns, set smaller and read-only under the picture.
     REFERENCE_ROWS = (("Name",), ("Type", "Attribute"), ("Level", "Frame"),
                       ("ATK", "DEF"), ("Guardian Star 1", "Guardian Star 2"),
-                      ("Password", "Starchips"))
+                      ("Password", "Starchips"), ("Retail effect",), ("Card text",))
+    # Which field of the form each row is the disc's value for, so a row that
+    # differs says so and puts its value back when it is clicked
+    # (tabs.CardsTab.MARKED, retail_values, restore).
+    REFERENCE_FIELDS = {"Name": "name", "Type": "type", "Attribute": "attribute", "Level": "level",
+                        "Frame": "frame", "ATK": "attack", "DEF": "defense",
+                        "Guardian Star 1": "star1", "Guardian Star 2": "star2",
+                        "Password": "password", "Starchips": "starchips",
+                        "Retail effect": "effect", "Card text": "text"}
     REFERENCE_QSS = """
 QLabel#referenceCaption { color: #8aa0bd; font-size: 10px; }
 QLabel#referenceValue { background: #162337; border: 1px solid #2a3d55; border-radius: 5px;
   padding: 2px 6px; color: #dce6f4; font-size: 11px; }
 QLabel#referenceTitle { color: #c9d8ed; font-weight: 600; }
+QLabel#referenceCaption[changed="true"] { color: #8ab4f8; }
+QLabel#referenceValue[changed="true"] { color: #8ab4f8; border-color: #3f6ea8; }
 """
 
     def _build_card_reference(self, parent):
@@ -706,17 +815,19 @@ QLabel#referenceTitle { color: #c9d8ed; font-weight: 600; }
         grid.setHorizontalSpacing(10)
         grid.setVerticalSpacing(4)
         self.reference_values = {}
+        self.reference_captions = {}
         for row, names in enumerate(self.REFERENCE_ROWS):
             for col, name in enumerate(names):
                 caption = QLabel(name)
                 caption.setObjectName("referenceCaption")
-                value = QLabel("—")
+                value = ClickableLabel("—")
                 value.setObjectName("referenceValue")
-                value.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+                value.clicked.connect(lambda key=name: self._restore_retail_field(key))
                 span = 2 if len(names) == 1 else 1
                 grid.addWidget(caption, row * 2, col, 1, span)
                 grid.addWidget(value, row * 2 + 1, col, 1, span)
                 self.reference_values[name] = value
+                self.reference_captions[name] = caption
         grid.setColumnStretch(0, 1)
         grid.setColumnStretch(1, 1)
         column.addLayout(grid)
@@ -747,10 +858,97 @@ QLabel#referenceTitle { color: #c9d8ed; font-weight: 600; }
             # The Password screen sells the disc's cards and knows no other.
             "Password": "card view only" if added else (self.project.retail.passwords.get(cid) or "none"),
             "Starchips": "not sold there" if added else f"{self.project.retail.starchips.get(cid, 0):,}",
+            # What the disc's card plays as, for a card that is no monster.
+            "Retail effect": (self._effect_label(reference.id)
+                              if self._effect_kind(reference.id) >= 0 else "—"),
+            "Card text": " ".join(reference.description.split()) or "—",
         }
+        self.reference_shown = shown
         for name, value in shown.items():
-            self.reference_values[name].setText(value)
-            self.reference_values[name].setToolTip(value)
+            label = self.reference_values[name]
+            label.setText(QFontMetrics(label.font()).elidedText(value, Qt.TextElideMode.ElideRight,
+                                                                max(60, label.width())))
+            label.setToolTip(reference.description if name == "Card text" else value)
+        self._mark_card_fields()
+
+    def _marks_follow(self, *_):
+        if not self._loading:
+            self._mark_card_fields()
+
+    def _form_value(self, key):
+        """What the form holds for a marked field, as the panel words it."""
+        if key == "text":
+            return " ".join(self.description.toPlainText().split()) or "—"
+        if key == "effect":
+            kind = self.fields["type"].currentIndex()
+            return self.fields["effect"].currentText() if kind >= gamedata.TYPE_MAGIC else "—"
+        if key == "password":
+            if self.current in self.project.added:
+                return self.reference_shown.get("Password")      # a card view only: nothing to compare
+            return self.fields["password"].text().strip() or "none"
+        if key == "starchips":
+            if self.current not in self.project.retail.cards:
+                return self.reference_shown.get("Starchips")
+            return f"{self.fields['starchips'].value():,}"
+        if key in ("level", "attack", "defense"):
+            value = self.fields[key].value()
+            return f"{value:,}" if key != "level" else str(value)
+        if key == "frame":
+            index = self.fields["frame"].currentIndex() - 1
+            return FRAME_NAMES[index] if index >= 0 else "By card type"
+        if key in ("type", "attribute", "star1", "star2"):
+            return self.fields[key].currentText()
+        return self.fields["name"].text() or "—"
+
+    def _mark_card_fields(self):
+        """A row that differs from the disc says so, and is a hand to click
+        (tabs.CardsTab.mark): clicking it puts that value back in the form."""
+        shown = getattr(self, "reference_shown", None)
+        for name, key in self.REFERENCE_FIELDS.items():
+            label, caption = self.reference_values[name], self.reference_captions[name]
+            differs = bool(shown) and self.current is not None and shown.get(name) != self._form_value(key)
+            for part in (label, caption):
+                if part.property("changed") != differs:
+                    part.setProperty("changed", differs)
+                    part.style().unpolish(part)
+                    part.style().polish(part)
+            label.setCursor(Qt.CursorShape.PointingHandCursor if differs else Qt.CursorShape.ArrowCursor)
+            if differs:
+                label.setToolTip(f"{shown.get(name)}\n\nClick to put the retail value back in the form.")
+
+    def _restore_retail_field(self, name):
+        """The disc's value back into the form; Apply stores it, as it stores
+        anything else typed there (tabs.CardsTab.restore)."""
+        key = self.REFERENCE_FIELDS.get(name)
+        shown = getattr(self, "reference_shown", None)
+        if key is None or not shown or self.current is None or self._loading:
+            return
+        if shown.get(name) == self._form_value(key):
+            return
+        reference = self.project.retail.cards.get(self.current) or \
+            self.project.cards[self.project.base_of(self.current)]
+        if key == "text":
+            self.description.setPlainText(reference.description)
+        elif key == "name":
+            self.fields["name"].setText(reference.name)
+        elif key == "effect":
+            if self.fields["effect"].findText(shown[name]) >= 0:
+                self.fields["effect"].setCurrentText(shown[name])
+        elif key == "password":
+            if self.current not in self.project.added:
+                self.fields["password"].setText(self.project.retail.passwords.get(self.current) or "")
+        elif key == "starchips":
+            if self.current in self.project.retail.cards:
+                self.fields["starchips"].setValue(self.project.retail.starchips.get(self.current, 0))
+        elif key == "frame":
+            self.fields["frame"].setCurrentIndex(reference.frame + 1)
+        elif key in ("level", "attack", "defense"):
+            self.fields[key].setValue(getattr(reference, "attack" if key == "attack" else
+                                              "defense" if key == "defense" else "level"))
+        else:
+            self.fields[key].setCurrentIndex(getattr(reference, key))
+        self._mark_card_fields()
+        self._render_preview()
 
     def _render_preview(self):
         if not self.current or self._loading: return

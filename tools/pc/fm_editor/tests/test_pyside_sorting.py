@@ -1,7 +1,9 @@
 """Clicking a column header sorts the list under it, on every page that has one."""
 import os
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+import tempfile
 import unittest
+from pathlib import Path
 from unittest import mock
 from types import SimpleNamespace
 try:
@@ -21,6 +23,15 @@ class SortingTest(unittest.TestCase):
         cls.qt = QApplication.instance() or QApplication([])
 
     def setUp(self):
+        # Never the user's own settings, and so never the recovery folder
+        # beside them: a window under test autosaves like any other.
+        from fm_editor import settings
+        self.config = tempfile.TemporaryDirectory()
+        self.addCleanup(self.config.cleanup)
+        patcher = mock.patch.object(settings, "path",
+                                    lambda: Path(self.config.name) / "fm-editor" / "settings.json")
+        patcher.start()
+        self.addCleanup(patcher.stop)
         f = fixture()
         with mock.patch.object(ModernEditor, '_load_game',
                                return_value=SimpleNamespace(wa=f.wa, source='synthetic')), \
