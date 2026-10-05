@@ -45,6 +45,15 @@ ART_CLUT = 0x2640
 TITLE_PIXELS = 0x2840
 THUMB_CLUT = 0x500             # in the card's own sector
 
+# A Free Duel portrait record (cards/art.h): 48x48 at a byte a pixel, then
+# its 64-entry palette. Forty of them, the first being Deck Build's.
+PORTRAIT_BASE = 0xF55000
+PORTRAIT_STRIDE = 0x980
+PORTRAIT_PIXELS = 0x900
+PORTRAIT_SIZE = (48, 48)
+PORTRAIT_COLOURS = 64
+PORTRAIT_COUNT = 40
+
 PARTS = ("art", "thumbnail", "title")
 LABELS = {"art": "Picture", "thumbnail": "Thumbnail", "title": "Name plate"}
 SIZES = {"art": (102, 96), "thumbnail": (40, 32), "title": (96, 14)}
@@ -172,6 +181,20 @@ def disc_image(wa: bytes, cid: int, part: str) -> Image:
         small = (cid - 1) * SECTOR
         return _paletted(wa, small, 40, 32, small + THUMB_CLUT, 64)
     return plate_image(disc_plate_inks(wa, cid))
+
+
+def portrait_at(duelist: int) -> int:
+    """Where a duelist's Free Duel face is stored in WA_MRG.MRG."""
+    return PORTRAIT_BASE + duelist * PORTRAIT_STRIDE
+
+
+def portrait_image(wa: bytes, duelist: int) -> Image:
+    """A duelist's Free Duel face as the disc has it."""
+    if not 0 <= duelist < PORTRAIT_COUNT:
+        raise ValueError(f"duelist {duelist} has no portrait on the disc")
+    at = portrait_at(duelist)
+    width, height = PORTRAIT_SIZE
+    return _paletted(wa, at, width, height, at + PORTRAIT_PIXELS, PORTRAIT_COLOURS)
 
 
 def ink_of(coverage: int) -> int:
