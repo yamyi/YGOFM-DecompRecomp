@@ -32,9 +32,11 @@ whole number from -32767 to 32767 each; empty puts the default back. An
 equip has no **Retail effect** to choose: it plays as an equip whatever it
 was, and a monster made an equip equips only what you give it in Equips. A
 boost set on a disc equip holds for its copies too, unless they set their
-own.
+own. The Qt window has both beside the other fields, with the default in the
+box itself ("Default (+500)") until a boost is typed.
 
-The **Password** field takes up to 8 digits.
+The **Password** field takes up to 8 digits; the Qt window's takes nothing
+else, as its Starchips box does.
 
 **Starchips**, below **Password** in Cards, edits any card's price
 on the Password screen (0–999999; **0 is free**). The field shows the price
@@ -221,7 +223,8 @@ replacing matching files when overwriting another mod. Its destination may
 be inside the source mod; the destination itself is excluded from the copy. **File > Export mod...**
 saves the same way, but always into a new folder named after the mod's id
 inside the folder you choose (the game's `mods` folder, say), since the game
-reads each mod from a folder of its own.
+reads each mod from a folder of its own. The Qt window has it under File too
+(Ctrl+E).
 
 **Apply and Save:** Apply stores a form in the working mod; **Ctrl+S** applies
 all valid forms and writes the mod folder. Leaving a tab also applies its form.

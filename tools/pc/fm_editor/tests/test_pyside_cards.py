@@ -213,7 +213,9 @@ class CardsTest(unittest.TestCase):
         menus = self.window.menus
         self.assertEqual(list(menus), [action.text() for action in self.window.menuBar().actions()])
         expected = {
-            'File': ['New mod', 'Open mod folder', 'Save', 'Save as', 'Import a modified game',
+            # The modified-game import is behind its setting (its own test
+            # below), so it is not one of the entries always there.
+            'File': ['New mod', 'Open mod folder', 'Save', 'Save as', 'Export mod',
                      "Convert an old recomp's", 'Recover work', 'Game files', 'Exit'],
             'Edit': ['Undo', 'Redo'],
             'Tools': ['Check the mod', 'Preview mod.json', 'Card text preview'],
@@ -2409,6 +2411,96 @@ class CardsTest(unittest.TestCase):
             self.assertIsNotNone(w._pack_image_bytes(w._pack_entry()))
             self.assertFalse(c['list'].item(0).icon().isNull())
             self.assertFalse(c['image'].pixmap().isNull())
+
+    # --- what the window took from the old one after the equips change ------
+
+    def test_an_equip_shows_its_boosts_where_another_card_shows_its_effect(self):
+        """model.equip_bonus_of/set_equip_bonus: an equip is played as an
+        equip whatever it names, so it has boosts and no Retail effect."""
+        w = self.window
+        atk, defense = w.fields['equip_attack'], w.fields['equip_defense']
+        w.show_card(651)                                  # an equip of the fixture
+        self.assertFalse(atk.isHidden())
+        self.assertTrue(w.fields['effect'].isHidden())
+        self.assertEqual(atk.value(), w.BONUS_NONE)       # the default, until it is given one
+        self.assertIn('+500', atk.specialValueText())
+        self.assertEqual(self.marked_rows(), [])
+        before = manifest.build(w.project)
+        self.assertTrue(w.apply_card(quiet=True))
+        self.assertEqual(before, manifest.build(w.project))
+        atk.setValue(1500)
+        defense.setValue(-200)
+        self.assertEqual(self.marked_rows(), ['ATK boost', 'DEF boost'])
+        self.assertTrue(w.apply_card(quiet=True))
+        self.assertEqual(w.project.equip_bonus[651], (1500, -200))
+        self.assertIn({'card': w.project.ref(651), 'bonus_attack': 1500, 'bonus_defense': -200},
+                      manifest.build(w.project)['equips'])
+        # The panel's row puts the default back.
+        w.show_card(651)
+        self.assertEqual(atk.value(), 1500)
+        w.reference_values['ATK boost'].clicked.emit()
+        self.assertTrue(w.apply_card(quiet=True))
+        self.assertEqual(w.project.equip_bonus[651], (500, -200))
+
+    def test_a_card_that_stops_being_an_equip_keeps_no_boost(self):
+        w = self.window
+        w.show_card(651)
+        w.fields['equip_attack'].setValue(900)
+        self.assertTrue(w.apply_card(quiet=True))
+        self.assertIn(651, w.project.equip_bonus)
+        w.fields['type'].setCurrentIndex(0)
+        self.assertTrue(w.apply_card(quiet=True))
+        self.assertNotIn(651, w.project.equip_bonus)
+        self.assertTrue(w.fields['equip_attack'].isHidden())
+
+    def test_the_password_box_takes_eight_digits_and_nothing_else(self):
+        from PySide6.QtTest import QTest
+        w = self.window
+        w.show_card(1)
+        box = w.fields['password']
+        box.clear()
+        QTest.keyClicks(box, '12345678901234')
+        self.assertEqual(box.text(), '12345678')
+        box.clear()
+        QTest.keyClicks(box, '12ab34')
+        self.assertEqual(box.text(), '1234')
+
+    def test_export_mod_makes_a_folder_of_the_mods_own(self):
+        """App.save(export=True): the game reads each mod from a folder named
+        after its id."""
+        from PySide6.QtWidgets import QFileDialog, QMessageBox
+        w = self.window
+        w.project.info.id = 'my-mod'
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(QFileDialog, 'getExistingDirectory', return_value=tmp), \
+                 mock.patch.object(QMessageBox, 'question', return_value=QMessageBox.StandardButton.Yes):
+                w.export_mod()
+            self.assertTrue((Path(tmp) / 'my-mod' / 'mod.json').is_file())
+            self.assertIn('Exported', w.statusBar().currentMessage())
+            # A folder named after an id it has not got is not made.
+            w.project.info.id = 'not a valid id!'
+            with mock.patch.object(QFileDialog, 'getExistingDirectory', return_value=tmp) as ask, \
+                 mock.patch.object(QMessageBox, 'critical') as said:
+                w.export_mod()
+            self.assertFalse(ask.called)
+            self.assertTrue(said.called)
+
+    def test_the_romhack_import_is_behind_its_setting(self):
+        """importers.install: it is experimental and unsupported, so the entry
+        shows only where settings.json asks for it."""
+        from fm_editor import settings
+        w = self.window
+        labels = [action.text() for action in w.menus['File'].actions()]
+        self.assertEqual([l for l in labels if 'modified game' in l], [])
+        settings.save('experimental_rom_import', True)
+        with mock.patch.object(ModernEditor, '_load_game',
+                               return_value=SimpleNamespace(wa=fixture().wa, source='synthetic')), \
+             mock.patch('fm_editor.pyside_app.gamedata.load_game', return_value=fixture().game()), \
+             mock.patch.object(ModernEditor, '_render_preview'):
+            other = ModernEditor()
+        self.addCleanup(other.deleteLater)
+        labels = [action.text() for action in other.menus['File'].actions()]
+        self.assertTrue([l for l in labels if 'modified game' in l])
 
     def test_where_a_card_is_used_lists_the_mod_and_goes_to_it(self):
         """card_uses.where_used, the list the Tk window's Where it's used

@@ -199,14 +199,26 @@ class CardsMixin:
             # monster has its stats, and an attack trap a threshold with it.
             "effect": widget(QComboBox, "effectCombo"),
             "trap_threshold": widget(QSpinBox, "trapThresholdSpin"),
+            # What an equip adds to the monster it is on, where another kind
+            # of card chooses an effect ("equips" bonus_attack/bonus_defense).
+            "equip_attack": widget(QSpinBox, "equipAttackSpin"),
+            "equip_defense": widget(QSpinBox, "equipDefenseSpin"),
         }
         self.effect_caption = widget(QLabel, "effectLabel")
         self.trap_caption = widget(QLabel, "trapThresholdLabel")
+        self.bonus_captions = {"equip_attack": widget(QLabel, "equipAttackLabel"),
+                               "equip_defense": widget(QLabel, "equipDefenseLabel")}
         self._shown_effect, self._shown_threshold = "", -1
         # Password and Starchips share Card Data's two columns, so the right
         # one starts where Attribute, Frame, DEF and Guardian Star 2 do. Their
         # grid is its own, and without this the password field takes the width
         # it likes and pushes Starchips out of line.
+        # The password is up to eight digits and nothing else, so the box
+        # takes nothing else either, as the Starchips spin box does.
+        password = self.fields["password"]
+        password.setMaxLength(8)
+        password.setValidator(QRegularExpressionValidator(QRegularExpression(r"[0-9]{0,8}"), password))
+        password.setToolTip("Up to 8 digits, or blank for none")
         password_grid = page.findChild(QGridLayout, "passwordGrid")
         for column in (0, 1):
             password_grid.setColumnStretch(column, 1)
@@ -331,7 +343,8 @@ class CardsMixin:
         for field in (self.type_box, self.attribute_box, self.star1_box, self.star2_box, self.frame_box,
                       self.fields["effect"]):
             field.currentIndexChanged.connect(self._marks_follow)
-        for field in (self.level_box, self.attack_box, self.defense_box, self.fields["starchips"]):
+        for field in (self.level_box, self.attack_box, self.defense_box, self.fields["starchips"],
+                      self.fields["equip_attack"], self.fields["equip_defense"]):
             field.valueChanged.connect(self._marks_follow)
         self.description.textChanged.connect(self._marks_follow)
     def _card_list_menu(self, point):
@@ -561,7 +574,9 @@ class CardsMixin:
             self._clear_card_form()
             self._shown_effect, self._shown_threshold = "", -1
             for part in (self.effect_caption, self.fields["effect"],
-                         self.trap_caption, self.fields["trap_threshold"]):
+                         self.trap_caption, self.fields["trap_threshold"],
+                         *self.bonus_captions.values(),
+                         self.fields["equip_attack"], self.fields["equip_defense"]):
                 part.setVisible(False)
             self._loading = False
             return
@@ -589,6 +604,7 @@ class CardsMixin:
         # and left alone unless the box is changed.
         self._shown_threshold = threshold if type(threshold) is int and 0 <= threshold <= 65535 else -1
         self.fields["trap_threshold"].setValue(self._shown_threshold)
+        self._load_equip_bonus(cid)
         self._show_card_kind(select=self._effect_label(self._effect_shown(cid)))
         # What the list ended up showing, which is what an untouched form has.
         self._shown_effect = self.fields["effect"].currentText()
@@ -684,9 +700,12 @@ class CardsMixin:
         monster = kind < gamedata.TYPE_MAGIC
         combo = self.fields["effect"]
         self._set_monster_fields_enabled(monster)
-        self.effect_caption.setVisible(not monster)
-        combo.setVisible(not monster)
-        if not monster and self.project is not None:
+        # An equip needs none: a monster copied into one is played as an
+        # equip whatever its effect says (tabs.show_kind, cards.c).
+        chooses = not monster and kind != gamedata.TYPE_EQUIP
+        self.effect_caption.setVisible(chooses)
+        combo.setVisible(chooses)
+        if chooses and self.project is not None:
             cid = self.current
             # The disc's cards of the same type: one of another would be
             # played as its own type, and the CPU would not know what to do
@@ -710,14 +729,16 @@ class CardsMixin:
             combo.addItems(choices)
             combo.setCurrentText(wanted)
             combo.blockSignals(blocked)
-        if monster:
-            # Nothing to choose from: a monster plays no effect of its own.
+        if not chooses:
+            # Nothing to choose from: a monster plays no effect of its own,
+            # and an equip is played as one whatever it names.
             blocked = combo.blockSignals(True)
             combo.clear()
             combo.addItem(self.EFFECT_NONE)
             combo.setCurrentIndex(0)
             combo.blockSignals(blocked)
         self._show_trap_threshold()
+        self._show_equip_bonus()
         if monster:
             self._refill_monster()
 
@@ -732,6 +753,39 @@ class CardsMixin:
         box.setVisible(default is not None)
         # -1 is the field left alone: the effect's own threshold stands.
         box.setSpecialValueText(f"Effect default ({default})" if default is not None else "")
+
+    BONUS_NONE = -32768      # outside the game's range: the box left at its default
+
+    def _show_equip_bonus(self):
+        """An equip's ATK and DEF boosts, where another kind of card has its
+        effect list (tabs.CardsTab.show_bonus). The box left at its lowest
+        reads as the default, since the boost itself may be negative."""
+        equip = self.fields["type"].currentIndex() == gamedata.TYPE_EQUIP and self.project is not None
+        default = self.project.equip_bonus_default(self.current) if equip and self.current else (0, 0)
+        for key, points in zip(("equip_attack", "equip_defense"), default):
+            box, caption = self.fields[key], self.bonus_captions[key]
+            caption.setVisible(equip)
+            box.setVisible(equip)
+            box.setSpecialValueText(f"Default ({points:+d})" if equip else "")
+
+    def _load_equip_bonus(self, cid):
+        """What the card holds: its own boosts, or the box at its default."""
+        own = self.project.equip_bonus.get(cid)
+        for key, points in zip(("equip_attack", "equip_defense"), own or (None, None)):
+            self.fields[key].setValue(self.BONUS_NONE if points is None else points)
+
+    def _store_equip_bonus(self, cid, card) -> bool:
+        """The two boxes into the card's boost; whether that changed it. A
+        card that is no longer an equip keeps none."""
+        had = self.project.equip_bonus.get(cid)
+        if card.type != gamedata.TYPE_EQUIP:
+            self.project.set_equip_bonus(cid, None)
+        else:
+            default = self.project.equip_bonus_default(cid)
+            points = [self.fields[key].value() for key in ("equip_attack", "equip_defense")]
+            self.project.set_equip_bonus(cid, *(d if p == self.BONUS_NONE else p
+                                                for p, d in zip(points, default)))
+        return self.project.equip_bonus.get(cid) != had
 
     def _refill_monster(self):
         """A card applied as a non-monster lost its ATK, DEF, level and stars;
@@ -754,12 +808,22 @@ class CardsMixin:
         Left out when it is what the card has anyway, or for a monster, which
         never plays one. An "effect" the form has not been touched for stays
         as written, whatever it names."""
+        extra = (self.project.added[cid].extra if cid in self.project.added
+                 else self.project.card_extra.get(cid, {}))
+        if card.type == gamedata.TYPE_EQUIP:
+            # An equip has no list: one the mod names stays (a copy of
+            # Megamorph is still one), another type's goes.
+            named = self.project.resolve(extra["effect"]) if "effect" in extra else None
+            if not named or self._effect_kind(named) == gamedata.TYPE_EQUIP:
+                return False
+            del extra["effect"]
+            if cid not in self.project.added and not extra:
+                self.project.card_extra.pop(cid, None)
+            return True
         if self.fields["effect"].currentText() == self._shown_effect and card.type == self.project.cards[cid].type:
             return False
         if card.is_monster() and self.project.cards[cid].is_monster():
             return False
-        extra = (self.project.added[cid].extra if cid in self.project.added
-                 else self.project.card_extra.get(cid, {}))
         chosen = 0 if card.is_monster() else self._chosen_effect()
         default = self._effect_default(cid)
         wanted = chosen if chosen and chosen != default else None
@@ -782,7 +846,8 @@ class CardsMixin:
     # same order and two columns, set smaller and read-only under the picture.
     REFERENCE_ROWS = (("Name",), ("Type", "Attribute"), ("Level", "Frame"),
                       ("ATK", "DEF"), ("Guardian Star 1", "Guardian Star 2"),
-                      ("Password", "Starchips"), ("Retail effect",), ("Card text",))
+                      ("Password", "Starchips"), ("Retail effect",), ("ATK boost", "DEF boost"),
+                      ("Card text",))
     # Which field of the form each row is the disc's value for, so a row that
     # differs says so and puts its value back when it is clicked
     # (tabs.CardsTab.MARKED, retail_values, restore).
@@ -790,7 +855,8 @@ class CardsMixin:
                         "Frame": "frame", "ATK": "attack", "DEF": "defense",
                         "Guardian Star 1": "star1", "Guardian Star 2": "star2",
                         "Password": "password", "Starchips": "starchips",
-                        "Retail effect": "effect", "Card text": "text"}
+                        "Retail effect": "effect", "ATK boost": "equip_attack",
+                        "DEF boost": "equip_defense", "Card text": "text"}
     REFERENCE_QSS = """
 QLabel#referenceCaption { color: #8aa0bd; font-size: 10px; }
 QLabel#referenceValue { background: #162337; border: 1px solid #2a3d55; border-radius: 5px;
@@ -858,11 +924,20 @@ QLabel#referenceValue[changed="true"] { color: #8ab4f8; border-color: #3f6ea8; }
             # The Password screen sells the disc's cards and knows no other.
             "Password": "card view only" if added else (self.project.retail.passwords.get(cid) or "none"),
             "Starchips": "not sold there" if added else f"{self.project.retail.starchips.get(cid, 0):,}",
-            # What the disc's card plays as, for a card that is no monster.
+            # What the disc's card plays as, for a card that chooses one: an
+            # equip is played as an equip whatever it names.
             "Retail effect": (self._effect_label(reference.id)
-                              if self._effect_kind(reference.id) >= 0 else "—"),
+                              if 0 <= self._effect_kind(reference.id) != gamedata.TYPE_EQUIP
+                              and self.project.cards[cid].type != gamedata.TYPE_EQUIP else "—"),
             "Card text": " ".join(reference.description.split()) or "—",
         }
+        # What an equip adds with no boost of its own (model.equip_bonus_default):
+        # the disc's +500, or what a rule of the mod gives it.
+        if self.project.cards[cid].type == gamedata.TYPE_EQUIP:
+            for name, points in zip(("ATK boost", "DEF boost"), self.project.equip_bonus_default(cid)):
+                shown[name] = f"{points:+d}"
+        else:
+            shown["ATK boost"] = shown["DEF boost"] = "—"
         self.reference_shown = shown
         for name, value in shown.items():
             label = self.reference_values[name]
@@ -881,7 +956,8 @@ QLabel#referenceValue[changed="true"] { color: #8ab4f8; border-color: #3f6ea8; }
             return " ".join(self.description.toPlainText().split()) or "—"
         if key == "effect":
             kind = self.fields["type"].currentIndex()
-            return self.fields["effect"].currentText() if kind >= gamedata.TYPE_MAGIC else "—"
+            return self.fields["effect"].currentText() \
+                if gamedata.TYPE_MAGIC <= kind != gamedata.TYPE_EQUIP else "—"
         if key == "password":
             if self.current in self.project.added:
                 return self.reference_shown.get("Password")      # a card view only: nothing to compare
@@ -890,6 +966,12 @@ QLabel#referenceValue[changed="true"] { color: #8ab4f8; border-color: #3f6ea8; }
             if self.current not in self.project.retail.cards:
                 return self.reference_shown.get("Starchips")
             return f"{self.fields['starchips'].value():,}"
+        if key in ("equip_attack", "equip_defense"):
+            if self.fields["type"].currentIndex() != gamedata.TYPE_EQUIP:
+                return "—"
+            points = self.fields[key].value()
+            return self.reference_shown.get("ATK boost" if key == "equip_attack" else "DEF boost") \
+                if points == self.BONUS_NONE else f"{points:+d}"
         if key in ("level", "attack", "defense"):
             value = self.fields[key].value()
             return f"{value:,}" if key != "level" else str(value)
@@ -940,6 +1022,8 @@ QLabel#referenceValue[changed="true"] { color: #8ab4f8; border-color: #3f6ea8; }
         elif key == "starchips":
             if self.current in self.project.retail.cards:
                 self.fields["starchips"].setValue(self.project.retail.starchips.get(self.current, 0))
+        elif key in ("equip_attack", "equip_defense"):
+            self.fields[key].setValue(self.BONUS_NONE)      # the default again
         elif key == "frame":
             self.fields["frame"].setCurrentIndex(reference.frame + 1)
         elif key in ("level", "attack", "defense"):
@@ -1053,6 +1137,8 @@ QLabel#referenceValue[changed="true"] { color: #8ab4f8; border-color: #3f6ea8; }
             if starchips != self.project.starchip_cost(cid):
                 self.project.set_starchips(cid, starchips); changed = True
         if self._store_effect(cid, card): changed = True
+        # After the effect, which the default follows (tabs.CardsTab.apply).
+        if self._store_equip_bonus(cid, card): changed = True
         # Only an attack trap has a threshold; a card that stops being one
         # drops the override it kept, but only once its type or effect moved.
         threshold = self.fields["trap_threshold"].value()
@@ -1068,6 +1154,8 @@ QLabel#referenceValue[changed="true"] { color: #8ab4f8; border-color: #3f6ea8; }
             self.fields["trap_threshold"].setValue(-1)
             self._shown_threshold = -1; changed = True
         self._shown_effect = self.fields["effect"].currentText()
+        self._load_equip_bonus(cid)
+        self._show_equip_bonus()
         if changed:
             self.project.cards[cid] = card
             problems = validate.validate_card(self.project, cid)
