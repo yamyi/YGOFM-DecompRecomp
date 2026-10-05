@@ -18,9 +18,9 @@ import shutil
 from types import SimpleNamespace
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QSize, QRect, QPoint, QFile, QIODevice, QTimer, QEvent, Signal
+from PySide6.QtCore import Qt, QSize, QRect, QPoint, QFile, QIODevice, QTimer, QEvent, QRegularExpression, Signal
 from PySide6.QtGui import (QColor, QCursor, QFont, QFontMetrics, QGuiApplication, QIcon, QImage, QPainter,
-                           QPainterPath, QPalette, QPen, QPixmap)
+                           QPainterPath, QPalette, QPen, QPixmap, QRegularExpressionValidator)
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog, QHeaderView, QDialogButtonBox, QInputDialog,
     QButtonGroup, QDialog, QFormLayout, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMessageBox,
     QProgressDialog, QPushButton, QScrollArea, QSpinBox, QSplitter, QStackedWidget, QTableWidget, QTableWidgetItem,

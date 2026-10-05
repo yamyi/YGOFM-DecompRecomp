@@ -936,13 +936,19 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
         entries = (("New mod", self.new_mod, "Ctrl+N"),
                    ("Open mod folder…", self.open_mod, "Ctrl+O"),
                    ("Save", self.save_mod, "Ctrl+S"),
-                   ("Save as…", lambda: self.save_mod(choose=True), "Ctrl+Shift+S"))
+                   ("Save as…", lambda: self.save_mod(choose=True), "Ctrl+Shift+S"),
+                   ("Export mod…", self.export_mod, "Ctrl+E"))
         for title, callback, shortcut in entries:
             action = file_menu.addAction(title)
             action.setShortcut(shortcut)
             action.triggered.connect(callback)
         file_menu.addSeparator()
-        file_menu.addAction("Import a modified game (experimental)…").triggered.connect(self.import_modded_game)
+        # Importing a PS1 ROM hack is experimental and not supported yet: its
+        # entry shows only with "experimental_rom_import": true in
+        # settings.json, as the Tk window's does (importers.install).
+        if settings.load().get("experimental_rom_import") is True:
+            file_menu.addAction("Import a modified game (.bin or SLUS_014.11, experimental)…") \
+                .triggered.connect(self.import_modded_game)
         file_menu.addAction("Convert an old recomp's .ygomods package (one way)…").triggered.connect(self.import_ygomods)
         file_menu.addSeparator()
         file_menu.addAction("Recover work…").triggered.connect(self.recover_work)
@@ -1385,16 +1391,30 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
         self.statusBar().showMessage(f"Opened {folder}" + (f" · {len(messages)} note(s)" if messages else ""))
         if messages:
             self._report("Opened with notes", "\n".join(messages))
-    def save_mod(self, choose=False):
+    def export_mod(self):
+        """Save into a folder of the mod's own, made in the one chosen: the
+        game reads each mod from a folder named after its id (App.save)."""
+        self.save_mod(choose=True, export=True)
+
+    def save_mod(self, choose=False, export=False):
         if self.current and not self.apply_card(quiet=True): return
         if self.current_workspace == "Mod info" and not self._apply_mod_info(): return
         if self.current_workspace == "Packs" and not self._commit_packs(): return
         folder = str(self.project.source_dir or "")
         if choose or not folder:
-            folder = QFileDialog.getExistingDirectory(self, "Save mod: choose an empty folder or its parent", str(self.mods_dir()))
+            if export and not KEY_RE.fullmatch(self.project.info.id or ""):
+                self.select_workspace("Mod info")
+                QMessageBox.critical(self, "Export mod", "The exported folder is named after the mod's id: give it "
+                                     "one of letters, digits, hyphens and underscores (Mod info).")
+                return
+            folder = QFileDialog.getExistingDirectory(
+                self, f"Export to: a folder \"{self.project.info.id}\" is made in the one you choose"
+                if export else "Save mod: choose an empty folder or its parent", str(self.mods_dir()))
             if not folder: return
             chosen = Path(folder)
-            if chosen.is_dir() and any(chosen.iterdir()) and not (chosen / "mod.json").exists():
+            if export:
+                folder = str(chosen / self.project.info.id)
+            elif chosen.is_dir() and any(chosen.iterdir()) and not (chosen / "mod.json").exists():
                 if not KEY_RE.fullmatch(self.project.info.id or ""):
                     QMessageBox.critical(self, "Save mod", "Give the mod a valid ID before creating its folder.")
                     return
@@ -1417,7 +1437,8 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
             path = manifest.save_mod(self.project, folder)
         except (ValueError, OSError) as problem:
             QMessageBox.critical(self, "Could not save mod", str(problem)); return
-        self.statusBar().showMessage(f"Saved {path}")
+        self.statusBar().showMessage(f"{'Exported' if export else 'Saved'} {path}. Enable it in the game under "
+                                     "Game > Mods and restart the game.")
         self.dirty = False
         self._unsaved_start = False
         self._recovery_timer.stop()
