@@ -220,6 +220,11 @@
               <layout class="QVBoxLayout" name="packImageButtons">
                <property name="spacing"><number>8</number></property>
                <item>
+                <widget class="QComboBox" name="packImageStyleCombo">
+                 <property name="toolTip"><string>How the game draws the picture: as a card's art, or the whole picture in the card's place</string></property>
+                </widget>
+               </item>
+               <item>
                 <widget class="QComboBox" name="packImageScaleCombo"/>
                </item>
                <item>

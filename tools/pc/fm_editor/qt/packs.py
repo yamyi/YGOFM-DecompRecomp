@@ -18,7 +18,7 @@ class PacksMixin:
             item=page.findChild(cls,key)
             if item is None:raise RuntimeError(f"Packs form is missing {key!r}")
             return item
-        specs={"list":(QListWidget,"packsList"),"name":(QLineEdit,"packNameEdit"),"description":(QPlainTextEdit,"packDescriptionEdit"),"price":(QSpinBox,"packPriceSpin"),"count":(QSpinBox,"packCountSpin"),"stock":(QSpinBox,"packStockSpin"),"infinite":(QCheckBox,"packInfiniteStockCheck"),"identity":(QLabel,"packIdentityValue"),"problem":(QLabel,"packValidationLabel"),"image":(QLabel,"packImagePreview"),"image_scale":(QComboBox,"packImageScaleCombo"),"contents":(QTableWidget,"packContentsTable"),"total":(QLabel,"packTotalWeightLabel"),"tier":(QComboBox,"packTierCombo"),"weight":(QSpinBox,"packWeightSpin"),"count_label":(QLabel,"packDescriptionCount"),"list_title":(QLabel,"packListTitle"),"status":(QLabel,"packsStatusLabel"),"sim_count":(QSpinBox,"packSimulationCountSpin"),"sim_results":(QTableWidget,"packSimulationResultsTable")}
+        specs={"list":(QListWidget,"packsList"),"name":(QLineEdit,"packNameEdit"),"description":(QPlainTextEdit,"packDescriptionEdit"),"price":(QSpinBox,"packPriceSpin"),"count":(QSpinBox,"packCountSpin"),"stock":(QSpinBox,"packStockSpin"),"infinite":(QCheckBox,"packInfiniteStockCheck"),"identity":(QLabel,"packIdentityValue"),"problem":(QLabel,"packValidationLabel"),"image":(QLabel,"packImagePreview"),"image_scale":(QComboBox,"packImageScaleCombo"),"image_style":(QComboBox,"packImageStyleCombo"),"contents":(QTableWidget,"packContentsTable"),"total":(QLabel,"packTotalWeightLabel"),"tier":(QComboBox,"packTierCombo"),"weight":(QSpinBox,"packWeightSpin"),"count_label":(QLabel,"packDescriptionCount"),"list_title":(QLabel,"packListTitle"),"status":(QLabel,"packsStatusLabel"),"sim_count":(QSpinBox,"packSimulationCountSpin"),"sim_results":(QTableWidget,"packSimulationResultsTable")}
         for k,(cls,n) in specs.items():c[k]=get(cls,n)
         # The advanced forms are a window of their own: five forms do not fit
         # the settings column, and the page keeps the shape of the template.
@@ -36,6 +36,9 @@ class PacksMixin:
         t.setColumnWidth(1,160)
         side=art.SIZES["art"]
         c["image_scale"].addItems([f"{n}× ({side[0]*n}×{side[1]*n})" for n in (1,2,4)])
+        # "image_style": the picture as a card's art, or the whole picture in
+        # the card's place (packs.IMAGE_STYLES, pack_shop.c fit_picture).
+        c["image_style"].addItems(["Card art", f"Full picture ({packmath.CARD_VIEW[0]}×{packmath.CARD_VIEW[1]})"])
         c["pack_art"]={}
         c["filling"]=False
         c["description"].textChanged.connect(self._count_pack_description)
@@ -46,6 +49,7 @@ class PacksMixin:
         actions=(("addPackButton",self._add_pack),("duplicatePackButton",self._duplicate_pack),("removePackButton",self._remove_pack),("movePackUpButton",lambda:self._move_pack(-1)),("movePackDownButton",lambda:self._move_pack(1)),("addPackCardButton",self._add_pack_card),("addFilteredPackCardsButton",self._add_filtered_pack_cards),("removePackCardsButton",self._remove_pack_cards),("setPackWeightButton",self._set_pack_weight),("setPackTierButton",self._set_pack_tier),("addPackTierButton",self._add_pack_tier),("importPackImageButton",self._import_pack_image),("exportPackImageButton",self._export_pack_image),("revertPackImageButton",self._revert_pack_image),("toggleAdvancedPackButton",self._toggle_pack_advanced),("openShopSettingsButton",self._edit_pack_shop),("simulatePackButton",self._simulate_pack),("viewPackResultsButton",self._show_pack_results))
         for name,fn in actions:get(QPushButton,name).clicked.connect(fn)
         c["image_scale"].currentIndexChanged.connect(lambda *_:self._refresh_pack_image())
+        c["image_style"].currentIndexChanged.connect(self._pack_style_chosen)
         c["simulation_timer"]=QTimer(self);c["simulation_timer"].setSingleShot(True);c["simulation_timer"].timeout.connect(self._pack_simulation_step)
         c["sim_results"].hide()
         get(QToolButton,"packContentsHelpButton").clicked.connect(self._explain_pack_weights)
@@ -179,7 +183,7 @@ class PacksMixin:
         for name in ("addPackButton","duplicatePackButton","removePackButton","movePackUpButton","movePackDownButton","addPackCardButton","addFilteredPackCardsButton","removePackCardsButton","setPackWeightButton","setPackTierButton","addPackTierButton","importPackImageButton"):
             b=c["page"].findChild(QPushButton,name)
             if b:b.setEnabled(not external)
-        for key in ("name","description","price","count","stock","infinite","contents","tier","weight"):
+        for key in ("name","description","price","count","stock","infinite","contents","tier","weight","image_style"):
             c[key].setEnabled(not external)
     def _fill_pack(self):
         c=self.workspace_controls["Packs"];e=self._pack_entry();t=c["contents"]
@@ -192,6 +196,8 @@ class PacksMixin:
             c["name"].clear();c["description"].clear();c["price"].setValue(packmath.DEFAULT_PRICE);c["count"].setValue(packmath.DEFAULT_COUNT);c["stock"].setValue(0);c["infinite"].setChecked(True);c["identity"].setText("No pack: Add pack makes one");c["problem"].clear();c["total"].setText("Total weight: 0");c["image"].setPixmap(QPixmap());c["image"].setText("No image")
             self._fill_pack_advanced(None,None);c["adv_baseline"]=self._pack_advanced_state();return
         c["name"].setText(str(e.get("name","")));c["description"].setPlainText(str(e.get("description","")))
+        style=e.get("image_style")
+        c["image_style"].setCurrentIndex(1 if style=="full" else 0)
         price=e.get("price",packmath.DEFAULT_PRICE);price=e.get("cost",{}).get("starchips",price) if isinstance(e.get("cost"),dict) else price;c["price"].setValue(price if isinstance(price,int) else packmath.DEFAULT_PRICE);c["count"].setValue(e.get("count",packmath.default_count(e)))
         stock=e.get("stock",-1);c["infinite"].setChecked(stock in (-1,None));c["stock"].setValue(0 if stock in (-1,None) else stock);c["identity"].setText(f"{self.project.info.id}:{packmath.pack_id(e)}")
         pack,notes=self._pack_read();c["problem"].setText(next((m for level,m in notes if level=="error"),notes[0][1] if notes else ""));chances=packmath.card_chances(pack) if pack else {};resolve=validate.pack_resolver(self.project);total=0
@@ -276,12 +282,34 @@ class PacksMixin:
                 try:picture=art.in_game(self.project,self.files.wa,cid,"art",1)
                 except (OSError,ValueError,pngio.PngError):picture=None
         name=c["name"].text().strip() or str(e.get("name",""))
-        try:drawn=self._pack_picture(picture,name,zoom)
+        full=c["image_style"].currentIndex()==1 and own
+        try:
+            if full:
+                shaped=art.full_picture(picture,zoom)
+                drawn=_qimage(shaped.width,shaped.height,shaped.rgba)
+            else:
+                drawn=self._pack_picture(picture,name,zoom)
         except (OSError,ValueError,pngio.PngError):drawn=None
+        if own and picture is not None:
+            self._set_packs_status(
+                f"The pack's whole picture, {picture.width}×{picture.height}, where the card is drawn: fitted "
+                f"inside the card's {packmath.CARD_VIEW[0]}×{packmath.CARD_VIEW[1]} at 1×, its shape kept, a pixel "
+                "under half opaque clear; Internal 2× and 4× draw the PNG itself, with its own transparency."
+                if full else
+                f"The pack's picture, {picture.width}×{picture.height}: made into the console's "
+                f"{art.SIZES['art'][0]}×{art.SIZES['art'][1]} at 1×; Internal 2× and 4× draw it at its own size.")
         if drawn is not None and not drawn.isNull():
             c["image"].setText("");c["image"].setPixmap(QPixmap.fromImage(drawn))
             self._set_pack_image_buttons(own);return
         nothing()
+    def _pack_style_chosen(self, *_):
+        """A style is the pack's own field, not only how the preview draws:
+        stored with the rest of the form (PacksTab.store)."""
+        c = self.workspace_controls.get("Packs")
+        if c and not c.get("filling"):
+            self._commit_packs()
+        self._refresh_pack_image()
+
     def _pack_plate_inks(self, name):
         """The game's name plate for a pack (PacksTab.plate_inks); None where
         the system has no serif face to set it in."""
@@ -1213,6 +1241,9 @@ class PacksMixin:
             count=c["count"].value()
             if count==packmath.default_count(new):new.pop("count",None)
             else:new["count"]=count
+            style=packmath.IMAGE_STYLES[1 if c["image_style"].currentIndex()==1 else 0]
+            if style==packmath.IMAGE_STYLES[0]:new.pop("image_style",None)
+            else:new["image_style"]=style
             self._store_pack_advanced(e,new)
             # After the advanced forms: "stock" is one of Dealing's fields, so
             # setting it before them would be written over from that tab.

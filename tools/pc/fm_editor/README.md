@@ -93,7 +93,7 @@ The window has a tab per table:
 | Guardian Stars | the stars (`guardian_stars`, [Guardian Stars](../../../notes/modding.md#guardian-stars-names-icons-new-stars-and-matchups)): the list of stars with a name and an icon each (**Import icon (PNG)...**, with a preview; the game makes it 16x16 in the disc's stars' colours), **Add star** for 11 to 15 (a card holds its stars in 4 bits, so fifteen at most), and the full grid of matchups: a row is the attacker's star, a column the defender's, a cell the bonus the attacker's side gets, green above 0 and red below; click a cell, type a bonus or use **+ default**, **- default** or **0** (with **Reverse pair gets the opposite** on, the reverse cell takes the opposite sign). **Default bonus** moves the disc's 500 in both cycles, **Retail cycles** and **Clear all** are presets, **Revert to retail** takes the whole key away. **Set stars by rule...** sets many cards' first or second star from their attribute or type through a table you fill in (a Fire monster's first star is Fire), or one star for all, **(none)** included (a first star of none leaves the second as the card's one star, as the game reads it; both none, no star), over a filter of cards like Bulk fusions', with a preview and **Undo last batch**. **Show advanced**: a name per language (`fr=Feu, de=Feuer`), an icon's colours (`game` or its own), and what happens at a summon (`ask`, `first`, `best`). The Cards tab's star lists show the mod's stars as they are named here |
 | Packs | the card packs the mod sells for starchips on the Password screen: each pack's name, description, price, cards a pack and picture (shown as a card's art or, `image_style` `full`, the whole picture), its cards with their tier, weight and chance; an **Advanced** part for everything else; **Shop settings...** and **Simulate...** (below) |
 | Mod info | id, name, version, author, description, `settings`, and the other `mod.json` keys, kept as written (`limits` is the Limits tab's, `guardian_stars` the Guardian Stars tab's) |
-| Conflicts | the loader's checks; double-click a line to go to it. Below them, where this mod meets the **other mods installed** (beside the game and in the player's mods folder, or a folder chosen with **Other mods folder...**): the same lines as the game's Mods window, a warning where only one mod's change is used and a note where the changes add up or agree ([When mods overlap](../../../notes/modding.md#when-mods-overlap)) |
+| Conflicts | (the Qt window: **Check against installed mods** on its Problems page) the loader's checks; double-click a line to go to it. Below them, where this mod meets the **other mods installed** (beside the game and in the player's mods folder, or a folder chosen with **Other mods folder...**): the same lines as the game's Mods window, a warning where only one mod's change is used and a note where the changes add up or agree ([When mods overlap](../../../notes/modding.md#when-mods-overlap)) |
 
 **Retail effect** selects a built-in behavior by its original retail name.
 The saved number identifies that behavior, independently of the card currently
@@ -190,7 +190,9 @@ Wide lists have a horizontal scrollbar.
 the disc's (a copy's: its base's) has its caption in blue and the disc's
 value beside it, **Retail: 3000 (restore)**; a click puts that value back in
 the form, and **Apply** stores it. Fields as the disc has them show nothing
-beside them. The line above the tabs is amber for edits not yet applied and
+beside them. The Qt window says it in the retail card under the picture: a
+row that differs from the form is blue and a hand, and clicking it puts that
+value back (its card text and a non-monster's effect are rows there too). The line above the tabs is amber for edits not yet applied and
 blue for changes not yet saved.
 
 **One card across the tabs:** the card selected in Cards is the one Art
@@ -205,7 +207,9 @@ ritual, duelist deck or drop pool (with its chance), fixed deck, starter
 deck, pack (or pack unlock), starter pool and added copy that names the card
 (starter pools have no tab, so their lines only list). The menu closes on a
 click elsewhere, another tab or Escape. Double-click a line to go
-there; the window lists again each time it comes back to the front.
+there; the window lists again each time it comes back to the front. The Qt
+window has **Where it's used...** on a right-click in the Cards list, with the
+same lines (`card_uses.where_used` reads them for both windows).
 
 **File > Save** writes the mod folder (Ctrl+S); the first save asks where
 (an empty folder, or a parent where a folder named after the mod id is

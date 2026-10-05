@@ -13,7 +13,7 @@ try:
     from fm_editor.pyside_app import ModernEditor
 except ImportError:
     QApplication = None
-from fm_editor import manifest, gamedata
+from fm_editor import art, card_uses, manifest, gamedata
 from fm_editor.gamedata import DUELIST_NAMES
 try:
     from PySide6.QtWidgets import QGridLayout, QPlainTextEdit, QMessageBox
@@ -33,6 +33,15 @@ class CardsTest(unittest.TestCase):
         cls.qt = QApplication.instance() or QApplication([])
 
     def setUp(self):
+        # Never the user's own settings, and so never the recovery folder
+        # beside them: a window under test autosaves like any other.
+        from fm_editor import settings
+        self.config = tempfile.TemporaryDirectory()
+        self.addCleanup(self.config.cleanup)
+        patcher = mock.patch.object(settings, "path",
+                                    lambda: Path(self.config.name) / "fm-editor" / "settings.json")
+        patcher.start()
+        self.addCleanup(patcher.stop)
         f = fixture()
         with mock.patch.object(ModernEditor, '_load_game', return_value=SimpleNamespace(wa=f.wa, source='synthetic')), mock.patch('fm_editor.pyside_app.gamedata.load_game', return_value=f.game()), mock.patch.object(ModernEditor, '_render_preview'):
             self.window = ModernEditor()
@@ -2400,6 +2409,161 @@ class CardsTest(unittest.TestCase):
             self.assertIsNotNone(w._pack_image_bytes(w._pack_entry()))
             self.assertFalse(c['list'].item(0).icon().isNull())
             self.assertFalse(c['image'].pixmap().isNull())
+
+    def test_where_a_card_is_used_lists_the_mod_and_goes_to_it(self):
+        """card_uses.where_used, the list the Tk window's Where it's used
+        shows, with this window's pages behind the lines."""
+        from PySide6.QtWidgets import QTableWidget
+        w = self.window
+        w.project.packs.append({'name': 'Locked', 'cards': [1], 'unlock': {'card': 3}})
+        dialog = w.show_card_uses(3)
+        self.addCleanup(dialog.close)
+        table = dialog.findChild(QTableWidget)
+        rows = [(table.item(r, 0).text(), table.item(r, 1).text()) for r in range(table.rowCount())]
+        self.assertIn('Rituals', [where for where, _ in rows])
+        self.assertIn(('Packs', 'Locked: unlocked by owning it'), rows)
+        self.assertEqual(len(rows), len(card_uses.where_used(w.project, 3)))
+        # A line goes to the page it names.
+        ritual = next(r for r in range(table.rowCount()) if table.item(r, 0).text() == 'Rituals')
+        table.cellDoubleClicked.emit(ritual, 0)
+        self.assertEqual(w.current_workspace, 'Rituals')
+        pack = next(r for r in range(table.rowCount()) if table.item(r, 0).text() == 'Packs')
+        table.cellDoubleClicked.emit(pack, 0)
+        self.assertEqual(w.current_workspace, 'Packs')
+        self.assertEqual(w.workspace_controls['Packs']['pack_index'], 0)
+
+    def test_a_card_nothing_uses_says_so(self):
+        from PySide6.QtWidgets import QTableWidget, QLabel
+        w = self.window
+        # 722: no fusion, equip, ritual, pool, deck or pack of the fixture
+        # names the last card.
+        dialog = w.show_card_uses(722)
+        self.addCleanup(dialog.close)
+        self.assertEqual(dialog.findChild(QTableWidget).rowCount(), 0)
+        self.assertIn('Nothing in the mod uses this card', dialog.findChild(QLabel).text())
+
+    def test_the_problems_page_checks_the_other_installed_mods(self):
+        """validate.cross_mod: where this mod meets the mods installed, in the
+        order the game would load them."""
+        from fm_editor import settings
+        w = self.window
+        c = w.workspace_controls['Problems']
+        with tempfile.TemporaryDirectory() as tmp:
+            others = Path(tmp) / 'mods' / 'other-mod'
+            others.mkdir(parents=True)
+            (others / 'mod.json').write_text(json.dumps({
+                'id': 'other-mod', 'name': 'The other mod', 'enabled': True,
+                'cards': [{'replace': 1, 'attack': 2500}]}), encoding='utf-8')
+            settings.save('other_mods', str(others.parent))
+            w.select_workspace('Problems')      # the card form stores itself on the way out
+            w.project.cards[1].attack = 3000    # the same card, differently
+            w._refresh_problems()
+            self.assertEqual([i for i in c['issues'] if i.area == 'Other mods'], [])
+            self.assertIn('not checked yet', c['others'].text())
+            w._check_other_mods()
+            clash = [i for i in c['issues'] if i.area == 'Other mods']
+            self.assertEqual(len(clash), 1)
+            self.assertIn('attack', clash[0].message)
+            self.assertIn('The other mod', clash[0].message)
+            self.assertIn('Checked against 1 installed mods', c['others'].text())
+            # A line about another mod is no place in this one to go to.
+            row = next(r for r in range(c['table'].rowCount())
+                       if c['table'].item(r, 1).text().startswith('Other mods'))
+            w._open_problem(row)
+            self.assertIn(clash[0].where, w.statusBar().currentMessage())
+
+    def test_another_mods_broken_manifest_does_not_stop_the_check(self):
+        from fm_editor import settings
+        w = self.window
+        c = w.workspace_controls['Problems']
+        with tempfile.TemporaryDirectory() as tmp:
+            others = Path(tmp) / 'mods' / 'broken'
+            others.mkdir(parents=True)
+            (others / 'mod.json').write_text('{ not json at all', encoding='utf-8')
+            settings.save('other_mods', str(others.parent))
+            w.select_workspace('Problems')
+            w._check_other_mods()
+            self.assertTrue(c['others'].text())
+            self.assertNotIn('Traceback', c['others'].text())
+
+    def marked_rows(self):
+        return sorted(name for name, label in self.window.reference_values.items()
+                      if label.property('changed'))
+
+    def test_a_field_that_differs_from_the_disc_says_so_and_puts_itself_back(self):
+        """tabs.CardsTab.mark/restore: the retail panel marks what differs and
+        a click on a row puts that value back in the form."""
+        w = self.window
+        w.show_card(1)
+        self.assertEqual(self.marked_rows(), [])
+        w.fields['attack'].setValue(4000)
+        w.fields['name'].setText('Renamed')
+        self.assertEqual(self.marked_rows(), ['ATK', 'Name'])
+        self.assertIn('Click to put the retail value back', w.reference_values['ATK'].toolTip())
+        w.reference_values['ATK'].clicked.emit()
+        self.assertEqual(w.fields['attack'].value(), w.project.retail.cards[1].attack)
+        self.assertEqual(self.marked_rows(), ['Name'])
+        w.reference_values['Name'].clicked.emit()
+        self.assertEqual(self.marked_rows(), [])
+        # Restoring is an edit of the form; Apply stores it, and what it
+        # stores is the disc's card again.
+        w.fields['defense'].setValue(123)
+        self.assertTrue(w.apply_card(quiet=True))
+        self.assertEqual(self.marked_rows(), ['DEF'])
+        w.reference_values['DEF'].clicked.emit()
+        self.assertTrue(w.apply_card(quiet=True))
+        self.assertFalse(w.project.card_changed(1))
+        self.assertEqual(self.marked_rows(), [])
+
+    def test_the_panel_marks_the_card_text_and_a_non_monsters_effect(self):
+        w = self.window
+        w.show_card(1)
+        w.description.setPlainText('Something else entirely.')
+        self.assertEqual(self.marked_rows(), ['Card text'])
+        w.reference_values['Card text'].clicked.emit()
+        self.assertEqual(w.description.toPlainText(), w.project.retail.cards[1].description)
+        self.assertEqual(self.marked_rows(), [])
+        w.show_card(601)                                   # a magic card
+        self.assertEqual(w.reference_values['Retail effect'].text(), 'Card 601')
+        w.fields['effect'].setCurrentText('Card 602')
+        self.assertEqual(self.marked_rows(), ['Retail effect'])
+        w.reference_values['Retail effect'].clicked.emit()
+        self.assertEqual(w.fields['effect'].currentText(), 'Card 601')
+        self.assertEqual(self.marked_rows(), [])
+
+    def test_an_added_card_never_marks_what_the_disc_does_not_sell(self):
+        """The Password screen knows no added card: its Password and Starchips
+        rows have nothing to differ from."""
+        w = self.window
+        cid = w.project.add_card(1)
+        w.show_card(cid)
+        w.fields['password'].setText('12345678')
+        self.assertNotIn('Password', self.marked_rows())
+        self.assertNotIn('Starchips', self.marked_rows())
+
+    def test_a_pack_picture_can_be_drawn_whole_in_the_cards_place(self):
+        """"image_style": "full" (packs.fit_full, pack_shop.c): the field is
+        the pack's own, and the preview draws what it says."""
+        from fm_editor import packs as packmath, pngio
+        w = self.window
+        c = self.packs_page()
+        w._add_pack()
+        picture = pngio.Image(300, 500, bytes([200, 40, 40, 255]) * (300 * 500))
+        w.project.files['packs/cover.png'] = pngio.encode(picture)
+        w._pack_entry()['image'] = 'packs/cover.png'
+        w._fill_pack()
+        self.assertEqual(c['image_style'].currentIndex(), 0)
+        card = c['image'].pixmap()
+        self.assertEqual((card.width(), card.height()),
+                         (art.SIZES['art'][0], art.SIZES['art'][1] + 2 + 14))
+        c['image_style'].setCurrentIndex(1)
+        self.assertEqual(w._pack_entry().get('image_style'), 'full')
+        full = c['image'].pixmap()
+        self.assertEqual((full.width(), full.height()), packmath.CARD_VIEW)
+        self.assertIn('whole picture', c['status'].text())
+        # "card" is the default, so it is not written.
+        c['image_style'].setCurrentIndex(0)
+        self.assertNotIn('image_style', w._pack_entry())
 
     def test_the_list_follows_the_name_as_it_is_typed(self):
         """There is no Apply button to make it catch up."""

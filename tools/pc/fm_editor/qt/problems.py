@@ -7,8 +7,41 @@ from .common import (_qimage, _line_count, _pairs_text, _parse_pairs, _whole,
 
 
 class ProblemsMixin:
+    def _other_mods_folder(self):
+        """The folder of mods this one is checked against: one chosen here,
+        kept in the editor's settings as the Tk window keeps it, else the
+        player's own (validate.mod_folders)."""
+        chosen = settings.load().get("other_mods")
+        return [Path(chosen)] if chosen else None
+
+    def _choose_other_mods(self):
+        folder = QFileDialog.getExistingDirectory(
+            self, "A folder of mods to check this one against",
+            str((self._other_mods_folder() or [self.mods_dir()])[0]))
+        if folder:
+            settings.save("other_mods", folder)
+            self._check_other_mods()
+
+    def _check_other_mods(self):
+        """Where this mod meets the others installed (validate.cross_mod).
+        Asked for once, the Problems page keeps showing them."""
+        self.workspace_controls["Problems"]["cross"] = True
+        self._refresh_problems()
+
+    def _cross_mod_issues(self):
+        """(issues, what to say): never let another mod's manifest stop this
+        one being checked, as the Tk Conflicts tab does not."""
+        try:
+            return validate.cross_mod(self.project, self._other_mods_folder())
+        except Exception as problem:      # noqa: BLE001 - any mod on disk, however written
+            return [], f"The other mods could not be checked: {type(problem).__name__}: {problem}"
+
     def _refresh_problems(self):
         c=self.workspace_controls["Problems"];issues=validate.validate(self.project);table=c["table"]
+        if c.get("cross"):
+            others, said = self._cross_mod_issues()
+            issues = issues + others
+            c["others"].setText(said)
         c["issues"]=issues
         held=sort_paused(table);table.setRowCount(len(issues))
         for row,issue in enumerate(issues):
@@ -18,8 +51,11 @@ class ProblemsMixin:
                 self._tint_state(item,issue.level)      # the level's ink, as the Tk tree's tags draw it
                 table.setItem(row,col,item)
         sort_resumed(table,held)
-        errors=len(validate.errors(issues));warnings=len(issues)-errors
-        c["summary"].setText(f"{errors} error(s) · {warnings} warning(s)" if issues else "No problems found.")
+        errors=len(validate.errors(issues))
+        notes=sum(1 for issue in issues if issue.level=="note")      # cross_mod: changes that agree
+        warnings=len(issues)-errors-notes
+        said=f"{errors} error(s) · {warnings} warning(s)"+(f" · {notes} note(s)" if notes else "")
+        c["summary"].setText(said if issues else "No problems found.")
         c["summary"].setStyleSheet("color:#ff8f87" if errors else "color:#f2c04c" if warnings
                                    else "color:#7fd49b")
     def _open_problem(self, row, _column=0):
@@ -37,6 +73,11 @@ class ProblemsMixin:
         window. The pages the modern editor has no form for yet are named
         instead of jumped to."""
         area, target = issue.area, issue.target
+        if area == "Other mods":
+            # Not a place in this mod: it is where this mod and another meet
+            # (validate.cross_mod), so the line itself is what there is to say.
+            self.statusBar().showMessage(f"{issue.where}: {issue.message}", 15000)
+            return
         if area == "Starter pools":
             self.select_workspace("Starter decks")
             if self.current_workspace == "Starter decks":

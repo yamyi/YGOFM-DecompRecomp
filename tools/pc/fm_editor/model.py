@@ -54,6 +54,20 @@ class RetailNames:
         return self.by_words.get(text.lower()) or (self.by_letters.get(letters(text)) if letters(text) else 0) or 0
 
 
+def fusion_pairs(p):
+    """({pair: what its card's own list makes}, every pair a Fusions page
+    lists). Model code, so both windows and card_uses read the same rows."""
+    named = {pair for pair in p.own_fusion_pairs()[0] if pair[0] in p.cards and pair[1] in p.cards}
+    # A card's own "fusions" list makes what no rule of the mod decides
+    # first: the row shows what the game plays. A copy's pair its base's
+    # rule decides is no row of its own (it would read "forbidden").
+    removes = set(p.active_removes()) if named else set()
+    own = {pair: p.own_fusion(pair, removes) for pair in named}
+    pairs = set(p.fusions) | set(p.retail.fusions) | p.fusion_explicit | \
+        {pair for pair, made in own.items() if made is not None}
+    return own, pairs
+
+
 def duelist_named(text) -> int:
     """Duelists_Named for the duelists the disc has: a number 0-39, or a name
     by its letters; -1. A mod's own duelists are not here -- which of them
