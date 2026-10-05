@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from fm_editor import gamedata as g, importer, manifest
+from fm_editor import art, gamedata as g, importer, manifest, pngio
 from fm_editor.disc import GameFiles
 from fm_editor.model import Project
 from fm_editor.tests import fixtures
@@ -151,6 +151,83 @@ class ModdedGameTest(unittest.TestCase):
     def imported(self, f, modded_files):
         result = importer.import_modded(GameFiles(f.slus, f.wa, "retail"), modded_files, "community")
         return result.project, "\n".join(result.report)
+
+    @staticmethod
+    def with_portrait(wa: bytearray, duelist: int, seed: int):
+        """A replaced Free Duel face: a record of varied indices and a palette
+        of its own, as a mod that redrew one leaves it."""
+        rng = random.Random(seed)
+        at = art.portrait_at(duelist)
+        wa[at:at + art.PORTRAIT_PIXELS] = bytes(rng.randrange(art.PORTRAIT_COLOURS)
+                                                for _ in range(art.PORTRAIT_PIXELS))
+        struct.pack_into("<64H", wa, at + art.PORTRAIT_PIXELS,
+                         *[0x8000 | (i * 7 % 0x7FFF) for i in range(art.PORTRAIT_COLOURS)])
+        return at, at + art.PORTRAIT_STRIDE
+
+    def test_portraits_become_pngs_on_the_duelists_entries(self):
+        f = fixture()
+        wa = bytearray(f.wa)
+        self.with_portrait(wa, 3, seed=7)
+        project, report = self.imported(f, GameFiles(f.slus, bytes(wa), "modded"))
+        name = g.DUELIST_NAMES[3]
+        self.assertEqual([entry for entry in project.other["duelists"]],
+                         [{"id": importer.slug(name), "replace": name,
+                           "portrait": f"portraits/{importer.slug(name)}.png"}])
+        picture = pngio.decode(project.files[f"portraits/{importer.slug(name)}.png"])
+        self.assertEqual((picture.width, picture.height), art.PORTRAIT_SIZE)
+        self.assertIn("1 Free Duel portrait(s) read out of WA_MRG.MRG", report)
+        # The record it came from is the mod's PNG now, not bytes of the archive.
+        built = manifest.build(project)
+        at = art.portrait_at(3)
+        for patch in built.get("data", []):
+            offset = int(str(patch.get("offset", "0")), 0)
+            self.assertFalse(at <= offset < at + art.PORTRAIT_STRIDE, patch)
+
+    def test_a_renamed_duelist_keeps_one_entry_for_its_portrait(self):
+        f = fixture()
+        wa = bytearray(f.wa)
+        self.with_portrait(wa, 8, seed=11)         # 0x328 + 8 is the name below
+        slus = fixtures.make_slus(f.cards, {0x330: "Heishin X"})
+        project, report = self.imported(f, GameFiles(slus, bytes(wa), "modded"))
+        self.assertEqual(project.other["duelists"],
+                         [{"id": "heishin-x", "replace": g.DUELIST_NAMES[8], "name": "Heishin X",
+                           "portrait": "portraits/heishin-x.png"}])
+        self.assertIn("portraits/heishin-x.png", project.files)
+
+    def test_a_patch_in_the_portraits_is_not_read_as_a_face(self):
+        """As a small change inside a card's picture stays bytes: a face is
+        told from a patch by how much of the record changed."""
+        f = fixture()
+        wa = bytearray(f.wa)
+        at = art.portrait_at(5)
+        wa[at:at + 16] = bytes(range(16))
+        project, report = self.imported(f, GameFiles(f.slus, bytes(wa), "modded"))
+        self.assertNotIn("duelists", project.other)
+        self.assertEqual([n for n in project.files if n.startswith("portraits/")], [])
+        self.assertIn("the duelists' portraits", report)
+
+    def test_a_recoloured_face_is_read_as_one(self):
+        """The disc's pixels with the mod's colours: a face all the same."""
+        f = fixture()
+        wa = bytearray(f.wa)
+        at = art.portrait_at(7)
+        struct.pack_into("<64H", wa, at + art.PORTRAIT_PIXELS,
+                         *[0x8000 | (i * 13 % 0x7FFF) for i in range(art.PORTRAIT_COLOURS)])
+        project, report = self.imported(f, GameFiles(f.slus, bytes(wa), "modded"))
+        self.assertIn(f"portraits/{importer.slug(g.DUELIST_NAMES[7])}.png", project.files)
+        # Two words of the palette are a patch, not a recolour.
+        wa = bytearray(f.wa)
+        struct.pack_into("<2H", wa, art.portrait_at(7) + art.PORTRAIT_PIXELS, 0x8111, 0x8222)
+        project, report = self.imported(f, GameFiles(f.slus, bytes(wa), "modded"))
+        self.assertEqual([n for n in project.files if n.startswith("portraits/")], [])
+
+    def test_the_deck_build_picture_stays_bytes(self):
+        f = fixture()
+        wa = bytearray(f.wa)
+        self.with_portrait(wa, 0, seed=3)
+        project, report = self.imported(f, GameFiles(f.slus, bytes(wa), "modded"))
+        self.assertEqual([n for n in project.files if n.startswith("portraits/")], [])
+        self.assertIn("Deck Build picture changed", report)
 
     def test_encoded_pools_with_the_draw_code(self):
         f, files, pools = encoded_mod(1000, 2, code=True)       # not the tool's values: they come from the code

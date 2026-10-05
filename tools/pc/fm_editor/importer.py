@@ -25,7 +25,7 @@ from pathlib import Path
 
 from . import art, gamedata as g, guardian_stars, kit, manifest, pngio, starter_pools
 from .fixed_decks import set_deck as set_fixed_deck
-from .model import Project, StarterDeck
+from .model import Project, StarterDeck, duelist_named
 from .pools import normalize
 
 WA_FILE = "\\DATA\\WA_MRG.MRG;1"
@@ -684,6 +684,91 @@ def recognisable_card_art(retail_wa: bytes, modded_wa: bytes, cid: int, part: st
     return len(changed) >= 128 and len(set(changed)) > 2
 
 
+def recognisable_portrait(retail_wa: bytes, modded_wa: bytes, duelist: int) -> bool:
+    """Whether a changed portrait record looks like a replaced face.
+
+    The same question ``recognisable_card_art`` asks: every byte of an
+    indexed picture decodes, a patch that happens to land in the portraits
+    included, so a real replacement is told by how much of it changed and
+    how many palette indices it uses."""
+    at = art.portrait_at(duelist)
+    changed = [new for old, new in zip(retail_wa[at:at + art.PORTRAIT_PIXELS],
+                                       modded_wa[at:at + art.PORTRAIT_PIXELS]) if old != new]
+    if len(changed) >= 128 and len(set(changed)) > 2:
+        return True
+    # A face recoloured rather than redrawn keeps the disc's pixels and gives
+    # them its own colours; a patch that lands in the palette touches one or
+    # two words of it, not a good part of it.
+    clut = at + art.PORTRAIT_PIXELS
+    colours = sum(1 for i in range(art.PORTRAIT_COLOURS)
+                  if retail_wa[clut + 2 * i:clut + 2 * i + 2] != modded_wa[clut + 2 * i:clut + 2 * i + 2])
+    return colours >= 8
+
+
+def import_duelist_portraits(project: Project, retail_wa: bytes, modded_wa: bytes, report: list) -> list:
+    """The Free Duel faces a mod changed, as PNGs on its duelists' entries.
+
+    The port never reads the disc's record for a duelist a mod gave a face
+    (free_duel/duelists.c): a "duelists" entry's "portrait" names a PNG, which
+    it reduces to the console's 48x48 slot and also draws whole for the scaled
+    picture. Carried that way the picture is the mod's own -- the editor shows
+    it on the duelist's tile and it can be replaced again -- rather than bytes
+    of the archive nothing but the game can read.
+
+    Returns the byte ranges now carried as PNGs, for the caller to keep out of
+    the "data" diff."""
+    entries = project.other.get("duelists")
+    entries = list(entries) if isinstance(entries, list) else []
+    by_slot = {}
+    for entry in entries:
+        if isinstance(entry, dict) and "replace" in entry:
+            found = duelist_named(entry["replace"])
+            if 0 < found < art.PORTRAIT_COUNT:
+                by_slot[found] = entry
+    kept, written, unreadable, deck_build = [], [], [], False
+    # Deck Build's own record (0) is no opponent's face: there is no entry to
+    # put it on, so it stays as bytes.
+    for duelist in range(art.PORTRAIT_COUNT):
+        at = art.portrait_at(duelist)
+        end = at + art.PORTRAIT_STRIDE
+        if end > len(modded_wa) or retail_wa[at:end] == modded_wa[at:end]:
+            continue
+        if not recognisable_portrait(retail_wa, modded_wa, duelist):
+            continue
+        if duelist == 0:
+            deck_build = True
+            continue
+        name = g.DUELIST_NAMES[duelist]
+        try:
+            picture = pngio.encode(art.portrait_image(modded_wa, duelist))
+        except (ValueError, OSError, IndexError, pngio.PngError) as problem:
+            unreadable.append(f"{name} ({problem})")
+            continue
+        entry = by_slot.get(duelist)
+        if entry is None:
+            entry = {"id": slug(name) or f"duelist-{duelist}", "replace": name}
+            entries.append(entry)
+            by_slot[duelist] = entry
+        relative = f"portraits/{entry.get('id') or f'duelist-{duelist}'}.png"
+        project.files[relative] = picture
+        entry["portrait"] = relative
+        written.append(name)
+        kept.append((at, end))
+    if written:
+        project.other["duelists"] = entries
+        shown = ", ".join(written[:3])
+        report.append(f"portraits: {len(written)} Free Duel portrait(s) read out of WA_MRG.MRG as the mod's own PNGs "
+                      f"({shown}{', ...' if len(written) > 3 else ''}), so the editor shows them and they can be "
+                      "replaced again")
+    if unreadable:
+        report.append(f"portraits: {len(unreadable)} could not be read and stay as bytes of WA_MRG.MRG "
+                      f"({'; '.join(unreadable[:3])}{', ...' if len(unreadable) > 3 else ''})")
+    if deck_build:
+        report.append("portraits: the Free Duel screen's Deck Build picture changed; it belongs to no duelist, so it "
+                      "stays as bytes of WA_MRG.MRG")
+    return kept
+
+
 def import_card_art(project: Project, retail_wa: bytes, modded_wa: bytes, report: list, say=None) -> list:
     """The pictures a mod changed, as PNGs of its own rather than as bytes.
 
@@ -1290,6 +1375,10 @@ def import_modded(retail_files, modded_files, mod_id: str = "imported-mod", name
     say("Pictures")
     carried = import_card_art(project, retail_files.wa, modded_files.wa, report, say)
     renamed_duelists(project, retail_files.slus, modded_files.slus, report)
+    # After the renames: a renamed duelist's entry takes its portrait too,
+    # rather than a second entry being written for the same duelist.
+    say("Portraits")
+    carried += import_duelist_portraits(project, retail_files.wa, modded_files.wa, report)
     guardian_handled = import_guardian_stars(project, retail, modded, retail_files.slus, modded_files.slus,
                                               modded_files.wa, report)
     frame_handled = import_card_frames(project, modded, modded_files.slus, report)
