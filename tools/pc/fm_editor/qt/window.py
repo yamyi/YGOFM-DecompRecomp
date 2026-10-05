@@ -23,11 +23,25 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
     FILTERS = ["All cards", "Changed", "Added by the mod", "With notes", "Monsters", "Non-monsters"] + TYPE_NAMES
     NAV = ["Cards", "Art", "Campaign", "Fusions", "Equips", "Rituals", "Duelists", "Starter decks",
            "Limits", "Guardian Stars", "Packs", "Mod info", "Problems"]
-    def __init__(self, game=None, mod=None):
+    def __init__(self, game=None, mod=None, ask=False):
         super().__init__()
+        self._ask_recovery = ask      # only the real entry point asks (_build_ui)
         self.setWindowTitle("FM Editor — Forbidden Memories Mod Studio")
-        self.resize(1580, 980)
+        # On the monitor it opens on, and no bigger than that monitor's work
+        # area has room for: a laptop screen is smaller than the window would
+        # like, and a window opened past the desktop's edge cannot be dragged
+        # back by a lot of window managers (screen.py, for the Tk window).
+        # The pages need 1280x760 between them, so that is the floor: a
+        # smaller screen than that gets a window wider than it, which is
+        # still better than panels drawn over each other.
         self.setMinimumSize(1280, 760)
+        area = self._opening_monitor()
+        width, height = (max(1280, min(1580, area.width() * 9 // 10)),
+                         max(760, min(980, area.height() * 9 // 10))) if area is not None else (1580, 980)
+        self.resize(width, height)
+        if area is not None:
+            self.move(max(area.x(), area.x() + (area.width() - width) // 2),
+                      max(area.y(), area.y() + (area.height() - height) // 2))
         self.files = self._load_game(game)
         self.retail = gamedata.load_game(self.files)
 
@@ -176,6 +190,27 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
         self.statusBar().showMessage(f"Game files: {self.files.source}")
 
         self._build_menus()
+        # One snapshot of the mod per edit, coalesced: a page marks the window
+        # dirty for every field it writes, and a bulk change for every card.
+        self._history_timer = QTimer(self)
+        self._history_timer.setSingleShot(True)
+        self._history_timer.timeout.connect(self._record_edit)
+        # The recovery copy waits longer: it writes the mod to disk.
+        self._recovery_timer = QTimer(self)
+        self._recovery_timer.setSingleShot(True)
+        self._recovery_timer.timeout.connect(self._autosave)
+        self._restoring = False
+        self._recovery_source = None
+        self._recovered_from = None
+        # A mod that has never been in a folder of its own (an import, a
+        # recovered copy): undoing back to how it opened still leaves it
+        # unsaved, so the title keeps its star (editing.move_history).
+        self._unsaved_start = False
+        self._start_history()
+        if self._ask_recovery:
+            # After the window is up, so the question is not asked at a
+            # window nobody can see yet.
+            QTimer.singleShot(0, self._offer_recovery)
     def _toggle_workspace(self, expanded):
         self.workspace_sidebar.setVisible(expanded)
         self.workspace_toggle.setToolTip(
@@ -906,12 +941,22 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
         file_menu.addAction("Import a modified game (experimental)…").triggered.connect(self.import_modded_game)
         file_menu.addAction("Convert an old recomp's .ygomods package (one way)…").triggered.connect(self.import_ygomods)
         file_menu.addSeparator()
+        file_menu.addAction("Recover work…").triggered.connect(self.recover_work)
+        file_menu.addSeparator()
         game_action = file_menu.addAction("Game files…")
         game_action.triggered.connect(self.choose_game_files)
         file_menu.addSeparator()
         exit_action = file_menu.addAction("Exit")
         exit_action.setShortcut("Ctrl+Q")
         exit_action.triggered.connect(self.close)
+
+        edit_menu = self.menus["Edit"] = self.menuBar().addMenu("Edit")
+        self.undo_action = edit_menu.addAction("Undo")
+        self.undo_action.setShortcut("Ctrl+Z")
+        self.undo_action.triggered.connect(self.undo)
+        self.redo_action = edit_menu.addAction("Redo")
+        self.redo_action.setShortcuts(["Ctrl+Shift+Z", "Ctrl+Y"])
+        self.redo_action.triggered.connect(self.redo)
 
         tools_menu = self.menus["Tools"] = self.menuBar().addMenu("Tools")
         for title, callback in (("Check the mod", self.check_mod),
@@ -1019,6 +1064,8 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
         for name in self.NAV[2:]:
             self._refresh_workspace(name)
         self.dirty = False
+        self._start_history()
+        self._unsaved_start = True      # it has no folder of its own yet
         self._mark_dirty()
         self.statusBar().showMessage(f"Imported {source}: save it to write the mod folder.")
         self._report("Import report", "\n".join(report) +
@@ -1136,6 +1183,8 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
         self.current_art_card = 1
         self.refresh_art_list(select_id=1)
         for name in self.NAV[2:]: self._refresh_workspace(name)
+        self._start_history()
+        self._unsaved_start = False
         self.game_label.setText("●  Game loaded")
         self.statusBar().showMessage(f"Game files: {files.source}")
     def check_mod(self):
@@ -1231,6 +1280,15 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
         colour = self._state_colour(state)
         if colour is not None and item is not None:
             item.setForeground(colour)
+    @staticmethod
+    def _opening_monitor():
+        """The work area of the monitor the window opens on: the one under the
+        pointer, as window managers and Windows choose, else the primary one
+        (screen.pick does this for Tk, which sees every monitor as one)."""
+        monitor = QGuiApplication.screenAt(QCursor.pos()) or QGuiApplication.primaryScreen()
+        area = monitor.availableGeometry() if monitor is not None else None
+        return area if area is not None and area.width() > 0 and area.height() > 0 else None
+
     def _card_form_widgets(self):
         """Everything the card form edits, for enabling it with a selection."""
         return [*self.fields.values(), self.description, self.notes, self.key_edit,
@@ -1291,6 +1349,8 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
         for name in self.NAV[2:]: self._refresh_workspace(name)
         self.setWindowTitle("FM Editor — New mod")
         self.dirty = False
+        self._start_history()
+        self._unsaved_start = False
         self.statusBar().showMessage("New mod · based on retail data")
     def open_mod(self):
         if not self.confirm_discard(): return
@@ -1313,6 +1373,8 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
         self.refresh_art_list(select_id=1)
         for name in self.NAV[2:]: self._refresh_workspace(name)
         description_added = self._sync_added_duelists_description()
+        self._start_history()
+        self._unsaved_start = False
         self.setWindowTitle(f"{self.project.info.name} — FM Editor")
         if description_added:
             self._mark_dirty()
@@ -1343,14 +1405,285 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
             answer = QMessageBox.question(self, "Mod validation",
                 f"The game loader would reject {len(errors)} issue(s), including:\n\n{errors[0]}\n\nSave anyway?")
             if answer != QMessageBox.StandardButton.Yes: return
+        self._flush_history()
         try:
+            # The mod as it was, before any of its files are replaced: five
+            # of them are kept per folder (recovery.backup).
+            recovery.backup(folder)
             path = manifest.save_mod(self.project, folder)
         except (ValueError, OSError) as problem:
             QMessageBox.critical(self, "Could not save mod", str(problem)); return
         self.statusBar().showMessage(f"Saved {path}")
         self.dirty = False
+        self._unsaved_start = False
+        self._recovery_timer.stop()
+        self._forget_recovered_copy()
+        self._clear_recovery()
+        self.recovery = recovery.Recovery()
+        if getattr(self, "history", None) is not None:
+            # Saving may tidy the artwork's paths. It is still the same edit.
+            self.history.mark_saved(self.project)
+        self._update_edit_actions()
         self.setWindowTitle(f"{self.project.info.name} — FM Editor")
+    def _start_history(self):
+        """A history of its own for a project just loaded or made: undo goes
+        back to how it was opened, never into the mod before it. The recovery
+        copy starts over with it."""
+        self._history_timer.stop()
+        self._recovery_timer.stop()
+        self.history = history.History(self.project)
+        self._clear_recovery()
+        self.recovery = recovery.Recovery()
+        self._update_edit_actions()
+
+    def _clear_recovery(self):
+        """The copies of a session that is saved, or being left behind."""
+        for name in ("recovery", "_recovery_source"):
+            item = getattr(self, name, None)
+            if item is not None:
+                item.clear()
+        self._recovery_source = None
+
+    def _forget_recovered_copy(self):
+        """The recovered session is saved now: stop offering it at start."""
+        found = getattr(self, "_recovered_from", None)
+        if found is not None and found.parent.resolve() == recovery.root().resolve():
+            shutil.rmtree(found, ignore_errors=True)
+        self._recovered_from = None
+
+    def _autosave(self):
+        """The mod as it stands into a recovery copy, a couple of seconds
+        after the last edit (editing.autosave): a crash, a power cut or a
+        closed window then costs the session nothing."""
+        self._recovery_timer.stop()
+        if getattr(self, "recovery", None) is None:
+            return
+        if not self.dirty:
+            self.recovery.clear()
+            return
+        # With no snapshot waiting, the history's current one is this project,
+        # so a big mod is not pickled twice.
+        snapshot = (self.history.items[self.history.position]
+                    if self.history is not None and not self._history_timer.isActive() else None)
+        try:
+            self.recovery.write(self.project, None, snapshot)
+        except (OSError, ValueError) as problem:
+            self.statusBar().showMessage(f"Recovery copy failed: {problem} · Ctrl+S saves the mod folder")
+        else:
+            self.statusBar().showMessage("Recovery copy updated · Ctrl+S saves the mod folder")
+
+    def recover_work(self):
+        """The recovery copies and save backups on this machine, each opened
+        as a copy of its own so that the original is left as it is."""
+        rows = recovery.records(getattr(self.recovery, "folder", None))
+        source = getattr(self, "_recovery_source", None)
+        if source is not None:
+            rows = [row for row in rows if row[0].parent != source.folder]
+        if not rows:
+            QMessageBox.information(self, "Recover work",
+                                    "No recovery copies or save backups are available.")
+            return
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Recover work")
+        dialog.resize(860, 420)
+        layout = QVBoxLayout(dialog)
+        layout.addWidget(QLabel("Open a separate copy. \"Save as…\" chooses where to keep it.", dialog))
+        table = QTableWidget(len(rows), 4, dialog)
+        table.setHorizontalHeaderLabels(["Mod", "Saved (UTC)", "Copy", "Original folder"])
+        table.verticalHeader().setVisible(False)
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        for row, (_, _, data) in enumerate(rows):
+            values = (data.get("name", "Mod"), str(data.get("time", "")).replace("T", " ")[:19],
+                      "Backup" if data.get("backup") else "Draft", data.get("source") or "Not saved yet")
+            for column, value in enumerate(values):
+                table.setItem(row, column, QTableWidgetItem(str(value)))
+        header = table.horizontalHeader()
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        for column in (0, 1, 2):
+            header.setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
+        table.selectRow(0)
+        layout.addWidget(table, 1)
+        buttons = QHBoxLayout()
+        open_button = QPushButton("Open copy", dialog)
+        open_button.setObjectName("primary")
+        delete_button = QPushButton("Delete copy", dialog)
+        close_button = QPushButton("Close", dialog)
+        for button in (open_button, delete_button):
+            buttons.addWidget(button)
+        buttons.addStretch(1)
+        buttons.addWidget(close_button)
+        layout.addLayout(buttons)
+
+        def chosen():
+            row = table.currentRow()
+            return rows[row] if 0 <= row < len(rows) else None
+
+        def open_copy():
+            found = chosen()
+            if found is not None and self._open_recovery(found[1], found[2]):
+                dialog.accept()
+
+        def delete_copy():
+            found = chosen()
+            if found is None:
+                return
+            index, _, data = found
+            if QMessageBox.question(dialog, "Recover work",
+                                    f"Delete this copy of {data.get('name', 'the mod')}?") \
+                    != QMessageBox.StandardButton.Yes:
+                return
+            try:
+                shutil.rmtree(index.parent)
+            except OSError as problem:
+                QMessageBox.critical(dialog, "Recover work", str(problem))
+                return
+            row = table.currentRow()
+            table.removeRow(row)
+            rows.pop(row)
+            if rows:
+                table.selectRow(min(row, len(rows) - 1))
+
+        open_button.clicked.connect(open_copy)
+        delete_button.clicked.connect(delete_copy)
+        close_button.clicked.connect(dialog.reject)
+        table.doubleClicked.connect(open_copy)
+        dialog.exec()
+
+    def _open_recovery(self, folder, data):
+        """A copy opened as its own session, so that the recovered folder is
+        never written over (editing.open_recovery)."""
+        try:
+            project, notes = manifest.open_mod(self.retail, folder)
+        except (OSError, ValueError) as problem:
+            QMessageBox.critical(self, "Recover work", str(problem))
+            return False
+        if not self.confirm_discard():
+            return False
+        staging = recovery.Recovery()      # own a copy before the old session goes
+        try:
+            staging.write(project, data.get("forms"))
+            index = json.loads((staging.folder / "recovery.json").read_text(encoding="utf-8"))
+            project, _ = manifest.open_mod(self.retail, staging.folder / index["generation"])
+        except (OSError, ValueError, KeyError) as problem:
+            staging.clear()
+            QMessageBox.critical(self, "Recover work", str(problem))
+            return False
+        self.project = project
+        self.preview_wa = self.files.wa
+        self.current = None
+        self.duelist_selected_slot = 0
+        self._reload_pages()
+        self._start_history()
+        self._recovery_source = staging
+        self._unsaved_start = True      # "Save as…" chooses where the copy goes
+        # A crashed session's copy (not a save backup) goes once it is saved.
+        self._recovered_from = (Path(folder).parent if not data.get("backup")
+                                and Path(folder).parent.name.startswith("session-") else None)
+        self.dirty = True
+        self.setWindowTitle("* " + self.project.info.name + " — FM Editor")
+        self.statusBar().showMessage("Recovered a copy · \"Save as…\" chooses where it goes"
+                                     + (" · " + "; ".join(notes) if notes else ""))
+        return True
+
+    def _offer_recovery(self):
+        """A session that ended without saving leaves a copy behind; say so
+        once the window is up, rather than leaving it to be found."""
+        rows = [row for row in recovery.records(getattr(self.recovery, "folder", None))
+                if not row[2].get("backup")]
+        if not rows:
+            return
+        if QMessageBox.question(self, "FM Editor", f"{len(rows)} unsaved recovery copy(s) are available. "
+                                "Review them?") == QMessageBox.StandardButton.Yes:
+            self.recover_work()
+
+    def _schedule_history(self):
+        """The snapshot waits for the edit to finish: a page writing field
+        after field, or a bulk change touching a hundred cards, is one undo."""
+        if not self._restoring:
+            self._history_timer.start(0)
+
+    def _record_edit(self):
+        self._history_timer.stop()
+        if getattr(self, "history", None) is not None and not self._restoring:
+            self.history.record(self.project)
+        self._update_edit_actions()
+
+    def _flush_history(self):
+        """The edit in hand into the history now, before it is undone, saved
+        or thrown away."""
+        if self._history_timer.isActive():
+            self._record_edit()
+
+    def _update_edit_actions(self):
+        item = getattr(self, "history", None)
+        self.undo_action.setEnabled(bool(item) and (item.position > 0 or self._history_timer.isActive()))
+        self.redo_action.setEnabled(bool(item) and item.position + 1 < len(item.items))
+
+    def undo(self):
+        self._move_history(-1)
+
+    def redo(self):
+        self._move_history(1)
+
+    def _move_history(self, delta):
+        """A step back or forward through the snapshots (editing.move_history):
+        the form in hand is stored first, so that it is part of what is undone
+        rather than written over what comes back."""
+        if getattr(self, "history", None) is None:
+            return
+        if not self._commit_open_form():
+            return
+        self._flush_history()
+        project = self.history.move(delta, self.project)
+        if project is None:
+            self.statusBar().showMessage("Nothing to undo." if delta < 0 else "Nothing to redo.")
+            return
+        self.project = project
+        self._reload_pages()
+        self.dirty = self.history.dirty or self._unsaved_start
+        self.setWindowTitle(("* " if self.dirty else "") + self.project.info.name + " — FM Editor")
+        self._update_edit_actions()
+        self.statusBar().showMessage("Undid the last edit." if delta < 0 else "Redid the edit.")
+
+    def _commit_open_form(self):
+        """The page in front stores what is typed into it, or says why not."""
+        if self.current and not self.apply_card(quiet=True):
+            return False
+        if self.current_workspace == "Mod info" and not self._apply_mod_info():
+            return False
+        if self.current_workspace == "Packs" and not self._commit_packs():
+            return False
+        return True
+
+    def _reload_pages(self):
+        """Every page from the project again, keeping what each had chosen
+        (editing.refresh_editors). No page may record an edit while it fills."""
+        card, equip = self.current, getattr(self, "equip_current", None)
+        pack = self.workspace_controls.get("Packs", {}).get("pack_index", -1)
+        self._restoring = True
+        try:
+            self.frame_cache.clear()
+            self.fusion_art_cache.clear()
+            self.current = None
+            self.refresh_cards(select_id=card if card in self.project.cards else 1)
+            self.current_art_card = self.current_art_card if self.current_art_card in self.project.cards else 1
+            self.refresh_art_list(select_id=self.current_art_card)
+            if equip is not None and equip in self.project.cards:
+                self.equip_current = equip
+            for name in self.NAV[2:]:
+                self._refresh_workspace(name)
+            packs = self.workspace_controls.get("Packs")
+            if packs is not None and 0 <= pack < len(self.project.packs):
+                packs["list"].setCurrentRow(pack)
+        finally:
+            self._restoring = False
+
     def _mark_dirty(self):
+        self._schedule_history()
+        if not self._restoring:
+            self._recovery_timer.start(2000)
         if not self.dirty:
             self.dirty = True
             self.setWindowTitle("* " + self.project.info.name + " — FM Editor")
@@ -1366,9 +1699,18 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
         if answer == QMessageBox.StandardButton.Save:
             self.save_mod()
             return not self.dirty
+        # Discarded on purpose: the session's recovery copy goes with it,
+        # rather than being offered back at the next start.
+        self._recovery_timer.stop()
+        self._clear_recovery()
+        self.recovery = recovery.Recovery()
         return True
     def closeEvent(self, event):
         if self.confirm_discard():
+            self._history_timer.stop()
+            self._recovery_timer.stop()
+            if not self.dirty:      # saved, or never changed: nothing to recover
+                self._clear_recovery()
             event.accept()
         else:
             event.ignore()
@@ -1378,7 +1720,7 @@ def main(game=None, mod=None):
     app = QApplication.instance() or QApplication(sys.argv)
     app.setApplicationName("FM Editor")
     try:
-        window = ModernEditor(game, mod)
+        window = ModernEditor(game, mod, ask=True)
     except SystemExit as problem:
         return int(problem.code or 0)
     window.show()

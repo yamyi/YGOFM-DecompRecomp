@@ -1042,10 +1042,14 @@ QLabel#statsRank { color: #8aa0bd; }
             icon.setPixmap(picture if picture is not None else QPixmap())
 
     def _pool_card_icon(self, cid):
-        """A card's thumbnail for the statistics panel, kept between draws."""
+        """A card's thumbnail for the statistics panel, kept between draws.
+        A pool may name a card the mod does not have (the Problems page says
+        so); there is no picture to draw for one."""
         cache = getattr(self, "_pool_icons", None)
         if cache is None:
             cache = self._pool_icons = {}
+        if cid not in self.project.cards:
+            return None
         if cid not in cache:
             try:
                 picture = _card_image(self.project, self.preview_wa, cid, self.frame_cache)

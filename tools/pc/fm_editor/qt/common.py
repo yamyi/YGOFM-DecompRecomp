@@ -14,11 +14,12 @@ import copy
 import struct
 import json
 import re
+import shutil
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QSize, QRect, QPoint, QFile, QIODevice, QTimer, QEvent
-from PySide6.QtGui import (QColor, QFont, QFontMetrics, QIcon, QImage, QPainter, QPainterPath, QPalette, QPen,
-                           QPixmap)
+from PySide6.QtGui import (QColor, QCursor, QFont, QFontMetrics, QGuiApplication, QIcon, QImage, QPainter,
+                           QPainterPath, QPalette, QPen, QPixmap)
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog, QHeaderView, QDialogButtonBox, QInputDialog,
     QButtonGroup, QDialog, QFormLayout, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMessageBox,
     QProgressDialog, QPushButton, QScrollArea, QSpinBox, QSplitter, QStackedWidget, QTableWidget, QTableWidgetItem,
@@ -28,6 +29,7 @@ from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog, 
 from PySide6.QtUiTools import QUiLoader
 
 from .. import art, disc, gamedata, manifest, validate, pools as poolmath, bulk_fusions, guardian_stars, card_text, ttf, settings, importer, ygomods, packs as packmath, pngio
+from .. import history, recovery
 from .. import campaign_map as cm
 from .. import limits
 from .. import fixed_decks

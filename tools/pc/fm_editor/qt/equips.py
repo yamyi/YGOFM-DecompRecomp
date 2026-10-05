@@ -26,9 +26,9 @@ class EquipsMixin:
         for cid in cards:
             if cid not in self.project.cards:continue
             row=equips.rowCount(); equips.insertRow(row)
-            changed=self.project.equips.get(cid,set())!=self.project.equip_baseline(cid)
-            for col,value in enumerate((f"{cid:03d}",self.project.cards[cid].name,
-                                        len(self.project.equips.get(cid,set())))):
+            now=self.project.equip_targets(cid)
+            changed=now!=self.project.equip_baseline(cid)
+            for col,value in enumerate((f"{cid:03d}",self.project.cards[cid].name,len(now))):
                 item=TableItem(str(value))
                 if col==0:item.setData(Qt.ItemDataRole.UserRole,cid)
                 self._tint_state(item,"changed" if changed else "")
@@ -89,7 +89,7 @@ class EquipsMixin:
             preview.setPixmap(QPixmap())
             preview.setText("Select an equip card")
         if cid in self.project.cards:
-            now=self.project.equips.get(cid,set()); baseline=self.project.equip_baseline(cid)
+            now=self.project.equip_targets(cid); baseline=self.project.equip_baseline(cid)
             for monster in self.project.monsters():
                 row=table.rowCount(); table.insertRow(row)
                 check=TableItem()
@@ -112,7 +112,7 @@ class EquipsMixin:
         equip=getattr(self,"equip_current",None)
         if equip not in self.project.cards:return
         monster=item.data(Qt.ItemDataRole.UserRole)
-        allowed=self.project.equips.setdefault(equip,set())
+        allowed=self.project.equips.setdefault(equip,self.project.equip_targets(equip))
         if item.checkState()==Qt.CheckState.Checked:allowed.add(monster)
         else:allowed.discard(monster)
         self._mark_dirty(); self._refresh_equips()
@@ -120,13 +120,13 @@ class EquipsMixin:
         equip=getattr(self,"equip_current",None)
         if equip not in self.project.cards:return
         cid=self._choose_one_card("Add monster",[i for i in self.project.monsters()])
-        if cid:self.project.equips.setdefault(equip,set()).add(cid);self._mark_dirty();self._refresh_equips()
+        if cid:self.project.equips.setdefault(equip,self.project.equip_targets(equip)).add(cid);self._mark_dirty();self._refresh_equips()
     def _equip_by_type(self,allow):
         equip=getattr(self,"equip_current",None)
         if equip not in self.project.cards:return
         typ=self.workspace_controls["Equips"]["type"].currentIndex()
         members={cid for cid,card in self.project.cards.items() if card.type==typ}
-        now=self.project.equips.setdefault(equip,set())
+        now=self.project.equips.setdefault(equip,self.project.equip_targets(equip))
         now.update(members) if allow else now.difference_update(members)
         self._mark_dirty();self._refresh_equips()
     def _remove_equip_monsters(self):
@@ -134,7 +134,7 @@ class EquipsMixin:
         if equip not in self.project.cards:return
         for row in sorted({i.row() for i in self.workspace_controls['Equips']['monsters'].selectedItems()}):
             item=self.workspace_controls['Equips']['monsters'].item(row,0)
-            if item:self.project.equips.setdefault(equip,set()).discard(item.data(Qt.ItemDataRole.UserRole))
+            if item:self.project.equips.setdefault(equip,self.project.equip_targets(equip)).discard(item.data(Qt.ItemDataRole.UserRole))
         self._mark_dirty();self._refresh_equips()
     def _revert_equip(self):
         equip=getattr(self,"equip_current",None)
