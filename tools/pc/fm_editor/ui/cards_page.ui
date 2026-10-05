@@ -434,6 +434,36 @@
                </property>
               </widget>
              </item>
+             <item row="9" column="0" colspan="2">
+              <widget class="QLabel" name="effectLabel">
+               <property name="text">
+                <string>Retail effect</string>
+               </property>
+              </widget>
+             </item>
+             <item row="10" column="0" colspan="2">
+              <widget class="QComboBox" name="effectCombo"/>
+             </item>
+             <item row="11" column="0" colspan="2">
+              <widget class="QLabel" name="trapThresholdLabel">
+               <property name="text">
+                <string>Trigger at ATK ≤</string>
+               </property>
+              </widget>
+             </item>
+             <item row="12" column="0">
+              <widget class="QSpinBox" name="trapThresholdSpin">
+               <property name="minimum">
+                <number>-1</number>
+               </property>
+               <property name="maximum">
+                <number>65535</number>
+               </property>
+               <property name="singleStep">
+                <number>50</number>
+               </property>
+              </widget>
+             </item>
             </layout>
            </item>
            <item>

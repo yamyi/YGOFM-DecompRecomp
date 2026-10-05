@@ -234,10 +234,15 @@ History retains up to 50 edits, with a 64 MiB snapshot budget (at least the
 current and previous snapshot). It lasts until a different mod or game is
 opened; saving keeps it. Undoing a save changes the working mod: save again to
 write that restored version. Dialogs keep their own keyboard behavior.
+In the Qt window this is **Edit > Undo** and **Edit > Redo**; its pages store
+what is typed as you leave them, so it has no **Apply edits** or **Discard
+form edits** of its own.
 
 **Recovery and backups:** After two seconds without another edit, the editor
 updates a separate recovery copy of the working mod and its assets. Unapplied
-Cards, Mod info, Limits and Packs fields are included, even incomplete input.
+Cards, Mod info, Limits and Packs fields are included, even incomplete input
+(the Tk window's; the Qt window copies the mod as applied, and stores the form
+in front before an undo or a save).
 This does not save or change the original mod folder. The editor offers to
 review leftover drafts on startup; **File > Recover work...** lists drafts and
 save backups, with their date and original folder. **Open copy** opens a separate

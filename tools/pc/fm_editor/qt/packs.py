@@ -111,9 +111,13 @@ class PacksMixin:
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         # The cover controls need a real settings column, while the contents
         # table gets the remaining room instead of squeezing its action bar.
-        get(QFrame, "packListPanel").setMinimumWidth(270)
-        get(QFrame, "packSettingsPanel").setMinimumWidth(390)
-        get(QFrame, "packContentsPanel").setMinimumWidth(560)
+        # The three together must fit the splitter at the window's own
+        # minimum width (1280 less the sidebar), or the right-hand panel is
+        # drawn over the one beside it. Each is still wider than what is in
+        # it needs (minimumSizeHint: 214, 312, 439).
+        get(QFrame, "packListPanel").setMinimumWidth(240)
+        get(QFrame, "packSettingsPanel").setMinimumWidth(340)
+        get(QFrame, "packContentsPanel").setMinimumWidth(450)
         for index, stretch in enumerate((3, 4, 7)):
             panels.setStretchFactor(index, stretch)
         panels.setSizes([300, 410, 760])

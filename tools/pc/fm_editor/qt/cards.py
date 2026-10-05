@@ -195,7 +195,14 @@ class CardsMixin:
             "frame": widget(QComboBox, "frameCombo"),
             "password": widget(QLineEdit, "passwordEdit"),
             "starchips": widget(QSpinBox, "starchipsSpin"),
+            # A magic, trap, ritual or equip card has an effect where a
+            # monster has its stats, and an attack trap a threshold with it.
+            "effect": widget(QComboBox, "effectCombo"),
+            "trap_threshold": widget(QSpinBox, "trapThresholdSpin"),
         }
+        self.effect_caption = widget(QLabel, "effectLabel")
+        self.trap_caption = widget(QLabel, "trapThresholdLabel")
+        self._shown_effect, self._shown_threshold = "", -1
         # Password and Starchips share Card Data's two columns, so the right
         # one starts where Attribute, Frame, DEF and Guardian Star 2 do. Their
         # grid is its own, and without this the password field takes the width
@@ -278,7 +285,9 @@ class CardsMixin:
         # width it needs so the list beside it keeps its six columns.
         data_scroll = widget(QScrollArea, "cardDataScroll")
         data_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        for box in (self.type_box, self.attribute_box, self.star1_box, self.star2_box, self.frame_box):
+        short_popup(self.fields["effect"])      # a type's effects outrun the screen
+        for box in (self.type_box, self.attribute_box, self.star1_box, self.star2_box, self.frame_box,
+                    self.fields["effect"]):
             box.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
             box.setMinimumContentsLength(8)
             box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -307,6 +316,7 @@ class CardsMixin:
         for field in (self.fields["name"], self.fields["password"], self.key_edit):
             field.textChanged.connect(self._render_preview)
         self.type_box.currentIndexChanged.connect(self._type_changed)
+        self.fields["effect"].currentIndexChanged.connect(self._effect_changed)
         for field in (self.attribute_box, self.star1_box, self.star2_box, self.frame_box):
             field.currentIndexChanged.connect(self._render_preview)
         for field in (self.level_box, self.attack_box, self.defense_box):
@@ -450,6 +460,10 @@ class CardsMixin:
         self.current = cid
         if not cid or cid not in self.project.cards:
             self._clear_card_form()
+            self._shown_effect, self._shown_threshold = "", -1
+            for part in (self.effect_caption, self.fields["effect"],
+                         self.trap_caption, self.fields["trap_threshold"]):
+                part.setVisible(False)
             self._loading = False
             return
         for widget in self._card_form_widgets():
@@ -471,7 +485,14 @@ class CardsMixin:
             self.fields[key].clear()
             self.fields[key].addItems(choices)
             self.fields[key].setCurrentIndex(getattr(card, key))
-        self._set_monster_fields_enabled(True)
+        threshold = self.project.trap_threshold_override(cid)
+        # Anything else written there is the modder's: shown as the default,
+        # and left alone unless the box is changed.
+        self._shown_threshold = threshold if type(threshold) is int and 0 <= threshold <= 65535 else -1
+        self.fields["trap_threshold"].setValue(self._shown_threshold)
+        self._show_card_kind(select=self._effect_label(self._effect_shown(cid)))
+        # What the list ended up showing, which is what an untouched form has.
+        self._shown_effect = self.fields["effect"].currentText()
         self.fields["frame"].setCurrentIndex(card.frame + 1)
         self.fields["password"].setText(self.project.password(cid))
         # The Password screen sells the disc's cards and knows nothing of an
@@ -494,7 +515,8 @@ class CardsMixin:
             if added else "")
         self._show_card_reference(cid, added)
         extra = added.extra if added else self.project.card_extra.get(cid, {})
-        self.extra_info.setText("Kept as written in mod.json: " + ", ".join(sorted(extra)) if extra else "")
+        kept = sorted(set(extra) - {"effect", "trap_threshold"})      # the form edits those two
+        self.extra_info.setText("Kept as written in mod.json: " + ", ".join(kept) if kept else "")
         self.revert_button.setText("Revert to Base" if added else "Revert to Retail")
         self._render_preview()
         self.update_text_count()
@@ -514,7 +536,148 @@ class CardsMixin:
     def _type_changed(self, index):
         self._last_type_index = index
         if not self._loading:
+            self._show_card_kind()
             self._render_preview()
+
+    def _effect_changed(self, _index=0):
+        if not self._loading:
+            self._show_trap_threshold()
+
+    # A magic, trap, ritual or equip card's effect (tabs.py, cards.c
+    # Cards_EffectId): the disc card of its own type whose effect it has, so
+    # the game and the CPU play it as that card.
+    EFFECT_NONE = "(none)"
+
+    def _effect_kind(self, eid) -> int:
+        """The type of the disc card `eid`, if it is no monster; else -1."""
+        card = self.project.retail.cards.get(eid) if self.project else None
+        return card.type if card and not card.is_monster() else -1
+
+    def _effect_label(self, eid) -> str:
+        if self._effect_kind(eid) < 0:
+            return self.EFFECT_NONE
+        card = self.project.retail.cards[eid]
+        # Names describe fixed retail behaviours, not the mod's current
+        # cards. Only duplicate names need a number to tell the choices apart.
+        duplicate = any(other.id != eid and other.type == card.type and other.name == card.name
+                        for other in self.project.retail.cards.values())
+        return f"{card.name} ({eid})" if duplicate or card.name == self.EFFECT_NONE else card.name
+
+    def _effect_default(self, cid) -> int:
+        """The effect the card has with no "effect" key: a disc card its own,
+        a copy its base's."""
+        return self.project.effect_of(self.project.base_of(cid)) if cid in self.project.added else cid
+
+    def _effect_shown(self, cid) -> int:
+        eid = self.project.effect_of(cid)
+        return eid if self._effect_kind(eid) == self.project.cards[cid].type else 0
+
+    def _chosen_effect(self) -> int:
+        kind = self.fields["type"].currentIndex()
+        chosen = self.fields["effect"].currentText()
+        return next((eid for eid in self.project.retail.cards
+                     if self._effect_kind(eid) == kind and self._effect_label(eid) == chosen), 0)
+
+    def _show_card_kind(self, select=None):
+        """The monster's fields for a monster, the effect for the rest
+        (tabs.CardsTab.show_kind)."""
+        kind = self.fields["type"].currentIndex()
+        monster = kind < gamedata.TYPE_MAGIC
+        combo = self.fields["effect"]
+        self._set_monster_fields_enabled(monster)
+        self.effect_caption.setVisible(not monster)
+        combo.setVisible(not monster)
+        if not monster and self.project is not None:
+            cid = self.current
+            # The disc's cards of the same type: one of another would be
+            # played as its own type, and the CPU would not know what to do
+            # with it. "(none)" only for a card with no effect of its own to
+            # fall back on.
+            own = cid is not None and self._effect_kind(self._effect_default(cid)) == kind
+            choices = [] if own else [self.EFFECT_NONE]
+            choices += [self._effect_label(eid) for eid in sorted(self.project.retail.cards)
+                        if self._effect_kind(eid) == kind]
+            wanted = select if select is not None else combo.currentText()
+            # An "effect" written for another type (shown as none) fits this
+            # one: shown, so that the change of type keeps it.
+            if select is None and cid and wanted == self._shown_effect:
+                stored = self.project.effect_of(cid)
+                if self._effect_kind(stored) == kind and self._effect_label(stored) in choices:
+                    wanted = self._effect_label(stored)
+            if wanted not in choices:
+                wanted = choices[0] if not own else self._effect_label(self._effect_default(cid))
+            blocked = combo.blockSignals(True)
+            combo.clear()
+            combo.addItems(choices)
+            combo.setCurrentText(wanted)
+            combo.blockSignals(blocked)
+        if monster:
+            # Nothing to choose from: a monster plays no effect of its own.
+            blocked = combo.blockSignals(True)
+            combo.clear()
+            combo.addItem(self.EFFECT_NONE)
+            combo.setCurrentIndex(0)
+            combo.blockSignals(blocked)
+        self._show_trap_threshold()
+        if monster:
+            self._refill_monster()
+
+    def _show_trap_threshold(self):
+        """Only an attack trap triggers at a threshold, and only the one its
+        effect brings (model.trap_threshold_default)."""
+        default = None
+        if self.project is not None and self.fields["type"].currentIndex() == gamedata.TYPE_TRAP:
+            default = self.project.trap_threshold_default(self._chosen_effect())
+        box = self.fields["trap_threshold"]
+        self.trap_caption.setVisible(default is not None)
+        box.setVisible(default is not None)
+        # -1 is the field left alone: the effect's own threshold stands.
+        box.setSpecialValueText(f"Effect default ({default})" if default is not None else "")
+
+    def _refill_monster(self):
+        """A card applied as a non-monster lost its ATK, DEF, level and stars;
+        made a monster again, it gets the disc card's (a copy's base's) back."""
+        cid = self.current
+        if self.project is None or cid not in self.project.cards or self.project.cards[cid].is_monster():
+            return
+        source = self.project.retail.cards.get(self.project.base_of(cid))
+        if source is None or not source.is_monster():
+            return
+        self.fields["attack"].setValue(source.attack)
+        self.fields["defense"].setValue(source.defense)
+        self.fields["level"].setValue(source.level)
+        self.fields["attribute"].setCurrentIndex(source.attribute)
+        for key in ("star1", "star2"):
+            self.fields[key].setCurrentIndex(getattr(source, key))
+
+    def _store_effect(self, cid, card) -> bool:
+        """The effect list into the card's "effect"; whether that changed it.
+        Left out when it is what the card has anyway, or for a monster, which
+        never plays one. An "effect" the form has not been touched for stays
+        as written, whatever it names."""
+        if self.fields["effect"].currentText() == self._shown_effect and card.type == self.project.cards[cid].type:
+            return False
+        if card.is_monster() and self.project.cards[cid].is_monster():
+            return False
+        extra = (self.project.added[cid].extra if cid in self.project.added
+                 else self.project.card_extra.get(cid, {}))
+        chosen = 0 if card.is_monster() else self._chosen_effect()
+        default = self._effect_default(cid)
+        wanted = chosen if chosen and chosen != default else None
+        had = extra.get("effect")
+        if wanted is None:
+            if "effect" not in extra:
+                return False
+            del extra["effect"]
+        else:
+            if had is not None and self.project.resolve(had) == wanted:
+                return False
+            extra["effect"] = wanted
+            if cid not in self.project.added:
+                self.project.card_extra[cid] = extra
+        if cid not in self.project.added and not extra:
+            self.project.card_extra.pop(cid, None)
+        return True
 
     # What the card was before the mod: the same fields as Card Data, in the
     # same order and two columns, set smaller and read-only under the picture.
@@ -658,6 +821,11 @@ QLabel#referenceTitle { color: #c9d8ed; font-weight: 600; }
         card.star2 = self.fields["star2"].currentIndex()
         card.frame = self.fields["frame"].currentIndex() - 1
         card.description = self.description.toPlainText()
+        if not monster:
+            # As the disc's: no ATK, DEF, level or stars, and the magic or
+            # trap attribute (tabs.CardsTab.read_form).
+            card.attack = card.defense = card.level = card.star1 = card.star2 = 0
+            card.attribute = 7 if card.type == gamedata.TYPE_TRAP else 6
         password = self.fields["password"].text().strip()
         if password and not (password.isascii() and password.isdigit() and len(password) <= 8):
             self.validation.setText("Password must be up to 8 digits, or blank.")
@@ -670,8 +838,12 @@ QLabel#referenceTitle { color: #c9d8ed; font-weight: 600; }
             if not KEY_RE.fullmatch(key) or any(x.key == key and n != cid for n, x in self.project.added.items()):
                 self.validation.setText("The stable key must use letters, digits, _ or - and be unique.")
                 return False
-            if key != added.key or added.drops != self.drops.isChecked() or added.opponents != self.opponents.isChecked():
-                added.key = key; added.drops = self.drops.isChecked(); added.opponents = self.opponents.isChecked()
+            if key != added.key:
+                # Its shop rule is keyed by the identity the key spells, so
+                # the rename carries the rule with it (model.set_card_key).
+                self.project.set_card_key(cid, key); changed = True
+            if (added.drops, added.opponents) != (self.drops.isChecked(), self.opponents.isChecked()):
+                added.drops = self.drops.isChecked(); added.opponents = self.opponents.isChecked()
                 changed = True
         notes = self.notes.toPlainText()
         if notes != self.project.notes.get(cid, ""):
@@ -682,6 +854,22 @@ QLabel#referenceTitle { color: #c9d8ed; font-weight: 600; }
             starchips = self.fields["starchips"].value()
             if starchips != self.project.starchip_cost(cid):
                 self.project.set_starchips(cid, starchips); changed = True
+        if self._store_effect(cid, card): changed = True
+        # Only an attack trap has a threshold; a card that stops being one
+        # drops the override it kept, but only once its type or effect moved.
+        threshold = self.fields["trap_threshold"].value()
+        active = card.type == gamedata.TYPE_TRAP and \
+            self.project.trap_threshold_default(self._chosen_effect()) is not None
+        if active and threshold != self._shown_threshold:
+            self.project.set_trap_threshold(cid, None if threshold < 0 else threshold)
+            self._shown_threshold = threshold; changed = True
+        elif (not active and self.project.trap_threshold_override(cid) is not None
+              and (card.type != self.project.cards[cid].type
+                   or self.fields["effect"].currentText() != self._shown_effect)):
+            self.project.set_trap_threshold(cid, None)
+            self.fields["trap_threshold"].setValue(-1)
+            self._shown_threshold = -1; changed = True
+        self._shown_effect = self.fields["effect"].currentText()
         if changed:
             self.project.cards[cid] = card
             problems = validate.validate_card(self.project, cid)

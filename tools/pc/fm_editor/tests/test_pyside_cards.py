@@ -107,8 +107,14 @@ class CardsTest(unittest.TestCase):
 
     def test_browse_all_cards_preserves_manifest(self):
         w = self.window
-        w.project.cards[1].type = gamedata.TYPE_TRAP
-        w.project.cards[1].attribute = 7
+        # A trap as the disc has one, which is what Apply writes
+        # (tabs.CardsTab.read_form): attribute 7, and no monster stats. The
+        # synthetic retail gives every non-monster 6, so its traps are set
+        # here too, else applying one would rightly normalise it.
+        for card in w.project.cards.values():
+            if card is w.project.cards[1] or card.type == gamedata.TYPE_TRAP:
+                card.type, card.attribute = gamedata.TYPE_TRAP, 7
+                card.attack = card.defense = card.level = card.star1 = card.star2 = 0
         before = manifest.build(w.project)
         for cid in w.project.cards:
             w.show_card(cid)
@@ -168,8 +174,12 @@ class CardsTest(unittest.TestCase):
         w = self.window
         w.project.other['guardian_stars'] = {'stars': [{'id': 11, 'name': 'Fire'}]}
         w.project.cards[1].star1 = 11
-        w.project.cards[2].type = gamedata.TYPE_TRAP
-        w.project.cards[2].attribute = 7
+        for cid in (2, 722):
+            # A trap as the disc has one (and as Apply writes it): attribute
+            # 7, and no monster stats.
+            card = w.project.cards[cid]
+            card.type, card.attribute = gamedata.TYPE_TRAP, 7
+            card.attack = card.defense = card.level = card.star1 = card.star2 = 0
         with tempfile.TemporaryDirectory() as tmp:
             original, baseline, edited = [Path(tmp) / name for name in ('original', 'baseline', 'edited')]
             manifest.save_mod(w.project, original)
@@ -195,7 +205,8 @@ class CardsTest(unittest.TestCase):
         self.assertEqual(list(menus), [action.text() for action in self.window.menuBar().actions()])
         expected = {
             'File': ['New mod', 'Open mod folder', 'Save', 'Save as', 'Import a modified game',
-                     "Convert an old recomp's", 'Game files', 'Exit'],
+                     "Convert an old recomp's", 'Recover work', 'Game files', 'Exit'],
+            'Edit': ['Undo', 'Redo'],
             'Tools': ['Check the mod', 'Preview mod.json', 'Card text preview'],
             'View': ['Dark mode'], 'Help': ['About'],
         }
@@ -412,6 +423,7 @@ class CardsTest(unittest.TestCase):
         c = w.workspace_controls['Fusions']
         c['pages'].setCurrentIndex(1)
         w.show()
+        w.resize(1580, 980)      # the size this layout is measured at
         self.qt.processEvents()
         for side in c['bulk_filters'].values():
             self.assertTrue(side['advanced'].parentWidget().isHidden())
@@ -430,6 +442,7 @@ class CardsTest(unittest.TestCase):
     def test_fusion_header_tracks_sidebar_resize(self):
         w = self.window
         w.show()
+        w.resize(1580, 980)      # wide enough that the sidebar's room matters
         w.select_workspace('Fusions')
         c = w.workspace_controls['Fusions']
         c['pages'].setCurrentIndex(0)
@@ -801,7 +814,9 @@ class CardsTest(unittest.TestCase):
             for index in range(layout.count()):
                 item = layout.itemAt(index)
                 label = item.widget()
-                if isinstance(label, QLabel) and \
+                # A hidden label takes no part in the layout and keeps
+                # whatever geometry it last had (a bare widget's 100x30).
+                if isinstance(label, QLabel) and not label.isHidden() and \
                         item.geometry().height() > label.sizeHint().height() + 12:
                     stretched.setdefault(name, []).append(label.objectName())
         w.hide()
@@ -1439,7 +1454,9 @@ class CardsTest(unittest.TestCase):
         c = self.window.workspace_controls['Duelists']
         cell = slot - c['page'].currentIndex() * 40
         tile = c['duelists'].cellWidget(cell // 8, cell % 8)
-        return next(l for l in tile.findChildren(QLabel) if '·' in l.text())
+        # The tile shows the name alone, elided to the cell; its number and
+        # what changed are in the tooltip.
+        return next(l for l in tile.findChildren(QLabel) if '·' in l.toolTip())
 
     def test_a_duelist_can_be_dealt_a_fixed_deck(self):
         from fm_editor import fixed_decks
@@ -2394,3 +2411,157 @@ class CardsTest(unittest.TestCase):
         self.assertIn('Dragons!', c['list'].item(0).text().splitlines()[0])
         c['name'].clear()
         self.assertIn('(unnamed)', c['list'].item(0).text().splitlines()[0])
+
+    # --- what the old editor gained, and this window now has too ------------
+
+    def test_a_non_monster_shows_its_retail_effect_instead_of_stats(self):
+        """tabs.CardsTab.show_kind: the effect is what a magic, trap, ritual or
+        equip card does when played, and a monster has stats instead."""
+        w = self.window
+        w.show_card(601)                      # a magic card of the fixture
+        self.assertFalse(w.fields['effect'].isHidden())
+        self.assertFalse(w.fields['attack'].isEnabled())
+        self.assertEqual(w.fields['effect'].currentText(), 'Card 601')
+        w.show_card(1)                        # a monster
+        self.assertTrue(w.fields['effect'].isHidden())
+        self.assertTrue(w.fields['attack'].isEnabled())
+
+    def test_a_monster_made_magic_keeps_no_stats_and_plays_an_effect(self):
+        w = self.window
+        w.show_card(20)
+        w.fields['type'].setCurrentIndex(gamedata.TYPE_MAGIC)
+        self.assertFalse(w.fields['attack'].isEnabled())
+        # It has no effect of its own to fall back on, so (none) is offered.
+        self.assertEqual(w.fields['effect'].currentText(), '(none)')
+        w.fields['effect'].setCurrentText('Card 601')
+        self.assertTrue(w.apply_card(quiet=True))
+        card = w.project.cards[20]
+        self.assertEqual((card.type, card.attack, card.defense, card.level), (gamedata.TYPE_MAGIC, 0, 0, 0))
+        self.assertEqual(card.attribute, 6)
+        self.assertEqual(w.project.card_extra[20]['effect'], 601)
+        self.assertEqual(w.project.effect_of(20), 601)
+        # Made a monster again, it gets the disc card's stats back.
+        w.fields['type'].setCurrentIndex(0)
+        self.assertEqual(w.fields['attack'].value(), w.project.retail.cards[20].attack)
+        self.assertTrue(w.apply_card(quiet=True))
+        self.assertNotIn(20, w.project.card_extra)
+
+    def test_an_attack_traps_threshold_is_the_effects_until_it_is_given_one(self):
+        """model.trap_threshold_default/set_trap_threshold. The fixture's traps
+        are not the disc's attack traps, so the default stands in for one."""
+        w = self.window
+        box = w.fields['trap_threshold']
+        with mock.patch.object(type(w.project), 'trap_threshold_default',
+                               lambda self, effect: 2000 if effect else None):
+            w.show_card(701)
+            self.assertFalse(box.isHidden())
+            self.assertEqual(box.value(), -1)                 # the effect's own
+            self.assertIn('2000', box.specialValueText())
+            box.setValue(1500)
+            self.assertTrue(w.apply_card(quiet=True))
+            self.assertEqual(w.project.trap_threshold_override(701), 1500)
+            w.show_card(701)
+            self.assertEqual(box.value(), 1500)
+            box.setValue(-1)
+            self.assertTrue(w.apply_card(quiet=True))
+            self.assertIsNone(w.project.trap_threshold_override(701))
+        w.show_card(1)                                        # a monster has none
+        self.assertTrue(box.isHidden())
+
+    def test_renaming_an_added_card_carries_its_shop_rule(self):
+        """model.set_card_key: the rule names the card by its identity."""
+        w = self.window
+        cid = w.project.add_card(1)
+        old = w.project.identity(cid)
+        # A rule of the mod, as an opened mod.json carries it: the card is
+        # named by its identity, which the stable key spells.
+        w.project.other['passwords'] = {old: {'starchips': 4242}}
+        w.project.password_keys[cid] = old
+        w.show_card(cid)
+        w.key_edit.setText('blue-dragon-copy')
+        self.assertTrue(w.apply_card(quiet=True))
+        self.assertEqual(w.project.added[cid].key, 'blue-dragon-copy')
+        table = w.project.other['passwords']
+        self.assertNotIn(old, table)
+        self.assertIn(w.project.identity(cid), table)
+        self.assertEqual(table[w.project.identity(cid)], {'starchips': 4242})
+        self.assertEqual(w.project.password_keys[cid], w.project.identity(cid))
+
+    def test_the_equip_list_counts_the_targets_the_save_writes(self):
+        """model.equip_targets: a target that is no longer a monster is not
+        one the game would use, nor one manifest writes."""
+        w = self.window
+        w.select_workspace('Equips')
+        w.project.cards[5].type = gamedata.TYPE_MAGIC      # was an equip target of 651
+        w._refresh_equips()
+        table = w.workspace_controls['Equips']['equips']
+        row = next(r for r in range(table.rowCount())
+                   if table.item(r, 0).data(Qt_UserRole()) == 651)
+        self.assertEqual(int(table.item(row, 2).text()), len(w.project.equip_targets(651)))
+        self.assertNotIn(5, w.project.equip_targets(651))
+
+    def test_an_edit_can_be_undone_and_redone(self):
+        """history.History over the project, as the Tk window keeps one."""
+        w = self.window
+        self.assertFalse(w.undo_action.isEnabled())
+        w.show_card(1)
+        w.fields['name'].setText('Renamed Dragon')
+        self.assertTrue(w.apply_card(quiet=True))
+        w._record_edit()                                   # the idle snapshot
+        self.assertTrue(w.undo_action.isEnabled())
+        self.assertTrue(w.dirty)
+        w.undo()
+        self.assertEqual(w.project.cards[1].name, w.project.retail.cards[1].name)
+        self.assertEqual(w.fields['name'].text(), w.project.retail.cards[1].name)
+        self.assertFalse(w.dirty)                          # back to how it opened
+        w.redo()
+        self.assertEqual(w.project.cards[1].name, 'Renamed Dragon')
+        self.assertEqual(w.fields['name'].text(), 'Renamed Dragon')
+        self.assertTrue(w.dirty)
+
+    def test_an_undo_reaches_a_page_that_is_not_cards(self):
+        w = self.window
+        w.project.fusions[(5, 6)] = 7
+        w._mark_dirty()
+        w._record_edit()
+        w.undo()
+        self.assertNotIn((5, 6), w.project.fusions)
+
+    def test_the_window_opens_no_bigger_than_the_monitor_it_opens_on(self):
+        """screen.py does this for the Tk window: a window sized past the
+        monitor's work area cannot be dragged back on many desktops. The
+        pages' own 1280x760 is the floor."""
+        from PySide6.QtGui import QGuiApplication
+        w = self.window
+        area = QGuiApplication.primaryScreen().availableGeometry()
+        self.assertEqual((w.minimumWidth(), w.minimumHeight()), (1280, 760))
+        self.assertEqual(w.width(), max(1280, min(1580, area.width() * 9 // 10)))
+        self.assertEqual(w.height(), max(760, min(980, area.height() * 9 // 10)))
+        self.assertGreaterEqual(w.x(), area.x())
+        self.assertGreaterEqual(w.y(), area.y())
+
+    def test_an_edit_writes_a_recovery_copy_and_a_save_backs_the_folder_up(self):
+        """recovery.py: a crash costs the session nothing, and a save keeps
+        what the folder held."""
+        from fm_editor import recovery
+        w = self.window
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(recovery.settings, 'path', return_value=Path(tmp) / 'settings.json'):
+                w._start_history()
+                w.show_card(1)
+                w.fields['name'].setText('Recovered Dragon')
+                self.assertTrue(w.apply_card(quiet=True))
+                w._autosave()
+                rows = recovery.records()
+                self.assertEqual([row[2]['name'] for row in rows], [w.project.info.name])
+                copy, _ = manifest.open_mod(w.retail, rows[0][1])
+                self.assertEqual(copy.cards[1].name, 'Recovered Dragon')
+                folder = Path(tmp) / 'mod'
+                manifest.save_mod(w.project, folder)
+                w.project.source_dir = folder
+                with mock.patch.object(QMessageBox, 'question',
+                                       return_value=QMessageBox.StandardButton.Yes):
+                    w.save_mod()
+                self.assertFalse(w.dirty)
+                # The session's own copy is gone; the folder's backup is kept.
+                self.assertEqual([row[2].get('backup') for row in recovery.records()], [True])
