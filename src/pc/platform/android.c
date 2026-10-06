@@ -15,8 +15,11 @@
  *   there too.
  * - stdout and stderr, where the port reports, go nowhere in an app: they
  *   are forwarded to the system log (adb logcat -s memories).
- * - No crash monitor process and no restart: both re-execute the program,
- *   and an app process is the zygote's, not a program of its own.
+ * - No crash monitor process: it re-executes the program, and an app
+ *   process is the zygote's, not a program of its own. A restart
+ *   (Platform_RestartGame: Apply & restart in Mods, Game > Language, the
+ *   end of the credits) asks a small activity in a process of its own
+ *   (Restart.java) to end this process and launch the game again.
  * - No update check yet, and no desktop OpenGL (platform.h).
  * - SDL_main itself is the loader's (android_loader.c, libmain.so), which
  *   loads this game, libgame.so, at the address it was linked at and calls
@@ -47,6 +50,8 @@
 #include <sys/ioctl.h>
 #include <sys/syscall.h>
 #include <unistd.h>
+#include <jni.h>
+#include "pc/guest/state.h"
 #include "jni_guard.h" /* last: after SDL's own headers */
 
 #define LOG_TAG "memories"
@@ -281,10 +286,84 @@ int Platform_GuestMemoryHelp(char *why, size_t size)
     return 1;
 }
 
+/* JNI from here on: a pending Java exception is cleared and is a failure. */
+static int java_failed(JNIEnv *env)
+{
+    if (!(*env)->ExceptionCheck(env)) return 0;
+    (*env)->ExceptionDescribe(env);
+    (*env)->ExceptionClear(env);
+    return 1;
+}
+
+/* Starts Restart.java's activity (a process of its own) with this process's
+ * id: 1 when the system took the request. */
+static int start_restart_activity(void)
+{
+    JNIEnv *env = (JNIEnv *)SDL_GetAndroidJNIEnv();
+    jobject activity = env ? (jobject)SDL_GetAndroidActivity() : NULL;
+    jclass intent_class = NULL, activity_class = NULL;
+    jobject intent = NULL;
+    jstring name = NULL, key = NULL;
+    int ok = 0;
+    if (!activity) return 0;
+    if ((*env)->PushLocalFrame(env, 16) < 0) {
+        java_failed(env);
+        (*env)->DeleteLocalRef(env, activity);
+        return 0;
+    }
+    intent_class = (*env)->FindClass(env, "android/content/Intent");
+    if (!java_failed(env) && intent_class) {
+        jmethodID make = (*env)->GetMethodID(env, intent_class, "<init>", "()V");
+        jmethodID set_class = (*env)->GetMethodID(env, intent_class, "setClassName",
+                                                  "(Landroid/content/Context;Ljava/lang/String;)Landroid/content/Intent;");
+        jmethodID put_int = (*env)->GetMethodID(env, intent_class, "putExtra", "(Ljava/lang/String;I)Landroid/content/Intent;");
+        jmethodID add_flags = (*env)->GetMethodID(env, intent_class, "addFlags", "(I)Landroid/content/Intent;");
+        activity_class = (*env)->GetObjectClass(env, activity);
+        jmethodID start = activity_class ? (*env)->GetMethodID(env, activity_class, "startActivity",
+                                                               "(Landroid/content/Intent;)V") : NULL;
+        if (!java_failed(env) && make && set_class && put_int && add_flags && start) {
+            intent = (*env)->NewObject(env, intent_class, make);
+            name = (*env)->NewStringUTF(env, "org.yfmredecomp.game.Restart");
+            key = (*env)->NewStringUTF(env, "pid");
+            if (!java_failed(env) && intent && name && key) {
+                (*env)->CallObjectMethod(env, intent, set_class, activity, name);
+                (*env)->CallObjectMethod(env, intent, put_int, key, (jint)getpid());
+                (*env)->CallObjectMethod(env, intent, add_flags, (jint)0x10000000); /* FLAG_ACTIVITY_NEW_TASK */
+                if (!java_failed(env)) {
+                    (*env)->CallVoidMethod(env, activity, start, intent);
+                    ok = !java_failed(env);
+                }
+            }
+        }
+    }
+    (*env)->PopLocalFrame(env, NULL);
+    (*env)->DeleteLocalRef(env, activity);
+    return ok;
+}
+
+static void restart_on_host(void *result)
+{
+    if (!start_restart_activity()) {
+        fprintf(stderr, "memories-pc: restart: the restart activity did not start; close the app and open it again\n");
+        *(int *)result = -1;
+        return;
+    }
+    /* What the game keeps is on disk already (settings and mod choices are
+     * saved before a restart is asked for, memory cards as they are
+     * written); the activity ends this process from its own. */
+    fprintf(stderr, "memories-pc: restarting: the game starts again in a new process\n");
+    fflush(stdout);
+    for (int i = 0; i < 1000; i++) /* 10 s */
+        usleep(10000);
+    fprintf(stderr, "memories-pc: restart: this process was not ended; close the app and open it again\n");
+    *(int *)result = -1;
+}
+
 int Platform_RestartGame(void)
 {
-    fprintf(stderr, "memories-pc: restarting is not available on Android yet; close the app and open it again\n");
-    return -1;
+    int result = 0;
+    Memories_OnHostStack(restart_on_host, &result); /* JNI: never from the game stack */
+    return result;
 }
 
 static int log_pipe[2];
