@@ -5,6 +5,8 @@
 #include "scratch.h"
 #include <unistd.h>
 int Menu_Scale(void) { return 1; }
+static int test_touch; /* Menu_TouchTarget: 0 with a mouse */
+int Menu_TouchTarget(void) { return test_touch; }
 int Menu_TextWidthScaled(const char *s, int sc) { return (int)strlen(s) * 7 * sc; }
 void Menu_DrawTextScaled(MenuCanvas *c, int x, int y, const char *s, uint32_t color, int sc)
 {
