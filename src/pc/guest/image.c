@@ -1077,6 +1077,7 @@ int Memories_GuestMap(void)
     }
     close(fd);
 #if defined(__aarch64__)
+    void Memories_ReserveModCode(void);
     /* Native function addresses go into 4-byte guest slots: the game must
      * be where it was linked (android_loader.c), below 4 GB. */
     if ((uintptr_t)Memories_GuestMap >= 0x100000000ull) {
@@ -1084,9 +1085,54 @@ int Memories_GuestMap(void)
                 (void *)(uintptr_t)Memories_GuestMap);
         result = -1;
     }
+    if (!result) Memories_ReserveModCode();
 #endif
     return result ? -1 : 0;
 }
+
+#if defined(__aarch64__)
+/* Code mods' images (src/pc/mods/object_loader.c), as on 64-bit Windows:
+ * below 4 GB with bit 30 set, so that a mod's function fits a 4-byte guest
+ * slot and the branches between it and the game reach. The range is the
+ * 64 MiB right after the game's own (libgame.so at 0xC0000000, in the
+ * 64 MiB its loader reserves: build_game32.py's ANDROID_GAME_BASE and
+ * ANDROID_GAME_SPAN), held here as an inaccessible mapping from the start,
+ * before anything else in the process can take it; the loader maps each
+ * image over a piece of it. */
+#include <dlfcn.h>
+#define MOD_CODE_GAME_SPAN 0x04000000u
+#define MOD_CODE_SIZE 0x04000000u
+static uintptr_t mod_code_start, mod_code_end;
+
+int Memories_ModCodeRange(uintptr_t *start, uintptr_t *end)
+{
+    if (!mod_code_end) return 0;
+    *start = mod_code_start;
+    *end = mod_code_end;
+    return 2;   /* held: the loader maps over it */
+}
+
+void Memories_ReserveModCode(void)
+{
+    Dl_info info;
+    uintptr_t start;
+    void *got;
+    if (!dladdr((void *)Memories_GuestMap, &info) || !info.dli_fbase) return;
+    start = (uintptr_t)info.dli_fbase + MOD_CODE_GAME_SPAN;
+    if (start + MOD_CODE_SIZE > 0x100000000ull) return;
+    got = mmap((void *)start, MOD_CODE_SIZE, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE |
+               MAP_FIXED_NOREPLACE, -1, 0);
+    if (got != (void *)start) {
+        if (got != MAP_FAILED) munmap(got, MOD_CODE_SIZE);   /* a kernel without MAP_FIXED_NOREPLACE */
+        fprintf(stderr, "memories-pc: the code mods' range at %p is taken; no code mod can be loaded\n",
+                (void *)start);
+        say_occupants((uint32_t)start, (uint64_t)start + MOD_CODE_SIZE);
+        return;
+    }
+    mod_code_start = start;
+    mod_code_end = start + MOD_CODE_SIZE;
+}
+#endif
 #endif /* _WIN32 */
 
 int Memories_GuestLoadExeData(const unsigned char *data, size_t length, const char *name)

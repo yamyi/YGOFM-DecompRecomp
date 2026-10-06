@@ -238,7 +238,7 @@ def libc_names(target="i386"):
     for line in table.splitlines():
         stripped = line.strip()
         if stripped.startswith(("#if", "#elif")):
-            block = "i386" if "__i386__" in stripped else "x86_64-windows" if "__x86_64__" in stripped else "?"
+            block = "i386" if "__i386__" in stripped else "x86_64-windows" if "__x86_64__" in stripped                 else "aarch64" if "__aarch64__" in stripped else "?"
             continue
         if stripped.startswith("#endif"):
             block = None

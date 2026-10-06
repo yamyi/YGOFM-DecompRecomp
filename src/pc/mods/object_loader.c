@@ -4,17 +4,19 @@
  * copied out with memcpy, so nothing in the file needs to be aligned.
  *
  * Two containers, one per game width: the 32-bit games read ELF32 i386
- * objects (REL relocations, the addend in place), the 64-bit Windows game
- * ELF64 x86-64 ones (RELA, the addend in the table) that carry a
- * `.memories.abi` section naming their ABI, which build_mod.py adds. The
- * tag is what tells a Windows-ABI object from a Linux-ABI one: both are
- * EM_X86_64, and their machine code calls functions differently. */
+ * objects (REL relocations, the addend in place), the 64-bit games ELF64
+ * ones (RELA, the addend in the table), x86-64 on Windows and AArch64 on
+ * Android, that carry a `.memories.abi` section naming their ABI, which
+ * build_mod.py adds. The tag is what tells a Windows-ABI object from a
+ * Linux-ABI one: both are EM_X86_64, and their machine code calls functions
+ * differently. */
 #define _DEFAULT_SOURCE   /* MAP_ANONYMOUS */
 #if defined(__APPLE__) && defined(__aarch64__) && defined(MEMORIES_TRANSLATED)
 #define MEMORIES_TRANSLATED_MMAN_IMPLEMENTATION
 #endif
 #include "object_loader.h"
 #include "pc/compat/mman.h"
+#include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -72,6 +74,26 @@
 #define R_X86_64_PC64 24
 #define R_X86_64_GOTPCRELX 41
 #define R_X86_64_REX_GOTPCRELX 42
+#define R_AARCH64_NONE 256
+#define R_AARCH64_ABS64 257
+#define R_AARCH64_ABS32 258
+#define R_AARCH64_PREL64 260
+#define R_AARCH64_PREL32 261
+#define R_AARCH64_ADR_PREL_LO21 274
+#define R_AARCH64_ADR_PREL_PG_HI21 275
+#define R_AARCH64_ADR_PREL_PG_HI21_NC 276
+#define R_AARCH64_ADD_ABS_LO12_NC 277
+#define R_AARCH64_LDST8_ABS_LO12_NC 278
+#define R_AARCH64_TSTBR14 279
+#define R_AARCH64_CONDBR19 280
+#define R_AARCH64_JUMP26 282
+#define R_AARCH64_CALL26 283
+#define R_AARCH64_LDST16_ABS_LO12_NC 284
+#define R_AARCH64_LDST32_ABS_LO12_NC 285
+#define R_AARCH64_LDST64_ABS_LO12_NC 286
+#define R_AARCH64_LDST128_ABS_LO12_NC 299
+#define R_AARCH64_ADR_GOT_PAGE 311
+#define R_AARCH64_LD64_GOT_LO12_NC 312
 
 /* What this game loads: the container's class, the machine, and for a
  * 64-bit object the ABI its tag must name (build_mod.py's target). */
@@ -89,9 +111,10 @@
 #endif
 #define ABI OBJECT_LOADER_TARGET
 #define ABI_SECTION ".memories.abi"
-/* A 64-bit object's calls to a host function too far for call's 32-bit
- * offset (the C library, in a DLL above 4 GB) go through a veneer each,
- * `jmp *[rip]` and the address; GOTPCREL loads through a GOT entry each. */
+/* A 64-bit object's calls to a host function too far for the call's offset
+ * (32 bits on x86-64, 28 on AArch64: the C library, far above 4 GB) go
+ * through a veneer each, `jmp *[rip]` or `ldr x16, 8; br x16` and the
+ * address; GOT-relative loads go through a GOT entry each. */
 #define VENEER 16
 
 typedef struct {
@@ -183,7 +206,7 @@ static Symbol symbol_at(const Loader *loader, unsigned i)
     return symbol;
 }
 
-#if defined(__x86_64__)
+#if defined(__x86_64__) || defined(__aarch64__)
 /* A symbol's name for a message: its own, or its number. */
 static const char *symbol_name(const Loader *loader, unsigned i, char *buffer, size_t size)
 {
@@ -408,10 +431,27 @@ static int bind_symbols(Loader *loader, unsigned char *image, ObjectResolver res
         } else if (symbol.index >= SHN_LORESERVE || symbol.index >= loader->section_count) {
             return fail(loader, "symbol %s is in section %u, which does not exist", name, symbol.index);
         } else if (loader->place[symbol.index] != NOT_LOADED) {
+            void *host = NULL;
             if (symbol.value > loader->sections[symbol.index].size) {
                 return fail(loader, "symbol %s lies outside its section", name);
             }
-            loader->values[i] = (uintptr_t)(image + loader->place[symbol.index] + symbol.value);
+#if defined(__aarch64__)
+            /* clang's -mharden-sls=blr puts a weak copy of each thunk it
+             * calls (__llvm_slsblr_thunk_xN, a plain `br xN`) in every unit.
+             * The game's own thunks of those names send a guest address to
+             * its native function (branch_thunks.c), as a dynamic link would
+             * pick the strong definition: those names, and only those, are
+             * bound to the game's. */
+            if (symbol.bind == STB_WEAK && !strncmp(name, "__llvm_slsblr_thunk_x", 21) && resolve) {
+                host = resolve(name, context);
+            }
+#endif
+            if (host) {
+                loader->values[i] = (uintptr_t)host;
+                loader->host[i] = 1;
+            } else {
+                loader->values[i] = (uintptr_t)(image + loader->place[symbol.index] + symbol.value);
+            }
             loader->bound[i] = 1;
         }
         /* A symbol in a section that is not loaded (debugging information)
@@ -469,17 +509,27 @@ static int relocate32(Loader *loader, unsigned char *image)
     return 0;
 }
 
-#if defined(__x86_64__)
+#if defined(__x86_64__) || defined(__aarch64__)
 static uintptr_t veneer_for(Loader *loader, unsigned char *image, unsigned symbol, uintptr_t target)
 {
     unsigned char *veneer;
     if (loader->veneer[symbol]) return (uintptr_t)(image + loader->veneer[symbol] - 1);
     veneer = image + loader->veneer_end;
+#if defined(__x86_64__)
     veneer[0] = 0xFF;
     veneer[1] = 0x25;          /* jmp *[rip+0]: the address right after it */
     memset(veneer + 2, 0, 4);
     memcpy(veneer + 6, &target, 8);
     veneer[14] = veneer[15] = 0xCC;
+#else
+    {
+        /* ldr x16, #8; br x16; the address. x16 (IP0) is the linker's own
+         * register for this: free at every call. */
+        uint32_t code[2] = {0x58000050u, 0xD61F0200u};
+        memcpy(veneer, code, sizeof(code));
+        memcpy(veneer + 8, &target, 8);
+    }
+#endif
     loader->veneer[symbol] = (uint32_t)(loader->veneer_end + 1);
     loader->veneer_end += VENEER;
     return (uintptr_t)veneer;
@@ -495,7 +545,11 @@ static uintptr_t got_for(Loader *loader, unsigned char *image, unsigned symbol, 
     return (uintptr_t)(image + loader->got[symbol] - 1);
 }
 
+#endif
+
+#if defined(__x86_64__)
 static int fits32(int64_t value) { return value >= INT32_MIN && value <= INT32_MAX; }
+
 
 static int relocate64(Loader *loader, unsigned char *image)
 {
@@ -588,14 +642,143 @@ static int relocate64(Loader *loader, unsigned char *image)
 }
 #endif
 
+#if defined(__aarch64__)
+static int fits(int64_t value, int bits) { return value >= -((int64_t)1 << (bits - 1)) && value < ((int64_t)1 << (bits - 1)); }
+
+static int relocate_a64(Loader *loader, unsigned char *image)
+{
+    unsigned i;
+    char buffer[32];
+    for (i = 0; i < loader->section_count; i++) {
+        const Section *table = &loader->sections[i], *target;
+        uint64_t r;
+        if (table->type != SHT_RELA) continue;
+        if (table->info >= loader->section_count || loader->place[table->info] == NOT_LOADED) continue;
+        target = &loader->sections[table->info];
+        if (table->link != loader->symtab_index || table->entsize != 24 || table->size % 24) {
+            return fail(loader, "has a bad relocation table (section %u)", i);
+        }
+        for (r = 0; r < table->size / 24; r++) {
+            const unsigned char *at = loader->file + table->offset + r * 24;
+            uint64_t offset = u64(at), info = u64(at + 8);
+            int64_t addend = (int64_t)u64(at + 16), v;
+            unsigned symbol = (unsigned)(info >> 32), type = (unsigned)(info & 0xffffffffu);
+            unsigned width = type == R_AARCH64_ABS64 || type == R_AARCH64_PREL64 ? 8 : 4;
+            unsigned char *place;
+            uintptr_t value, to;
+            uint32_t insn;
+            const char *name;
+            if (type == 0 || type == R_AARCH64_NONE) continue;
+            if (!inside(offset, width, target->size) || target->type == SHT_NOBITS) {
+                return fail(loader, "has a relocation outside its section (section %u)", table->info);
+            }
+            if ((info >> 32) >= loader->symbol_count || (symbol && !loader->bound[symbol])) {
+                return fail(loader, "has a relocation against a symbol it does not load");
+            }
+            place = image + loader->place[table->info] + offset;
+            value = symbol ? loader->values[symbol] : 0;
+            name = symbol_name(loader, symbol, buffer, sizeof(buffer));
+            memcpy(&insn, place, 4);
+            switch (type) {
+            case R_AARCH64_ABS64: {
+                uint64_t word = (uint64_t)value + (uint64_t)addend;
+                memcpy(place, &word, 8);
+                continue;
+            }
+            case R_AARCH64_PREL64: {
+                uint64_t word = (uint64_t)value + (uint64_t)addend - (uint64_t)(uintptr_t)place;
+                memcpy(place, &word, 8);
+                continue;
+            }
+            case R_AARCH64_ABS32:
+            case R_AARCH64_PREL32: {
+                uint64_t sum = (uint64_t)value + (uint64_t)addend;
+                int64_t relative = (int64_t)(sum - (uintptr_t)place);
+                uint32_t word = type == R_AARCH64_ABS32 ? (uint32_t)sum : (uint32_t)relative;
+                if (type == R_AARCH64_ABS32 ? sum > 0xffffffffu : !fits(relative, 32)) {
+                    return fail(loader, "reaches %s (at %p) through 32 bits, and it is too far", name, (void *)value);
+                }
+                memcpy(place, &word, 4);
+                continue;
+            }
+            case R_AARCH64_ADR_PREL_LO21:
+                v = (int64_t)(value + (uint64_t)addend - (uintptr_t)place);
+                if (!fits(v, 21)) return fail(loader, "reaches %s (at %p) with ADR, too far", name, (void *)value);
+                insn = (insn & ~((3u << 29) | (0x7ffffu << 5))) | (((uint32_t)v & 3u) << 29) |
+                       ((((uint32_t)v >> 2) & 0x7ffffu) << 5);
+                break;
+            case R_AARCH64_ADR_PREL_PG_HI21:
+            case R_AARCH64_ADR_PREL_PG_HI21_NC:
+            case R_AARCH64_ADR_GOT_PAGE:
+                to = type == R_AARCH64_ADR_GOT_PAGE ? got_for(loader, image, symbol, value) : value + (uint64_t)addend;
+                v = ((int64_t)(to & ~(uintptr_t)0xfff) - (int64_t)((uintptr_t)place & ~(uintptr_t)0xfff)) >> 12;
+                if (type != R_AARCH64_ADR_PREL_PG_HI21_NC && !fits(v, 21)) {
+                    return fail(loader, "reaches %s (at %p) with ADRP, more than 4 GB away", name, (void *)value);
+                }
+                insn = (insn & ~((3u << 29) | (0x7ffffu << 5))) | (((uint32_t)v & 3u) << 29) |
+                       ((((uint32_t)v >> 2) & 0x7ffffu) << 5);
+                break;
+            case R_AARCH64_ADD_ABS_LO12_NC:
+            case R_AARCH64_LDST8_ABS_LO12_NC:
+            case R_AARCH64_LDST16_ABS_LO12_NC:
+            case R_AARCH64_LDST32_ABS_LO12_NC:
+            case R_AARCH64_LDST64_ABS_LO12_NC:
+            case R_AARCH64_LDST128_ABS_LO12_NC:
+            case R_AARCH64_LD64_GOT_LO12_NC: {
+                unsigned shift = type == R_AARCH64_LDST16_ABS_LO12_NC ? 1 : type == R_AARCH64_LDST32_ABS_LO12_NC ? 2
+                               : type == R_AARCH64_LDST64_ABS_LO12_NC || type == R_AARCH64_LD64_GOT_LO12_NC ? 3
+                               : type == R_AARCH64_LDST128_ABS_LO12_NC ? 4 : 0;
+                uint32_t low;
+                to = type == R_AARCH64_LD64_GOT_LO12_NC ? got_for(loader, image, symbol, value) : value + (uint64_t)addend;
+                low = (uint32_t)(to & 0xfff);
+                if (low & ((1u << shift) - 1)) {
+                    return fail(loader, "has a misaligned access to %s (relocation type %u)", name, type);
+                }
+                insn = (insn & ~(0xfffu << 10)) | ((low >> shift) << 10);
+                break;
+            }
+            case R_AARCH64_JUMP26:
+            case R_AARCH64_CALL26:
+                v = (int64_t)(value + (uint64_t)addend - (uintptr_t)place);
+                if (!fits(v, 28) && loader->host[symbol]) {
+                    /* A host function out of the branch's 128 MB (bionic, far
+                     * above the game): through a veneer in the image. */
+                    v = (int64_t)(veneer_for(loader, image, symbol, value + (uint64_t)addend) - (uintptr_t)place);
+                }
+                if (!fits(v, 28)) return fail(loader, "branches to %s (at %p), out of reach", name, (void *)value);
+                insn = (insn & 0xfc000000u) | (((uint32_t)(v >> 2)) & 0x03ffffffu);
+                break;
+            case R_AARCH64_CONDBR19:
+                v = (int64_t)(value + (uint64_t)addend - (uintptr_t)place);
+                if (!fits(v, 21)) return fail(loader, "branches to %s (at %p), out of reach", name, (void *)value);
+                insn = (insn & ~(0x7ffffu << 5)) | ((((uint32_t)(v >> 2)) & 0x7ffffu) << 5);
+                break;
+            case R_AARCH64_TSTBR14:
+                v = (int64_t)(value + (uint64_t)addend - (uintptr_t)place);
+                if (!fits(v, 16)) return fail(loader, "branches to %s (at %p), out of reach", name, (void *)value);
+                insn = (insn & ~(0x3fffu << 5)) | ((((uint32_t)(v >> 2)) & 0x3fffu) << 5);
+                break;
+            default:
+                return fail(loader, "has relocation type %u (against %s), which the mod loader does not handle", type,
+                            name);
+            }
+            memcpy(place, &insn, 4);
+        }
+    }
+    return 0;
+}
+#endif
+
 static int relocate(Loader *loader, unsigned char *image)
 {
     if (!loader->wide) return relocate32(loader, image);
 #if defined(__x86_64__)
     return relocate64(loader, image);
+#elif defined(__aarch64__)
+    return relocate_a64(loader, image);
 #else
     (void)image;
-    return fail(loader, "is 64-bit code, which this game cannot link yet");
+    return fail(loader, "is 64-bit code, which this game cannot link");
 #endif
 }
 
@@ -715,8 +898,13 @@ static uint32_t fingerprint(const Loader *loader)
 #if WIDE
 /* Where a 64-bit game wants mod code: src/pc/guest/image.c holds a range
  * for it below 4 GB, so that a mod's function fits a game's 4-byte slot as
- * the game's own do. Weak: the loader's tests have no game. */
+ * the game's own do. It returns 1 for a range compat/mman.h's mmap takes
+ * back piece by piece (Windows), 2 for one the game holds as an
+ * inaccessible mapping of its own, which images are mapped over in turn
+ * (Linux kernels: MAP_FIXED_NOREPLACE refuses it). Weak: the loader's tests
+ * have no game. */
 int Memories_ModCodeRange(uintptr_t *start, uintptr_t *end) __attribute__((weak));
+static uintptr_t held_next;   /* the next free place in a held range */
 
 /* The branch thunks' fast path (src/pc/guest/branch_thunks.c) takes an
  * address for host code when any of bits 21-28 or 30 is set: every 2 MiB
@@ -749,7 +937,18 @@ static unsigned char *map_at(uintptr_t at, size_t size)
 static unsigned char *map_image(size_t size)
 {
     uintptr_t start, end, at;
-    if (Memories_ModCodeRange && Memories_ModCodeRange(&start, &end)) {
+    int kind = Memories_ModCodeRange ? Memories_ModCodeRange(&start, &end) : 0;
+    if (kind == 2) {
+        /* Ours to map over, in turn: images never share a page. */
+        void *got;
+        at = held_next > start ? held_next : (start + 0xffffu) & ~(uintptr_t)0xffffu;
+        if (at + size > end || at + size < at || !low_and_fast(at, size)) return NULL;
+        got = mmap((void *)at, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
+        if (got != (void *)at) return NULL;
+        held_next = (at + size + 0xffffu) & ~(uintptr_t)0xffffu;
+        return got;
+    }
+    if (kind) {
         for (at = (start + 0xffffu) & ~(uintptr_t)0xffffu; at + size <= end && at + size > at; at += 0x10000u) {
             unsigned char *image;
             if (!low_and_fast(at, size)) continue;
@@ -785,7 +984,7 @@ int ObjectLoader_Load(const void *data, size_t size, ObjectResolver resolve, voi
     memset(&loader, 0, sizeof(loader));
     loader.file = data;
 #ifdef MEMORIES_NO_CODE_MODS
-    /* Mods.c refuses code mods before this: the arm64 game links none yet. */
+    /* Mods.c refuses code mods before this, in a build made without them. */
     snprintf(error, error_size, "code mods are not loaded by this game yet");
     return result;
 #endif
@@ -826,9 +1025,12 @@ int ObjectLoader_Load(const void *data, size_t size, ObjectResolver resolve, voi
     }
     object->hash = fingerprint(&loader);
     if (code_size && mprotect(image, code_size, PROT_READ | PROT_EXEC)) {
-        fail(&loader, "could not make its code executable");
+        fail(&loader, "could not make its code executable (%s)", strerror(errno));
         goto done;
     }
+#if defined(__aarch64__)
+    __builtin___clear_cache((char *)image, (char *)image + code_size);   /* AArch64's caches are not coherent */
+#endif
     result = 0;
 done:
     if (result) ObjectLoader_Free(object);
