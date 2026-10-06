@@ -3313,9 +3313,7 @@ loads each code mod's `<library>.aarch64.o`.
   (NDK r29's clang still has the narrow-store bug; AI Hard Mode had one
   such write).
 - **In the app.** Mods are turned on and off in the Mods panel (Game >
-  Mods drawn inside the window), which lands with the Android panels
-  change; until then Game > Mods is dimmed on Android and only the mods
-  on by default (`"enabled": true`) or set in `settings.txt` run. Each
+  Mods drawn inside the window). Each
   code mod that starts says so on stderr (`memories-pc: mods: ID loaded
   its code`).
 - **Gate (emulator `api35x64`, arm64 code through libndk_translation).**
@@ -3463,9 +3461,10 @@ Screenshots of the device, never the host: `adb exec-out screencap -p`.
   internal files folder's `program/` and names it the program directory
   (`MEMORIES_PROGRAM_DIR`, `paths.h`: save states and crash reports read
   `buildid` and `symbols/` there; the symbol tables of earlier builds stay,
-  so a state from an earlier APK is carried over by name), turns off what
-  re-executes the program (the crash monitor, `Platform_RestartGame`) and
-  the update check, asks SDL for landscape, a fullscreen (immersive) window
+  so a state from an earlier APK is carried over by name), turns off the
+  crash monitor (it re-executes the program) and the update check, restarts
+  the game through a small activity of its own (`Platform_RestartGame`,
+  below), asks SDL for landscape, a fullscreen (immersive) window
   and Back for the game, and runs the port's `main`. It has the disc picker
   (`Platform_SelectDisc`) and says what a failed guest mapping means
   (`Platform_GuestMemoryHelp`). `Platform_HasDesktopGL` answers 0: the
@@ -3485,9 +3484,9 @@ Screenshots of the device, never the host: `adb exec-out screencap -p`.
   a menu or answers a notice as Esc does, closes the deck slot screen, and
   otherwise asks "Quit the game?" with Quit, Menu (opens the first menu: the
   way to the menus with a controller in hand) and Keep playing
-  (`QuitPrompt_Back`); the rows for second
-  windows (Controls..., Mods), the window's size and mode, and the update
-  check are dimmed (`Menu_SetPlatformItems`), `Platform_HasWindowModes`
+  (`QuitPrompt_Back`); the window's size and mode and the update check
+  are dimmed (`Menu_SetPlatformItems`), Mods and Controls open as panels
+  inside the window (below), `Platform_HasWindowModes`
   answers 0 (F11, Alt+Enter and Esc keep the whole screen). Sizes come from
   the display's density (SDL's content scale, densityDpi / 160), not the
   window: Automatic menu size is the density rounded (13 px text at 1 dp,
@@ -3512,6 +3511,85 @@ Screenshots of the device, never the host: `adb exec-out screencap -p`.
   the clock stopping while an app is in the background (SDL's application
   events, which reach only event watchers); touch controls (View > Touch
   controls); `Platform_GuestMemoryHelp`; `Menu_SetPlatformItems`.
+
+### Mods and Controls as panels inside the window
+
+An app has one window, so Game > Mods and Game > Controls... draw the same
+modules as the desktop's second windows (`mods_window.c`,
+`controls_window.c`) into the game's window instead: one module, two hosts.
+`panel.c` (`panel.h`) is the second host, platform-independent and
+display-free; `sdl.c` uses it where `Platform_OpenMods`/`OpenControls` would
+open a window and `panel_overlay()` says so (always on Android;
+`MEMORIES_PANELS=overlay` tries it on a desktop). The desktop's windows are
+untouched: with a mouse every path is the old one, pixel for pixel.
+
+- **What shows.** The panel covers the window, opaque, drawn into the
+  overlay canvas the menu bar uses (`draw_overlay`), so neither the picture
+  nor the bar, the HUD or the touch controls show while it is up. Its
+  contents keep within the safe area across (a landscape phone's cutout;
+  `SDL_GetWindowSafeArea`), the whole height down (the system bars are
+  hidden over the game); the rest is filled with the panel's background.
+- **Sizes by density.** With a finger (`Menu_TouchTarget`, 48 dp) both
+  modules keep the menu's unit (the density rounded, 13 px text at 1 dp)
+  instead of shrinking to fit, and every row and button is at least 48 dp
+  tall. Mods drops its title and keyboard hints (the counts go to the
+  footer's message line) and, where the list and the details do not fit side
+  by side (every phone; the 2208x1768 tablet at 420 dpi), shows them as two
+  pages: the list, and a mod's page (Back, name, load order, Enabled, the
+  three tabs) that a tap on its row opens; the settings' count and Restore
+  defaults scroll with the settings there. Controls is one page between a
+  fixed header (Keyboard/Controller, Player 1/2) and a fixed footer (Clear,
+  Rebind, Cancel, Apply, OK over a message line): the device, the pad
+  picture, both lists at full length, the fixed keys and Restore defaults.
+- **A finger is not a mouse.** `panel.c` holds a press until it is a tap
+  (the module gets the press and the release where the finger went down,
+  then a leave, so no hover stays) or a drag (8 dp of movement: what it
+  went down on scrolls, `ModsWindow_Drag`/`ControlsWindow_Drag`: Mods' list
+  by rows, its details by the pixel, Controls' page or its device list). A
+  press on what follows the finger (an int setting's slider, a scrollbar:
+  `ModsWindow_Grabs`) goes to the module at once. A mouse is passed on as in
+  the window.
+- **Keys and typing.** Esc, and a phone's Back, are the window's Esc: a
+  capture, a dialog, the device list, a mod's page close first, then the
+  panel (asking about unsaved changes as the window does). A hardware
+  keyboard drives both as on the desktop. While Mods' search or profile
+  field has the focus (`Panel_TextFocus`) the system's on-screen keyboard
+  shows (`SDL_StartTextInput`; a second tap on the field shows it again) and
+  its Enter ends the typing. Rebinding takes a key or a controller's button
+  as the window does: select a binding, tap Rebind, press it (a second tap
+  on a binding also starts listening).
+- **The game pauses** while a panel shows (`Platform_SetClockRate(0)`, the
+  speed it had back when it closes, unless the app is in the background or
+  paused by then): the picture is covered and the panel has the input, so a
+  running game could only go on unseen. The desktop's windows leave the game
+  running beside them, as before.
+- **Apply & restart.** A change that needs a restart (a load order, a mod
+  or setting that says so) restarts the app for real: `Platform_RestartGame`
+  in `android.c` starts `Restart.java`'s activity (`org.yfmredecomp.game.Restart`,
+  `android:process=":restart"`, translucent, no history) through JNI on the
+  thread's own stack, while the game is in the foreground (so Android lets
+  it start); that activity ends the game's process (its id is the Intent's
+  `pid`), waits until it is gone (the game's activity is `singleInstance`: a
+  live one would only be brought back), launches the game as the launcher
+  does and ends its own process. Nothing is half applied: the Mods window has
+  saved the mods, their order and settings (`Mods_Apply`, `Settings_Save`)
+  before it asks for the restart, and the new process reads them as any
+  start does. If the activity cannot start, or this process is not ended
+  within 10 s, the restart reports failure and the window says "Restart
+  failed; relaunch the game to finish applying them", as on a desktop. The
+  same restart serves Game > Language's Restart now and the end of the
+  credits, which fell back to the title before.
+- **Testing.** `tests/pc/panels_preview.c` (`tools/pc/preview_panels.sh`)
+  draws both windows at UI scale 1 and 2 (the pictures to compare between
+  commits: they must not change) and, with `PREVIEW_TOUCH=1`, both panels on
+  six phones and tablets (2400x1080 at 440 dpi, 1280x720 at 320, 3200x1440
+  at 560, 2560x1600 at 320, 2048x1536 at 320, 2208x1768 at 420), tapping
+  and dragging through them by `Panel_Pointer`. In the app,
+  `MEMORIES_TRACE=window` logs where the panel's widgets are each time that
+  changes ("panel widgets: apply=2144,902 ..."), for `adb shell input tap`.
+  `tests/pc/android_panels/panel-test` is a data mod for the phone: enabled
+  it writes PANEL TEST on the title, and its setting (a restart) changes the
+  name entry's prompt.
 
 ### What works on the emulator (API 30 x86)
 
@@ -3565,22 +3643,22 @@ Paused on 2026-09-29 until the 64-bit (relocatable guest) work is done.
   `/sdcard/Android/data/<package>`, so tests there need root (the M3
   `chcon` recipe above) or a debuggable build's `run-as`.
 - **Not started / half-done:**
-  - Applying mods in the app: code mods run (Mod SDK M2 above); turning
-    them on and off comes with the Mods panel (Game > Mods inside the
-    window, the Android panels change). Until then Game > Mods is dimmed
-    and only mods on by default or set in `settings.txt` apply.
-  - A mod `.zip` through the system's file picker; Mods and Controls as
-    panels inside the game window (the game's font, as the other overlays);
-    the menu bar hiding in play: done on feat/android-arm64 (the mouse SDL
-    makes of a touch kept it shown; see "How it differs").
+  - Applying mods in the app: done (Mods and Controls as panels, above);
+    data mods checked on the arm64 build in the emulator: Drop missing
+    cards and the panel-test mod applied after a real restart. Code mods
+    run on arm64 (Mod SDK M2 above) and are turned on and off in the same
+    panel; a code mod with no AArch64 object stays off, and the panel says
+    why beside it.
+  - A mod `.zip` through the system's file picker; the menu bar hiding in
+    play: done on feat/android-arm64 (the mouse SDL makes of a touch kept it
+    shown; see "How it differs").
 
 ### Not yet
 
-- **Mods:** see "M4, where it stopped". Game > Mods and Controls... are
-  dimmed (second windows; an in-window version of both is for later).
-- **Restart:** an app cannot re-execute itself; where the port restarts
-  (the end of the credits, Game > Language), it falls back as when a
-  restart fails (back to the title; "start the game again").
+- **Mods:** see "M4, where it stopped" (code mods). Game > Mods and
+  Controls... are panels inside the window (above).
+- **Restart:** done through `Restart.java` (above); the crash monitor,
+  which re-executes the program, stays off.
 - Video > Color (the present pass, desktop GL's fixed function) and no
   update check. Internal 2x and 4x, HD text and PGXP are drawn by the GPU
   on OpenGL ES 3 ("OpenGL ES 3 (Android)"); a phone without ES 3 keeps the
@@ -3593,7 +3671,7 @@ Paused on 2026-09-29 until the 64-bit (relocatable guest) work is done.
 | M | Goal |
 |---|---|
 | M2 | Done, then removed (2026-10-04): the app is arm64-v8a |
-| M3 | Done: disc import through the file picker, the input latch, touch controls with the game's art, lifecycle (background, Back, landscape), the fixed-base loader (save states, crash symbols), desktop-only menu rows dimmed, the 32-bit-kernel message. Left: Mods/Controls as in-window overlays, performance (internal scale above 1), a real restart, the disc on Android TV |
+| M3 | Done: disc import through the file picker, the input latch, touch controls with the game's art, lifecycle (background, Back, landscape), the fixed-base loader (save states, crash symbols), desktop-only menu rows dimmed, the 32-bit-kernel message; since, Mods/Controls as panels inside the window and a real restart. Left: performance (internal scale above 1), the disc on Android TV |
 | M4 | Paused (above), waits for M6's 64-bit work. Mods on Android: content-only mods first; then per-ABI objects for code mods (bundled mods built by `build_game32.py`, third-party ones by the SDK's `build_mod.py` per target), ARM relocations in the object loader, `__aeabi_*` helpers, hook trampolines for armv7 |
 | M5 | Release: signing, CI for both ABIs, emulator smoke; before it, a duel played on a real arm64 phone that runs 32-bit apps (the TV translator mishandles the fault paths) |
 | M6 | The relocatable guest / 64-bit everywhere: closes both gaps left, arm64-only phones (no 32-bit apps) and 32-bit kernels (3 GB, the top taken), since the guest then needs no fixed addresses; Windows and Linux move with it |
