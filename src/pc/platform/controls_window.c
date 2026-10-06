@@ -1402,7 +1402,7 @@ static void draw_touch(MenuCanvas *c, ControllerDevice *d, uint64_t rows)
 {
     char line[256];
     int t, w, h, inner, view_h, y, device_y, diagram_y = 0, diagram_w = 0, diagram_h = 0, pad_y, game_y, fixed_y;
-    int fixed_h, defaults_y, header_h, footer_h, message_h = 26;
+    int fixed_h, defaults_y, header_h, footer_h, message_h = 26, picture_first = 0;
     const char *restore = ui.tab ? "Restore controller defaults" : "Restore keyboard defaults";
     scale = Menu_Scale();
     while (scale > 1 && (c->width / scale < 480 || c->height / scale < 300))
@@ -1425,12 +1425,18 @@ static void draw_touch(MenuCanvas *c, ControllerDevice *d, uint64_t rows)
     y = 12;
     device_y = y;
     y += (ui.tab ? btn_h : 20) + 12;
+    /* The pad picture goes first where it leaves half the view to the
+     * list; on a phone, where it would fill the first screen, after both
+     * lists (tapping one of its buttons still brings that row into view). */
     if (inner >= DIAGRAM_MIN) {
-        int most = view_h / 2 > 220 ? view_h / 2 : 220; /* the lists start on the first screen */
+        int most = view_h / 2 > 220 ? view_h / 2 : 220;
         diagram_w = inner < DIAGRAM_MAX ? inner : DIAGRAM_MAX;
         diagram_h = 34 + ControlsArt_Height(diagram_w - 24) + (diagram_w >= 330 ? 64 : 46);
         if (diagram_h > most)
             diagram_h = most;
+        picture_first = 2 * diagram_h <= view_h;
+    }
+    if (diagram_w && picture_first) {
         diagram_y = y;
         y += diagram_h + GAP;
     }
@@ -1438,6 +1444,10 @@ static void draw_touch(MenuCanvas *c, ControllerDevice *d, uint64_t rows)
     y += HEAD_H + 11 + list_lines(0) * ROW_H + GAP;
     game_y = y;
     y += HEAD_H + 11 + list_lines(1) * ROW_H + GAP;
+    if (diagram_w && !picture_first) {
+        diagram_y = y;
+        y += diagram_h + GAP;
+    }
     fixed_h = fixed_height(inner);
     fixed_y = y;
     y += fixed_h + GAP;
