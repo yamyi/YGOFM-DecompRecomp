@@ -633,9 +633,11 @@ def main():
     if target == "x86_64-windows":
         # The 32-bit releases' mods, refused by name; then the 64-bit SDK
         # against the releases that shipped one, when there are any.
-        failed = run_64bit(options, [tag for tag, each in baselines if each == "i386"], accepted, digests) \
-            if options.run and not options.baseline else 0
-        own = named or [(tag, each) for tag, each in baselines if each == target]
+        # A --baseline named here is a 32-bit release (none has 64-bit mods
+        # yet): its mods are run, and there is no 64-bit SDK to compare.
+        failed = run_64bit(options, options.baseline or [tag for tag, each in baselines if each == "i386"],
+                           accepted, digests) if options.run else 0
+        own = [] if options.baseline else [(tag, each) for tag, each in baselines if each == target]
         if not own:
             print("check_mod_abi: x86_64-windows: no release with 64-bit mods to compare with yet "
                   "(a `baseline TAG x86_64-windows` in mod_compat.txt)")
