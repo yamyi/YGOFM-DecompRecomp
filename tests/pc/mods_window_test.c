@@ -7,6 +7,8 @@
 #include "pc/mods/overlap.h"
 static int restarts;
 int Menu_Scale(void) { return 1; }
+static int test_touch; /* Menu_TouchTarget: 0 with a mouse */
+int Menu_TouchTarget(void) { return test_touch; }
 int Menu_TextWidthScaled(const char *s, int scale) { return (int)strlen(s) * 7 * scale; }
 /* What a draw wrote, while `capture` is on: each string, its color and
  * the middle of its line (in the canvas it was drawn on). */
