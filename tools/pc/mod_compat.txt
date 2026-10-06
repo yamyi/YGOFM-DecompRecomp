@@ -91,3 +91,10 @@ accept v0.2.0 record DuelResultDisplayState reads starchip_prize and its pad byt
 # enumerators TITLE_BACKGROUND_COLOUR and FONT_ART_COLOURS stay as aliases.
 accept v0.2.0 record TitleBackground names its colour field color
 accept v0.2.0 record TitleLine names its colour field color
+# The export lists of v0.1.2 and v0.2.0 (and of every build until the
+# per-target lists) held "name": build_mod.py read the C library list out
+# of all of mod_libc.c, where F(name) and AS(name, function) are the
+# macros' parameters. The game never lent anything under it (Mods_Lookup has no
+# such entry), so no mod can have used it.
+accept v0.1.2 export name was the C library macros' parameter, never a name the game lent
+accept v0.2.0 export name was the C library macros' parameter, never a name the game lent

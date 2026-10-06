@@ -3240,8 +3240,8 @@ object per target (`notes/modding.md`, "Code mods"): `build_mod.py` builds
 - **Where mods go.** Below 4 GB with bit 30 set, so that a mod's function
   fits a 4-byte guest slot and takes the branch thunks' fast path, as the
   game's own: `image.c` holds 128 MiB from the first 64 KiB after the
-  executable's image (`Memories_ModCodeRange`; 0x422C0000 in today's
-  build), and each image takes its piece through `compat/mman.h`'s `mmap`.
+  executable's image (`Memories_ModCodeRange`; 0x42390000 in the build
+  of 2026-10-05), and each image takes its piece through `compat/mman.h`'s `mmap`.
 - **Hooks** are the same 6 + 2 bytes: `jmp *[rip+disp32]` to the slot in
   the image (every game unit already had the padding). `mod_libc.c` lends
   `___chkstk_ms` and `__x86_indirect_thunk_r11` there; the mods' rand seed
