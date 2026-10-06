@@ -1,7 +1,9 @@
 /* The code mod loader (src/pc/mods/object_loader.c), in a 32-bit process on
- * Linux and on Windows: tools/pc/test_object_loader.py builds the fixtures in
- * tests/pc/mod_fixtures with build_mod.py's flags, builds this for each
- * system and runs it with the fixture directory as its argument.
+ * Linux and on Windows, and in a 64-bit one on Windows with the
+ * x86_64-windows objects: tools/pc/test_object_loader.py builds the fixtures
+ * in tests/pc/mod_fixtures with build_mod.py's flags for the target, builds
+ * this for each system and runs it with the fixture directory as its
+ * argument.
  *
  * The good object must load and run, reaching the host both ways. Every
  * broken one must fail with its own message. And the good object, damaged a
@@ -37,6 +39,9 @@ int host_add(int a, int b)
 
 static int call_misaligned(int (*function)(void))
 {
+#if defined(__x86_64__)
+    return function();   /* the x64 ABI keeps the stack aligned at every call */
+#else
     int result;
     __asm__ volatile("mov %%esp, %%esi\n\t"
                      "and $-16, %%esp\n\t"
@@ -45,6 +50,7 @@ static int call_misaligned(int (*function)(void))
                      "mov %%esi, %%esp"
                      : "=a"(result) : "r"(function) : "esi", "ecx", "edx", "memory", "cc");
     return result;
+#endif
 }
 
 int host_value = 1234;
@@ -232,7 +238,16 @@ int main(int argc, char **argv)
     CHECK(Mods_LibcSorted(), "the C library list is out of order");
     good(directory);
     hashes(directory);
+#if defined(__x86_64__)
+    /* x86-64 position-independent code is a GOT this loader lays out. What
+     * a 64-bit game refuses instead: the 32-bit object, and a 64-bit one
+     * that does not say its ABI (build_mod.py tags it). */
+    expect_failure(directory, "i386.o", "is 32-bit code");
+    expect_failure(directory, "untagged.o", "no .memories.abi");
+    expect_failure(directory, "linux-abi.o", "was built for x86_64-linux");
+#else
     expect_failure(directory, "pic.o", "position-independent");
+#endif
     expect_failure(directory, "unknown.o", "needs missing_function, which this game does not provide");
     expect_failure(directory, "common.o", "COMMON");
     expect_failure(directory, "ctor.o", "constructors");
