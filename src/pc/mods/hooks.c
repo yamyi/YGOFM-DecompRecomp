@@ -5,7 +5,10 @@
  * (tools/pc/build_game32.py): six bytes of nops before the function's entry
  * and two at it. A hooked function's six bytes become `jmp *slot`, an
  * indirect jump through a pointer kept here, and its two become `jmp -8`,
- * back into them. The two-byte store is the only one made to code a thread
+ * back into them. The six are FF 25 and four bytes on both x86 widths: on
+ * i386 the slot's address (`jmp *[abs32]`), on x86-64 its distance from the
+ * entry (`jmp *[rip+disp32]`, rip being the entry), which reaches it because
+ * the slots are in this executable's own image, as the function is. The two-byte store is the only one made to code a thread
  * may be running, and it is one aligned-enough write; everything after that
  * changes only `slot` and the mods' `original` pointers, which are words.
  *
@@ -70,8 +73,8 @@ static int writable(unsigned char *from, size_t size, int on)
  * GCC writes single-byte nops; clang writes 66 90 at the entry. */
 static int patchable(const unsigned char *entry)
 {
-#ifndef __i386__
-    if (entry) return 0;   /* `jmp *[abs32]` is the 32-bit game's; 64-bit host tests hook nothing */
+#if !defined(__i386__) && !defined(__x86_64__)
+    if (entry) return 0;   /* the jump is x86's; the arm64 game is built without the padding (yet) */
 #endif
     for (int i = -PRE; i < 0; i++) if (entry[i] != 0x90) return 0;
     return (entry[0] == 0x90 && entry[1] == 0x90) || (entry[0] == 0x66 && entry[1] == 0x90);
@@ -97,11 +100,17 @@ static int find_target(unsigned char *entry)
     targets[i].patched = 0;
     /* The jump before the entry is written once and never changes: until
      * the entry points at it, nothing runs it. */
-    if (!writable(entry - PRE, PRE + 2, 1)) return -1;
-    entry[-6] = 0xFF;
-    entry[-5] = 0x25;   /* jmp *[slot] */
     {
+#if defined(__x86_64__)
+        intptr_t distance = (intptr_t)&targets[i].slot - (intptr_t)entry;
+        int32_t slot = (int32_t)distance;
+        if (distance != slot) return -1;   /* never in the game: both are in its image */
+#else
         uint32_t slot = (uint32_t)(uintptr_t)&targets[i].slot;
+#endif
+        if (!writable(entry - PRE, PRE + 2, 1)) return -1;
+        entry[-6] = 0xFF;
+        entry[-5] = 0x25;   /* jmp *[slot] */
         memcpy(entry - 4, &slot, 4);
     }
     writable(entry - PRE, PRE + 2, 0);

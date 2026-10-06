@@ -8,15 +8,18 @@
  *
  * The compiler's own helpers are here too: 32-bit x86 code does 64-bit
  * division and some conversions by calling them, and both toolchains
- * (libgcc, compiler-rt) have the same ones under the same names. So are the
- * game's indirect-branch thunks, which build_mod.py has every indirect call
- * of a mod go through (src/pc/guest/branch_thunks.c).
+ * (libgcc, compiler-rt) have the same ones under the same names; 64-bit
+ * Windows code probes a stack frame over 4 KiB with ___chkstk_ms. So are
+ * the game's indirect-branch thunks, which build_mod.py has every indirect
+ * call of a mod go through (src/pc/guest/branch_thunks.c): seven registers
+ * on i386, r11 alone on x86-64 (clang's retpoline uses no other).
  *
  * Adding a name here is a promise to every mod built afterwards; removing one
  * breaks the mods that use it. The SDK's headers (sdk/include) declare
  * exactly this list. */
 #include "exports.h"
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -46,12 +49,17 @@ extern void __x86_indirect_thunk_ecx(void);
 extern void __x86_indirect_thunk_edi(void);
 extern void __x86_indirect_thunk_edx(void);
 extern void __x86_indirect_thunk_esi(void);
+#elif defined(__x86_64__) && defined(_WIN32)
+extern void ___chkstk_ms(void);
+extern void __x86_indirect_thunk_r11(void);
 #endif
 
 /* rand as the C standard's own example has it, so a mod draws the same
  * numbers on both systems (glibc's and the Windows runtime's differ). One
- * sequence for all mods; the game's own random numbers are separate. */
-static unsigned long mod_seed = 1;
+ * sequence for all mods; the game's own random numbers are separate. The
+ * seed is 32 bits on every target (the C standard's `unsigned long` is 64 on
+ * LP64), which is what the save states' "mod-rng" chunk has always held. */
+static uint32_t mod_seed = 1;
 static int mod_rand(void)
 {
     mod_seed = mod_seed * 1103515245u + 12345u;
@@ -82,6 +90,8 @@ static const struct { const char *name; Function function; } functions[] = {
     F(__udivmoddi4), F(__umoddi3), F(__x86_indirect_thunk_eax), F(__x86_indirect_thunk_ebp),
     F(__x86_indirect_thunk_ebx), F(__x86_indirect_thunk_ecx), F(__x86_indirect_thunk_edi),
     F(__x86_indirect_thunk_edx), F(__x86_indirect_thunk_esi),
+#elif defined(__x86_64__) && defined(_WIN32)
+    F(___chkstk_ms), F(__x86_indirect_thunk_r11),
 #endif
     F(abs), F(acos), F(asin), F(atan), F(atan2), F(atan2f), F(atoi), F(bsearch), F(calloc), F(ceil),
     F(ceilf), F(cos), F(cosf), F(exp), F(expf), F(fabs), F(fabsf), F(fclose), F(fgets), F(floor),
