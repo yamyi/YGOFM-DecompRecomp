@@ -960,6 +960,7 @@ void Menu_SetVisible(int wanted) { visible = !!wanted; }
 int Menu_IsOpen(void) { return open_menu >= 0; }
 
 void Menu_SetTouchTarget(int pixels) { touch_row = pixels > 0 ? pixels : 0; }
+int Menu_TouchTarget(void) { return touch_row; }
 
 static void close_menu(void);
 

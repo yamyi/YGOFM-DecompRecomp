@@ -145,6 +145,9 @@ void Menu_Open(void);
  * (48 dp): the bar, the rows and a notice's buttons are at least that tall.
  * 0, the default, keeps the mouse's sizes. */
 void Menu_SetTouchTarget(int pixels);
+/* That height (0 with a mouse): the Mods and Controls panels drawn inside
+ * the window (panel.h) size their rows and buttons by it too. */
+int Menu_TouchTarget(void);
 /* The part of the window what is drawn over the picture keeps within (the
  * save slot and deck slot menus): across, between `left` and `right` (the
  * touch controls hold the sides while they show; the whole width when
