@@ -3590,6 +3590,22 @@ untouched: with a mouse every path is the old one, pixel for pixel.
   `tests/pc/android_panels/panel-test` is a data mod for the phone: enabled
   it writes PANEL TEST on the title, and its setting (a restart) changes the
   name entry's prompt.
+- **Checked** (2026-10-06, arm64 APK on the api35x64 emulator, SwiftShader,
+  `wm size`/`wm density` for each of the six screens above): Mods opened
+  from the Game menu, Drop missing cards switched on by its [x], the search
+  typed through the on-screen keyboard, the panel-test mod enabled, its
+  setting changed, its load order raised, the settings dragged, Apply &
+  restart: a new process each time (pids logged), `63 pool edits` (Drop
+  missing cards) and the panel-test text in the log, PANEL TEST on the title,
+  "Input your PANEL NAME!" at the name entry, the four choices in
+  `settings.txt`, the panel shown again with both mods Active, Back closing
+  it. Controls: Up rebound to J by a tap on its row, Rebind and a key, saved
+  in `controls.txt`. The emulator's own keyboard counts as a keyboard to
+  SDL, which then shows no on-screen keyboard (`SDL_HINT_ENABLE_SCREEN_KEYBOARD`
+  "auto"); `SDL_ENABLE_SCREEN_KEYBOARD=1` in `environment.txt` shows it
+  there. A phone without a keyboard shows it. The desktop's Mods and Controls
+  windows are unchanged: PrintWindow captures of both, 32- and 64-bit
+  Windows builds before and after, are the same pixels.
 
 ### What works on the emulator (API 30 x86)
 
