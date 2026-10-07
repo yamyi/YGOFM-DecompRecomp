@@ -160,10 +160,14 @@ typedef struct {
 } SavedNameColor;
 static SavedNameColor saved_colors[TRACKED_BOXES];
 
-/* Colour declarations moved to the core manifest framework.  Keep this
- * module's drop-odds machinery, but never revive its old private INI hook
- * for a profile that still contains the former setting. */
-static int legacy_colors_enabled(void) { return 0; }
+/* The core manifest framework owns card text colours by default.  The
+ * INI-driven rarity-name colours are an optional compatibility mode: when
+ * enabled they temporarily override card names only, after the core colour
+ * has been applied, and restore it before the next card-text part. */
+static int legacy_colors_enabled(void)
+{
+    return host && host->setting(host, "rarity_name_colors", 0);
+}
 
 /* ---- small helpers ------------------------------------------------------- */
 
