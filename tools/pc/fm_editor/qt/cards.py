@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from .common import *      # noqa: F401,F403
 from .common import (_qimage, _line_count, _pairs_text, _parse_pairs, _whole,
-                     _card_image)      # noqa: F401
+                     _card_image, _pack_texture)      # noqa: F401
 
 
 class CardsMixin:
@@ -161,7 +161,6 @@ class CardsMixin:
             8 * self.description.fontMetrics().lineSpacing()
             + int(2 * self.description.document().documentMargin()) + 18)
         self.description_status = widget(QLabel, "descriptionStatusLabel")
-        self.notes = widget(QTextEdit, "notesEdit")
         self.added_panel = widget(QFrame, "addedCardPanel")
         self.key_edit = widget(QLineEdit, "stableKeyEdit")
         self.drops = widget(QCheckBox, "dropsCheckBox")
@@ -222,6 +221,14 @@ class CardsMixin:
         password_grid = page.findChild(QGridLayout, "passwordGrid")
         for column in (0, 1):
             password_grid.setColumnStretch(column, 1)
+        # Game Text: the box, what the game makes of it, and the colour
+        # codes it reads ({f8 0A NN}, card_text.Renderer).
+        self.card_data_tabs = widget(QTabWidget, "cardDataTabs")
+        self._build_card_effects(widget)
+        self.card_text_preview = widget(QLabel, "cardTextPreview")
+        self.card_text_preview.setStyleSheet("background:#0b1422;border:1px solid #26374c;border-radius:6px")
+        self.description.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.description.customContextMenuRequested.connect(self._card_text_menu)
         self.preview_panel = self.preview_image.parentWidget()
         self.preview_panel.installEventFilter(self)
         self._build_card_reference(parent)
@@ -335,6 +342,8 @@ class CardsMixin:
         self.fields["effect"].currentIndexChanged.connect(self._effect_changed)
         for field in (self.attribute_box, self.star1_box, self.star2_box, self.frame_box):
             field.currentIndexChanged.connect(self._render_preview)
+        for field in (self.star1_box, self.star2_box):
+            field.currentIndexChanged.connect(self._render_card_text)
         for field in (self.level_box, self.attack_box, self.defense_box):
             field.valueChanged.connect(self._render_preview)
         # The marks follow what is typed, not only what is applied.
@@ -573,6 +582,8 @@ class CardsMixin:
         if not cid or cid not in self.project.cards:
             self._clear_card_form()
             self._shown_effect, self._shown_threshold = "", -1
+            self.effects_table.setRowCount(0)
+            self._card_effect_buttons()
             for part in (self.effect_caption, self.fields["effect"],
                          self.trap_caption, self.fields["trap_threshold"],
                          *self.bonus_captions.values(),
@@ -605,6 +616,7 @@ class CardsMixin:
         self._shown_threshold = threshold if type(threshold) is int and 0 <= threshold <= 65535 else -1
         self.fields["trap_threshold"].setValue(self._shown_threshold)
         self._load_equip_bonus(cid)
+        self._refresh_card_effects()
         self._show_card_kind(select=self._effect_label(self._effect_shown(cid)))
         # What the list ended up showing, which is what an untouched form has.
         self._shown_effect = self.fields["effect"].currentText()
@@ -617,7 +629,6 @@ class CardsMixin:
         self.fields["starchips"].setEnabled(sold)
         self.fields["starchips"].setSpecialValueText("free" if sold else "not sold there")
         self.description.setPlainText(card.description)
-        self.notes.setPlainText(self.project.notes.get(cid, ""))
         added = self.project.added.get(cid)
         self.added_panel.setVisible(added is not None)
         self.remove_button.setVisible(added is not None)
@@ -630,7 +641,7 @@ class CardsMixin:
             if added else "")
         self._show_card_reference(cid, added)
         extra = added.extra if added else self.project.card_extra.get(cid, {})
-        kept = sorted(set(extra) - {"effect", "trap_threshold"})      # the form edits those two
+        kept = sorted(set(extra) - {"effect", "trap_threshold", "effects"})      # the form edits those
         self.extra_info.setText("Kept as written in mod.json: " + ", ".join(kept) if kept else "")
         self.revert_button.setText("Revert to Base" if added else "Revert to Retail")
         self._render_preview()
@@ -653,6 +664,7 @@ class CardsMixin:
         if not self._loading:
             self._show_card_kind()
             self._render_preview()
+            self._render_card_text()
 
     def _effect_changed(self, _index=0):
         if not self._loading:
@@ -1083,10 +1095,422 @@ QLabel#referenceValue[changed="true"] { color: #8ab4f8; border-color: #3f6ea8; }
         (self.hd_preview_button if scale == 4 else self.disc_preview_button).setChecked(True)
         self.preview_scale = scale
         self._render_preview()
+    # --- Effects: what the card does when it is played ----------------------
+    #
+    # The port has no key for these yet (src/pc/mods/mods.c), so they are
+    # kept on the card as the editor keeps anything else it is given: a
+    # mod.json entry's "effects", written back as it was read
+    # (manifest.build_cards, card_extra). Nothing in the game reads them.
+    EFFECT_WHEN = (("summon", "On summon",
+                    "Put on the field, face up or face down (the CPU puts its monsters down face down): "
+                    "played, fused, or a ritual's monster."),)
+    EFFECT_DOES = (("boost", "Boost ATK/DEF"),
+                   ("life", "Change life points"),
+                   ("card", "A disc card's effect"))
+    EFFECT_WHOSE = (("self", "This card"),
+                    ("owner", "Its owner's monsters"),
+                    ("opponent", "The opponent's monsters"),
+                    ("opponent_lp", "The opponent"))
+
+    def _build_card_effects(self, widget):
+        controls = {name: widget(QPushButton, name + "Button")
+                    for name in ("addEffect", "editEffect", "removeEffect", "effectUp", "effectDown")}
+        self.effect_buttons = controls
+        table = self.effects_table = widget(QTableWidget, "effectsTable")
+        self.effects_note = widget(QLabel, "effectsNote")
+        self.effects_note.setStyleSheet("color:#9aacc4")
+        widget(QLabel, "effectsTitle").setStyleSheet("font-size:14px;font-weight:600;color:#f3f7fc")
+        widget(QLabel, "effectsHint").setStyleSheet("color:#9aacc4")
+        table.setColumnCount(3)
+        table.setHorizontalHeaderLabels(["#", "When", "Does"])
+        table.verticalHeader().setVisible(False)
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        for column, width in ((0, 34), (1, 110)):
+            table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.Fixed)
+            table.horizontalHeader().resizeSection(column, width)
+        table.itemSelectionChanged.connect(self._card_effect_buttons)
+        table.cellDoubleClicked.connect(lambda *_: self._edit_card_effect())
+        controls["addEffect"].clicked.connect(self._add_card_effect)
+        controls["editEffect"].clicked.connect(self._edit_card_effect)
+        controls["removeEffect"].clicked.connect(self._remove_card_effect)
+        controls["effectUp"].clicked.connect(lambda: self._move_card_effect(-1))
+        controls["effectDown"].clicked.connect(lambda: self._move_card_effect(1))
+
+    def _card_effects(self, cid=None):
+        """The card's list, as the mod wrote it."""
+        cid = self.current if cid is None else cid
+        if not cid or cid not in self.project.cards:
+            return []
+        extra = (self.project.added[cid].extra if cid in self.project.added
+                 else self.project.card_extra.get(cid, {}))
+        found = extra.get("effects")
+        return found if isinstance(found, list) else []
+
+    def _set_card_effects(self, effects):
+        """Store the list on the card, or take the key away with the last one."""
+        cid = self.current
+        extra = (self.project.added[cid].extra if cid in self.project.added
+                 else self.project.card_extra.setdefault(cid, {}))
+        if effects:
+            extra["effects"] = effects
+        else:
+            extra.pop("effects", None)
+            if cid not in self.project.added and not extra:
+                self.project.card_extra.pop(cid, None)
+        self._mark_dirty()
+        self._refresh_card_effects()
+
+    def _effect_words(self, effect):
+        """A line of the list: when it happens, and what it does."""
+        if not isinstance(effect, dict):
+            return "?", str(effect)
+        when = dict((key, name) for key, name, _ in self.EFFECT_WHEN).get(effect.get("when"),
+                                                                                 str(effect.get("when")))
+        does = dict(self.EFFECT_DOES).get(effect.get("does"), str(effect.get("does")))
+        whose = dict(self.EFFECT_WHOSE).get(effect.get("whose"), "")
+        parts = [does]
+        if whose:
+            parts.append(whose.lower())
+        only = [str(effect[key]) for key in ("only_type", "only_attribute") if effect.get(key)]
+        if only:
+            parts.append("(" + ", ".join(only) + " only)")
+        if effect.get("does") == "boost":
+            points = [f"{effect.get(key, 0):+d} {key.upper()}" for key in ("atk", "def") if effect.get(key)]
+            parts.append(", ".join(points) if points else "no points")
+        elif effect.get("does") == "life":
+            parts.append(f"{effect.get('life', 0):+d} LP")
+        elif effect.get("does") == "card":
+            parts.append(self.project.card_label(effect["card"]) if isinstance(effect.get("card"), int)
+                         and effect["card"] in self.project.cards else str(effect.get("card", "")))
+        return when, " · ".join(part for part in parts if part)
+
+    def _refresh_card_effects(self):
+        table = self.effects_table
+        effects = self._card_effects()
+        table.setRowCount(len(effects))
+        for row, effect in enumerate(effects):
+            when, does = self._effect_words(effect)
+            for column, text in enumerate((str(row + 1), when, does)):
+                table.setItem(row, column, QTableWidgetItem(text))
+        card = self.project.cards.get(self.current) if self.current else None
+        self.effects_note.setText(
+            "" if card is None or card.is_monster() else
+            "Only a monster plays these; this card is no monster."
+            if effects else "")
+        self._card_effect_buttons()
+
+    def _card_effect_buttons(self):
+        row = self.effects_table.currentRow()
+        count = self.effects_table.rowCount()
+        chosen = 0 <= row < count
+        for name, on in (("addEffect", bool(self.current)), ("editEffect", chosen), ("removeEffect", chosen),
+                         ("effectUp", chosen and row > 0), ("effectDown", chosen and row + 1 < count)):
+            self.effect_buttons[name].setEnabled(bool(on))
+
+    def _add_card_effect(self):
+        made = self._ask_card_effect({"when": "summon", "does": "boost", "whose": "self", "atk": 500, "def": 0})
+        if made is not None:
+            self._set_card_effects(self._card_effects() + [made])
+            self.effects_table.selectRow(self.effects_table.rowCount() - 1)
+
+    def _edit_card_effect(self):
+        row = self.effects_table.currentRow()
+        effects = self._card_effects()
+        if not 0 <= row < len(effects) or not isinstance(effects[row], dict):
+            return
+        changed = self._ask_card_effect(effects[row])
+        if changed is not None:
+            effects = list(effects)
+            effects[row] = changed
+            self._set_card_effects(effects)
+            self.effects_table.selectRow(row)
+
+    def _remove_card_effect(self):
+        row = self.effects_table.currentRow()
+        effects = list(self._card_effects())
+        if 0 <= row < len(effects):
+            del effects[row]
+            self._set_card_effects(effects)
+
+    def _move_card_effect(self, delta):
+        row = self.effects_table.currentRow()
+        effects = list(self._card_effects())
+        if 0 <= row < len(effects) and 0 <= row + delta < len(effects):
+            effects[row], effects[row + delta] = effects[row + delta], effects[row]
+            self._set_card_effects(effects)
+            self.effects_table.selectRow(row + delta)
+
+    def _ask_card_effect(self, effect):
+        """The Edit effect form: what happens, to what, and by how much.
+        Returns the effect as it was left, or None where it was cancelled."""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Monster effect")
+        layout = QVBoxLayout(dialog)
+        form = QGridLayout()
+        form.setHorizontalSpacing(10)
+        form.setVerticalSpacing(7)
+        layout.addLayout(form)
+
+        def row(index, label, widget):
+            form.addWidget(QLabel(label, dialog), index, 0)
+            form.addWidget(widget, index, 1)
+            return widget
+
+        when = row(0, "When", short_popup(QComboBox(dialog)))
+        for key, name, _ in self.EFFECT_WHEN:
+            when.addItem(name, key)
+        when.setCurrentIndex(max(0, when.findData(effect.get("when"))))
+        said = QLabel(self.EFFECT_WHEN[0][2], dialog)
+        said.setWordWrap(True)
+        said.setStyleSheet("color:#9aacc4")
+        form.addWidget(said, 1, 0, 1, 2)
+
+        does = row(2, "Does", short_popup(QComboBox(dialog)))
+        for key, name in self.EFFECT_DOES:
+            does.addItem(name, key)
+        does.setCurrentIndex(max(0, does.findData(effect.get("does"))))
+        whose = row(3, "Whose", short_popup(QComboBox(dialog)))
+        for key, name in self.EFFECT_WHOSE:
+            whose.addItem(name, key)
+        whose.setCurrentIndex(max(0, whose.findData(effect.get("whose"))))
+        only_type = row(4, "Only type", short_popup(QComboBox(dialog)))
+        only_type.addItem("Any", "")
+        for name in TYPE_NAMES[:gamedata.TYPE_MAGIC]:
+            only_type.addItem(name, name)
+        only_type.setCurrentIndex(max(0, only_type.findData(effect.get("only_type", ""))))
+        only_attribute = row(5, "Only attribute", short_popup(QComboBox(dialog)))
+        only_attribute.addItem("Any", "")
+        for name in ATTRIBUTE_NAMES:
+            only_attribute.addItem(name, name)
+        only_attribute.setCurrentIndex(max(0, only_attribute.findData(effect.get("only_attribute", ""))))
+        points = {}
+        for index, key in enumerate(("atk", "def")):
+            box = row(6 + index, key.upper(), QSpinBox(dialog))
+            box.setRange(-9999, 9999)
+            box.setSingleStep(100)
+            box.setValue(effect.get(key, 0) if isinstance(effect.get(key), int) else 0)
+            points[key] = box
+        life = row(8, "Life points", QSpinBox(dialog))
+        life.setRange(-9999, 9999)
+        life.setSingleStep(100)
+        life.setValue(effect.get("life", -500) if isinstance(effect.get("life"), int) else -500)
+        card = row(9, "Its effect", self._card_combo(dialog, effect.get("card") if effect.get("card") in
+                                                     self.project.cards else None))
+
+        def follows():
+            """Only the fields the chosen kind of effect uses."""
+            kind = does.currentData()
+            for index, widget in ((6, points["atk"]), (7, points["def"])):
+                widget.setVisible(kind == "boost")
+                form.itemAtPosition(index, 0).widget().setVisible(kind == "boost")
+            life.setVisible(kind == "life")
+            form.itemAtPosition(8, 0).widget().setVisible(kind == "life")
+            card.setVisible(kind == "card")
+            form.itemAtPosition(9, 0).widget().setVisible(kind == "card")
+            for widget in (only_type, only_attribute):
+                widget.setEnabled(whose.currentData() != "opponent_lp")
+
+        does.currentIndexChanged.connect(lambda *_: follows())
+        whose.currentIndexChanged.connect(lambda *_: follows())
+        follows()
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
+                                   parent=dialog)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return None
+        made = {"when": when.currentData(), "does": does.currentData(), "whose": whose.currentData()}
+        for key, box in (("only_type", only_type), ("only_attribute", only_attribute)):
+            if box.isEnabled() and box.currentData():
+                made[key] = box.currentData()
+        if made["does"] == "boost":
+            made["atk"], made["def"] = points["atk"].value(), points["def"].value()
+        elif made["does"] == "life":
+            made["life"] = life.value()
+        elif made["does"] == "card" and card.currentData():
+            made["card"] = card.currentData()
+        # Anything the mod wrote that this form has no field for stays.
+        kept = {k: v for k, v in effect.items()
+                if k not in ("when", "does", "whose", "only_type", "only_attribute", "atk", "def", "life", "card")}
+        made.update(kept)
+        return made
+
+    # The game's seven colour ramps, as the card view draws them
+    # (card_text.RetailFont.colours_for, notes/modding.md).
+    TEXT_COLOURS = ("White", "Yellow", "Blue", "Green", "Grey", "Orange", "Red")
+
+    def _retail_font(self):
+        """The disc's font, kept between draws: reading it is milliseconds,
+        and the preview follows every letter typed."""
+        held = getattr(self, "_text_font", None)
+        if held is None or held[0] is not self.files.wa:
+            held = (self.files.wa, card_text.RetailFont(self.files.wa))
+            self._text_font = held
+        return held[1]
+
+    def _description_star(self, model, star):
+        """The name and 16-pixel symbol the card viewer would use for a star."""
+        if not star:
+            return None
+        entry = model.stars.get(star)
+        image = None
+        if entry and entry.icon:
+            try:
+                if entry.icon in self.project.files:
+                    image = pngio.decode(self.project.files[entry.icon])
+                elif self.project.source_dir:
+                    image = pngio.read(Path(self.project.source_dir) / entry.icon)
+            except (OSError, ValueError, pngio.PngError):
+                image = None
+        if image is None:
+            try:
+                found = guardian_stars.disc_icon(self.files.wa, star)
+                if found is None:
+                    found = guardian_stars.imported_icon(self.files.wa, star)
+                if found is not None:
+                    image = pngio.Image(*found)
+            except (IndexError, ValueError, struct.error):
+                image = None
+        if image is not None and image.size != (16, 16):
+            image = pngio.resample(image, 16, 16)
+        return model.name(star), image
+
+    def _render_card_text(self):
+        """The complete description half of the in-game card viewer."""
+        label = getattr(self, "card_text_preview", None)
+        if label is None or self.files is None or not self.current:
+            return
+        try:
+            font = self._retail_font()
+            kind = self.type_box.currentIndex()
+            type_name = TYPE_NAMES[kind] if 0 <= kind < len(TYPE_NAMES) else "Unknown"
+            # The four non-monster symbols follow the twenty monster-type
+            # symbols in the same text-icon page.
+            type_icon = kind if kind < gamedata.TYPE_MAGIC else 0x14 + kind - gamedata.TYPE_MAGIC
+            stars = ()
+            if kind < gamedata.TYPE_MAGIC:
+                model = guardian_stars.read(self.project.other.get("guardian_stars"))
+                selected = (self.star1_box.currentIndex(), self.star2_box.currentIndex())
+                stars = tuple(star for star in (self._description_star(model, item) for item in selected) if star)
+            # Imported modified discs carry their active archive separately
+            # from the retail files.  The description panel's UI tiles must
+            # therefore come from preview_wa, just like its modified card
+            # artwork, rather than from the editor's original game archive.
+            # The description side is a Build Deck UI sprite.  Look up its
+            # two CLUT readings independently so an HD/mod texture pack can
+            # replace the stone and navy material just as the game does.
+            stone = _pack_texture(self.project, self.frame_cache,
+                                  0x10E4800, 64, 128, 4, 0x10E9600, 16)
+            navy = _pack_texture(self.project, self.frame_cache,
+                                 0x10E4800, 64, 128, 4, 0x10E9620, 16)
+            image = card_text.render_description(
+                font, self.description.toPlainText(), type_name, type_icon, stars, 2,
+                wa=getattr(self, "preview_wa", self.files.wa),
+                stone_sheet=stone, navy_sheet=navy)
+            label.setText("")
+            label.setPixmap(QPixmap.fromImage(_qimage(image.width, image.height, image.rgba)))
+        except (OSError, ValueError, IndexError, KeyError, struct.error, pngio.PngError) as problem:
+            label.setPixmap(QPixmap())
+            label.setText(str(problem))
+
+    def _colour_swatch(self, code):
+        """The brightest step of a ramp, for the menu's entry."""
+        picture = QPixmap(12, 12)
+        try:
+            picture.fill(QColor(*self._retail_font().colours_for(code)[-1]))
+        except (OSError, ValueError, IndexError, struct.error):
+            return QIcon()
+        return QIcon(picture)
+
+    # The icons the disc draws in a card's text ({f8 0B NN}): its page is an
+    # eight-column grid (column = code & 7, row = (code & 0x38) >> 3), and the
+    # rows are the twenty monster types, the four card kinds, then the ten
+    # guardian stars. 0x22 up is the rest of the boot sheet's UI sprites,
+    # which are documented as far as 0x28.
+    TEXT_ICONS = (("Monster types", 0x00, gamedata.TYPE_MAGIC),
+                  ("Card kinds", 0x14, 4),
+                  ("Guardian stars", 0x18, 10),
+                  ("Buttons", 0x22, 7))
+
+    def _icon_name(self, title, code):
+        """What the icon is: the type or kind it marks, the star it is, or its
+        code where the sheet holds a sprite with no name of its own."""
+        if title == "Monster types" and code < len(TYPE_NAMES):
+            return TYPE_NAMES[code]
+        if title == "Card kinds" and gamedata.TYPE_MAGIC + code - 0x14 < len(TYPE_NAMES):
+            return TYPE_NAMES[gamedata.TYPE_MAGIC + code - 0x14]
+        if title == "Guardian stars":
+            stars = guardian_stars.choices(self.project.other.get("guardian_stars")) if self.project else []
+            star = code - 0x18 + 1              # 0x18 is Mars, the first
+            if star < len(stars):
+                return stars[star]
+        return f"{code:02X}"
+
+    def _text_icon(self, code):
+        """A text icon as it is drawn, for the menu's entry."""
+        held = getattr(self, "_text_icons", None)
+        if held is None:
+            held = self._text_icons = {}
+        if code not in held:
+            try:
+                texels = self._retail_font().icon(code)
+            except (OSError, ValueError, IndexError, struct.error):
+                return QIcon()
+            picture = QImage(16, 16, QImage.Format.Format_RGBA8888)
+            picture.fill(0)
+            for y in range(16):
+                for x in range(16):
+                    (r, g, b), a = texels[y * 16 + x]
+                    if a:
+                        picture.setPixelColor(x, y, QColor(r, g, b))
+            held[code] = QIcon(QPixmap.fromImage(picture))
+        return held[code]
+
+    def _insert_text_code(self, code, around=None):
+        """A code at the cursor; with `around`, the code before what is
+        selected and `around` after it, so only that much is coloured."""
+        cursor = self.description.textCursor()
+        if around is None or not cursor.hasSelection():
+            cursor.insertText(code)
+            return
+        cursor.insertText(code + cursor.selectedText().replace("\u2029", "\n") + around)
+        self.description.setTextCursor(cursor)
+
+    def _card_text_menu(self, point):
+        self._build_card_text_menu().exec(self.description.viewport().mapToGlobal(point))
+
+    def _build_card_text_menu(self):
+        """The box's own menu, and the codes the game reads in a card's text.
+        Built apart from showing it: a menu's exec is a modal loop of its own,
+        which nothing but a person can leave."""
+        menu = self.description.createStandardContextMenu()
+        menu.addSeparator()
+        selected = self.description.textCursor().hasSelection()
+        colours = menu.addMenu("Colour the selection" if selected else "Text colour")
+        for code, name in enumerate(self.TEXT_COLOURS):
+            action = colours.addAction(f"{name}   {{f8 0A {code:02X}}}")
+            action.setIcon(self._colour_swatch(code))
+            # White is the text's own colour, so it is what a colour ends with.
+            action.triggered.connect(lambda _=False, c=code:
+                                     self._insert_text_code(f"{{f8 0A {c:02X}}}", "{f8 0A 00}"))
+        icons = menu.addMenu("Insert icon")
+        for title, first, count in self.TEXT_ICONS:
+            group = icons.addMenu(title)
+            for code in range(first, first + count):
+                action = group.addAction(f"{self._icon_name(title, code)}   {{f8 0B {code:02X}}}")
+                action.setIcon(self._text_icon(code))
+                action.triggered.connect(lambda _=False, c=code: self._insert_text_code(f"{{f8 0B {c:02X}}}"))
+        return menu
+
     def update_text_count(self):
         count = _line_count(self.description.toPlainText())
         self.description_status.setText(f"{count} of 8 game lines · 20 characters per line")
         self.description_status.setStyleSheet("color:#ff7777" if count > 8 else "color:#9aacc4")
+        self._render_card_text()
         if self.current: self._render_preview()
     def apply_card(self, quiet=False):
         cid = self.current
@@ -1127,9 +1551,6 @@ QLabel#referenceValue[changed="true"] { color: #8ab4f8; border-color: #3f6ea8; }
             if (added.drops, added.opponents) != (self.drops.isChecked(), self.opponents.isChecked()):
                 added.drops = self.drops.isChecked(); added.opponents = self.opponents.isChecked()
                 changed = True
-        notes = self.notes.toPlainText()
-        if notes != self.project.notes.get(cid, ""):
-            self.project.set_notes(cid, notes); changed = True
         if password != self.project.password(cid):
             self.project.set_password(cid, password); changed = True
         if cid in self.project.retail.cards:
