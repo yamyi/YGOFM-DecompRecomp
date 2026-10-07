@@ -56,12 +56,19 @@ class LayoutTest(unittest.TestCase):
         for text in ("a b c", "x" * 45, "word " * 40, "a\nb\nc\nd\ne\nf\ng\nh\ni"):
             self.assertEqual(card_text.layout(text).lines, validate.text_lines(text))
 
+    def test_game_layout_keeps_a_stored_twenty_one_cell_line(self):
+        text = "anything in its path.\nRumored to have a"
+        lay = card_text.game_layout(text)
+        self.assertEqual(rows_of(lay), ["anything in its path.", "Rumored to have a"])
+        self.assertEqual(lay.rows, 2)
+
 
 def synthetic_wa():
     """The boot package's font page and colours where the retail disc has
     them: an 'A' that is a 6 x 9 block (index 15, its outline index 1) and
     a ramp from black to white."""
-    wa = bytearray((card_text.RAMP_SECTOR + 1) * 2048)
+    wa = bytearray(max((card_text.RAMP_SECTOR + 1) * 2048,
+                       card_text.BOOT_SECTOR * 2048 + card_text.ICON_PAGE_OFFSET + 128 * card_text.ICON_PAGE_ROWS))
     u, v = card_text._cell_uv("A")
     base = card_text.BOOT_SECTOR * 2048
     for y in range(12):
@@ -76,7 +83,9 @@ def synthetic_wa():
             level = i * 31 // 15
             struct.pack_into("<H", wa, ramp + (colour * 16 + i) * 2, level | level << 5 | level << 10)
     # Icon 00: a single opaque red texel through its own CLUT at (512, 249).
-    at = base + 128 // 2
+    # The icons are not on the font's page: they are where the boot sheet's
+    # card types sit, the page func_80035E20 draws them from.
+    at = base + card_text.ICON_PAGE_OFFSET + 128 // 2
     wa[at] = (wa[at] & 0xF0) | 1
     struct.pack_into("<H", wa, (card_text.BOOT_SECTOR + 48) * 2048 + (256 + 1) * 2, 0x001F)
     return bytes(wa)
@@ -162,6 +171,47 @@ class RetailFontTest(unittest.TestCase):
         self.assertEqual([colour for _, _, _, colour in lay.glyphs], [5, 6])
         image, _ = card_text.Renderer(font).render("{f8 0B 00}A", 1)
         self.assertEqual(image.pixel(0, 0), (248, 0, 0, 255))
+
+    def test_an_icon_uses_its_full_sixteen_pixel_cursor_advance(self):
+        font = card_text.RetailFont(synthetic_wa())
+        image, lay = card_text.Renderer(font).render("{f8 0B 00} A", 1)
+        self.assertEqual([(glyph, column) for glyph, column, _row, _colour in lay.glyphs],
+                         [("{f8 0B 00}", 0), (" ", 2), ("A", 3)])
+        # The leading icon takes two 8-pixel cells and the source's space
+        # takes one more before the A begins.
+        self.assertEqual(image.pixel(3 * 8 + 1, 1)[:3], (248, 248, 248))
+
+    def test_description_view_has_game_geometry_and_uses_the_font(self):
+        font = card_text.RetailFont(synthetic_wa())
+        image = card_text.render_description(font, "A", "Dragon", 0, (), 2)
+        self.assertEqual(image.size, (360, 384))
+        # The type icon is at (9, 8), and the description starts below the
+        # header at (8, 38) when a card has no guardian-star panel.
+        self.assertEqual(image.pixel(18, 16), (248, 0, 0, 255))
+        self.assertEqual(image.pixel(18, 80)[:3], (248, 248, 248))
+
+    def test_description_background_uses_the_loaded_stone_and_navy_tiles(self):
+        # The card-view panel reads one indexed UI sheet through two CLUTs:
+        # a stone border and navy wells.  A modified archive must therefore
+        # change the preview without replacing a captured PNG.
+        size = max(card_text._DESCRIPTION_SHEET + card_text._DESCRIPTION_SHEET_ROWS * card_text._DESCRIPTION_SHEET_STRIDE,
+                   card_text._DESCRIPTION_NAVY_CLUT + 32)
+        wa = bytearray(size)
+        wa[card_text._DESCRIPTION_SHEET:size] = b"\x11" * (size - card_text._DESCRIPTION_SHEET)
+        struct.pack_into("<H", wa, card_text._DESCRIPTION_STONE_CLUT + 2, 0x001F)
+        struct.pack_into("<H", wa, card_text._DESCRIPTION_NAVY_CLUT + 2, 0x03E0)
+        picture = card_text.description_background(bytes(wa))
+        self.assertEqual(picture.pixel(1, 1), (255, 0, 0, 255))
+        self.assertEqual(picture.pixel(10, 10), (0, 255, 0, 255))
+
+    def test_description_background_uses_texture_pack_replacements(self):
+        # A pack supplies the same logical 256x128 page at any scale.  It
+        # takes precedence over the archive's own CLUT reading.
+        stone = card_text.pngio.Image(512, 256, bytes((17, 34, 51, 255)) * (512 * 256))
+        navy = card_text.pngio.Image(512, 256, bytes((68, 85, 102, 255,)) * (512 * 256))
+        picture = card_text.description_background(None, stone, navy)
+        self.assertEqual(picture.pixel(1, 1), (17, 34, 51, 255))
+        self.assertEqual(picture.pixel(10, 10), (68, 85, 102, 255))
 
 
 def tiny_font(path):

@@ -477,7 +477,6 @@ class CardsTest(unittest.TestCase):
         self.assertEqual(w.card_id.text(), '—')
         self.assertEqual(w.fields['name'].text(), '')
         self.assertEqual(w.description.toPlainText(), '')
-        self.assertEqual(w.notes.toPlainText(), '')
         self.assertEqual(w.reference_title.text(), 'Retail card')
         self.assertEqual({value.text() for value in w.reference_values.values()}, {'—'})
         for widget in w._card_form_widgets():
@@ -2411,6 +2410,131 @@ class CardsTest(unittest.TestCase):
             self.assertIsNotNone(w._pack_image_bytes(w._pack_entry()))
             self.assertFalse(c['list'].item(0).icon().isNull())
             self.assertFalse(c['image'].pixmap().isNull())
+
+    # --- Card Data as tabs, and the game's own text ------------------------
+
+    def test_card_data_is_general_effects_and_text(self):
+        w = self.window
+        tabs = w.card_data_tabs
+        self.assertEqual([tabs.tabText(i) for i in range(tabs.count())], ['General', 'Effects', 'Text'])
+        w.show_card(1)
+        # The fields stayed where they were, under the first tab.
+        self.assertEqual(w.fields['name'].text(), 'Blue Dragon')
+        self.assertEqual(w.description.toPlainText(), w.project.cards[1].description)
+
+    def test_the_mod_notes_box_is_gone_and_the_notes_are_not(self):
+        """A card's "notes" are the mod's, kept as written; no box here edits
+        them any more."""
+        from PySide6.QtWidgets import QTextEdit
+        w = self.window
+        self.assertIsNone(w.findChild(QTextEdit, 'notesEdit'))
+        self.assertFalse(hasattr(w, 'notes'))
+        w.project.set_notes(1, 'kept from the mod.json')
+        w.show_card(1)
+        self.assertTrue(w.apply_card(quiet=True))
+        entry = next(e for e in manifest.build(w.project)['cards'] if e.get('notes'))
+        self.assertEqual(entry['notes'], 'kept from the mod.json')
+
+    def test_effects_are_listed_edited_and_kept_on_the_card(self):
+        """The Effects tab writes a card's "effects", which ride with the rest
+        of what a mod wrote on it (manifest card_extra). The port has no key
+        for them yet, so the game reads none of it."""
+        from PySide6.QtWidgets import QDialog
+        w = self.window
+        w.show_card(1)
+        self.assertEqual(w.effects_table.rowCount(), 0)
+        self.assertFalse(w.effect_buttons['editEffect'].isEnabled())
+        with mock.patch.object(QDialog, 'exec', return_value=QDialog.DialogCode.Accepted):
+            w._add_card_effect()
+            w._add_card_effect()
+        self.assertEqual(w.effects_table.rowCount(), 2)
+        self.assertEqual(w.effects_table.item(0, 1).text(), 'On summon')
+        self.assertIn('Boost ATK/DEF', w.effects_table.item(0, 2).text())
+        self.assertEqual(w.project.card_extra[1]['effects'][0],
+                         {'when': 'summon', 'does': 'boost', 'whose': 'self', 'atk': 500, 'def': 0})
+        # They are the card's, and come back as they were written.
+        entry = next(e for e in manifest.build(w.project)['cards'] if e.get('replace') == 1)
+        self.assertEqual(len(entry['effects']), 2)
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest.save_mod(w.project, Path(tmp) / 'mod')
+            again, notes = manifest.open_mod(w.retail, Path(tmp) / 'mod')
+            self.assertEqual(again.card_extra[1]['effects'], w.project.card_extra[1]['effects'])
+            self.assertEqual(notes, [])
+        w.effects_table.selectRow(0)
+        w._move_card_effect(1)
+        self.assertEqual(w.effects_table.currentRow(), 1)
+        w.effects_table.selectRow(0)
+        w._remove_card_effect()
+        w.effects_table.selectRow(0)
+        w._remove_card_effect()
+        # The last one taken away takes the key with it.
+        self.assertNotIn(1, w.project.card_extra)
+        self.assertEqual(w.effects_table.rowCount(), 0)
+
+    def test_colouring_takes_the_selection_and_leaves_the_rest(self):
+        """A colour runs until the next one, so colouring a few words puts
+        white back after them; with nothing selected the code goes in where
+        the cursor is."""
+        from PySide6.QtGui import QTextCursor
+        w = self.window
+        w.show_card(1)
+        w.description.setPlainText('Boost your monsters.')
+        cursor = w.description.textCursor()
+        cursor.setPosition(6)
+        cursor.setPosition(10, QTextCursor.MoveMode.KeepAnchor)
+        w.description.setTextCursor(cursor)
+        w._insert_text_code('{f8 0A 06}', '{f8 0A 00}')
+        self.assertEqual(w.description.toPlainText(), 'Boost {f8 0A 06}your{f8 0A 00} monsters.')
+        w.description.setPlainText('Plain.')
+        w._insert_text_code('{f8 0B 18}')
+        self.assertEqual(w.description.toPlainText(), '{f8 0B 18}Plain.')
+
+    def test_the_text_menu_offers_the_icons_and_says_what_a_colour_will_do(self):
+        w = self.window
+        w.show_card(1)
+        menu = w._build_card_text_menu()
+        submenus = {action.text(): action.menu() for action in menu.actions() if action.menu()}
+        self.assertEqual(sorted(submenus), ['Insert icon', 'Text colour'])
+        groups = {action.text(): action.menu() for action in submenus['Insert icon'].actions()}
+        self.assertEqual(sorted(groups), ['Buttons', 'Card kinds', 'Guardian stars', 'Monster types'])
+        # The sheet's grid: twenty types, four kinds, then the ten stars.
+        types = [action.text() for action in groups['Monster types'].actions()]
+        self.assertEqual(len(types), 20)
+        self.assertTrue(types[0].startswith('Dragon'))
+        self.assertIn('{f8 0B 00}', types[0])
+        self.assertTrue(types[-1].startswith('Plant'))
+        self.assertIn('{f8 0B 13}', types[-1])
+        kinds = [action.text() for action in groups['Card kinds'].actions()]
+        self.assertTrue(kinds[0].startswith('Magic'))
+        self.assertIn('{f8 0B 14}', kinds[0])
+        stars = [action.text() for action in groups['Guardian stars'].actions()]
+        self.assertEqual(len(stars), 10)
+        self.assertTrue(stars[0].startswith('Mars'))
+        self.assertIn('{f8 0B 18}', stars[0])
+        self.assertTrue(stars[-1].startswith('Venus'))
+        # With something selected the colour menu says what it will colour.
+        w.description.selectAll()
+        names = [action.text() for action in w._build_card_text_menu().actions() if action.menu()]
+        self.assertIn('Colour the selection', names)
+
+    def test_the_game_text_tab_draws_the_text_and_offers_the_colour_codes(self):
+        """card_text.Renderer: what the card view makes of the box, and the
+        {f8 0A NN} codes it reads."""
+        from PySide6.QtWidgets import QMenu
+        w = self.window
+        w.show_card(1)
+        # The synthetic retail has no font where the disc keeps one, so the
+        # preview says that rather than drawing.
+        self.assertIn('no font', w.card_text_preview.text())
+        self.assertEqual(w.TEXT_COLOURS[6], 'Red')
+        menu = w.description.createStandardContextMenu()
+        self.assertTrue(menu.actions())
+        w.description.setPlainText('')
+        w.description.insertPlainText('{f8 0A 06}')
+        self.assertEqual(w.description.toPlainText(), '{f8 0A 06}')
+        # The code is text of the card like any other: it is stored as typed.
+        self.assertTrue(w.apply_card(quiet=True))
+        self.assertEqual(w.project.cards[1].description, '{f8 0A 06}')
 
     # --- what the window took from the old one after the equips change ------
 

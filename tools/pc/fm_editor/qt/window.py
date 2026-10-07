@@ -5,6 +5,7 @@ from .common import *      # noqa: F401,F403
 from .common import (_qimage, _line_count, _pairs_text, _parse_pairs, _whole,
                      _card_image)      # noqa: F401
 from .art import ArtMixin
+from .assets import AssetsMixin
 from .cards import CardsMixin
 from .duelists import DuelistsMixin
 from .equips import EquipsMixin
@@ -19,9 +20,9 @@ from .stars import StarsMixin
 from .starter import StarterMixin
 
 
-class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixin, LimitsMixin, MapMixin, ModinfoMixin, PacksMixin, ProblemsMixin, RitualsMixin, StarsMixin, StarterMixin, QMainWindow):
+class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixin, LimitsMixin, MapMixin, ModinfoMixin, PacksMixin, ProblemsMixin, RitualsMixin, StarsMixin, StarterMixin, QMainWindow):
     FILTERS = ["All cards", "Changed", "Added by the mod", "With notes", "Monsters", "Non-monsters"] + TYPE_NAMES
-    NAV = ["Cards", "Art", "Campaign", "Fusions", "Equips", "Rituals", "Duelists", "Starter decks",
+    NAV = ["Cards", "Art", "Assets", "Campaign", "Fusions", "Equips", "Rituals", "Duelists", "Starter decks",
            "Limits", "Guardian Stars", "Packs", "Mod info", "Problems"]
     def __init__(self, game=None, mod=None, ask=False):
         super().__init__()
@@ -282,7 +283,7 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
         if name == "Packs":
             self._build_packs_page(parent)
             return
-        filenames = {"Campaign": "campaign_page.ui", "Fusions": "fusions_page.ui",
+        filenames = {"Assets": "assets_page.ui", "Campaign": "campaign_page.ui", "Fusions": "fusions_page.ui",
                      "Equips": "equips_page.ui", "Rituals": "rituals_page.ui",
                      "Duelists": "duelists_page.ui", "Starter decks": "starter_decks_page.ui",
                      "Limits": "limits_page.ui",
@@ -304,6 +305,8 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
         controls = {"page": page}
         self.workspace_forms[name] = page
         self.workspace_controls[name] = controls
+        if name == "Assets":
+            self._build_assets_page(page, controls)
         if name == "Rituals":
             splitter=page.findChild(QSplitter,"ritualSplit")
             if splitter is not None:
@@ -704,7 +707,9 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
         if not hasattr(self, "workspace_controls") or name not in self.workspace_controls:
             return
         c, p = self.workspace_controls[name], self.project
-        if name == "Campaign":
+        if name == "Assets":
+            self._refresh_assets()
+        elif name == "Campaign":
             self._refresh_map()
         elif name == "Fusions":
             self._refresh_fusions()
@@ -1301,7 +1306,7 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
 
     def _card_form_widgets(self):
         """Everything the card form edits, for enabling it with a selection."""
-        return [*self.fields.values(), self.description, self.notes, self.key_edit,
+        return [*self.fields.values(), self.description, self.key_edit,
                 self.drops, self.opponents, self.apply_button, self.revert_button, self.remove_button,
                 self.model_preview_button]
     def _clear_card_form(self):
@@ -1316,7 +1321,6 @@ class ModernEditor(ArtMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixi
                 field.setCurrentIndex(-1)
         self.card_id.setValue(self.card_id.minimum())     # "—" (setSpecialValueText)
         self.description.clear()
-        self.notes.clear()
         self.key_edit.clear()
         self.drops.setChecked(False)
         self.opponents.setChecked(False)

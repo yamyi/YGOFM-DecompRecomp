@@ -37,9 +37,12 @@ static s32 NameEntry_DealModStarterDeck(void)
     s32 i;
 
     if (total == 0) {
-        return 0;
-    }
-    if (!Starter_Deck(Starter_Roll((unsigned)rand()), cards, 0)) {
+        /* No deck written down: a mod may still weight its own pools, which
+         * the disc's rows cannot do for a card a mod added (starter.h). */
+        if (!Starter_DealPools(NameEntry_StarterRandom, cards)) {
+            return 0;
+        }
+    } else if (!Starter_Deck(Starter_Roll((unsigned)rand()), cards, 0)) {
         return 0;
     }
     out = (s16 *)gDuel_awPlayerDeck;

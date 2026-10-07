@@ -266,386 +266,478 @@
            <property name="bottomMargin">
             <number>8</number>
            </property>
-           <item>
-            <layout class="QFormLayout" name="identityForm">
-             <property name="fieldGrowthPolicy">
-              <enum>QFormLayout::FieldGrowthPolicy::AllNonFixedFieldsGrow</enum>
-             </property>
-             <item row="0" column="0">
-              <widget class="QLabel" name="cardIdLabel">
-               <property name="text">
-                <string>Card ID</string>
+                      <item>
+            <widget class="QTabWidget" name="cardDataTabs">
+             <widget class="QWidget" name="cardGeneralTab">
+              <attribute name="title">
+               <string>General</string>
+              </attribute>
+              <layout class="QVBoxLayout" name="cardGeneralLayout">
+               <property name="spacing"><number>11</number></property>
+  <item>
+              <layout class="QFormLayout" name="identityForm">
+               <property name="fieldGrowthPolicy">
+                <enum>QFormLayout::FieldGrowthPolicy::AllNonFixedFieldsGrow</enum>
                </property>
-              </widget>
+               <item row="0" column="0">
+                <widget class="QLabel" name="cardIdLabel">
+                 <property name="text">
+                  <string>Card ID</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="0" column="1">
+                <widget class="QSpinBox" name="cardIdSpinBox">
+                 <property name="enabled">
+                  <bool>true</bool>
+                 </property>
+                 <property name="sizePolicy">
+                  <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                   <horstretch>0</horstretch>
+                   <verstretch>0</verstretch>
+                  </sizepolicy>
+                 </property>
+                 <property name="maximumSize">
+                  <size>
+                   <width>75</width>
+                   <height>16777215</height>
+                  </size>
+                 </property>
+                 <property name="wrapping">
+                  <bool>false</bool>
+                 </property>
+                 <property name="frame">
+                  <bool>true</bool>
+                 </property>
+                 <property name="readOnly">
+                  <bool>true</bool>
+                 </property>
+                 <property name="maximum">
+                  <number>32766</number>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="1">
+                <widget class="QLineEdit" name="nameEdit">
+                 <property name="maximumSize">
+                  <size>
+                   <width>405</width>
+                   <height>16777215</height>
+                  </size>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="0">
+                <widget class="QLabel" name="nameLabel">
+                 <property name="text">
+                  <string>Name</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
              </item>
-             <item row="0" column="1">
-              <widget class="QSpinBox" name="cardIdSpinBox">
-               <property name="enabled">
-                <bool>true</bool>
-               </property>
-               <property name="sizePolicy">
-                <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-                 <horstretch>0</horstretch>
-                 <verstretch>0</verstretch>
-                </sizepolicy>
-               </property>
-               <property name="maximumSize">
-                <size>
-                 <width>75</width>
-                 <height>16777215</height>
-                </size>
-               </property>
-               <property name="wrapping">
-                <bool>false</bool>
-               </property>
-               <property name="frame">
-                <bool>true</bool>
-               </property>
-               <property name="readOnly">
-                <bool>true</bool>
-               </property>
-               <property name="maximum">
-                <number>32766</number>
-               </property>
-              </widget>
-             </item>
-             <item row="1" column="1">
-              <widget class="QLineEdit" name="nameEdit">
-               <property name="maximumSize">
-                <size>
-                 <width>405</width>
-                 <height>16777215</height>
-                </size>
-               </property>
-              </widget>
-             </item>
-             <item row="1" column="0">
-              <widget class="QLabel" name="nameLabel">
-               <property name="text">
-                <string>Name</string>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <layout class="QGridLayout" name="statsGrid">
-             <property name="horizontalSpacing">
-              <number>12</number>
-             </property>
-             <property name="verticalSpacing">
-              <number>7</number>
-             </property>
-             <item row="8" column="1">
-              <widget class="QComboBox" name="guardian2Combo"/>
-             </item>
-             <item row="7" column="0">
-              <widget class="QLabel" name="guardian1Label">
-               <property name="text">
-                <string>Guardian Star 1</string>
-               </property>
-              </widget>
-             </item>
-             <item row="7" column="1">
-              <widget class="QLabel" name="guardian2Label">
-               <property name="text">
-                <string>Guardian Star 2</string>
-               </property>
-              </widget>
-             </item>
-             <item row="1" column="1">
-              <widget class="QComboBox" name="attributeCombo"/>
-             </item>
-             <item row="4" column="0">
-              <widget class="QLabel" name="attackLabel">
-               <property name="text">
-                <string>ATK</string>
-               </property>
-              </widget>
-             </item>
-             <item row="3" column="1">
-              <widget class="QComboBox" name="frameCombo"/>
-             </item>
-             <item row="8" column="0">
-              <widget class="QComboBox" name="guardian1Combo"/>
-             </item>
-             <item row="2" column="0">
-              <widget class="QLabel" name="levelLabel">
-               <property name="text">
-                <string>Level</string>
-               </property>
-              </widget>
-             </item>
-             <item row="0" column="1">
-              <widget class="QLabel" name="attributeLabel">
-               <property name="text">
-                <string>Attribute</string>
-               </property>
-              </widget>
-             </item>
-             <item row="5" column="0">
-              <widget class="QSpinBox" name="attackSpinBox">
-               <property name="maximum">
-                <number>5110</number>
-               </property>
-               <property name="singleStep">
-                <number>10</number>
-               </property>
-              </widget>
-             </item>
-             <item row="3" column="0">
-              <widget class="QSpinBox" name="levelSpinBox">
-               <property name="maximum">
+  <item>
+              <layout class="QGridLayout" name="statsGrid">
+               <property name="horizontalSpacing">
                 <number>12</number>
                </property>
+               <property name="verticalSpacing">
+                <number>7</number>
+               </property>
+               <item row="8" column="1">
+                <widget class="QComboBox" name="guardian2Combo"/>
+               </item>
+               <item row="7" column="0">
+                <widget class="QLabel" name="guardian1Label">
+                 <property name="text">
+                  <string>Guardian Star 1</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="7" column="1">
+                <widget class="QLabel" name="guardian2Label">
+                 <property name="text">
+                  <string>Guardian Star 2</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="1">
+                <widget class="QComboBox" name="attributeCombo"/>
+               </item>
+               <item row="4" column="0">
+                <widget class="QLabel" name="attackLabel">
+                 <property name="text">
+                  <string>ATK</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="3" column="1">
+                <widget class="QComboBox" name="frameCombo"/>
+               </item>
+               <item row="8" column="0">
+                <widget class="QComboBox" name="guardian1Combo"/>
+               </item>
+               <item row="2" column="0">
+                <widget class="QLabel" name="levelLabel">
+                 <property name="text">
+                  <string>Level</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="0" column="1">
+                <widget class="QLabel" name="attributeLabel">
+                 <property name="text">
+                  <string>Attribute</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="5" column="0">
+                <widget class="QSpinBox" name="attackSpinBox">
+                 <property name="maximum">
+                  <number>5110</number>
+                 </property>
+                 <property name="singleStep">
+                  <number>10</number>
+                 </property>
+                </widget>
+               </item>
+               <item row="3" column="0">
+                <widget class="QSpinBox" name="levelSpinBox">
+                 <property name="maximum">
+                  <number>12</number>
+                 </property>
+                </widget>
+               </item>
+               <item row="0" column="0">
+                <widget class="QLabel" name="typeLabel">
+                 <property name="text">
+                  <string>Type</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="0">
+                <widget class="QComboBox" name="typeCombo"/>
+               </item>
+               <item row="5" column="1">
+                <widget class="QSpinBox" name="defenseSpinBox">
+                 <property name="maximum">
+                  <number>5110</number>
+                 </property>
+                 <property name="singleStep">
+                  <number>10</number>
+                 </property>
+                </widget>
+               </item>
+               <item row="4" column="1">
+                <widget class="QLabel" name="defenseLabel">
+                 <property name="text">
+                  <string>DEF</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="2" column="1">
+                <widget class="QLabel" name="frameLabel">
+                 <property name="text">
+                  <string>Frame</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="9" column="0" colspan="2">
+                <widget class="QLabel" name="effectLabel">
+                 <property name="text">
+                  <string>Retail effect</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="10" column="0" colspan="2">
+                <widget class="QComboBox" name="effectCombo"/>
+               </item>
+               <item row="11" column="0" colspan="2">
+                <widget class="QLabel" name="trapThresholdLabel">
+                 <property name="text">
+                  <string>Trigger at ATK ≤</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="13" column="0">
+                <widget class="QLabel" name="equipAttackLabel">
+                 <property name="text">
+                  <string>ATK boost</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="13" column="1">
+                <widget class="QLabel" name="equipDefenseLabel">
+                 <property name="text">
+                  <string>DEF boost</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="14" column="0">
+                <widget class="QSpinBox" name="equipAttackSpin">
+                 <property name="minimum">
+                  <number>-32768</number>
+                 </property>
+                 <property name="maximum">
+                  <number>32767</number>
+                 </property>
+                 <property name="singleStep">
+                  <number>100</number>
+                 </property>
+                </widget>
+               </item>
+               <item row="14" column="1">
+                <widget class="QSpinBox" name="equipDefenseSpin">
+                 <property name="minimum">
+                  <number>-32768</number>
+                 </property>
+                 <property name="maximum">
+                  <number>32767</number>
+                 </property>
+                 <property name="singleStep">
+                  <number>100</number>
+                 </property>
+                </widget>
+               </item>
+               <item row="12" column="0">
+                <widget class="QSpinBox" name="trapThresholdSpin">
+                 <property name="minimum">
+                  <number>-1</number>
+                 </property>
+                 <property name="maximum">
+                  <number>65535</number>
+                 </property>
+                 <property name="singleStep">
+                  <number>50</number>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+  <item>
+              <layout class="QGridLayout" name="passwordGrid">
+               <property name="horizontalSpacing">
+                <number>12</number>
+               </property>
+               <property name="verticalSpacing">
+                <number>7</number>
+               </property>
+               <item row="0" column="0">
+                <widget class="QLabel" name="passwordLabel">
+                 <property name="text">
+                  <string>Password</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="0" column="1">
+                <widget class="QLabel" name="starchipsLabel">
+                 <property name="text">
+                  <string>Starchips</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="0">
+                <widget class="QLineEdit" name="passwordEdit">
+                 <property name="placeholderText">
+                  <string>8 digits, or blank</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="1">
+                <widget class="QSpinBox" name="starchipsSpin">
+                 <property name="maximum">
+                  <number>999999</number>
+                 </property>
+                 <property name="toolTip">
+                  <string>What the Password screen charges for this card.</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+  <item>
+              <widget class="QFrame" name="addedCardPanel">
+               <property name="frameShape">
+                <enum>QFrame::Shape::StyledPanel</enum>
+               </property>
+               <layout class="QVBoxLayout" name="addedCardLayout">
+                <item>
+                 <widget class="QLabel" name="addedCardTitle">
+                  <property name="text">
+                   <string>Added Card Settings</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QLabel" name="stableIDlabel">
+                  <property name="text">
+                   <string>Stable ID</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QLineEdit" name="stableKeyEdit">
+                  <property name="placeholderText">
+                   <string>Stable card key</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QCheckBox" name="dropsCheckBox">
+                  <property name="text">
+                   <string>Can be won in its base card’s place</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QCheckBox" name="opponentsCheckBox">
+                  <property name="text">
+                   <string>Opponent decks can deal it in its base card’s place</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QLabel" name="baseCardInfoLabel">
+                  <property name="text">
+                   <string/>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
               </widget>
              </item>
-             <item row="0" column="0">
-              <widget class="QLabel" name="typeLabel">
+               <item>
+                <spacer name="generalTabSpacer">
+                 <property name="orientation"><enum>Qt::Orientation::Vertical</enum></property>
+                 <property name="sizeHint" stdset="0"><size><width>20</width><height>8</height></size></property>
+                </spacer>
+               </item>
+              </layout>
+             </widget>
+             <widget class="QWidget" name="cardEffectsTab">
+              <attribute name="title">
+               <string>Effects</string>
+              </attribute>
+              <layout class="QVBoxLayout" name="cardEffectsLayout">
+               <property name="spacing"><number>8</number></property>
+               <item>
+                <widget class="QLabel" name="effectsTitle">
+                 <property name="text"><string>Monster effects</string></property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="effectsHint">
+                 <property name="text"><string>What the card does when it is played. They resolve one after another, in this order.</string></property>
+                 <property name="wordWrap"><bool>true</bool></property>
+                </widget>
+               </item>
+               <item>
+                <layout class="QHBoxLayout" name="effectsRow">
+                 <property name="spacing"><number>8</number></property>
+                 <item>
+                  <widget class="QTableWidget" name="effectsTable"/>
+                 </item>
+                 <item>
+                  <layout class="QVBoxLayout" name="effectsButtons">
+                   <property name="spacing"><number>6</number></property>
+                   <item>
+                    <widget class="QPushButton" name="addEffectButton">
+                     <property name="text"><string>Add…</string></property>
+                    </widget>
+                   </item>
+                   <item>
+                    <widget class="QPushButton" name="editEffectButton">
+                     <property name="text"><string>Edit…</string></property>
+                    </widget>
+                   </item>
+                   <item>
+                    <widget class="QPushButton" name="removeEffectButton">
+                     <property name="text"><string>Remove</string></property>
+                    </widget>
+                   </item>
+                   <item>
+                    <widget class="QPushButton" name="effectUpButton">
+                     <property name="text"><string>Up</string></property>
+                    </widget>
+                   </item>
+                   <item>
+                    <widget class="QPushButton" name="effectDownButton">
+                     <property name="text"><string>Down</string></property>
+                    </widget>
+                   </item>
+                   <item>
+                    <spacer name="effectsButtonSpacer">
+                     <property name="orientation"><enum>Qt::Orientation::Vertical</enum></property>
+                     <property name="sizeHint" stdset="0"><size><width>20</width><height>8</height></size></property>
+                    </spacer>
+                   </item>
+                  </layout>
+                 </item>
+                </layout>
+               </item>
+               <item>
+                <widget class="QLabel" name="effectsNote">
+                 <property name="text"><string/></property>
+                 <property name="wordWrap"><bool>true</bool></property>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+             <widget class="QWidget" name="cardTextTab">
+              <attribute name="title">
+               <string>Text</string>
+              </attribute>
+              <layout class="QVBoxLayout" name="cardTextLayout">
+               <property name="spacing"><number>8</number></property>
+  <item>
+              <widget class="QLabel" name="descriptionLabel">
                <property name="text">
-                <string>Type</string>
+                <string>Description</string>
                </property>
               </widget>
              </item>
-             <item row="1" column="0">
-              <widget class="QComboBox" name="typeCombo"/>
-             </item>
-             <item row="5" column="1">
-              <widget class="QSpinBox" name="defenseSpinBox">
-               <property name="maximum">
-                <number>5110</number>
+  <item>
+              <widget class="QTextEdit" name="descriptionEdit">
+               <property name="minimumSize">
+                <size>
+                 <width>0</width>
+                 <height>112</height>
+                </size>
                </property>
-               <property name="singleStep">
-                <number>10</number>
-               </property>
-              </widget>
-             </item>
-             <item row="4" column="1">
-              <widget class="QLabel" name="defenseLabel">
-               <property name="text">
-                <string>DEF</string>
-               </property>
-              </widget>
-             </item>
-             <item row="2" column="1">
-              <widget class="QLabel" name="frameLabel">
-               <property name="text">
-                <string>Frame</string>
-               </property>
-              </widget>
-             </item>
-             <item row="9" column="0" colspan="2">
-              <widget class="QLabel" name="effectLabel">
-               <property name="text">
-                <string>Retail effect</string>
-               </property>
-              </widget>
-             </item>
-             <item row="10" column="0" colspan="2">
-              <widget class="QComboBox" name="effectCombo"/>
-             </item>
-             <item row="11" column="0" colspan="2">
-              <widget class="QLabel" name="trapThresholdLabel">
-               <property name="text">
-                <string>Trigger at ATK ≤</string>
-               </property>
-              </widget>
-             </item>
-             <item row="13" column="0">
-              <widget class="QLabel" name="equipAttackLabel">
-               <property name="text">
-                <string>ATK boost</string>
-               </property>
-              </widget>
-             </item>
-             <item row="13" column="1">
-              <widget class="QLabel" name="equipDefenseLabel">
-               <property name="text">
-                <string>DEF boost</string>
-               </property>
-              </widget>
-             </item>
-             <item row="14" column="0">
-              <widget class="QSpinBox" name="equipAttackSpin">
-               <property name="minimum">
-                <number>-32768</number>
-               </property>
-               <property name="maximum">
-                <number>32767</number>
-               </property>
-               <property name="singleStep">
-                <number>100</number>
-               </property>
-              </widget>
-             </item>
-             <item row="14" column="1">
-              <widget class="QSpinBox" name="equipDefenseSpin">
-               <property name="minimum">
-                <number>-32768</number>
-               </property>
-               <property name="maximum">
-                <number>32767</number>
-               </property>
-               <property name="singleStep">
-                <number>100</number>
-               </property>
-              </widget>
-             </item>
-             <item row="12" column="0">
-              <widget class="QSpinBox" name="trapThresholdSpin">
-               <property name="minimum">
-                <number>-1</number>
-               </property>
-               <property name="maximum">
-                <number>65535</number>
-               </property>
-               <property name="singleStep">
-                <number>50</number>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <widget class="QLabel" name="descriptionLabel">
-             <property name="text">
-              <string>Description</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QTextEdit" name="descriptionEdit">
-             <property name="minimumSize">
-              <size>
-               <width>0</width>
-               <height>112</height>
-              </size>
-             </property>
-             <property name="placeholderText">
-              <string>Card description as shown in game…</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QLabel" name="descriptionStatusLabel">
-             <property name="text">
-              <string>0 of 8 game lines · 20 characters per line</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <layout class="QGridLayout" name="passwordGrid">
-             <property name="horizontalSpacing">
-              <number>12</number>
-             </property>
-             <property name="verticalSpacing">
-              <number>7</number>
-             </property>
-             <item row="0" column="0">
-              <widget class="QLabel" name="passwordLabel">
-               <property name="text">
-                <string>Password</string>
-               </property>
-              </widget>
-             </item>
-             <item row="0" column="1">
-              <widget class="QLabel" name="starchipsLabel">
-               <property name="text">
-                <string>Starchips</string>
-               </property>
-              </widget>
-             </item>
-             <item row="1" column="0">
-              <widget class="QLineEdit" name="passwordEdit">
                <property name="placeholderText">
-                <string>8 digits, or blank</string>
+                <string>Card description as shown in game…</string>
                </property>
               </widget>
              </item>
-             <item row="1" column="1">
-              <widget class="QSpinBox" name="starchipsSpin">
-               <property name="maximum">
-                <number>999999</number>
-               </property>
-               <property name="toolTip">
-                <string>What the Password screen charges for this card.</string>
+  <item>
+              <widget class="QLabel" name="descriptionStatusLabel">
+               <property name="text">
+                <string>0 of 8 game lines · 20 characters per line</string>
                </property>
               </widget>
              </item>
-            </layout>
-           </item>
-           <item>
-            <widget class="QLabel" name="notesLabel">
-             <property name="text">
-              <string>Mod Notes</string>
-             </property>
+               <item>
+                <widget class="QLabel" name="cardTextPreviewTitle">
+                 <property name="text"><string>Card description</string></property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="cardTextPreview">
+                 <property name="alignment"><set>Qt::AlignmentFlag::AlignCenter</set></property>
+                 <property name="text"><string/></property>
+                </widget>
+               </item>
+               <item>
+                <spacer name="textTabSpacer">
+                 <property name="orientation"><enum>Qt::Orientation::Vertical</enum></property>
+                 <property name="sizeHint" stdset="0"><size><width>20</width><height>8</height></size></property>
+                </spacer>
+               </item>
+              </layout>
+             </widget>
             </widget>
            </item>
-           <item>
-            <widget class="QTextEdit" name="notesEdit">
-             <property name="maximumSize">
-              <size>
-               <width>16777215</width>
-               <height>84</height>
-              </size>
-             </property>
-             <property name="placeholderText">
-              <string>Private notes about this card</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QFrame" name="addedCardPanel">
-             <property name="frameShape">
-              <enum>QFrame::Shape::StyledPanel</enum>
-             </property>
-             <layout class="QVBoxLayout" name="addedCardLayout">
-              <item>
-               <widget class="QLabel" name="addedCardTitle">
-                <property name="text">
-                 <string>Added Card Settings</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QLabel" name="stableIDlabel">
-                <property name="text">
-                 <string>Stable ID</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QLineEdit" name="stableKeyEdit">
-                <property name="placeholderText">
-                 <string>Stable card key</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QCheckBox" name="dropsCheckBox">
-                <property name="text">
-                 <string>Can be won in its base card’s place</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QCheckBox" name="opponentsCheckBox">
-                <property name="text">
-                 <string>Opponent decks can deal it in its base card’s place</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QLabel" name="baseCardInfoLabel">
-                <property name="text">
-                 <string/>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </widget>
-           </item>
-           <item>
+<item>
             <widget class="QLabel" name="validationLabel">
              <property name="text">
               <string/>
@@ -655,7 +747,7 @@
              </property>
             </widget>
            </item>
-           <item>
+<item>
             <spacer name="dataBottomSpacer">
              <property name="orientation">
               <enum>Qt::Orientation::Vertical</enum>
