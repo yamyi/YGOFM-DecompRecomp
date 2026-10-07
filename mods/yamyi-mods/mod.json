@@ -3,7 +3,7 @@
     "name": "Yamyi Mods",
     "version": "1.0",
     "author": "yamyi",
-    "description": "Optional interface improvements by yamyi: confirm before returning to the title and show Library drop odds. Card text colours can be declared in this or any other mod's card_text_colors section.",
+    "description": "Optional interface improvements by yamyi: confirm before returning to the title, show Library drop odds, and optionally colour card names by rarity from card_name_color.ini. Manifest card_text_colors remain the default.",
     "min_api": 4,
     "game": "slus_01411",
     "library": "yamyi-mods",
@@ -14,6 +14,13 @@
         "guardian_stars": []
     },
     "settings": [
+        {
+            "key": "rarity_name_colors",
+            "label": "Rarity card-name colours",
+            "type": "bool",
+            "default": 0,
+            "description": "Colour card names by drop rarity using card_name_color.ini. While enabled, these name colours override manifest card_text_colors for cards assigned a rarity colour."
+        },
         {
             "key": "confirm_exit",
             "label": "Confirm return to title",
