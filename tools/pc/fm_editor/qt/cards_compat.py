@@ -37,6 +37,48 @@ def install() -> None:
             return font.ramps[code] if 0 <= code < len(font.ramps) else font.colours
         card_text.RetailFont.colours_for = colours_for
 
+    # ``origin/master`` has the retail text glyphs but predates the small
+    # 16x16 icon helper.  Keep the archive on the font instance and decode
+    # the same boot-sheet tile here, rather than changing ``card_text.py``.
+    if not hasattr(card_text.RetailFont, "icon"):
+        original_font_init = card_text.RetailFont.__init__
+
+        def font_init(font, wa):
+            original_font_init(font, wa)
+            font._qt_icon_wa = wa
+
+        def icon(font, code):
+            wa = getattr(font, "_qt_icon_wa", None)
+            page = card_text.BOOT_SECTOR * 2048 + 0x8000
+            palettes = (card_text.BOOT_SECTOR + 48) * 2048
+            if wa is None or len(wa) < palettes + 4096:
+                return None
+            code &= 0xFF
+            if code >= 0x22:
+                u, v, clut_x, clut_y = (code * 16 - 0x210) & 0xFF, 0x80, 0x200, 0xFC
+                if u == 0x50:
+                    clut_x = 0x210
+            else:
+                u, v = ((code & 7) * 16 - 0x80) & 0xFF, (code & 0x38) * 2
+                palette_code = min(code, 0x18)
+                clut_x, clut_y = (palette_code & 15) * 16 + 0x200, (palette_code >> 4) + 0xF9
+            rgba = bytearray()
+            for y in range(16):
+                for x in range(16):
+                    texel = u + x
+                    at = page + (v + y) * 128 + texel // 2
+                    index = wa[at] >> (4 * (texel & 1)) & 15
+                    palette_at = palettes + ((clut_y - 0xF8) * 256 +
+                                              clut_x - 0x200 + index) * 2
+                    word = wa[palette_at] | wa[palette_at + 1] << 8
+                    rgba += bytes(((word & 31) << 3, (word >> 5 & 31) << 3,
+                                   (word >> 10 & 31) << 3,
+                                   255 if word else 0))
+            return 16, 16, bytes(rgba)
+
+        card_text.RetailFont.__init__ = font_init
+        card_text.RetailFont.icon = icon
+
     # HD texture packs keep a level star in a 9x9 logical slot. Some packs
     # contain the already-trimmed star centred in that larger slot, but the
     # old compositor treats the transparent margin as part of the sprite.
