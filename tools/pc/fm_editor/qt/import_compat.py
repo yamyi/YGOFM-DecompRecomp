@@ -489,6 +489,54 @@ def install() -> None:
 
     ModernEditor.save_mod = save_mod
 
+    # Opening a folder and writing a mod can take long enough for the desktop
+    # to mark the editor unresponsive, especially when a mod contains HD art.
+    # Reuse the exact modal progress dialog used by the modified-BIN importer.
+    # Keep the chooser and validation outside it: a progress dialog must not
+    # cover a folder picker or a question the user needs to answer.
+    original_open_mod_path = ModernEditor.open_mod_path
+
+    def open_mod_path(self, folder):
+        name = Path(folder).name or str(folder)
+
+        def work(say):
+            say("Reading mod.json")
+            result = original_open_mod_path(self, folder)
+            say("Loading cards, artwork and workspace pages")
+            return result
+
+        return self._run_with_progress("Open mod", f"Loading {name}", work)
+
+    ModernEditor.open_mod_path = open_mod_path
+
+    saved_with_progress = ModernEditor.save_mod
+
+    def save_mod_with_progress(self, *args, **kwargs):
+        # Window.save_mod owns the file chooser and validation.  It reaches
+        # manifest.save_mod only after those interactions succeed, so wrapping
+        # that one call gives Save, Save As and Export the same progress bar
+        # without changing their normal prompts.
+        original_manifest_save = manifest.save_mod
+
+        def write(project, folder):
+            name = Path(folder).name or str(folder)
+
+            def work(say):
+                say("Writing mod.json")
+                result = original_manifest_save(project, folder)
+                say("Writing artwork, assets and text files")
+                return result
+
+            return self._run_with_progress("Save mod", f"Saving {name}", work)
+
+        manifest.save_mod = write
+        try:
+            return saved_with_progress(self, *args, **kwargs)
+        finally:
+            manifest.save_mod = original_manifest_save
+
+    ModernEditor.save_mod = save_mod_with_progress
+
     # The Art workspace already uses ``preview_wa`` after a BIN import, but
     # several card-facing workspaces predate that split and still pass
     # ``self.files.wa`` to their renderer.  Route those calls through the
