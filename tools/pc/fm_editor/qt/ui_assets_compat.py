@@ -54,8 +54,16 @@ def install():
 
     def build(self, page, controls):
         layout = page.layout() or QVBoxLayout(page)
-        _clear(layout); layout.setContentsMargins(18, 14, 18, 14); layout.setSpacing(10)
-        _heading(layout, "UI / Graphics", "Title, menus and duel graphics. This replaces the former texture-pack browser in the Assets workspace.")
+        _clear(layout); layout.setContentsMargins(14, 12, 14, 12); layout.setSpacing(8)
+        header = QHBoxLayout()
+        text = QVBoxLayout(); text.setSpacing(1)
+        _heading(text, "UI Asset Replacement", "Replace game interface graphics using the named asset framework.")
+        header.addLayout(text, 1)
+        open_folder = QPushButton("Open assets folder")
+        documentation = QPushButton("View asset documentation")
+        header.addWidget(open_folder); header.addWidget(documentation); layout.addLayout(header)
+        open_folder.clicked.connect(lambda: _open_assets_folder(self))
+        documentation.clicked.connect(lambda: _show_asset_help(self))
         return _build_framework(self, page, controls, layout)
 
         title = QWidget(); form = QFormLayout(title); form.setContentsMargins(18, 20, 18, 18)
@@ -166,6 +174,10 @@ def _category(name):
     return name.split("/", 1)[0]
 
 
+def _display_category(category):
+    return category.replace("_", " ").title()
+
+
 def _entry_for(self, asset):
     folder = self.project.other.get("assets")
     if not isinstance(folder, str) or not folder: return None
@@ -184,24 +196,44 @@ def _named_image(self, relative):
         return None
 
 
+def _open_assets_folder(self):
+    from PySide6.QtGui import QDesktopServices
+    from PySide6.QtCore import QUrl
+    folder = self.project.other.get("assets") if self.project else None
+    base = Path(self.project.source_dir) if self.project and self.project.source_dir else None
+    target = base / folder if base and isinstance(folder, str) else base
+    if target and target.exists():
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(target)))
+    else:
+        QMessageBox.information(self, "UI assets", "This mod has no assets folder yet. Import a PNG first to create one.")
+
+
+def _show_asset_help(self):
+    QMessageBox.information(self, "UI asset replacement", "Select a catalogued UI texture, import a PNG replacement, then save the mod. The editor writes replacements under assets/ using the catalog name.")
+
+
 def _build_framework(self, page, controls, layout):
     catalog = _catalog()
     categories = sorted({item["name"].split("/", 1)[0] for item in catalog}, key=str.casefold)
     controls.clear(); controls.update(page=page, catalog=catalog, category=categories[0] if categories else "", selected=None)
     self.workspace_controls["Assets"] = controls
-    if hasattr(self, "nav_buttons") and "Assets" in self.nav_buttons: self.nav_buttons["Assets"].setText("UI / Graphics")
+    if hasattr(self, "nav_buttons") and "Assets" in self.nav_buttons: self.nav_buttons["Assets"].setText("Assets")
     root = QSplitter(Qt.Orientation.Horizontal); root.setChildrenCollapsible(False); layout.addWidget(root, 1)
-    category_box = QGroupBox("Asset categories")
-    category_layout = QVBoxLayout(category_box); categories_view = QListWidget(); categories_view.setMinimumWidth(170); categories_view.setSpacing(3)
+    category_box = QGroupBox("Asset Categories")
+    category_layout = QVBoxLayout(category_box); category_layout.setContentsMargins(8, 12, 8, 8)
+    categories_view = QListWidget(); categories_view.setMinimumWidth(180); categories_view.setSpacing(5)
     controls["categories"] = categories_view
-    for name in categories: categories_view.addItem(name)
+    for name in categories:
+        item = QListWidgetItem(_display_category(name)); item.setData(Qt.ItemDataRole.UserRole, name)
+        categories_view.addItem(item)
     categories_view.setCurrentRow(0); category_layout.addWidget(categories_view); root.addWidget(category_box)
-    centre = QWidget(); centre_layout = QVBoxLayout(centre); centre_layout.setContentsMargins(10, 0, 10, 0)
+    centre = QWidget(); centre_layout = QVBoxLayout(centre); centre_layout.setContentsMargins(8, 0, 8, 0); centre_layout.setSpacing(7)
     controls["grid_heading"] = QLabel(); controls["grid_heading"].setObjectName("heading"); centre_layout.addWidget(controls["grid_heading"])
     search = _line("Search assets…"); controls["search"] = search; centre_layout.addWidget(search)
     grid = QListWidget(); grid.setViewMode(QListView.ViewMode.IconMode); grid.setResizeMode(QListView.ResizeMode.Adjust); grid.setMovement(QListView.Movement.Static); grid.setIconSize(QSize(112, 112)); grid.setGridSize(QSize(142, 154)); grid.setSpacing(8)
+    grid.setStyleSheet("QListWidget::item { border: 1px solid #23415f; border-radius: 5px; padding: 4px; } QListWidget::item:selected { border: 3px solid #1677ff; background: #10294d; }")
     controls["grid"] = grid; centre_layout.addWidget(grid, 1); root.addWidget(centre)
-    detail = QWidget(); detail.setMinimumWidth(520); detail_layout = QVBoxLayout(detail); detail_layout.setContentsMargins(0, 0, 0, 0)
+    detail = QWidget(); detail.setMinimumWidth(620); detail_layout = QVBoxLayout(detail); detail_layout.setContentsMargins(0, 0, 0, 0); detail_layout.setSpacing(7)
     controls["name"] = QLabel("Select an asset"); controls["name"].setObjectName("heading"); detail_layout.addWidget(controls["name"])
     controls["description"] = QLabel("Choose a named UI asset to preview its retail texture and add a replacement."); controls["description"].setObjectName("muted"); controls["description"].setWordWrap(True); detail_layout.addWidget(controls["description"])
     previews = QHBoxLayout(); controls["retail"] = QLabel("Retail preview"); controls["replacement"] = QLabel("Your replacement")
@@ -212,8 +244,8 @@ def _build_framework(self, page, controls, layout):
     controls["import"].setObjectName("primary"); actions.addWidget(controls["import"]); actions.addWidget(controls["export"]); actions.addWidget(controls["remove"]); detail_layout.addLayout(actions)
     info = QGroupBox("Asset information"); info_form = QFormLayout(info); controls["path"] = QLabel("—"); controls["size"] = QLabel("—"); controls["uses"] = QLabel("—"); controls["state"] = QLabel("Retail")
     for label, key in (("Name", "path"), ("Native size", "size"), ("Used by", "uses"), ("Status", "state")): info_form.addRow(label, controls[key])
-    detail_layout.addWidget(info); detail_layout.addStretch(1); root.addWidget(detail); root.setSizes([205, 470, 665])
-    categories_view.currentTextChanged.connect(lambda value: _set_category(self, value)); search.textChanged.connect(lambda *_: _refresh_framework(self)); grid.currentItemChanged.connect(lambda item, _: _select_framework(self, item.data(Qt.ItemDataRole.UserRole) if item else None))
+    detail_layout.addWidget(info); detail_layout.addStretch(1); root.addWidget(detail); root.setSizes([190, 440, 710])
+    categories_view.currentItemChanged.connect(lambda item, _: _set_category(self, item.data(Qt.ItemDataRole.UserRole) if item else "")); search.textChanged.connect(lambda *_: _refresh_framework(self)); grid.currentItemChanged.connect(lambda item, _: _select_framework(self, item.data(Qt.ItemDataRole.UserRole) if item else None))
     controls["import"].clicked.connect(lambda: _import_framework(self)); controls["export"].clicked.connect(lambda: _export_framework(self)); controls["remove"].clicked.connect(lambda: _remove_framework(self))
     _refresh_framework(self)
 
@@ -237,18 +269,48 @@ def _refresh_framework(self):
          if _category(asset["name"]) == category
          and (not query or query in (asset["name"] + " " + asset.get("what", "")).lower())),
         key=lambda asset: asset["name"].casefold())
-    c["grid_heading"].setText(f"Assets in {category}")
+    c["grid_heading"].setText(f"Assets in {_display_category(category)}")
     grid = c["grid"]; previous = c.get("selected"); grid.blockSignals(True); grid.clear()
+    pending = []
     for asset in values:
         item = QListWidgetItem(asset["name"].rsplit("/", 1)[-1].replace("_", " "))
         item.setData(Qt.ItemDataRole.UserRole, asset)
-        retail = self._asset_retail_image(asset)
-        if retail is not None: item.setIcon(QIcon(QPixmap.fromImage(_qimage(retail.width, retail.height, retail.rgba)).scaled(112, 112, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.FastTransformation)))
         grid.addItem(item)
+        pending.append((item, asset))
         if previous and previous.get("name") == asset["name"]: grid.setCurrentItem(item)
     grid.blockSignals(False)
     if grid.currentItem() is None and grid.count(): grid.setCurrentRow(0)
     if not grid.count(): _select_framework(self, None)
+    c["thumb_generation"] = c.get("thumb_generation", 0) + 1
+    c["thumb_pending"] = pending
+    QTimer.singleShot(0, lambda generation=c["thumb_generation"]: _load_thumbnail_batch(self, generation))
+
+
+def _load_thumbnail_batch(self, generation, start=0):
+    """Decode a handful of catalogue textures per event-loop turn.
+
+    A category such as build_deck contains almost a hundred images.  Loading
+    all of them before Qt can paint made selecting a category look like a
+    freeze, even though only the first few thumbnails were initially visible.
+    """
+    c = self.workspace_controls.get("Assets", {})
+    if c.get("thumb_generation") != generation:
+        return
+    pending = c.get("thumb_pending", [])
+    cache = c.setdefault("thumbnail_cache", {})
+    stop = min(start + 8, len(pending))
+    for item, asset in pending[start:stop]:
+        icon = cache.get(asset["name"])
+        if icon is None:
+            retail = self._asset_retail_image(asset)
+            if retail is not None:
+                icon = QIcon(QPixmap.fromImage(_qimage(retail.width, retail.height, retail.rgba)).scaled(
+                    112, 112, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.FastTransformation))
+                cache[asset["name"]] = icon
+        if icon is not None:
+            item.setIcon(icon)
+    if stop < len(pending):
+        QTimer.singleShot(0, lambda: _load_thumbnail_batch(self, generation, stop))
 
 
 def _select_framework(self, asset):

@@ -4,6 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 import inspect
 import struct
+import threading
 
 
 def install() -> None:
@@ -494,18 +495,76 @@ def install() -> None:
     # Reuse the exact modal progress dialog used by the modified-BIN importer.
     # Keep the chooser and validation outside it: a progress dialog must not
     # cover a folder picker or a question the user needs to answer.
-    original_open_mod_path = ModernEditor.open_mod_path
+    def background_progress(self, title, what, work):
+        """Run filesystem-only work off the Qt event thread.
+
+        QProgressDialog can paint only while the event loop runs.  The old
+        helper was ideal for import phases which call ``say`` frequently, but
+        opening a large asset mod has one long manifest read and otherwise
+        starved the dialog until the operation was already complete.
+        """
+        from PySide6.QtCore import Qt
+        from PySide6.QtWidgets import QApplication, QProgressDialog
+        waiting = QProgressDialog(what, "", 0, 0, self)
+        waiting.setWindowTitle(title)
+        waiting.setWindowModality(Qt.WindowModality.ApplicationModal)
+        waiting.setCancelButton(None)
+        waiting.setMinimumDuration(0)
+        waiting.setAutoClose(False)
+        waiting.show()
+        result, failure = [], []
+
+        def run():
+            try:
+                result.append(work())
+            except BaseException as problem:  # returned on the UI thread
+                failure.append(problem)
+
+        thread = threading.Thread(target=run, name="fm-editor-file-work", daemon=True)
+        thread.start()
+        while thread.is_alive():
+            QApplication.processEvents()
+            thread.join(0.01)
+        waiting.close()
+        waiting.deleteLater()
+        if failure:
+            raise failure[0]
+        return result[0] if result else None
+
+    ModernEditor._background_progress = background_progress
 
     def open_mod_path(self, folder):
         name = Path(folder).name or str(folder)
+        try:
+            project, messages = self._background_progress(
+                "Open mod", f"Loading {name}\nReading mod.json and asset files…",
+                lambda: manifest.open_mod(self.retail, folder))
+        except (ValueError, OSError) as problem:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.critical(self, "Could not open mod", str(problem))
+            return
 
-        def work(say):
-            say("Reading mod.json")
-            result = original_open_mod_path(self, folder)
-            say("Loading cards, artwork and workspace pages")
-            return result
-
-        return self._run_with_progress("Open mod", f"Loading {name}", work)
+        # Rebuild only the visible Cards page now.  The previous version
+        # rebuilt every hidden workspace and decoded every mod image before
+        # showing a window, making an HD mod appear frozen for seconds.
+        self.project = project
+        self.preview_wa = self.files.wa
+        self.duelist_selected_slot = 0
+        self.current = None
+        self.frame_cache.clear()
+        self.fusion_art_cache.clear()
+        self.dirty = False
+        self.refresh_cards(select_id=1)
+        self.current_art_card = 1
+        description_added = self._sync_added_duelists_description()
+        self._start_history()
+        self._unsaved_start = False
+        self.setWindowTitle(f"{self.project.info.name} — FM Editor")
+        if description_added:
+            self._mark_dirty()
+        self.statusBar().showMessage(f"Opened {folder}" + (f" · {len(messages)} note(s)" if messages else ""))
+        if messages:
+            self._report("Opened with notes", "\n".join(messages))
 
     ModernEditor.open_mod_path = open_mod_path
 
@@ -521,13 +580,9 @@ def install() -> None:
         def write(project, folder):
             name = Path(folder).name or str(folder)
 
-            def work(say):
-                say("Writing mod.json")
-                result = original_manifest_save(project, folder)
-                say("Writing artwork, assets and text files")
-                return result
-
-            return self._run_with_progress("Save mod", f"Saving {name}", work)
+            return self._background_progress(
+                "Save mod", f"Saving {name}\nWriting mod.json, artwork, assets and text files…",
+                lambda: original_manifest_save(project, folder))
 
         manifest.save_mod = write
         try:
@@ -585,3 +640,25 @@ def install() -> None:
             replacement = with_preview_archive(original)
             replacement._preview_archive_compat = True
             setattr(cls, name, replacement)
+
+    # HD card frames and artwork can be expensive to composite.  A card list
+    # selection often emits several intermediate signals, so render just the
+    # final selection on the next event-loop turn.  The archive wrapper above
+    # remains inside the delayed call, preserving imported BIN artwork.
+    original_preview = CardsMixin._render_preview
+    if not getattr(original_preview, "_deferred_preview_compat", False):
+        from PySide6.QtCore import QTimer
+
+        def deferred_preview(self, *_args, **_kwargs):
+            generation = getattr(self, "_preview_generation", 0) + 1
+            self._preview_generation = generation
+            card_id = getattr(self, "current", None)
+
+            def render():
+                if (getattr(self, "_preview_generation", 0) == generation
+                        and getattr(self, "current", None) == card_id):
+                    original_preview(self)
+            QTimer.singleShot(0, render)
+
+        deferred_preview._deferred_preview_compat = True
+        CardsMixin._render_preview = deferred_preview
