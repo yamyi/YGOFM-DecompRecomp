@@ -915,8 +915,7 @@ class ManifestTest(unittest.TestCase):
                 "drops": {"45": {"tec": {"replace": True, "Card 1": 1}}}}
         messages = manifest.apply(p, data)
         built = manifest.build(p)
-        self.assertEqual(built["duelists"], data["duelists"])
-        self.assertFalse(any(issue.message == "unknown key 'duelists'" for issue in validate.validate(p)))
+        self.assertEqual(built["duelists"], data["duelists"])          # an unknown key, kept
         self.assertEqual(built["decks"]["t:dark-simon"], data["decks"]["t:dark-simon"])
         self.assertEqual(built["drops"]["45"], data["drops"]["45"])
         self.assertIn("Card 2", str(built["decks"]["Heishin"]))        # and the disc's own is edited

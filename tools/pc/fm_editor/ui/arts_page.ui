@@ -383,7 +383,7 @@
                  <property name="bottomMargin">
                   <number>0</number>
                  </property>
-                 
+
                  <item>
                   <widget class="QPushButton" name="importPictureButton">
                    <property name="minimumSize">
@@ -626,7 +626,7 @@
                  <property name="bottomMargin">
                   <number>0</number>
                  </property>
-                 
+
                  <item>
                   <widget class="QPushButton" name="importThumbnailButton">
                    <property name="minimumSize">
@@ -845,7 +845,7 @@
                  <property name="bottomMargin">
                   <number>0</number>
                  </property>
-                 
+
                  <item>
                   <widget class="QPushButton" name="importTitleButton">
                    <property name="minimumSize">

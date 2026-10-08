@@ -32,11 +32,9 @@ whole number from -32767 to 32767 each; empty puts the default back. An
 equip has no **Retail effect** to choose: it plays as an equip whatever it
 was, and a monster made an equip equips only what you give it in Equips. A
 boost set on a disc equip holds for its copies too, unless they set their
-own. The Qt window has both beside the other fields, with the default in the
-box itself ("Default (+500)") until a boost is typed.
+own.
 
-The **Password** field takes up to 8 digits; the Qt window's takes nothing
-else, as its Starchips box does.
+The **Password** field takes up to 8 digits.
 
 **Starchips**, below **Password** in Cards, edits any card's price
 on the Password screen (0–999999; **0 is free**). The field shows the price
@@ -45,39 +43,6 @@ it empty to remove the card's price override and use the mod's `all` rule,
 or the disc's price if there is none. **Apply**, then **File > Save**.
 Unedited percentage prices stay as percentages. Added cards use a default
 price of 999999 and stable identities in the `passwords` table.
-
-    python -m pip install PySide6
-
-Without it (or with `--classic`) the old Tk window opens instead, over the
-same editor underneath; both read and write the same mod folder, so a mod may
-be opened in either.
-
-The editor checks that Qt can really start before it commits to it, because
-importing PySide6 does not settle the question: Qt loads its platform plugin
-when the window is made, and a plugin that cannot find a system library it
-wants (`libxcb-cursor0` is the usual one on Linux) calls `abort` rather than
-raising anything — the process is simply gone, with no window and no message
-worth reading. So the first run asks a throwaway process whether a
-`QApplication` can be made, which costs about a tenth of a second, and
-remembers a yes; a no goes quietly to the Tk window. A no is not remembered,
-so installing the missing library is enough to get the Qt window back. A
-released build skips the check: it carries its own Qt and has no other window
-to fall back to.
-
-The Tk window is on its way out: it is kept for a release or two so there is
-something to fall back to, and `--classic` goes with it. PySide6 is therefore
-not optional for long — `build_exe.py` already refuses to build without it
-unless `--without-qt` says to.
-
-On the Cards page, **3D View** beside **HD Preview** replaces the card picture
-with its textured in-game model. Drag to rotate and scroll to zoom. Double-click
-the model (or the **3D View** button) to open a larger window with **Reset view**.
-Choose **Disc Preview** or **HD Preview** to return to the card picture.
-Copies and model overrides use their assigned disc model.
-The viewer shows the model's stored pose, without battle animations. It reads
-`DATA/MODEL.MRG` from the loaded disc or extracted game folder (or a disc image
-beside the extracted files); missing archives and cards without models are
-reported in the viewer.
 
 The window has a tab per table:
 
@@ -95,7 +60,7 @@ The window has a tab per table:
 | Guardian Stars | the stars (`guardian_stars`, [Guardian Stars](../../../notes/modding.md#guardian-stars-names-icons-new-stars-and-matchups)): the list of stars with a name and an icon each (**Import icon (PNG)...**, with a preview; the game makes it 16x16 in the disc's stars' colours), **Add star** for 11 to 15 (a card holds its stars in 4 bits, so fifteen at most), and the full grid of matchups: a row is the attacker's star, a column the defender's, a cell the bonus the attacker's side gets, green above 0 and red below; click a cell, type a bonus or use **+ default**, **- default** or **0** (with **Reverse pair gets the opposite** on, the reverse cell takes the opposite sign). **Default bonus** moves the disc's 500 in both cycles, **Retail cycles** and **Clear all** are presets, **Revert to retail** takes the whole key away. **Set stars by rule...** sets many cards' first or second star from their attribute or type through a table you fill in (a Fire monster's first star is Fire), or one star for all, **(none)** included (a first star of none leaves the second as the card's one star, as the game reads it; both none, no star), over a filter of cards like Bulk fusions', with a preview and **Undo last batch**. **Show advanced**: a name per language (`fr=Feu, de=Feuer`), an icon's colours (`game` or its own), and what happens at a summon (`ask`, `first`, `best`). The Cards tab's star lists show the mod's stars as they are named here |
 | Packs | the card packs the mod sells for starchips on the Password screen: each pack's name, description, price, cards a pack and picture (shown as a card's art or, `image_style` `full`, the whole picture), its cards with their tier, weight and chance; an **Advanced** part for everything else; **Shop settings...** and **Simulate...** (below) |
 | Mod info | id, name, version, author, description, `settings`, and the other `mod.json` keys, kept as written (`limits` is the Limits tab's, `guardian_stars` the Guardian Stars tab's) |
-| Conflicts | (the Qt window: **Check against installed mods** on its Problems page) the loader's checks; double-click a line to go to it. Below them, where this mod meets the **other mods installed** (beside the game and in the player's mods folder, or a folder chosen with **Other mods folder...**): the same lines as the game's Mods window, a warning where only one mod's change is used and a note where the changes add up or agree ([When mods overlap](../../../notes/modding.md#when-mods-overlap)) |
+| Conflicts | the loader's checks; double-click a line to go to it. Below them, where this mod meets the **other mods installed** (beside the game and in the player's mods folder, or a folder chosen with **Other mods folder...**): the same lines as the game's Mods window, a warning where only one mod's change is used and a note where the changes add up or agree ([When mods overlap](../../../notes/modding.md#when-mods-overlap)) |
 
 **Retail effect** selects a built-in behavior by its original retail name.
 The saved number identifies that behavior, independently of the card currently
@@ -192,9 +157,7 @@ Wide lists have a horizontal scrollbar.
 the disc's (a copy's: its base's) has its caption in blue and the disc's
 value beside it, **Retail: 3000 (restore)**; a click puts that value back in
 the form, and **Apply** stores it. Fields as the disc has them show nothing
-beside them. The Qt window says it in the retail card under the picture: a
-row that differs from the form is blue and a hand, and clicking it puts that
-value back (its card text and a non-monster's effect are rows there too). The line above the tabs is amber for edits not yet applied and
+beside them. The line above the tabs is amber for edits not yet applied and
 blue for changes not yet saved.
 
 **One card across the tabs:** the card selected in Cards is the one Art
@@ -209,9 +172,7 @@ ritual, duelist deck or drop pool (with its chance), fixed deck, starter
 deck, pack (or pack unlock), starter pool and added copy that names the card
 (starter pools have no tab, so their lines only list). The menu closes on a
 click elsewhere, another tab or Escape. Double-click a line to go
-there; the window lists again each time it comes back to the front. The Qt
-window has **Where it's used...** on a right-click in the Cards list, with the
-same lines (`card_uses.where_used` reads them for both windows).
+there; the window lists again each time it comes back to the front.
 
 **File > Save** writes the mod folder (Ctrl+S); the first save asks where
 (an empty folder, or a parent where a folder named after the mod id is
@@ -223,8 +184,7 @@ replacing matching files when overwriting another mod. Its destination may
 be inside the source mod; the destination itself is excluded from the copy. **File > Export mod...**
 saves the same way, but always into a new folder named after the mod's id
 inside the folder you choose (the game's `mods` folder, say), since the game
-reads each mod from a folder of its own. The Qt window has it under File too
-(Ctrl+E).
+reads each mod from a folder of its own.
 
 **Apply and Save:** Apply stores a form in the working mod; **Ctrl+S** applies
 all valid forms and writes the mod folder. Leaving a tab also applies its form.
@@ -241,15 +201,10 @@ History retains up to 50 edits, with a 64 MiB snapshot budget (at least the
 current and previous snapshot). It lasts until a different mod or game is
 opened; saving keeps it. Undoing a save changes the working mod: save again to
 write that restored version. Dialogs keep their own keyboard behavior.
-In the Qt window this is **Edit > Undo** and **Edit > Redo**; its pages store
-what is typed as you leave them, so it has no **Apply edits** or **Discard
-form edits** of its own.
 
 **Recovery and backups:** After two seconds without another edit, the editor
 updates a separate recovery copy of the working mod and its assets. Unapplied
-Cards, Mod info, Limits and Packs fields are included, even incomplete input
-(the Tk window's; the Qt window copies the mod as applied, and stores the form
-in front before an undo or a save).
+Cards, Mod info, Limits and Packs fields are included, even incomplete input.
 This does not save or change the original mod folder. The editor offers to
 review leftover drafts on startup; **File > Recover work...** lists drafts and
 save backups, with their date and original folder. **Open copy** opens a separate
