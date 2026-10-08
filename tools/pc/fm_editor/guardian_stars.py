@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import copy
 import re
-import struct
 from dataclasses import dataclass, field
 
 from .gamedata import STAR_NAMES
@@ -59,64 +58,6 @@ CHOICES = ("ask", "first", "best")         # "choice": how a summoned monster's 
 PALETTES = ("game", "own")                 # an icon's colours: the disc's stars', or the PNG's
 # Where the widening past 15 would have to start: every card's record.
 PAST_15 = "a card holds a star in 4 bits, so there are 15 at most"
-
-# The disc's ten star symbols, in the boot UI sheet (WA_MRG.MRG 0xB48000, 48
-# sectors, the one extract_images calls "sheets/boot/a"). The sheet is 256
-# pixels wide at 4 bits a pixel, so a row is 128 bytes; each symbol is 16x16
-# and they sit in two runs, Mars to Sun and then Moon and Venus. Their CLUT is
-# the sixteen halfwords at 0xB60500, whose colours carry the semi-transparent
-# bit the duel draws them with.
-ICON_SHEET = 0xB51840           # the Mars symbol's top-left byte
-ICON_STRIDE = 128               # bytes a row of the sheet
-ICON_CLUT = 0xB60500
-ICON_SIDE = 16
-ICON_SPOTS = ((0, 0), (16, 0), (32, 0), (48, 0), (64, 0), (80, 0), (96, 0), (112, 0), (0, 16), (16, 16))
-
-
-def _sheet_icon(wa: bytes, star: int, spots):
-    """One 16-pixel symbol from the boot sheet.  ``spots`` says which
-    slots belong to the caller: retail uses only its ten published slots;
-    the importer may also read a community patch's unused slots."""
-    if not 1 <= star <= len(spots) or wa is None:
-        return None
-    x, y = spots[star - 1]
-    start = ICON_SHEET + y * ICON_STRIDE + x // 2
-    if start + (ICON_SIDE - 1) * ICON_STRIDE + ICON_SIDE // 2 > len(wa) or ICON_CLUT + 32 > len(wa):
-        return None
-    palette = struct.unpack_from("<16H", wa, ICON_CLUT)
-    out = bytearray()
-    drawn = False
-    for row in range(ICON_SIDE):
-        at = start + row * ICON_STRIDE
-        line = wa[at:at + ICON_SIDE // 2]
-        for pixel in range(ICON_SIDE):
-            index = (line[pixel // 2] >> (4 * (pixel % 2))) & 0xF
-            if not index:
-                out += bytes(4)
-                continue
-            drawn = True
-            word = palette[index] & 0x7FFF
-            out += bytes([(word & 31) * 255 // 31, ((word >> 5) & 31) * 255 // 31,
-                          ((word >> 10) & 31) * 255 // 31, 255])
-    return (ICON_SIDE, ICON_SIDE, bytes(out)) if drawn else None
-
-
-def disc_icon(wa: bytes, star: int):
-    """The disc's symbol for star 1-10 as (width, height, RGBA), or None.
-    Index 0 of the CLUT is the transparent one the sheet leaves clear."""
-    return _sheet_icon(wa, star, ICON_SPOTS)
-
-
-def imported_icon(wa: bytes, star: int):
-    """A community guardian-star patch's slot in the same 8-wide sheet.
-
-    The retail game assigns only the first ten, but known 16-star patches
-    draw their added symbols in the five unused cells that follow them.
-    This is kept separate from :func:`disc_icon`: those cells do not have a
-    meaning in an unmodified game.
-    """
-    spots = tuple((16 * (i % 8), 16 * (i // 8)) for i in range(MAX_STARS))
-    return _sheet_icon(wa, star, spots)
 
 
 def retail_matchup(a0: int, a1: int) -> int:

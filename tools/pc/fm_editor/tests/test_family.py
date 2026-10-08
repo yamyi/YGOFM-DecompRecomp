@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from fm_editor import gamedata as g, importer, kit, manifest, starter_pools
+from fm_editor import gamedata as g, importer, kit, manifest
 from fm_editor.disc import GameFiles
 from fm_editor.tests import fixtures
 from fm_editor.tests.test_data import fixture
@@ -21,9 +21,6 @@ def imported(f, slus=None, wa=None):
 
 
 class ArchiveTest(unittest.TestCase):
-    def test_starter_rows_have_the_disc_stride(self):
-        self.assertEqual(g.STARTER_LENGTH, starter_pools.RETAIL_COUNT * starter_pools.RETAIL_STRIDE)
-
     def test_many_changes_replace_the_whole_file(self):
         f = fixture()
         wa = bytearray(f.wa)
@@ -45,22 +42,7 @@ class ArchiveTest(unittest.TestCase):
         self.assertEqual(whole[g.STARTER_BASE:g.STARTER_BASE + g.STARTER_LENGTH],
                          f.wa[g.STARTER_BASE:g.STARTER_BASE + g.STARTER_LENGTH])
         self.assertIn("the whole file is replaced", report)
-        self.assertIn("imported seven written 40-card decks", report)
-        self.assertEqual([deck.cards for deck in result.project.starter], [{5: 40}] * 7)
-
-    def test_weighted_starter_pools_are_imported(self):
-        f = fixture()
-        wa = bytearray(f.wa)
-        # A normal seven-row draw: each pool totals 2048 and their draws
-        # total the starter deck's forty cards.
-        for row, draws in enumerate((16, 16, 4, 1, 1, 1, 1)):
-            at = g.STARTER_BASE + row * (g.STARTER_LENGTH // 7)
-            struct.pack_into("<HHH", wa, at, draws, 2047, 1)
-        result, report = imported(f, wa=bytes(wa))
-        built = manifest.build(result.project)
-        self.assertIn("starter_pools", built)
-        self.assertNotIn("data", built)
-        self.assertIn("imported seven weighted starter pools", report)
+        self.assertIn("the starter decks are counts of cards", report)
 
     def test_a_larger_archive_keeps_the_tables_retail(self):
         f = fixture()

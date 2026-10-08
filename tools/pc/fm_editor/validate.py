@@ -6,8 +6,6 @@ are what it would accept but likely not as meant.
 """
 from __future__ import annotations
 
-import json
-
 import re
 from dataclasses import dataclass
 
@@ -24,7 +22,6 @@ SETTING_TYPES = ("int", "bool", "choice", "key")
 MANIFEST_KEYS = ("id", "name", "version", "author", "description", "library", "enabled", "restart",
                  "legacy_setting", "data", "textures", "cards", "audio", "min_api", "game", "requires", "after",
                  "conflicts", "priority", "settings", "fusions", "equips", "rituals", "drops", "decks", "text", "font",
-                 "duelists",
                  "chest_overflow", "terrain_bonus", "trap_thresholds", "equip_bonus_default", "passwords",
                  "starter", "starter_pools", "limits", "guardian_stars", "packs", "pack_shop", "card_text_colors")
 HOST_API = 8
@@ -396,45 +393,6 @@ def _check_packs(project: Project, out: list):
                          packmath.PACKS_MAX))
 
 
-def _check_duelist_unlocks(project: Project, out: list):
-    """What a duelist's "unlock" names, as the pack's own is checked: a
-    condition naming nothing keeps the duelist locked for good
-    (free_duel/duelists.c read_one_duelist)."""
-    roster = project.other.get("duelists")
-    entries = []
-    if isinstance(roster, list):
-        entries = [(f"duelist {i + 1}", e) for i, e in enumerate(roster) if isinstance(e, dict)]
-    for name, blob in sorted(project.files.items()):
-        if not (name.startswith("duelists/") and name.endswith(".json")):
-            continue
-        try:
-            entry = json.loads(blob.decode("utf-8-sig"))
-        except (ValueError, AttributeError, UnicodeDecodeError):
-            continue
-        if isinstance(entry, dict):
-            entries.append((name, entry))
-    for where, entry in entries:
-        unlock = entry.get("unlock") if isinstance(entry.get("unlock"), dict) else {}
-        if not unlock:
-            continue
-        if "beat" in unlock and duelist_named(unlock["beat"]) < 0:
-            out.append(Issue("warning", "Duelists", where,
-                             f"\"unlock\" \"beat\" names no duelist of the disc (\"{unlock['beat']}\"); a mod's "
-                             "own, if it is not applied, keeps this duelist locked"))
-        if "card" in unlock and project.resolve(unlock["card"]) <= 0:
-            out.append(Issue("warning", "Duelists", where,
-                             f"\"unlock\" \"card\" names no card the editor knows (\"{unlock['card']}\"); the "
-                             "duelist stays locked"))
-        if not any(key in unlock for key in ("beat", "card")) and \
-                not _number(unlock.get("wins")) and _number(unlock.get("story"), -1) < 0:
-            out.append(Issue("warning", "Duelists", where,
-                             "\"unlock\" names no condition, so the duelist is there from the start"))
-
-
-def _number(value, fallback=0):
-    return value if isinstance(value, int) and not isinstance(value, bool) else fallback
-
-
 def validate(project: Project) -> list:
     out = []
     _check_info(project, out)
@@ -443,7 +401,6 @@ def validate(project: Project) -> list:
             _check_card(project, cid, out)
     _check_tables(project, out)
     _check_starter(project, out)
-    _check_duelist_unlocks(project, out)
     for level, where, message in limits.check(project.other.get("limits")):
         out.append(Issue(level, "Limits", where, message))
     stars = {}
