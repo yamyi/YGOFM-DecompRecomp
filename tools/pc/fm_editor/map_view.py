@@ -157,23 +157,17 @@ class MapModel:
         return self._blocks
 
     def world(self, v):
-        """A terrain vertex in the world space the campaign cameras use.
-
-        Terrain packages keep their geometry in world coordinates.  Their
-        per-package placement belongs to the coordinate unit rather than the
-        terrain itself, so applying it moves the map away from its cameras.
-        """
-        return tuple(v[i] * SCALE for i in range(3))
+        m, t = self.matrix, self.translation
+        return tuple(sum(m[i][j] * v[j] for j in range(3)) * SCALE + t[i] for i in range(3))
 
     def shades(self):
-        """The light for each terrain normal, cached after it is read."""
-        if getattr(self, "_shades", None) is None:
-            out = []
-            for n in self.normals:
-                normal = [n[i] / 4096 for i in range(3)]
-                out.append(AMBIENT + DIFFUSE * max(0.0, sum(normal[i] * LIGHT[i] for i in range(3))))
-            self._shades = out
-        return self._shades
+        """The light each normal gets, turned with the model."""
+        m = self.matrix
+        out = []
+        for n in self.normals:
+            turned = [sum(m[i][j] * n[j] for j in range(3)) / 4096 for i in range(3)]
+            out.append(AMBIENT + DIFFUSE * max(0.0, sum(turned[i] * LIGHT[i] for i in range(3))))
+        return out
 
     def points(self):
         """Each vertex in the world (world()), worked out once."""

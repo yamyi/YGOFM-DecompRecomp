@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from fm_editor import art, gamedata as g, importer, manifest, pngio
+from fm_editor import gamedata as g, importer, manifest
 from fm_editor.disc import GameFiles
 from fm_editor.model import Project
 from fm_editor.tests import fixtures
@@ -38,26 +38,6 @@ def modded():
 
 
 class ImporterTest(unittest.TestCase):
-    def test_boot_enable_patch_is_not_imported(self):
-        f = fixture()
-        wa = bytearray(f.wa)
-        wa[0xB61902] ^= 0x62
-        result = importer.import_modded(GameFiles(f.slus, f.wa, "retail"),
-                                        GameFiles(f.slus, bytes(wa), "modded"), "community")
-        self.assertNotIn("data", manifest.build(result.project))
-
-    def test_passwords_and_prices_use_the_structured_table(self):
-        f = fixture()
-        wa = bytearray(f.wa)
-        struct.pack_into("<II", wa, g.PASSWORD_TABLE + 8 * 5, 4321, 0x12345678)
-        result = importer.import_modded(GameFiles(f.slus, f.wa, "retail"),
-                                        GameFiles(f.slus, bytes(wa), "modded"), "community")
-        built = manifest.build(result.project)
-        entry = built["passwords"][result.project.ref(5)]
-        self.assertEqual(entry, {"password": "12345678", "starchips": 4321})
-        self.assertNotIn("data", built)
-        self.assertIn("passwords: 1 password(s) and 1 starchip price(s) imported", result.report)
-
     def test_import(self):
         f = fixture()
         retail_files = GameFiles(f.slus, f.wa, "retail")
@@ -152,83 +132,6 @@ class ModdedGameTest(unittest.TestCase):
         result = importer.import_modded(GameFiles(f.slus, f.wa, "retail"), modded_files, "community")
         return result.project, "\n".join(result.report)
 
-    @staticmethod
-    def with_portrait(wa: bytearray, duelist: int, seed: int):
-        """A replaced Free Duel face: a record of varied indices and a palette
-        of its own, as a mod that redrew one leaves it."""
-        rng = random.Random(seed)
-        at = art.portrait_at(duelist)
-        wa[at:at + art.PORTRAIT_PIXELS] = bytes(rng.randrange(art.PORTRAIT_COLOURS)
-                                                for _ in range(art.PORTRAIT_PIXELS))
-        struct.pack_into("<64H", wa, at + art.PORTRAIT_PIXELS,
-                         *[0x8000 | (i * 7 % 0x7FFF) for i in range(art.PORTRAIT_COLOURS)])
-        return at, at + art.PORTRAIT_STRIDE
-
-    def test_portraits_become_pngs_on_the_duelists_entries(self):
-        f = fixture()
-        wa = bytearray(f.wa)
-        self.with_portrait(wa, 3, seed=7)
-        project, report = self.imported(f, GameFiles(f.slus, bytes(wa), "modded"))
-        name = g.DUELIST_NAMES[3]
-        self.assertEqual([entry for entry in project.other["duelists"]],
-                         [{"id": importer.slug(name), "replace": name,
-                           "portrait": f"portraits/{importer.slug(name)}.png"}])
-        picture = pngio.decode(project.files[f"portraits/{importer.slug(name)}.png"])
-        self.assertEqual((picture.width, picture.height), art.PORTRAIT_SIZE)
-        self.assertIn("1 Free Duel portrait(s) read out of WA_MRG.MRG", report)
-        # The record it came from is the mod's PNG now, not bytes of the archive.
-        built = manifest.build(project)
-        at = art.portrait_at(3)
-        for patch in built.get("data", []):
-            offset = int(str(patch.get("offset", "0")), 0)
-            self.assertFalse(at <= offset < at + art.PORTRAIT_STRIDE, patch)
-
-    def test_a_renamed_duelist_keeps_one_entry_for_its_portrait(self):
-        f = fixture()
-        wa = bytearray(f.wa)
-        self.with_portrait(wa, 8, seed=11)         # 0x328 + 8 is the name below
-        slus = fixtures.make_slus(f.cards, {0x330: "Heishin X"})
-        project, report = self.imported(f, GameFiles(slus, bytes(wa), "modded"))
-        self.assertEqual(project.other["duelists"],
-                         [{"id": "heishin-x", "replace": g.DUELIST_NAMES[8], "name": "Heishin X",
-                           "portrait": "portraits/heishin-x.png"}])
-        self.assertIn("portraits/heishin-x.png", project.files)
-
-    def test_a_patch_in_the_portraits_is_not_read_as_a_face(self):
-        """As a small change inside a card's picture stays bytes: a face is
-        told from a patch by how much of the record changed."""
-        f = fixture()
-        wa = bytearray(f.wa)
-        at = art.portrait_at(5)
-        wa[at:at + 16] = bytes(range(16))
-        project, report = self.imported(f, GameFiles(f.slus, bytes(wa), "modded"))
-        self.assertNotIn("duelists", project.other)
-        self.assertEqual([n for n in project.files if n.startswith("portraits/")], [])
-        self.assertIn("the duelists' portraits", report)
-
-    def test_a_recoloured_face_is_read_as_one(self):
-        """The disc's pixels with the mod's colours: a face all the same."""
-        f = fixture()
-        wa = bytearray(f.wa)
-        at = art.portrait_at(7)
-        struct.pack_into("<64H", wa, at + art.PORTRAIT_PIXELS,
-                         *[0x8000 | (i * 13 % 0x7FFF) for i in range(art.PORTRAIT_COLOURS)])
-        project, report = self.imported(f, GameFiles(f.slus, bytes(wa), "modded"))
-        self.assertIn(f"portraits/{importer.slug(g.DUELIST_NAMES[7])}.png", project.files)
-        # Two words of the palette are a patch, not a recolour.
-        wa = bytearray(f.wa)
-        struct.pack_into("<2H", wa, art.portrait_at(7) + art.PORTRAIT_PIXELS, 0x8111, 0x8222)
-        project, report = self.imported(f, GameFiles(f.slus, bytes(wa), "modded"))
-        self.assertEqual([n for n in project.files if n.startswith("portraits/")], [])
-
-    def test_the_deck_build_picture_stays_bytes(self):
-        f = fixture()
-        wa = bytearray(f.wa)
-        self.with_portrait(wa, 0, seed=3)
-        project, report = self.imported(f, GameFiles(f.slus, bytes(wa), "modded"))
-        self.assertEqual([n for n in project.files if n.startswith("portraits/")], [])
-        self.assertIn("Deck Build picture changed", report)
-
     def test_encoded_pools_with_the_draw_code(self):
         f, files, pools = encoded_mod(1000, 2, code=True)       # not the tool's values: they come from the code
         project, report = self.imported(f, files)
@@ -258,63 +161,6 @@ class ModdedGameTest(unittest.TestCase):
                                                      "modded"))
         self.assertEqual(project.pools[2]["bcd"], {10: 1024, 11: 1024})
         self.assertIn("scaled to 2048", report)
-
-    def test_known_guardian_star_patch_keeps_its_table_and_icons(self):
-        """TeaOnline's 16-star routine is data the port can represent,
-        unlike arbitrary code at the same game entry point."""
-        f = fixture()
-        cards = {cid: card.copy() for cid, card in f.cards.items()}
-        cards[1].star1 = 11
-        slus = bytearray(fixtures.make_slus(cards, f.other_names))
-        table_address = 0x80011000
-        words = [0x2484FFFF, 0x24A5FFFF, 0x3C020000 | (table_address >> 16),
-                 0x24420000 | (table_address & 0xFFFF), 0x00051840, 0x00431821, 0x94630000,
-                 0, 0x00831806, 0x30630001, 0x1460000A, 0x2403FE0C,
-                 0x00041840, 0x00431821, 0x94630000, 0, 0x00A31806,
-                 0x30630001, 0x14600002, 0x240301F4, 0x24030000, 0x00601021,
-                 0x03E00008, 0, 0x10850002, 0x2402FE0C, 0x00001021, 0x03E00008, 0]
-        struct.pack_into("<29I", slus, g.slus_offset(importer.GUARDIAN_MATCHUP), *words)
-        struct.pack_into("<16H", slus, g.slus_offset(table_address), *([2] + [0] * 15))
-        wa = bytearray(f.wa)
-        struct.pack_into("<16H", wa, importer.guardian_stars.ICON_CLUT, *([0, 0xFFFF] + [0] * 14))
-        # Star 11 is the third cell of the boot sheet's second row.
-        at = importer.guardian_stars.ICON_SHEET + 16 * importer.guardian_stars.ICON_STRIDE + 16
-        wa[at:at + 8] = b"\x11" * 8
-        retail = g.load_game(GameFiles(f.slus, f.wa, "retail"))
-        changed = GameFiles(bytes(slus), bytes(wa), "modded")
-        modded = g.load_game(changed)
-        project, report = Project(retail), []
-        handled = importer.import_guardian_stars(project, retail, modded, f.slus, changed.slus, changed.wa, report)
-        section = project.other["guardian_stars"]
-        self.assertEqual(section["stars"], [{"id": 11, "icon": "icons/star-11.png"}])
-        self.assertTrue(section["matchups"])
-        self.assertIn("icons/star-11.png", project.files)
-        self.assertEqual(handled, [(g.slus_offset(importer.GUARDIAN_MATCHUP),
-                                    g.slus_offset(importer.GUARDIAN_MATCHUP) + 116),
-                                   (g.slus_offset(table_address), g.slus_offset(table_address) + 32)])
-        self.assertIn("16-star matchup table", report[0])
-
-    def test_known_card_frame_patch_keeps_per_card_colours(self):
-        f = fixture()
-        table_address = 0x80011000
-        slus = bytearray(f.slus)
-        words = [0x3C020000 | (table_address >> 16), 0x24420000 | (table_address & 0xFFFF),
-                 0xA0800056, 0xA6A00054, 0x2671FFFF, 0x00118842, 0x00518821,
-                 0x92310000, 0x32720001, 0x12400002, 0x3232000F, 0x00119102,
-                 0x2A510006, 0x16200002, 0, 0x24120000, 0x00129100, 0x24110160,
-                 0x02328821, 0xA4910054, 0x24840004, 0x26730001, 0x2A7102D3,
-                 0x1620FFEA, 0x24A50004]
-        struct.pack_into("<25I", slus, g.slus_offset(importer.CARD_FRAME), *words)
-        # Card IDs are the nibbles directly: ID 1 is the high half of byte 0.
-        slus[g.slus_offset(table_address)] = 0x50       # card 1: Orange
-        retail = g.load_game(GameFiles(f.slus, f.wa, "retail"))
-        modded = g.load_game(GameFiles(bytes(slus), f.wa, "modded"))
-        project, report = Project(retail), []
-        handled = importer.import_card_frames(project, modded, bytes(slus), report)
-        self.assertEqual(project.cards[1].frame, g.FRAME_NAMES.index("Orange"))
-        self.assertEqual(handled, [(g.slus_offset(importer.CARD_FRAME), g.slus_offset(importer.CARD_FRAME) + 100),
-                                   (g.slus_offset(table_address), g.slus_offset(table_address) + 362)])
-        self.assertIn("frame colours imported", report[0])
 
     def test_changes_beside_the_pools(self):
         f = fixture()

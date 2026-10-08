@@ -45,15 +45,6 @@ ART_CLUT = 0x2640
 TITLE_PIXELS = 0x2840
 THUMB_CLUT = 0x500             # in the card's own sector
 
-# A Free Duel portrait record (cards/art.h): 48x48 at a byte a pixel, then
-# its 64-entry palette. Forty of them, the first being Deck Build's.
-PORTRAIT_BASE = 0xF55000
-PORTRAIT_STRIDE = 0x980
-PORTRAIT_PIXELS = 0x900
-PORTRAIT_SIZE = (48, 48)
-PORTRAIT_COLOURS = 64
-PORTRAIT_COUNT = 40
-
 PARTS = ("art", "thumbnail", "title")
 LABELS = {"art": "Picture", "thumbnail": "Thumbnail", "title": "Name plate"}
 SIZES = {"art": (102, 96), "thumbnail": (40, 32), "title": (96, 14)}
@@ -181,46 +172,6 @@ def disc_image(wa: bytes, cid: int, part: str) -> Image:
         small = (cid - 1) * SECTOR
         return _paletted(wa, small, 40, 32, small + THUMB_CLUT, 64)
     return plate_image(disc_plate_inks(wa, cid))
-
-
-def full_picture(image: Image, zoom: int) -> Image:
-    """A pack's "image_style": "full" picture: fitted inside the card's
-    140x196, its shape kept and centred, as the big card shows it
-    (pack_shop.c), over the Password screen's black, `zoom` times. At 1x as
-    the console's texture has it (art.c CardArt_IndexedImage): a texel under
-    half opaque is clear, the rest opaque; at 2x and 4x with the PNG's own
-    alpha, as the game draws the PNG itself there."""
-    from . import packs as packmath
-    w, h = packmath.fit_full(image.width, image.height)
-    picture = pngio.resample(image, w * zoom, h * zoom)
-    width, height = packmath.CARD_VIEW[0] * zoom, packmath.CARD_VIEW[1] * zoom
-    out = bytearray(b"\x00\x00\x00\xff") * (width * height)
-    left, top = (packmath.CARD_VIEW[0] - w) // 2 * zoom, (packmath.CARD_VIEW[1] - h) // 2 * zoom
-    for y in range(picture.height):
-        row = picture.rgba[y * picture.width * 4:(y + 1) * picture.width * 4]
-        start = ((top + y) * width + left) * 4
-        for x in range(picture.width):   # its clear parts show the black, as the game's do
-            r, g, b, a = row[x * 4:x * 4 + 4]
-            if zoom == 1:
-                if a * 2 >= 255:
-                    out[start + x * 4:start + x * 4 + 4] = bytes((r, g, b, 255))
-            elif a:
-                out[start + x * 4:start + x * 4 + 4] = bytes((r * a // 255, g * a // 255, b * a // 255, 255))
-    return Image(width, height, bytes(out))
-
-
-def portrait_at(duelist: int) -> int:
-    """Where a duelist's Free Duel face is stored in WA_MRG.MRG."""
-    return PORTRAIT_BASE + duelist * PORTRAIT_STRIDE
-
-
-def portrait_image(wa: bytes, duelist: int) -> Image:
-    """A duelist's Free Duel face as the disc has it."""
-    if not 0 <= duelist < PORTRAIT_COUNT:
-        raise ValueError(f"duelist {duelist} has no portrait on the disc")
-    at = portrait_at(duelist)
-    width, height = PORTRAIT_SIZE
-    return _paletted(wa, at, width, height, at + PORTRAIT_PIXELS, PORTRAIT_COLOURS)
 
 
 def ink_of(coverage: int) -> int:

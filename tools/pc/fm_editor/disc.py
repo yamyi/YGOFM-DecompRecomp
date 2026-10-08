@@ -35,7 +35,6 @@ class GameFiles:
     wa: bytes
     source: str
     wa_lba: int = WA_LBA
-    model_source: str | None = None
 
 
 class DiscImage:
@@ -153,8 +152,7 @@ def load(path) -> GameFiles:
 
 def load_pair(slus_path, wa_path) -> GameFiles:
     """The two files named one by one (a community mod's modified copies)."""
-    return GameFiles(Path(slus_path).read_bytes(), Path(wa_path).read_bytes(), f"{slus_path} + {wa_path}",
-                     model_source=str(Path(wa_path).parent.parent))
+    return GameFiles(Path(slus_path).read_bytes(), Path(wa_path).read_bytes(), f"{slus_path} + {wa_path}")
 
 
 def _windows_documents():
