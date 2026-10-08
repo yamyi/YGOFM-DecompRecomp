@@ -46,6 +46,11 @@ def install() -> None:
         def font_init(font, wa):
             original_font_init(font, wa)
             font._qt_icon_wa = wa
+            # The older font keeps only its default ramp.  Card View uses the
+            # seven selectable ramp slots, so map all of them to retail's
+            # default colour until a newer font implementation is available.
+            if not hasattr(font, "ramps"):
+                font.ramps = [font.colours] * 7
 
         def icon(font, code):
             wa = getattr(font, "_qt_icon_wa", None)

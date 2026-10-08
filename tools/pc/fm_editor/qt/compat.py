@@ -30,6 +30,41 @@ def install() -> None:
 
         model.fusion_pairs = fusion_pairs
 
+    # Monster effects are modern-editor card metadata.  Master already keeps
+    # arbitrary replacement fields in ``card_extra``/``AddedCard.extra``, so
+    # expose the small model API the Qt Effects page needs without extending
+    # the classic Project class itself.
+    if not hasattr(model.Project, "monster_effects_of"):
+        def monster_effects_of(project, cid):
+            if cid not in project.cards:
+                return [], False
+            extra = (project.added[cid].extra if cid in project.added
+                     else project.card_extra.get(cid, {}))
+            if "monster_effects" in extra:
+                rows = extra["monster_effects"]
+                return (list(rows) if isinstance(rows, list) else []), True
+            if cid in project.added:
+                return monster_effects_of(project, project.base_of(cid))
+            return [], False
+
+        def set_monster_effects(project, cid, rows, keep_empty=False):
+            if cid not in project.cards:
+                return
+            copied = [dict(row) for row in rows if isinstance(row, dict)]
+            if cid in project.added:
+                extra = project.added[cid].extra
+            else:
+                extra = project.card_extra.setdefault(cid, {})
+            if copied or keep_empty:
+                extra["monster_effects"] = copied
+            else:
+                extra.pop("monster_effects", None)
+                if cid not in project.added and not extra:
+                    project.card_extra.pop(cid, None)
+
+        model.Project.monster_effects_of = monster_effects_of
+        model.Project.set_monster_effects = set_monster_effects
+
     # The stock Guardian Star module describes star names and matchups. The
     # Qt page also shows the symbols stored in the disc's boot UI sheet.
     from .. import guardian_stars
@@ -75,6 +110,53 @@ def install() -> None:
     # The classic renderer remains a useful fallback on branches where
     # card_text has not yet grown render_description().
     from .. import card_text
+
+    # Master encodes descriptions correctly but drops colour control codes.
+    # Card View needs those tokens in order to render its coloured text.
+    if not getattr(card_text.encode, "_qt_colours_compatible", False):
+        original_encode = card_text.encode
+
+        def encode(text, colours=False):
+            if not colours:
+                return original_encode(text)
+            out, column, index = [], 0, 0
+            while index < len(text):
+                char = text[index]
+                if char == "\n":
+                    out.append("\n")
+                    column = 0
+                    index += 1
+                    continue
+                if char == " ":
+                    index += 1
+                    continue
+                word, end = [], index
+                while end < len(text) and text[end] not in " \n":
+                    code = card_text.code_at(text, end)
+                    if code:
+                        word.append(code)
+                        end += len(code[0])
+                    else:
+                        word.append((text[end], 1))
+                        end += 1
+                letters = sum(width for _letter, width in word)
+                if column and column + 1 + letters > card_text.LINE_LETTERS:
+                    out.append("\n")
+                    column = 0
+                elif column:
+                    out.append(" ")
+                    column += 1
+                for letter, width in word:
+                    if width == 0:
+                        out.append(letter)
+                    elif letter >= " ":
+                        out.append(letter)
+                        column += 1
+                index = end
+            return out
+
+        encode._qt_colours_compatible = True
+        card_text.encode = encode
 
     if not hasattr(card_text, "render_description"):
         def render_description(font, text, type_name, _type_icon, stars=(), scale=2, **_unused):
