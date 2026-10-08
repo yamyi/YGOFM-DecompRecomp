@@ -114,6 +114,7 @@ def install() -> None:
 
     original_build_effects = CardsMixin._build_card_effects
     original_build_cards = CardsMixin._build_cards
+    original_refresh_cards = CardsMixin.refresh_cards
     original_show_card = CardsMixin.show_card
     original_apply_card = CardsMixin.apply_card
     original_store_equip_bonus = CardsMixin._store_equip_bonus
@@ -511,6 +512,30 @@ def install() -> None:
             self.project.other.pop("card_text_colors", None)
         return True
 
+    def refresh_cards(self, *args, **kwargs):
+        """Include a card-name colour override in the list's modification state."""
+        result = original_refresh_cards(self, *args, **kwargs)
+        if self.project is None:
+            return result
+        for row in range(self.listing.rowCount()):
+            id_item = self.listing.item(row, 0)
+            if id_item is None:
+                continue
+            cid = id_item.data(Qt.ItemDataRole.UserRole)
+            if (not isinstance(cid, int) or cid in self.project.added or
+                    card_name_colour(self, cid) is None):
+                continue
+            # Name colours are authored card metadata, so they take the same
+            # visible "changed" state as a changed stat or card text.
+            state_item = self.listing.item(row, 5)
+            if state_item is not None:
+                state_item.setData(Qt.ItemDataRole.DisplayRole, "changed")
+            for column in range(self.listing.columnCount()):
+                item = self.listing.item(row, column)
+                if item is not None:
+                    self._tint_state(item, "changed")
+        return result
+
     def apply_card(self, quiet=False):
         """Save Qt's normal card fields, then its compatibility-only fields."""
         cid = self.current
@@ -802,6 +827,7 @@ def install() -> None:
     CardsMixin._card_effects = get_effects
     CardsMixin._build_card_effects = build_effects
     CardsMixin._build_cards = build_cards
+    CardsMixin.refresh_cards = refresh_cards
     CardsMixin.show_card = show_card
     CardsMixin.apply_card = apply_card
     CardsMixin._render_card_text = render_full_description
