@@ -62,6 +62,22 @@ MAX_CODE = 2100000000
 # addresses from the matching build's ELFs before the link).
 BUILD_WRITES = ("config/pc/guest_addresses.txt",)
 
+# Every configuration change the activity takes itself instead of being
+# destroyed and created again: a destroyed activity ends the game
+# (SDLActivity.onDestroy sends a quit), which, at its fixed addresses,
+# cannot start over in the same process.
+# Display size and font size in the system settings (density, fontScale,
+# fontWeightAdjustment), a SIM swap (mcc, mnc), a wide-gamut or HDR display
+# mode (colorMode), Android 14's grammatical gender, and a touchscreen coming
+# or going (touchscreen) are the ones that were missing; the picture and the
+# touch controls follow a density change (sdl.c, "density"). Unknown names on
+# an older Android are ignored (the manifest holds a bit mask); aapt2 checks
+# each against android.jar, which needs API 34 or later for grammaticalGender
+# (the build's android-35 has it).
+CONFIG_CHANGES = "|".join((
+    "mcc", "mnc", "locale", "touchscreen", "keyboard", "keyboardHidden", "navigation", "orientation",
+    "screenLayout", "uiMode", "screenSize", "smallestScreenSize", "layoutDirection", "fontScale", "colorMode",
+    "density", "fontWeightAdjustment", "grammaticalGender"))
 MANIFEST = f"""<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="{PACKAGE}" android:versionCode="@VERSION_CODE@" android:versionName="@VERSION_NAME@">
@@ -75,7 +91,7 @@ MANIFEST = f"""<?xml version="1.0" encoding="utf-8"?>
         android:extractNativeLibs="true" android:hardwareAccelerated="true"
         android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
         <activity android:name="org.libsdl.app.SDLActivity" android:exported="true"
-            android:configChanges="layoutDirection|locale|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
+            android:configChanges="@CONFIG_CHANGES@"
             android:screenOrientation="sensorLandscape" android:launchMode="singleInstance"
             android:preferMinimalPostProcessing="true">
             <intent-filter>
@@ -372,7 +388,8 @@ def package(build, abi, library, game, assets):
     run([tool(build_tools, "d8"), "--release", "--min-api", str(build_android_deps.API), "--lib", android_jar,
          "--output", os.path.join(work, "dex"), *classes])
     with open(os.path.join(work, "AndroidManifest.xml"), "w", encoding="utf-8") as handle:
-        handle.write(MANIFEST.replace("@VERSION_CODE@", str(code)).replace("@VERSION_NAME@", version_name))
+        handle.write(MANIFEST.replace("@VERSION_CODE@", str(code)).replace("@VERSION_NAME@", version_name)
+                     .replace("@CONFIG_CHANGES@", CONFIG_CHANGES))
     unaligned = os.path.join(work, "unaligned.apk")
     run([tool(build_tools, "aapt2"), "link", "-o", unaligned, "-I", android_jar, "--manifest",
          os.path.join(work, "AndroidManifest.xml"), "--min-sdk-version", str(build_android_deps.API),

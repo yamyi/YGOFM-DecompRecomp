@@ -155,13 +155,16 @@ static void save_window_image(void);
 static int window_shot_pending;
 
 /* Window pixels per density-independent pixel where the screen is touched
- * (Android: SDL's content scale is the display's densityDpi / 160), 0 on a
+ * (Android: the display's densityDpi / 160, as the system has it now; SDL's
+ * content scale is the density at the start, and stays so after Display
+ * size changes it: pump() reads it again and lays out anew), 0 on a
  * desktop, which keeps the mouse's sizes. */
 static float touch_density(void)
 {
 #ifdef SDL_PLATFORM_ANDROID
     SDL_DisplayID display = window ? SDL_GetDisplayForWindow(window) : SDL_GetPrimaryDisplay();
-    float density = display ? SDL_GetDisplayContentScale(display) : 0.0f;
+    float density = Android_Density();
+    if (density <= 0.0f) density = display ? SDL_GetDisplayContentScale(display) : 0.0f;
     return density > 0.0f ? density : 1.0f;
 #else
     return 0.0f;
@@ -1803,6 +1806,16 @@ static bool SDLCALL app_event(void *userdata, SDL_Event *event)
 static void pump(void)
 {
     SDL_Event event;
+#ifdef SDL_PLATFORM_ANDROID
+    /* The display's density changed under the running game (Display size in
+     * the system settings): the window keeps its pixels, so no resize
+     * comes; the menu, its touch targets and the touch controls are laid
+     * out again for the new density. */
+    if (window && Android_DensityChanged()) {
+        relayout();
+        menu_dirty = 1;
+    }
+#endif
     if (test_reset_at == -2) {
         const char *at = getenv("MEMORIES_TEST_GL_RESET");
         test_reset_at = at && *at ? strtol(at, NULL, 10) : -1;

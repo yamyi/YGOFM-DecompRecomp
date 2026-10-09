@@ -79,6 +79,18 @@ int Platform_HasDesktopGL(void);
  * platform can say what it means, 0 where it has nothing to add (the
  * desktops: that failure is a bug report, not the player's to fix). */
 int Platform_GuestMemoryHelp(char *why, size_t size);
+#ifdef __ANDROID__
+/* android.c: the display's density as the system has it now, in window
+ * pixels per dp (densityDpi / 160), or 0 before the first read. SDL's
+ * content scale is the density the app started with: the activity takes a
+ * density change itself (Display size in the system settings;
+ * package_android.py's CONFIG_CHANGES), and SDL hears nothing of it. */
+float Android_Density(void);
+/* Reads the density again, at most once a second (a Java call: on the
+ * thread's own stack only, as sdl.c's pump is); 1 when it changed since the
+ * last read. */
+int Android_DensityChanged(void);
+#endif
 /* Save the source picture, or the composed window when `window_image` is set. */
 void Platform_Screenshot(int window_image);
 /* Help > System info: puts `text` on the system clipboard; 0 where the
