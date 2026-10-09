@@ -3732,6 +3732,28 @@ untouched: with a mouse every path is the old one, pixel for pixel.
   app's resources, as `cmd overlay enable
   com.android.internal.display.cutout.emulation.corner` does) still
   re-creates the activity, and the game ends as on Quit.
+- **Ending the process:** the game ends with `exit()` on its own thread
+  (Quit, in `libetc.c`'s VSync; the quit SDL sends when the system destroys
+  the activity; a problem the game reports). There, `exit()` ran every
+  handler in the process, the system libraries' static destructors among
+  them, while the activity's HWUI threads still ran, and every Quit aborted
+  ("FORTIFY: pthread_mutex_lock called on a destroyed mutex" in
+  `hwuiTask0/1`, SIGABRT, recorded by the system as a crash). `libgame.so`
+  is linked with `--wrap=exit`: the game's `exit()` is `__wrap_exit`
+  (`android.c`), which runs only the library's own `atexit` handlers (the
+  debug tools' files), flushes stdio, lets the log pipe drain into logcat
+  and ends the process with `_exit` and the game's status;
+  `Memories_AndroidMain` ends with `exit(main(...))`, so a return from
+  `main` goes the same way. An `exit()` from outside the game (Java's
+  `System.exit`) reaches `end_process` as the first `atexit` handler
+  `Memories_AndroidMain` registers; the loader's start-up failures
+  `_exit(1)`. The headless runner calls `main` and keeps the system's
+  `exit()`. Nothing of the player's is written at exit (memory cards, save
+  states, deck slots and settings are written and renamed into place when
+  they change). When the system re-creates the activity (a change the
+  manifest cannot take, such as `cmd overlay enable
+  com.android.internal.display.cutout.emulation.corner`), the game quits
+  the same clean way, the app closes, and the next launch starts afresh.
 - **Save states:** `libgame.so` sits at `0x08000000` with load bias 0 on
   every launch; F5 on the Options screen, the app force-stopped and started
   again, F7 at the title brings the Options screen back, live.

@@ -25,6 +25,9 @@
  *   activity takes a density change itself (Display size in the system
  *   settings) and SDL's content scale keeps the starting one, so sdl.c
  *   reads it here, through JNI, to lay out again.
+ * - The process ends with _exit (__wrap_exit, end_process), not through
+ *   the system libraries' static destructors: the activity's threads
+ *   still run.
  * - SDL_main itself is the loader's (android_loader.c, libmain.so), which
  *   loads this game, libgame.so, at the address it was linked at and calls
  *   Memories_AndroidMain.
@@ -50,6 +53,7 @@
 #include <fcntl.h>
 #include <linux/ashmem.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -810,7 +814,8 @@ const HdNet *Platform_HdNet(void)
     return &net;
 }
 
-static int log_pipe[2];
+static int log_pipe[2] = {-1, -1};
+static int log_forwarding; /* 1 while forward_log runs (__atomic) */
 
 static void *forward_log(void *unused)
 {
@@ -818,8 +823,11 @@ static void *forward_log(void *unused)
     size_t used = 0;
     ssize_t got;
     (void)unused;
-    while ((got = read(log_pipe[0], buffer + used, sizeof(buffer) - 1 - used)) > 0) {
+    for (;;) {
         char *line = buffer, *end;
+        got = read(log_pipe[0], buffer + used, sizeof(buffer) - 1 - used);
+        if (got < 0 && errno == EINTR) continue;
+        if (got <= 0) break; /* the end of the pipe: drain_log closed its last writer */
         used += (size_t)got;
         buffer[used] = '\0';
         while ((end = memchr(line, '\n', used - (size_t)(line - buffer))) != NULL) {
@@ -835,18 +843,111 @@ static void *forward_log(void *unused)
             used = 0;
         }
     }
+    if (used) { /* the last words, without their line end */
+        buffer[used] = '\0';
+        __android_log_write(ANDROID_LOG_INFO, LOG_TAG, buffer);
+    }
+    __atomic_store_n(&log_forwarding, 0, __ATOMIC_RELEASE);
     return NULL;
 }
 
+/* The reader starts first, with every signal blocked (the clock's must
+ * reach the game's thread), and only then do stdout and stderr go into the
+ * pipe: without a reader, a full pipe would stop the game, and its end
+ * (fflush) for good. The pipe is not inherited by a child (close on exec),
+ * whose copy would keep drain_log from ever seeing its end. */
 static void log_to_logcat(void)
 {
     pthread_t thread;
-    if (pipe(log_pipe)) return;
+    sigset_t all, previous;
+    int started;
+    if (pipe(log_pipe)) {
+        log_pipe[0] = log_pipe[1] = -1;
+        return;
+    }
+    fcntl(log_pipe[0], F_SETFD, FD_CLOEXEC); /* pipe2 needs _GNU_SOURCE in bionic */
+    fcntl(log_pipe[1], F_SETFD, FD_CLOEXEC);
+    __atomic_store_n(&log_forwarding, 1, __ATOMIC_RELEASE);
+    sigfillset(&all);
+    pthread_sigmask(SIG_BLOCK, &all, &previous);
+    started = pthread_create(&thread, NULL, forward_log, NULL) == 0;
+    pthread_sigmask(SIG_SETMASK, &previous, NULL);
+    if (!started) {
+        __atomic_store_n(&log_forwarding, 0, __ATOMIC_RELEASE);
+        close(log_pipe[0]);
+        close(log_pipe[1]);
+        log_pipe[0] = log_pipe[1] = -1;
+        return;
+    }
+    pthread_detach(thread);
     setvbuf(stdout, NULL, _IOLBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
     dup2(log_pipe[1], STDOUT_FILENO);
     dup2(log_pipe[1], STDERR_FILENO);
-    if (pthread_create(&thread, NULL, forward_log, NULL) == 0) pthread_detach(thread);
+}
+
+/* What is still in the log pipe reaches the system log: stdout and stderr
+ * go to /dev/null in one step each (no other thread can be handed those
+ * descriptor numbers meanwhile), the pipe's last writer closes, and
+ * forward_log, at the end of the pipe, ends; at most 200 ms. */
+static void drain_log(void)
+{
+    int null = open("/dev/null", O_WRONLY | O_CLOEXEC), waited;
+    if (log_pipe[1] < 0 || null < 0) {
+        if (null >= 0) close(null);
+        return;
+    }
+    dup2(null, STDOUT_FILENO);
+    dup2(null, STDERR_FILENO);
+    close(null);
+    close(log_pipe[1]);
+    log_pipe[1] = -1;
+    for (waited = 0; waited < 40 && __atomic_load_n(&log_forwarding, __ATOMIC_ACQUIRE); waited++) usleep(5000);
+}
+
+/* --- the process's end ------------------------------------------------ */
+
+/* The game ends with exit() on its own thread (Quit, in libetc.c's VSync;
+ * the quit SDL sends when the system destroys the activity; a problem the
+ * game reports). exit() runs every handler registered in the process,
+ * newest first, the system libraries' static destructors among them, while
+ * the activity's own threads still run: HWUI's render workers (hwuiTask0/1)
+ * then locked a mutex those destructors had just destroyed, and every Quit
+ * aborted ("FORTIFY: pthread_mutex_lock called on a destroyed mutex"),
+ * which the system records as a crash. On Android libgame.so is linked
+ * with --wrap=exit (build_game32.py): the game's exit() comes here, runs
+ * only this library's own handlers (the debug tools' files: profile.c,
+ * recorder.c, ai_trace.c, image.c), and ends the process with _exit and the
+ * game's status. Nothing of the player's is written at exit: memory cards,
+ * save states, deck slots and settings are written (and renamed into
+ * place) when they change. The headless runner (tools/pc/android/runner.c)
+ * calls main and never Memories_AndroidMain: its exit() is the system's. */
+static int app_process;  /* Memories_AndroidMain ran */
+static int exit_status;
+
+void __real_exit(int status) __attribute__((noreturn));
+void __wrap_exit(int status) __attribute__((noreturn, visibility("hidden")));
+int __cxa_finalize(void *dso);
+extern void *__dso_handle; /* this library's (crtbegin_so) */
+
+static void end_process(void)
+{
+    char line[96];
+    fflush(NULL);
+    drain_log();
+    snprintf(line, sizeof(line), "memories-pc: the game has ended (status %d); ending the process", exit_status);
+    __android_log_write(ANDROID_LOG_INFO, LOG_TAG, line);
+    _exit(exit_status);
+}
+
+void __wrap_exit(int status)
+{
+    if (!app_process) __real_exit(status);
+    exit_status = status;
+    /* This library's atexit handlers, newest first; end_process, the
+     * first, ends the process. */
+    __cxa_finalize(&__dso_handle);
+    end_process();
 }
 
 /* An app gets no environment of its own: environment.txt in the player's
@@ -1025,6 +1126,12 @@ int Memories_AndroidMain(int argc, char **argv)
     const char *files = SDL_GetAndroidExternalStoragePath();
     (void)argc;
     (void)argv;
+    app_process = 1;
+    /* An exit() from outside the game (Java's System.exit; the loader's,
+     * should this function return) runs the handlers registered so far,
+     * newest first: this one, the first of the game's, ends the process
+     * before the system libraries' destructors that were loaded before it. */
+    atexit(end_process);
     log_to_logcat();
     if (files && *files) {
         setenv("MEMORIES_USER_DIR", files, 0);
@@ -1055,6 +1162,7 @@ int Memories_AndroidMain(int argc, char **argv)
                 dladdr((void *)Memories_AndroidMain, &info) ? info.dli_fbase : NULL,
                 getenv("MEMORIES_ANDROID_LOAD_BIAS") ? getenv("MEMORIES_ANDROID_LOAD_BIAS") : "?");
     }
-    return main(1, args);
+    /* main's status through __wrap_exit, as the game's own exit() */
+    exit(main(1, args));
 }
 #endif
