@@ -20,6 +20,9 @@ static struct {
     int down, moved, grabbed, x0, y0, last_y;
 } press;
 static uint64_t last_tick;
+/* The last release of the pointer was a tap (or a mouse's click), not the
+ * end of a drag: only a tap on a field shows the on-screen keyboard again. */
+static int tapped;
 
 int Panel_Shown(void) { return shown; }
 int Panel_Left(void) { return area_x; }
@@ -50,8 +53,8 @@ void Panel_Layout(int ww, int wh, int x, int y, int w, int h)
 
 void Panel_Close(void)
 {
-    if (shown == PANEL_CONTROLS)
-        ControlsRuntime_Block(0); /* the window's close does the same */
+    if (shown != PANEL_NONE)
+        ControlsRuntime_Block(0); /* the game's bindings and hotkeys again */
     shown = PANEL_NONE;
     memset(&press, 0, sizeof(press));
 }
@@ -64,6 +67,10 @@ int Panel_Open(int kind)
         return 1;
     Panel_Close();
     shown = kind;
+    /* Neither panel lets a key or a controller reach the hidden game: no
+     * hotkey (Turbo, Pause, Exit, a state) acts behind it, and what is held
+     * now does nothing until it is let go after the panel closes. */
+    ControlsRuntime_Block(1);
     if (kind == PANEL_MODS) {
         ModsWindow_Init();
         resize_module();
@@ -118,7 +125,7 @@ static void log_widgets(void)
             used += (size_t)snprintf(line + used, sizeof(line) - used, " row%d=%d,%d", row, x + area_x, y + area_y);
     }
     if (strcmp(line, last)) {
-        memcpy(last, line, sizeof(last));
+        snprintf(last, sizeof(last), "%s", line);
         LOG(LOG_WINDOW, "panel widgets:%s", line);
     }
 }
@@ -201,6 +208,8 @@ int Panel_Pointer(const MenuEvent *event, int finger)
     int slop = Menu_TouchTarget() / 6 > 8 ? Menu_TouchTarget() / 6 : 8; /* 8 dp */
     if (!shown)
         return 0;
+    if (event->type == MENU_EVENT_BUTTON_UP)
+        tapped = !finger || (press.down && !press.moved && !press.grabbed);
     if (!finger) { /* a mouse: as in the window */
         deliver(event);
         return shown != PANEL_MODS || event->type != MENU_EVENT_MOTION || ModsWindow_Redraws(event);
@@ -294,3 +303,4 @@ int Panel_Tick(void)
 }
 
 int Panel_TextFocus(void) { return shown == PANEL_MODS && ModsWindow_TextFocus(); }
+int Panel_Tapped(void) { return tapped; }

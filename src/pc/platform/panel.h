@@ -55,4 +55,7 @@ int Panel_Key(const MenuEvent *event, int control_key, int repeat, int modifiers
 int Panel_Tick(void);
 /* A field of the panel takes typing now: show the on-screen keyboard. */
 int Panel_TextFocus(void);
+/* The pointer's last release was a tap or a click, not the end of a drag
+ * (a tap on the focused field shows the on-screen keyboard again). */
+int Panel_Tapped(void);
 #endif

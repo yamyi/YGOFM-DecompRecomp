@@ -167,7 +167,8 @@ void Menu_SetItemEnabled(int id, int enabled);
 /* What the platform lacks, dimmed once after Menu_Init: 0 for `windows`
  * dims Game > Controls... and Mods (second windows), for `window_modes`
  * Video > Window scale, Fullscreen and Borderless, for `update_check` Help's
- * update check rows. The SDL backend on Android passes all three 0. */
+ * update check rows. The SDL backend on Android passes 1, 0, 0: Mods and
+ * Controls open as panels inside the window there (panel.h). */
 void Menu_SetPlatformItems(int windows, int window_modes, int update_check);
 /* Whether the backend runs the OpenGL picture pass (gl_picture.h). Without
  * it, or at console resolution, the Video menu's HD items could show

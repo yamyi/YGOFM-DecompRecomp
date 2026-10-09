@@ -1708,8 +1708,8 @@ static int dispatch_panel(const SDL_Event *event, const MenuEvent *menu_event)
     int redraw = 0, tapped = 0;
     switch (event->type) {
     case SDL_EVENT_MOUSE_BUTTON_DOWN: case SDL_EVENT_MOUSE_BUTTON_UP:
-        tapped = event->type == SDL_EVENT_MOUSE_BUTTON_UP;
         redraw = Panel_Pointer(menu_event, event->button.which == SDL_TOUCH_MOUSEID);
+        tapped = event->type == SDL_EVENT_MOUSE_BUTTON_UP && Panel_Tapped(); /* not a drag's end */
         break;
     case SDL_EVENT_MOUSE_MOTION:
         redraw = Panel_Pointer(menu_event, event->motion.which == SDL_TOUCH_MOUSEID);

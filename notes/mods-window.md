@@ -74,9 +74,10 @@ follows the finger. Search and the profile name show the on-screen keyboard
 (its Enter ends the typing); Back is Escape. There is no Open mods folder
 (an app has no folder window to open; `Platform_OpenFolder` fails on
 Android): the player's mods go in `mods/` in the app's files folder
-(`Android/data/org.yfmredecomp.game/files`). Its place in the footer, left
-of Close (`layout_touch`), is kept for importing a mod's `.zip` through the
-system's file picker, which is not there yet. Apply & restart starts the app
+(`Android/data/org.yfmredecomp.game/files`). Importing a mod's `.zip`
+through the system's file picker is not there yet; its button is to go in
+the footer left of Close (`layout_touch`'s `folder` slot, empty now, so the
+message line runs up to Close). Apply & restart starts the app
 again in a new process. The game is paused while the panel shows.
 
 Implementation: `src/pc/platform/mods_window.c`, `src/pc/mods/manager.c`

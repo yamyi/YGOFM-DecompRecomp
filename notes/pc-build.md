@@ -3564,8 +3564,11 @@ untouched: with a mouse every path is the old one, pixel for pixel.
 - **The game pauses** while a panel shows (`Platform_SetClockRate(0)`, the
   speed it had back when it closes, unless the app is in the background or
   paused by then): the picture is covered and the panel has the input, so a
-  running game could only go on unseen. The desktop's windows leave the game
-  running beside them, as before.
+  running game could only go on unseen. Neither the keyboard's nor a
+  controller's bindings reach the game while it shows
+  (`ControlsRuntime_Block`, for both panels): no hotkey such as Turbo,
+  Pause, Exit or a save state acts behind it. The desktop's windows leave
+  the game running beside them, as before.
 - **Apply & restart.** A change that needs a restart (a load order, a mod
   or setting that says so) restarts the app for real: `Platform_RestartGame`
   in `android.c` starts `Restart.java`'s activity (`org.yfmredecomp.game.Restart`,
@@ -3686,9 +3689,10 @@ Paused on 2026-09-29 until the 64-bit (relocatable guest) work is done.
     run on arm64 (Mod SDK M2 above) and are turned on and off in the same
     panel; a code mod with no AArch64 object stays off, and the panel says
     why beside it.
-  - A mod `.zip` through the system's file picker; the menu bar hiding in
-    play: done on feat/android-arm64 (the mouse SDL makes of a touch kept it
-    shown; see "How it differs").
+  - A mod `.zip` through the system's file picker: not started (the Mods
+    panel's footer has room left of Close for its button).
+  - The menu bar hiding in play: done on feat/android-arm64 (the mouse SDL
+    makes of a touch kept it shown; see "How it differs").
 
 ### Not yet
 
