@@ -3623,6 +3623,9 @@ untouched: with a mouse every path is the old one, pixel for pixel.
   key within the listening time), the page dragged, OK, `bind 0 8 key.j` in
   `controls.txt` and J shown again after a relaunch, Back closing the panel; a code mod
   (AI Hard Mode) said "has code, which the game cannot run on Android yet";
+  Game > Language > Français, Restart now: a new process, `language=2`;
+  after hiding the system keyboard, a drag in the list did not bring it
+  back and a tap on the search field did;
   both panels within the safe area with the tall cutout emulated (safe area
   132,66 2066x926) and at 1280x720 (320 dpi) and 800x480 (240 dpi). A
   density or overlay change while the game runs ends the process with a
