@@ -8,32 +8,15 @@ from .common import (_qimage, _line_count, _pairs_text, _parse_pairs, _whole,
 
 class LimitsMixin:
     def _build_limits_page(self, page, get, controls):
+        # Static controls live in limits_page.ui.  This page only binds their
+        # names to the limits model and connects behavior.
         fields = {}
-
-        def rows(layout, group):
-            for row, (key, label, retail, low, high, _storage) in enumerate(group):
-                caption = QLabel(label)
-                spin = QSpinBox()
-                # One below the lowest the limit may be is "not set": the game's
-                # own number, as an empty box means in the Tk form.
-                spin.setRange(low - 1, high)
-                spin.setSpecialValueText(self.LP_UNSET)
-                spin.setValue(low - 1)
-                spin.setMaximumWidth(130)
-                spin.setMinimumWidth(96)
-                own = "the start" if retail is None else f"{retail:,}"
-                hint = QLabel(f"({own};  {low:,}–{high:,})")
-                hint.setStyleSheet("color:#9aacc4")
-                layout.addWidget(caption, row, 0)
-                layout.addWidget(spin, row, 1)
-                layout.addWidget(hint, row, 2)
+        for group in (limits.FIELDS, limits.ADVANCED):
+            for key, _label, _retail, _low, _high, _storage in group:
+                spin = get(QSpinBox, f"limit_{key.replace('.', '_')}_spin")
                 spin.valueChanged.connect(self._limits_edited)
                 fields[key] = spin
-            layout.setColumnStretch(0, 1)
-            layout.setColumnStretch(2, 1)
 
-        rows(get(QGridLayout, "simpleLimitsLayout"), limits.FIELDS)
-        rows(get(QGridLayout, "advancedLimitsLayout"), limits.ADVANCED)
         advanced = get(QWidget, "advancedLimitsPanel")
         advanced.setVisible(False)
         toggle = get(QCheckBox, "showAdvancedCheck")

@@ -151,40 +151,29 @@ class FusionsMixin:
             types = get(QListWidget, f"material{cap}TypeList")
             stars = get(QListWidget, f"material{cap}StarList")
             self._populate_checkable_list(types, TYPE_NAMES[:20])
+            decorate_type_items(self, types)
             self._populate_checkable_list(stars, guardian_stars.choices(self.project.other.get("guardian_stars"))[1:])
+            decorate_guardian_star_items(self, stars)
             for listing in (types, stars):
                 listing.setSpacing(3)
                 listing.viewport().installEventFilter(self)
-            group = get(QGroupBox, f"material{cap}Group")
-            advanced = get(QLayout, f"material{cap}AdvancedLayout")
-            outer = group.layout()
-            position = next(i for i in range(outer.count()) if outer.itemAt(i).layout() is advanced)
-            advanced = outer.takeAt(position).layout()
-            advanced.setParent(None)
-            advanced_panel = QWidget(group)
-            advanced_panel.setProperty("bulkAdvancedPanel", True)
-            advanced_panel.setLayout(advanced)
-            outer.insertWidget(position, advanced_panel)
-            kinds = {}
-            extras = QHBoxLayout()
-            for kind in bulk_fusions.KINDS:
-                box = QCheckBox(kind.capitalize())
+            advanced = get(QWidget, f"material{cap}AdvancedPanel")
+            kinds = {kind: get(QCheckBox, f"material{cap}Kind{kind.capitalize()}")
+                     for kind in bulk_fusions.KINDS}
+            for box in kinds.values():
                 box.toggled.connect(self._schedule_bulk_fusion_plan)
-                extras.addWidget(box)
-                kinds[kind] = box
-            group.layout().addLayout(extras)
-            actions = QHBoxLayout()
-            clear = QPushButton("Clear filters")
-            listing = QPushButton("List matches…")
-            actions.addWidget(clear)
-            actions.addWidget(listing)
-            group.layout().addLayout(actions)
-            clear.clicked.connect(lambda: self._clear_bulk_filter(side))
-            listing.clicked.connect(lambda: self._list_bulk_matches(side))
+            get(QPushButton, f"material{cap}ClearFiltersButton").clicked.connect(
+                lambda: self._clear_bulk_filter(side))
+            get(QPushButton, f"material{cap}ListMatchesButton").clicked.connect(
+                lambda: self._list_bulk_matches(side))
+            attributes = [get(QCheckBox, f"material{cap}Attribute{i}") for i in range(6)]
+            for attribute, box in enumerate(attributes):
+                box.setIcon(attribute_icon(self, attribute))
+                box.setIconSize(QSize(16, 16))
             return {
                 "group": get(QGroupBox, f"material{cap}Group"),
                 "kinds": kinds, "types": types, "stars": stars,
-                "attributes": [get(QCheckBox, f"material{cap}Attribute{i}") for i in range(6)],
+                "attributes": attributes,
                 "bounds": {
                     "atk_min": get(QLineEdit, f"material{cap}AtkMin"),
                     "atk_max": get(QLineEdit, f"material{cap}AtkMax"),
@@ -203,7 +192,7 @@ class FusionsMixin:
                 "level_min": get(QSpinBox, f"material{cap}LevelMin"),
                 "level_max": get(QSpinBox, f"material{cap}LevelMax"),
                 "advanced_toggle": get(QPushButton, f"material{cap}AdvancedToggle"),
-                "advanced": get(QLayout, f"material{cap}AdvancedLayout"),
+                "advanced": advanced,
             }
 
         controls["bulk_filters"] = {"a": bind_filter("a"), "b": bind_filter("b")}
@@ -250,12 +239,8 @@ class FusionsMixin:
                             "overwrite": overwrite, "summary": summary, "errors": errors,
                             "warnings": warnings, "preview": preview, "apply": apply,
                             "undo": undo, "batch": None, "result_project": self.project}
-        mode = QComboBox()
-        mode.addItem("Add fusions", "add")
-        mode.addItem("Take fusions away", "remove")
-        reset_result = QPushButton("Clear result restriction")
-        page.layout().insertWidget(0, mode)
-        page.layout().insertWidget(1, reset_result)
+        mode = get(QComboBox, "bulkFusionModeCombo")
+        reset_result = get(QPushButton, "clearBulkResultButton")
         controls["bulk"]["mode"] = mode
         controls["bulk"]["reset_result"] = reset_result
         mode.currentIndexChanged.connect(self._bulk_mode_changed)
@@ -274,9 +259,8 @@ class FusionsMixin:
                 widget.toggled.connect(self._schedule_bulk_fusion_plan)
             for widget in (side["level_exact"], side["level_min"], side["level_max"]):
                 widget.valueChanged.connect(self._schedule_bulk_fusion_plan)
-            self._set_layout_widgets_visible(side["advanced"], side["advanced_toggle"].isChecked())
-            side["advanced_toggle"].toggled.connect(
-                lambda visible, layout=side["advanced"]: self._set_layout_widgets_visible(layout, visible))
+            side["advanced"].setVisible(side["advanced_toggle"].isChecked())
+            side["advanced_toggle"].toggled.connect(side["advanced"].setVisible)
         ladder.textChanged.connect(self._schedule_bulk_fusion_plan)
         for widget in (choose_card, use_ladder, stronger, allow_self, overwrite):
             widget.toggled.connect(self._schedule_bulk_fusion_plan)

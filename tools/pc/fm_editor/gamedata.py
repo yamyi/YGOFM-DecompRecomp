@@ -94,9 +94,12 @@ def fusion_group_named(text) -> str:
 # A card's "frame" (cards.c frame_names): the palette rows the game draws a
 # card through. Retail picks one by type; purple and orange it never uses.
 FRAME_NAMES = ["Monster", "Magic", "Trap", "Ritual", "Purple", "Orange"]
-# The first four by the color they are (cards.c frame_color_names): a mod may
-# write either; the editor writes the disc's names, which older builds read too.
+# Friendly colour names accepted by the runtime and shown alongside the
+# technical frame names.  The integer remains the on-disc frame index.
 FRAME_COLOR_NAMES = ["Gold", "Green", "Pink", "Blue"]
+FRAME_COLOUR_NAMES = ("Gold", "Green", "Pink", "Blue", "Purple", "Orange")
+FRAME_NAME_ALIASES = {name.lower(): index for index, name in enumerate(FRAME_NAMES)}
+FRAME_NAME_ALIASES.update({name.lower(): index for index, name in enumerate(FRAME_COLOUR_NAMES)})
 # A card's "tags" (cards.c tag_bit): 32 different ones in all the mods, each
 # at most 31 letters (bytes, as the game counts them); more are left out.
 TAGS_MAX = 32

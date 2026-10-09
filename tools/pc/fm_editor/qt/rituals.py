@@ -301,6 +301,8 @@ class RitualsMixin:
                 elif key in ("type", "fusion_group"):
                     field = QComboBox()
                     field.addItems(list(TYPE_NAMES[:20] if key == "type" else FUSION_GROUPS))
+                    if key == "type":
+                        decorate_type_items(self, field)
                     found = field.findText(str(requirement[key]))
                     field.setCurrentIndex(found if found >= 0 else 0)
                     row.addWidget(field, 1)

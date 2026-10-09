@@ -1,0 +1,283 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>AssetsPage</class>
+ <widget class="QWidget" name="AssetsPage">
+  <property name="geometry">
+   <rect><x>0</x><y>0</y><width>1400</width><height>760</height></rect>
+  </property>
+  <property name="windowTitle"><string>UI / Graphics</string></property>
+  <layout class="QVBoxLayout" name="assetsPageLayout">
+   <property name="leftMargin"><number>8</number></property>
+   <property name="topMargin"><number>8</number></property>
+   <property name="rightMargin"><number>8</number></property>
+   <property name="bottomMargin"><number>8</number></property>
+   <property name="spacing"><number>8</number></property>
+
+   <item>
+    <layout class="QHBoxLayout" name="assetsHeaderLayout">
+     <item>
+      <layout class="QVBoxLayout" name="assetsHeaderTextLayout">
+       <property name="spacing"><number>2</number></property>
+       <item>
+        <widget class="QLabel" name="assetsTitle">
+         <property name="text"><string>UI / Graphics</string></property>
+         <property name="styleSheet"><string notr="true">font-size: 20px; font-weight: 700;</string></property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="assetsIntro">
+         <property name="text"><string>Replace catalogued game graphics by name. No archive offsets or texture manifest editing required.</string></property>
+         <property name="wordWrap"><bool>true</bool></property>
+        </widget>
+       </item>
+      </layout>
+     </item>
+     <item>
+      <spacer name="assetsHeaderSpacer">
+       <property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property>
+       <property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QPushButton" name="uiModGuideButton">
+       <property name="text"><string>Asset catalog...</string></property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+
+   <item>
+    <widget class="QSplitter" name="assetsMainSplitter">
+     <property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property>
+     <property name="childrenCollapsible"><bool>false</bool></property>
+
+     <widget class="QWidget" name="assetCategoriesPane">
+      <layout class="QVBoxLayout" name="assetCategoriesLayout">
+       <property name="leftMargin"><number>0</number></property>
+       <property name="topMargin"><number>0</number></property>
+       <property name="rightMargin"><number>0</number></property>
+       <property name="bottomMargin"><number>0</number></property>
+       <item>
+        <widget class="QGroupBox" name="assetCategoriesGroup">
+         <property name="title"><string>Asset Categories</string></property>
+         <layout class="QVBoxLayout" name="assetCategoriesGroupLayout">
+          <item>
+           <widget class="QLineEdit" name="assetCategorySearch">
+            <property name="placeholderText"><string>Search categories...</string></property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QTreeWidget" name="assetCategoryTree">
+            <property name="headerHidden"><bool>true</bool></property>
+            <column><property name="text"><string>Category</string></property></column>
+            <item><property name="text"><string>Card UI</string></property>
+             <item><property name="text"><string>Card Frames</string></property></item>
+             <item><property name="text"><string>Attributes</string></property></item>
+             <item><property name="text"><string>Guardian Stars</string></property></item>
+             <item><property name="text"><string>Monster Types</string></property></item>
+            </item>
+            <item><property name="text"><string>Build Deck / Trade</string></property></item>
+            <item><property name="text"><string>Duel HUD</string></property></item>
+            <item><property name="text"><string>Shared UI</string></property></item>
+            <item><property name="text"><string>Card Images</string></property></item>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="advancedAssetHint">
+            <property name="text"><string>Portraits, story scenes and whole screen sheets still use the advanced texture-pack workflow.</string></property>
+            <property name="wordWrap"><bool>true</bool></property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+
+     <widget class="QWidget" name="assetListPane">
+      <layout class="QVBoxLayout" name="assetListLayout">
+       <property name="leftMargin"><number>0</number></property>
+       <property name="topMargin"><number>0</number></property>
+       <property name="rightMargin"><number>0</number></property>
+       <property name="bottomMargin"><number>0</number></property>
+       <item>
+        <widget class="QGroupBox" name="assetListGroup">
+         <property name="title"><string>Assets</string></property>
+         <layout class="QVBoxLayout" name="assetListGroupLayout">
+          <item>
+           <layout class="QHBoxLayout" name="assetFiltersLayout">
+            <item><widget class="QPushButton" name="allAssetsFilterButton"><property name="text"><string>All</string></property><property name="checkable"><bool>true</bool></property><property name="checked"><bool>true</bool></property></widget></item>
+            <item><widget class="QPushButton" name="modifiedAssetsFilterButton"><property name="text"><string>Modified</string></property><property name="checkable"><bool>true</bool></property></widget></item>
+            <item><widget class="QPushButton" name="retailAssetsFilterButton"><property name="text"><string>Retail</string></property><property name="checkable"><bool>true</bool></property></widget></item>
+            <item><spacer name="assetFilterSpacer"><property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property></spacer></item>
+           </layout>
+          </item>
+          <item>
+           <widget class="QTableWidget" name="assetTable">
+            <property name="selectionBehavior"><enum>QAbstractItemView::SelectionBehavior::SelectRows</enum></property>
+            <property name="selectionMode"><enum>QAbstractItemView::SelectionMode::SingleSelection</enum></property>
+            <property name="editTriggers"><set>QAbstractItemView::EditTrigger::NoEditTriggers</set></property>
+            <property name="alternatingRowColors"><bool>true</bool></property>
+            <column><property name="text"><string>Asset</string></property></column>
+            <column><property name="text"><string>Method</string></property></column>
+            <column><property name="text"><string>State</string></property></column>
+           </widget>
+          </item>
+          <item>
+           <layout class="QGridLayout" name="assetListButtonsLayout">
+            <item row="0" column="0"><widget class="QPushButton" name="importAssetButton"><property name="text"><string>Import PNG...</string></property></widget></item>
+            <item row="0" column="1"><widget class="QPushButton" name="exportAssetButton"><property name="text"><string>Export retail...</string></property></widget></item>
+            <item row="1" column="0"><widget class="QPushButton" name="revertAssetButton"><property name="text"><string>Revert</string></property></widget></item>
+            <item row="1" column="1"><widget class="QPushButton" name="openAssetFileButton"><property name="text"><string>Open file</string></property></widget></item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+
+     <widget class="QWidget" name="assetDetailsPane">
+      <layout class="QVBoxLayout" name="assetDetailsLayout">
+       <property name="leftMargin"><number>0</number></property>
+       <property name="topMargin"><number>0</number></property>
+       <property name="rightMargin"><number>0</number></property>
+       <property name="bottomMargin"><number>0</number></property>
+       <item>
+        <widget class="QGroupBox" name="selectedAssetGroup">
+         <property name="title"><string>Selected Asset</string></property>
+         <layout class="QVBoxLayout" name="selectedAssetLayout">
+          <item>
+           <layout class="QHBoxLayout" name="selectedAssetTitleLayout">
+            <item><widget class="QLabel" name="selectedAssetName"><property name="text"><string>No UI asset selected</string></property><property name="styleSheet"><string notr="true">font-size: 18px; font-weight: 700;</string></property></widget></item>
+            <item><spacer name="selectedAssetTitleSpacer"><property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property></spacer></item>
+            <item><widget class="QPushButton" name="revertSelectedAssetButton"><property name="text"><string>Reset to retail</string></property></widget></item>
+           </layout>
+          </item>
+          <item><widget class="QLabel" name="assetStatus"><property name="text"><string>No texture-pack UI assets in this mod</string></property></widget></item>
+
+          <item>
+           <widget class="QFrame" name="assetMetadataFrame">
+            <property name="frameShape"><enum>QFrame::Shape::StyledPanel</enum></property>
+            <layout class="QGridLayout" name="assetMetadataLayout">
+             <item row="0" column="0"><widget class="QLabel" name="assetMethodLabel"><property name="text"><string>Method</string></property></widget></item>
+             <item row="0" column="1"><widget class="QLabel" name="assetMethodValue"><property name="text"><string>Named asset</string></property></widget></item>
+             <item row="1" column="0"><widget class="QLabel" name="assetKeyLabel"><property name="text"><string>mod.json</string></property></widget></item>
+             <item row="1" column="1"><widget class="QLabel" name="assetKeyValue"><property name="text"><string>assets: &quot;assets&quot;</string></property></widget></item>
+             <item row="2" column="0"><widget class="QLabel" name="assetFilenameLabel"><property name="text"><string>File</string></property></widget></item>
+             <item row="2" column="1"><widget class="QLabel" name="assetFilenameValue"><property name="text"><string>—</string></property></widget></item>
+             <item row="0" column="2"><widget class="QLabel" name="assetSizeLabel"><property name="text"><string>Native size</string></property></widget></item>
+             <item row="0" column="3"><widget class="QLabel" name="assetSizeValue"><property name="text"><string>—</string></property></widget></item>
+             <item row="1" column="2"><widget class="QLabel" name="assetScaleLabel"><property name="text"><string>HD</string></property></widget></item>
+             <item row="1" column="3"><widget class="QLabel" name="assetScaleValue"><property name="text"><string>Internal 2x / 4x</string></property></widget></item>
+            </layout>
+           </widget>
+          </item>
+
+          <item>
+           <layout class="QHBoxLayout" name="previewToolbarLayout">
+            <item><widget class="QLabel" name="previewLabel"><property name="text"><string>Preview</string></property><property name="styleSheet"><string notr="true">font-weight: 700;</string></property></widget></item>
+            <item><spacer name="previewToolbarSpacer"><property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property></spacer></item>
+            <item><widget class="QPushButton" name="preview1xButton"><property name="text"><string>1x</string></property><property name="checkable"><bool>true</bool></property></widget></item>
+            <item><widget class="QPushButton" name="preview2xButton"><property name="text"><string>2x</string></property><property name="checkable"><bool>true</bool></property><property name="checked"><bool>true</bool></property></widget></item>
+            <item><widget class="QPushButton" name="preview4xButton"><property name="text"><string>4x</string></property><property name="checkable"><bool>true</bool></property></widget></item>
+           </layout>
+          </item>
+
+          <item>
+           <layout class="QHBoxLayout" name="assetPreviewComparisonLayout" stretch="1,1">
+            <item>
+             <widget class="QGroupBox" name="retailPreviewGroup">
+              <property name="title"><string>Retail (PS1)</string></property>
+              <layout class="QVBoxLayout" name="retailPreviewLayout">
+               <item>
+                <widget class="QScrollArea" name="retailPreviewScrollArea">
+                 <property name="minimumSize"><size><width>300</width><height>330</height></size></property>
+                 <property name="widgetResizable"><bool>true</bool></property>
+                 <property name="horizontalScrollBarPolicy"><enum>Qt::ScrollBarAlwaysOff</enum></property>
+                 <property name="verticalScrollBarPolicy"><enum>Qt::ScrollBarAlwaysOff</enum></property>
+                 <widget class="QWidget" name="retailPreviewScrollContents">
+                  <property name="geometry"><rect><x>0</x><y>0</y><width>330</width><height>360</height></rect></property>
+                  <layout class="QVBoxLayout" name="retailPreviewScrollLayout">
+                   <item><widget class="QLabel" name="retailPreview"><property name="sizePolicy"><sizepolicy hsizetype="Expanding" vsizetype="Expanding"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy></property><property name="minimumSize"><size><width>1</width><height>1</height></size></property><property name="alignment"><set>Qt::AlignmentFlag::AlignCenter</set></property><property name="text"><string>Retail preview</string></property><property name="scaledContents"><bool>false</bool></property></widget></item>
+                  </layout>
+                 </widget>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            <item>
+             <widget class="QGroupBox" name="modPreviewGroup">
+              <property name="title"><string>Replacement (Your Mod)</string></property>
+              <layout class="QVBoxLayout" name="modPreviewLayout">
+               <item>
+                <widget class="QScrollArea" name="modPreviewScrollArea">
+                 <property name="minimumSize"><size><width>300</width><height>330</height></size></property>
+                 <property name="widgetResizable"><bool>true</bool></property>
+                 <property name="horizontalScrollBarPolicy"><enum>Qt::ScrollBarAlwaysOff</enum></property>
+                 <property name="verticalScrollBarPolicy"><enum>Qt::ScrollBarAlwaysOff</enum></property>
+                 <widget class="QWidget" name="modPreviewScrollContents">
+                  <property name="geometry"><rect><x>0</x><y>0</y><width>330</width><height>360</height></rect></property>
+                  <layout class="QVBoxLayout" name="modPreviewScrollLayout">
+                   <item><widget class="QLabel" name="modPreview"><property name="sizePolicy"><sizepolicy hsizetype="Expanding" vsizetype="Expanding"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy></property><property name="minimumSize"><size><width>1</width><height>1</height></size></property><property name="alignment"><set>Qt::AlignmentFlag::AlignCenter</set></property><property name="text"><string>Replacement preview</string></property><property name="scaledContents"><bool>false</bool></property></widget></item>
+                  </layout>
+                 </widget>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </item>
+           </layout>
+          </item>
+
+          <!-- Hidden compatibility label for the existing controller, which still calls findChild("gamePreview"). -->
+          <item>
+           <widget class="QLabel" name="gamePreview">
+            <property name="visible"><bool>false</bool></property>
+            <property name="maximumSize"><size><width>0</width><height>0</height></size></property>
+            <property name="text"><string/></property>
+           </widget>
+          </item>
+
+          <item>
+           <layout class="QHBoxLayout" name="assetActionsLayout">
+            <item><widget class="QPushButton" name="replaceSelectedAssetButton"><property name="text"><string>Replace PNG...</string></property></widget></item>
+            <item><widget class="QPushButton" name="removeReplacementButton"><property name="text"><string>Remove override</string></property></widget></item>
+            <item><spacer name="assetActionsSpacer"><property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property></spacer></item>
+           </layout>
+          </item>
+
+          <item>
+           <widget class="QGroupBox" name="replacementInfoGroup">
+            <property name="title"><string>Replacement Image</string></property>
+            <layout class="QGridLayout" name="replacementInfoLayout">
+             <item row="0" column="0"><widget class="QLabel" name="replacementPathLabel"><property name="text"><string>Path</string></property></widget></item>
+             <item row="0" column="1"><widget class="QLabel" name="replacementPathValue"><property name="text"><string>assets/…</string></property><property name="textInteractionFlags"><set>Qt::TextInteractionFlag::TextSelectableByMouse</set></property></widget></item>
+             <item row="1" column="0"><widget class="QLabel" name="replacementImageInfoLabel"><property name="text"><string>Image</string></property></widget></item>
+             <item row="1" column="1"><widget class="QLabel" name="replacementImageInfoValue"><property name="text"><string>PNG, RGBA</string></property></widget></item>
+            </layout>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+
+   <item>
+    <layout class="QHBoxLayout" name="assetsFooterLayout">
+     <item><widget class="QLabel" name="assetFooterStatus"><property name="text"><string>0 modified assets</string></property></widget></item>
+     <item><spacer name="assetFooterSpacer"><property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property></spacer></item>
+     <item><widget class="QPushButton" name="revertAllUiButton"><property name="text"><string>Revert all UI</string></property></widget></item>
+     <item><widget class="QPushButton" name="previewAssetsModButton"><property name="text"><string>Preview mod...</string></property></widget></item>
+     <item><widget class="QPushButton" name="applyAssetsButton"><property name="text"><string>Apply changes</string></property><property name="default"><bool>true</bool></property></widget></item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

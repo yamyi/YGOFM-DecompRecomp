@@ -254,8 +254,11 @@ class CardsMixin:
         self.filter.addItems(self.FILTERS)
         self.type_box.addItems(TYPE_NAMES)
         self.attribute_box.addItems(ATTRIBUTE_NAMES + ["6 (magic)", "7 (trap)"])
-        self.star1_box.addItems(STAR_NAMES)
-        self.star2_box.addItems(STAR_NAMES)
+        star_choices = guardian_stars.choices(self.project.other.get("guardian_stars"))
+        self.star1_box.addItems(star_choices)
+        self.star2_box.addItems(star_choices)
+        decorate_guardian_star_items(self, self.star1_box, first_star=0)
+        decorate_guardian_star_items(self, self.star2_box, first_star=0)
         self.frame_box.addItems(["By card type"] + FRAME_NAMES)
         self.listing.setColumnCount(6)
         self.listing.setHorizontalHeaderLabels(["ID", "Name", "Type", "ATK", "DEF", "State"])
@@ -265,13 +268,13 @@ class CardsMixin:
         self.listing.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.listing.verticalHeader().setVisible(False)
         header = self.listing.horizontalHeader()
-        header.setStretchLastSection(False)
-        # Only the name grows. Everything else is as wide as its content needs,
-        # so all six columns fit a narrow list instead of scrolling sideways.
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header.setStretchLastSection(True)
+        # The initial widths fit a narrow page, while every column remains
+        # draggable when the user needs to inspect a value in full.
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
         header.setMinimumSectionSize(40)
-        for column, width in ((0, 44), (2, 92), (3, 52), (4, 52), (5, 64)):
-            header.setSectionResizeMode(column, QHeaderView.ResizeMode.Fixed)
+        for column, width in ((0, 44), (1, 220), (2, 92), (3, 52), (4, 52), (5, 64)):
+            header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
             header.resizeSection(column, width)
         self.listing.setWordWrap(False)         # a long name elides, it does not double the row
         self.listing.setTextElideMode(Qt.TextElideMode.ElideRight)
@@ -451,6 +454,8 @@ class CardsMixin:
         lists = QHBoxLayout()
         type_list = self._checkable_list(TYPE_NAMES, dialog, height=8)
         attribute_list = self._checkable_list(ATTRIBUTE_NAMES, dialog, height=8)
+        decorate_type_items(self, type_list, TYPE_NAMES)
+        decorate_attribute_items(self, attribute_list, ATTRIBUTE_NAMES)
         type_list.setMaximumHeight(164)
         attribute_list.setMaximumHeight(164)
         for title, listing in (("Card type", type_list), ("Attribute", attribute_list)):
@@ -540,6 +545,7 @@ class CardsMixin:
                 item = TableItem()
                 item.setData(Qt.ItemDataRole.DisplayRole, value)
                 if col == 0: item.setData(Qt.ItemDataRole.UserRole, cid)
+                elif col == 2: item.setIcon(type_icon(self, card.type))
                 self._tint_state(item, state)
                 self.listing.setItem(row, col, item)
         sort_resumed(self.listing, held)
@@ -1127,10 +1133,11 @@ QLabel#referenceValue[changed="true"] { color: #8ab4f8; border-color: #3f6ea8; }
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
-        table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        for column, width in ((0, 34), (1, 110)):
-            table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.Fixed)
+        table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)
+        for column, width in ((0, 34), (1, 110), (2, 260)):
+            table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
             table.horizontalHeader().resizeSection(column, width)
+        table.horizontalHeader().setStretchLastSection(True)
         table.itemSelectionChanged.connect(self._card_effect_buttons)
         table.cellDoubleClicked.connect(lambda *_: self._edit_card_effect())
         controls["addEffect"].clicked.connect(self._add_card_effect)
@@ -1280,11 +1287,13 @@ QLabel#referenceValue[changed="true"] { color: #8ab4f8; border-color: #3f6ea8; }
         only_type.addItem("Any", "")
         for name in TYPE_NAMES[:gamedata.TYPE_MAGIC]:
             only_type.addItem(name, name)
+        decorate_type_items(self, only_type, TYPE_NAMES[:gamedata.TYPE_MAGIC])
         only_type.setCurrentIndex(max(0, only_type.findData(effect.get("only_type", ""))))
         only_attribute = row(5, "Only attribute", short_popup(QComboBox(dialog)))
         only_attribute.addItem("Any", "")
         for name in ATTRIBUTE_NAMES:
             only_attribute.addItem(name, name)
+        decorate_attribute_items(self, only_attribute, ATTRIBUTE_NAMES)
         only_attribute.setCurrentIndex(max(0, only_attribute.findData(effect.get("only_attribute", ""))))
         points = {}
         for index, key in enumerate(("atk", "def")):

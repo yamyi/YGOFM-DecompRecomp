@@ -1,0 +1,53 @@
+{
+    "id": "forbidden-memories-hd",
+    "name": "Forbidden Memories HD",
+    "version": "1.0",
+    "author": "Unchiga, X@nder",
+    "description": "HD card art, thumbnails, frames, card back, attribute balls, the Build Deck screen and the duel (arena, hand, FIELD box, life points); the Free Duel portraits. Shows best at View > Internal 4x with HD text on.",
+    "enabled": true,
+    "textures": "textures",
+    "settings": [
+        {
+            "key": "card_art",
+            "label": "Card art",
+            "type": "bool",
+            "default": 1,
+            "description": "The redrawn pictures on the cards."
+        },
+        {
+            "key": "thumbnails",
+            "label": "Card thumbnails",
+            "type": "bool",
+            "default": 1,
+            "description": "The small pictures in the duel hand and on the field."
+        },
+        {
+            "key": "card_frames",
+            "label": "Card frames",
+            "type": "bool",
+            "default": 1,
+            "description": "Frames, card back, attribute balls, level stars and the card view's digits and labels."
+        },
+        {
+            "key": "build_deck",
+            "label": "Build Deck screen",
+            "type": "bool",
+            "default": 1,
+            "description": "The Build Deck and Trade screen's panels, icons and labels."
+        },
+        {
+            "key": "duel",
+            "label": "Duel arena and HUD",
+            "type": "bool",
+            "default": 1,
+            "description": "The platform of all seven fields, the cards' frames in the hand, their labels and numbers, the FIELD box and the life points."
+        },
+        {
+            "key": "free-duel-portraits-hd",
+            "label": "Free Duel Portraits HD",
+            "type": "bool",
+            "default": 1,
+            "description": "Redrawn 192x192 portraits for the 40 Free Duel opponents. Shows best at View > Internal 4x."
+        }
+    ]
+}

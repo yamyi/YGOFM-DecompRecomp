@@ -164,10 +164,10 @@ class StarsMixin:
         sort_resumed(table, held)
         table.blockSignals(False)
         header = table.horizontalHeader()
-        for column, width in ((0, 42), (2, 74), (3, 62)):
-            header.setSectionResizeMode(column, QHeaderView.ResizeMode.Fixed)
+        for column, width in ((0, 42), (1, 170), (2, 74), (3, 62)):
+            header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
             header.resizeSection(column, width)
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header.setStretchLastSection(True)
         c["list_title"].setText(f"Guardian stars ({model.count})")
         self._select_star_row(self.stars_selected)
         self._draw_star_matrix()
@@ -555,6 +555,8 @@ class StarsMixin:
         chooser_layout = QHBoxLayout(chooser)
         types = self._checkable_list(TYPE_NAMES[:20], chooser, height=6)
         attributes = self._checkable_list(ATTRIBUTE_NAMES, chooser, height=6)
+        decorate_type_items(self, types)
+        decorate_attribute_items(self, attributes)
         for listing, title in ((types, "Monster type"), (attributes, "Attribute")):
             column = QVBoxLayout()
             caption = QLabel(title)

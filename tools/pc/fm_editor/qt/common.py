@@ -151,6 +151,140 @@ def _qimage(width: int, height: int, rgba: bytes) -> QImage:
     return QImage(rgba, width, height, width * 4, QImage.Format.Format_RGBA8888).copy()
 
 
+def _icon_archive(editor):
+    """The active archive, including an imported BIN's replacement sheets."""
+    return getattr(editor, "preview_wa", None) or getattr(getattr(editor, "files", None), "wa", None)
+
+
+def type_icon(editor, type_id: int) -> QIcon:
+    """The card-text type icon used by the Cards page, cached per editor."""
+    if not isinstance(type_id, int) or type_id < 0:
+        return QIcon()
+    wa = _icon_archive(editor)
+    if wa is None:
+        return QIcon()
+    cache = getattr(editor, "_type_icon_cache", None)
+    if cache is None:
+        cache = editor._type_icon_cache = {}
+    if type_id in cache:
+        return cache[type_id]
+    try:
+        from .. import card_text
+        # Use the named icon table rather than assuming the numeric card type
+        # order.  The game stores Spell/Trap/Ritual/Equip after the monster
+        # icons, and this remains correct if that order changes in a mod.
+        name = TYPE_NAMES[type_id]
+        code = card_text.ICON_NAMES.index(name)
+        image = card_text.RetailFont(wa).icon(code)
+        icon = QIcon(QPixmap.fromImage(_qimage(*image))) if image is not None else QIcon()
+    except (IndexError, OSError, ValueError, struct.error):
+        icon = QIcon()
+    cache[type_id] = icon
+    return icon
+
+
+def attribute_icon(editor, attribute_id: int) -> QIcon:
+    """The 16×16 attribute ball shown by the Cards page."""
+    if not isinstance(attribute_id, int) or not 0 <= attribute_id < 8:
+        return QIcon()
+    wa = _icon_archive(editor)
+    if wa is None:
+        return QIcon()
+    cache = getattr(editor, "_attribute_icon_cache", None)
+    if cache is None:
+        cache = editor._attribute_icon_cache = {}
+    if attribute_id in cache:
+        return cache[attribute_id]
+    try:
+        sheet, palettes = 0xEFE800, 0xF06800
+        palette = palettes + 0x1E00 + attribute_id * 0x20
+        if len(wa) < max(sheet + (128 + 16) * 128, palette + 32):
+            raise ValueError("attribute sheet is unavailable")
+        rgba = bytearray()
+        for y in range(16):
+            for x in range(16):
+                byte = wa[sheet + (128 + y) * 128 + (16 * attribute_id + x) // 2]
+                index = byte >> (4 * ((16 * attribute_id + x) & 1)) & 15
+                word = wa[palette + index * 2] | wa[palette + index * 2 + 1] << 8
+                rgba += bytes(((word & 31) * 255 // 31, ((word >> 5) & 31) * 255 // 31,
+                               ((word >> 10) & 31) * 255 // 31, 255 if index and word else 0))
+        icon = QIcon(QPixmap.fromImage(_qimage(16, 16, bytes(rgba))))
+    except (IndexError, OSError, ValueError, struct.error):
+        icon = QIcon()
+    cache[attribute_id] = icon
+    return icon
+
+
+def guardian_star_icon(editor, star_id: int) -> QIcon:
+    """Retail, imported, or mod-defined guardian-star symbol."""
+    if not isinstance(star_id, int) or star_id <= 0:
+        return QIcon()
+    cache = getattr(editor, "_guardian_star_icon_cache", None)
+    if cache is None:
+        cache = editor._guardian_star_icon_cache = {}
+    if star_id in cache:
+        return cache[star_id]
+    try:
+        image = None
+        project = getattr(editor, "project", None)
+        if project is not None:
+            model = guardian_stars.read(project.other.get("guardian_stars"))
+            entry = model.stars.get(star_id)
+            if entry is not None and entry.icon:
+                if entry.icon in project.files:
+                    image = pngio.decode(project.files[entry.icon])
+                elif project.source_dir:
+                    image = pngio.read(Path(project.source_dir) / entry.icon)
+        if image is not None:
+            icon = QIcon(QPixmap.fromImage(_qimage(image.width, image.height, image.rgba)))
+            cache[star_id] = icon
+            return icon
+        wa = _icon_archive(editor)
+        found = guardian_stars.disc_icon(wa, star_id) or guardian_stars.imported_icon(wa, star_id)
+        icon = QIcon(QPixmap.fromImage(_qimage(*found))) if found is not None else QIcon()
+    except (AttributeError, IndexError, OSError, ValueError, struct.error, pngio.PngError):
+        icon = QIcon()
+    cache[star_id] = icon
+    return icon
+
+
+def decorate_type_items(editor, widget, names=TYPE_NAMES[:20]):
+    """Set type icons on a combo box or checkable list whose labels are names."""
+    for index, name in enumerate(names):
+        icon = type_icon(editor, index)
+        if isinstance(widget, QComboBox):
+            found = widget.findText(name)
+            if found >= 0:
+                widget.setItemIcon(found, icon)
+        elif index < widget.count():
+            widget.item(index).setIcon(icon)
+
+
+def decorate_attribute_items(editor, widget, names=ATTRIBUTE_NAMES):
+    """Set attribute-ball icons on a combo box or checkable list."""
+    for index, name in enumerate(names):
+        icon = attribute_icon(editor, index)
+        if isinstance(widget, QComboBox):
+            found = widget.findText(name)
+            if found >= 0:
+                widget.setItemIcon(found, icon)
+        elif index < widget.count():
+            widget.item(index).setIcon(icon)
+
+
+def decorate_guardian_star_items(editor, widget, first_star: int = 1):
+    """Set symbols on sequential guardian-star choices, excluding '(none)'."""
+    for index in range(widget.count()):
+        star = index + first_star
+        if isinstance(widget, QComboBox):
+            data = widget.itemData(index)
+            if isinstance(data, int) and data >= 0:
+                star = data
+            widget.setItemIcon(index, guardian_star_icon(editor, star))
+        else:
+            widget.item(index).setIcon(guardian_star_icon(editor, star))
+
+
 def _line_count(text: str) -> int:
     return validate.text_lines(text)
 

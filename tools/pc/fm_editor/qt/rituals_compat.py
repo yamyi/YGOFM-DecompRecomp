@@ -11,6 +11,7 @@ def install() -> None:
     from .common import (
         FUSION_GROUPS, TYPE_NAMES, QComboBox, QFrame, QHBoxLayout, QLabel,
         QMenu, QPushButton, QSpinBox, QTabWidget, QVBoxLayout, QWidget, QGridLayout, Qt,
+        decorate_attribute_items, decorate_type_items,
     )
     from .rituals import RitualsMixin
 
@@ -201,6 +202,8 @@ def install() -> None:
         elif key in ("type", "fusion_group"):
             field = QComboBox()
             field.addItems(list(TYPE_NAMES[:20] if key == "type" else FUSION_GROUPS))
+            if key == "type":
+                decorate_type_items(self, field)
             found = field.findText(str(requirement.get(key, "")))
             field.setCurrentIndex(found if found >= 0 else 0)
             field.currentTextChanged.connect(lambda text, n=index, k=key: change_rule(self, n, k, text))
@@ -293,16 +296,24 @@ def install() -> None:
         table = self.workspace_controls["Rituals"]["cards"]
         table.setColumnHidden(3, True)
         header = table.horizontalHeader()
-        header.setStretchLastSection(False)
-        header.setSectionResizeMode(0, header.ResizeMode.Fixed)
+        header.setStretchLastSection(True)
+        header.setSectionResizeMode(0, header.ResizeMode.Interactive)
         header.resizeSection(0, 52)
-        header.setSectionResizeMode(1, header.ResizeMode.Stretch)
-        header.setSectionResizeMode(2, header.ResizeMode.Fixed)
+        header.setSectionResizeMode(1, header.ResizeMode.Interactive)
+        header.resizeSection(1, 210)
+        header.setSectionResizeMode(2, header.ResizeMode.Interactive)
         header.resizeSection(2, 86)
         return result
 
     def refresh_detail(self, *args, **kwargs):
         result = original_detail(self, *args, **kwargs)
+        form = self.workspace_forms.get("Rituals")
+        if form is not None:
+            for combo in form.findChildren(QComboBox):
+                if combo.objectName().endswith("Type"):
+                    decorate_type_items(self, combo)
+                elif combo.objectName().endswith("Attribute"):
+                    decorate_attribute_items(self, combo)
         refresh_inline(self)
         return result
 

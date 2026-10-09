@@ -90,10 +90,8 @@ def main() -> int:
         program.append("--onefile")
     if not arguments.console:
         program.append("--windowed")
-    program.append(str(HERE / "__main__.py"))
-    # The spec's collect_submodules imports fm_editor before --paths is in
-    # effect; without this it finds nothing and the pages the UI tab loads
-    # by name (ui_title, ui_duel, ui_board) are left out of the program.
+    # The packaged application starts the modern Qt editor directly.
+    program.append(str(HERE / "pyside_app.py"))
     env = dict(os.environ)
     env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(HERE.parent), env.get("PYTHONPATH")]))
     makespec = [sys.executable, "-m", "PyInstaller.utils.cliutils.makespec", *program]

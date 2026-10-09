@@ -285,8 +285,28 @@ class PacksMixin:
         full=c["image_style"].currentIndex()==1 and own
         try:
             if full:
-                shaped=art.full_picture(picture,zoom)
-                drawn=_qimage(shaped.width,shaped.height,shaped.rgba)
+                # pack_shop.c: fit the whole PNG inside the password-card
+                # view, over black, using the console alpha rule at 1× and
+                # the PNG's alpha at 2×/4×.
+                w, h = packmath.fit_full(picture.width, picture.height)
+                fitted = pngio.resample(picture, w * zoom, h * zoom)
+                width, height = packmath.CARD_VIEW[0] * zoom, packmath.CARD_VIEW[1] * zoom
+                rgba = bytearray(b"\x00\x00\x00\xff") * (width * height)
+                left = (packmath.CARD_VIEW[0] - w) // 2 * zoom
+                top = (packmath.CARD_VIEW[1] - h) // 2 * zoom
+                for y in range(fitted.height):
+                    row = fitted.rgba[y * fitted.width * 4:(y + 1) * fitted.width * 4]
+                    start = ((top + y) * width + left) * 4
+                    for x in range(fitted.width):
+                        red, green, blue, alpha = row[x * 4:x * 4 + 4]
+                        target = start + x * 4
+                        if zoom == 1:
+                            if alpha * 2 >= 255:
+                                rgba[target:target + 4] = bytes((red, green, blue, 255))
+                        elif alpha:
+                            rgba[target:target + 4] = bytes((red * alpha // 255, green * alpha // 255,
+                                                              blue * alpha // 255, 255))
+                drawn = _qimage(width, height, bytes(rgba))
             else:
                 drawn=self._pack_picture(picture,name,zoom)
         except (OSError,ValueError,pngio.PngError):drawn=None
@@ -299,7 +319,12 @@ class PacksMixin:
                 f"The pack's picture, {picture.width}×{picture.height}: made into the console's "
                 f"{art.SIZES['art'][0]}×{art.SIZES['art'][1]} at 1×; Internal 2× and 4× draw it at its own size.")
         if drawn is not None and not drawn.isNull():
-            c["image"].setText("");c["image"].setPixmap(QPixmap.fromImage(drawn))
+            target = c["image"].contentsRect().size()
+            pixmap = QPixmap.fromImage(drawn)
+            if target.width() > 0 and target.height() > 0:
+                pixmap = pixmap.scaled(target, Qt.AspectRatioMode.KeepAspectRatio,
+                                       Qt.TransformationMode.SmoothTransformation)
+            c["image"].setText("");c["image"].setPixmap(pixmap)
             self._set_pack_image_buttons(own);return
         nothing()
     def _pack_style_chosen(self, *_):
@@ -1027,6 +1052,12 @@ class PacksMixin:
             made = []
             for n, name in enumerate(names):
                 box = QCheckBox(str(name))
+                if key == "attributes":
+                    box.setIcon(attribute_icon(self, n))
+                elif key == "types":
+                    box.setIcon(type_icon(self, n))
+                if key in ("attributes", "types"):
+                    box.setIconSize(QSize(16, 16))
                 grid.addWidget(box, row + n // columns, n % columns)
                 made.append(box)
             row += (len(names) + columns - 1) // columns

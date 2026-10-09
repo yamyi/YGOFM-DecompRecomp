@@ -112,11 +112,10 @@ class StarterMixin:
                 table.setItem(row, column, item)
         sort_resumed(table, held)
         header = table.horizontalHeader()
-        for column, width in ((0, 40), (2, 64), (3, 64), (4, 80), (5, 80)):
-            header.setSectionResizeMode(column, QHeaderView.ResizeMode.Fixed)
+        for column, width in ((0, 40), (1, 200), (2, 64), (3, 64), (4, 80), (5, 80)):
+            header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
             header.resizeSection(column, width)
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)
+        header.setStretchLastSection(True)
         if pools:
             index = min(getattr(self, "starter_pool_current", 0), len(pools) - 1)
             self.starter_pool_current = index
@@ -195,6 +194,8 @@ class StarterMixin:
                 item = TableItem(str(value))
                 if column == 0:
                     item.setData(Qt.ItemDataRole.UserRole, cid)
+                elif column == 2 and card is not None:
+                    item.setIcon(type_icon(self, card.type))
                 table.setItem(row, column, item)
         # A card the editor could not place keeps its row, so a pool somebody
         # else wrote is not quietly thrown away.
@@ -373,6 +374,9 @@ class StarterMixin:
             for col,value in enumerate(row):
                 item=TableItem(str(value))
                 if col==0:item.setData(Qt.ItemDataRole.UserRole,row[0])
+                elif col==2 and row[0]:
+                    row_card=self.project.cards.get(row[0])
+                    if row_card is not None:item.setIcon(type_icon(self,row_card.type))
                 table.setItem(i,col,item)
         sort_resumed(table,held)
     def _select_starter_card(self):

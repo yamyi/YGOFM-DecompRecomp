@@ -460,7 +460,45 @@ def install() -> None:
     original_init = ModernEditor.__init__
 
     def init(self, *args, **kwargs):
-        original_init(self, *args, **kwargs)
+        # Window.__init__ eagerly refreshes every workspace after opening its
+        # ``mod`` argument.  With an HD pack that means decoding many hidden
+        # textures before the first window can be painted.  Build the retail
+        # shell first, let Qt show it, then route the requested mod through
+        # our lazy, worker-backed ``open_mod_path`` on the next event turn.
+        requested_mod = kwargs.get("mod")
+        positional_mod = len(args) > 1
+        if requested_mod is None and positional_mod:
+            requested_mod = args[1]
+        if requested_mod:
+            if "mod" in kwargs:
+                kwargs = dict(kwargs)
+                kwargs["mod"] = None
+            else:
+                args = list(args)
+                args[1] = None
+                args = tuple(args)
+        # ``Window.__init__`` also refreshes every hidden workspace.  Leave
+        # their forms empty until their navigation button is selected; that
+        # is already how select_workspace refreshes them.  Cards is still
+        # populated immediately, so the initial screen stays usable.
+        hidden_refresh = self._refresh_workspace
+        art_refresh = self.refresh_art_list
+        self._refresh_workspace = lambda *_args, **_kwargs: None
+        self.refresh_art_list = lambda *_args, **_kwargs: None
+        try:
+            original_init(self, *args, **kwargs)
+        finally:
+            self._refresh_workspace = hidden_refresh
+            self.refresh_art_list = art_refresh
+        # The base constructor deliberately left the hidden pages empty so
+        # the first window can paint immediately.  They must consequently be
+        # stale: otherwise the cached-navigation wrapper below mistakes an
+        # unpopulated page for a prepared one and suppresses its first
+        # refresh, leaving the workspace blank.
+        self._workspace_stale = set(self.NAV[1:])
+        if requested_mod:
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(0, lambda folder=requested_mod: self.open_mod_path(folder))
         menu = self.menus.get("File")
         if menu is None or any("Import a modified game" in action.text() for action in menu.actions()):
             return
@@ -555,8 +593,14 @@ def install() -> None:
         self.fusion_art_cache.clear()
         self.dirty = False
         self.refresh_cards(select_id=1)
-        self.current_art_card = 1
-        description_added = self._sync_added_duelists_description()
+        # The Art list is lazy too.  Leave it unselected so selecting Art
+        # performs its first population through select_workspace.
+        self.current_art_card = None
+        # Duelists is now lazily refreshed with the other hidden pages.
+        # Its bookkeeping object therefore does not exist until that page is
+        # first selected.
+        description_added = (self._sync_added_duelists_description()
+                             if hasattr(self, "duelist_slots") else False)
         self._start_history()
         self._unsaved_start = False
         self.setWindowTitle(f"{self.project.info.name} — FM Editor")
@@ -565,8 +609,104 @@ def install() -> None:
         self.statusBar().showMessage(f"Opened {folder}" + (f" · {len(messages)} note(s)" if messages else ""))
         if messages:
             self._report("Opened with notes", "\n".join(messages))
+        self._warm_workspaces(name)
 
     ModernEditor.open_mod_path = open_mod_path
+
+    def warm_workspaces(self, mod_name):
+        """Populate every workspace behind one visible, advancing loader.
+
+        Qt widgets themselves must be populated on the UI thread.  Running
+        one page per event-loop turn lets the progress dialog paint between
+        those jobs and makes the cost explicit once, rather than leaving a
+        surprise pause on every first page visit.
+        """
+        from PySide6.QtCore import Qt, QTimer
+        from PySide6.QtWidgets import QProgressDialog
+        pages = ["Cards", "Art", *self.NAV[2:]]
+        dialog = QProgressDialog("Preparing editor…", "", 0, len(pages), self)
+        dialog.setWindowTitle("Loading mod")
+        dialog.setWindowModality(Qt.WindowModality.ApplicationModal)
+        dialog.setCancelButton(None)
+        dialog.setMinimumDuration(0)
+        dialog.setAutoClose(False)
+        dialog.show()
+        self._workspace_preloading = True
+        self._workspace_stale = set(pages)
+        failures = []
+
+        def load(index=0):
+            if index >= len(pages):
+                self._workspace_preloading = False
+                # Keep only failed pages stale so a later click retries that
+                # page instead of presenting its partially refreshed view.
+                self._workspace_stale = {name for name, _problem in failures}
+                dialog.close(); dialog.deleteLater()
+                if failures:
+                    names = ", ".join(name for name, _problem in failures)
+                    self.statusBar().showMessage(
+                        f"Opened {mod_name}; {names} could not be prepared. Select a page to retry.")
+                else:
+                    self.statusBar().showMessage(f"Opened {mod_name}; all workspaces are ready.")
+                return
+            page = pages[index]
+            dialog.setLabelText(f"Loading {page} ({index + 1}/{len(pages)})…")
+            dialog.setValue(index)
+            # Give Qt a chance to draw the new label before this page's work.
+            QTimer.singleShot(0, lambda: run_page(index, page))
+
+        def run_page(index, page):
+            try:
+                if page == "Cards":
+                    self.refresh_cards(select_id=self.current or 1)
+                elif page == "Art":
+                    self.refresh_art_list(select_id=self.current or 1)
+                else:
+                    self._refresh_workspace(page)
+            except Exception as problem:
+                # A malformed optional mod section must not stop preparation
+                # of every later workspace. The selected page still retries
+                # its own refresh and the terminal retains the traceback.
+                import traceback
+                traceback.print_exc()
+                failures.append((page, problem))
+            QTimer.singleShot(0, lambda: load(index + 1))
+
+        QTimer.singleShot(0, load)
+
+    ModernEditor._warm_workspaces = warm_workspaces
+
+    # After the staged load a page already has current data.  Avoid doing the
+    # same expensive refresh on every navigation click.  Any editor mutation
+    # marks the workspace set stale so the next visit still reflects edits.
+    original_select_workspace = ModernEditor.select_workspace
+    original_mark_dirty = ModernEditor._mark_dirty
+
+    def mark_dirty(self, *args, **kwargs):
+        result = original_mark_dirty(self, *args, **kwargs)
+        if not getattr(self, "_workspace_preloading", False):
+            self._workspace_stale = set(self.NAV)
+        return result
+
+    def select_workspace(self, name):
+        loaded = (not getattr(self, "_workspace_preloading", False)
+                  and name not in getattr(self, "_workspace_stale", set()))
+        if not loaded:
+            result = original_select_workspace(self, name)
+            getattr(self, "_workspace_stale", set()).discard(name)
+            return result
+        original_workspace_refresh = self._refresh_workspace
+        original_art_refresh = self.refresh_art_list
+        self._refresh_workspace = lambda *_args, **_kwargs: None
+        self.refresh_art_list = lambda *_args, **_kwargs: None
+        try:
+            return original_select_workspace(self, name)
+        finally:
+            self._refresh_workspace = original_workspace_refresh
+            self.refresh_art_list = original_art_refresh
+
+    ModernEditor._mark_dirty = mark_dirty
+    ModernEditor.select_workspace = select_workspace
 
     saved_with_progress = ModernEditor.save_mod
 
@@ -648,6 +788,94 @@ def install() -> None:
     original_preview = CardsMixin._render_preview
     if not getattr(original_preview, "_deferred_preview_compat", False):
         from PySide6.QtCore import QTimer
+        from .. import art, pngio
+        from .common import image_extract
+
+        def preview_texture_identities(project, cid):
+            """Textures Card View will need for this card, without decoding them."""
+            card = project.cards.get(cid)
+            if card is None:
+                return ()
+            frame = card.shown_frame()
+            palette = 0xF06800 + (8 + frame) * 0x200
+            values = [
+                (0xEE6800, 64, 256, 8, palette, 256),
+                (0xEE6800 + 16 * image_extract.SECTOR, 64, 256, 8, palette, 256),
+            ]
+            # Detail sprites share one library sheet but vary by palette.
+            values.append((0xEE6800 + 3 * 0x8000, 64, 256, 4,
+                           0xF06800 + 0x1180, 16))
+            if card.is_monster():
+                values.append((0xEE6800 + 3 * 0x8000, 64, 256, 4,
+                               0xF06800 + 0x1E00 + card.attribute * 0x20, 16))
+            else:
+                label = {22: 1, 23: 2}.get(card.type, 0)
+                values.append((0xEE6800 + 3 * 0x8000, 64, 256, 4,
+                               0xF06800 + 0x11E0 + label * 0x20, 16))
+            return tuple(values)
+
+        def queue_preview_textures(self, cid):
+            """Decode HD PNG inputs away from the Qt GUI thread.
+
+            The compositor itself remains on the GUI thread because it creates
+            a QPixmap.  Moving the expensive PNG inflate out is enough to keep
+            selection and page navigation responsive on texture packs such as
+            Forbidden Memories HD.
+            """
+            project = self.project
+            if not project or not cid:
+                return True
+            token = (id(project), cid, project.cards[cid].shown_frame(),
+                     project.cards[cid].attribute, project.cards[cid].type)
+            if token in getattr(self, "_preview_texture_ready", set()):
+                return True
+            thread = getattr(self, "_preview_texture_thread", None)
+            if thread is not None and thread.is_alive():
+                return False
+            state = art.state(project)
+            folder = state.folder or project.source_dir
+            if folder is None or not state.entries:
+                self._preview_texture_ready = getattr(self, "_preview_texture_ready", set()) | {token}
+                return True
+            index = getattr(project, "_qt_preview_texture_index", None)
+            if index is None:
+                index = {}
+                keys = ("offset", "words", "rows", "bpp", "clut_offset", "clut_entries")
+                for entry in state.entries:
+                    if isinstance(entry.get("file"), str):
+                        index[tuple(entry.get(key) for key in keys)] = entry["file"]
+                project._qt_preview_texture_index = index
+            project_key = id(getattr(project, "retail", project))
+            required = []
+            for identity in preview_texture_identities(project, cid):
+                cache_key = ("card-preview-pack", project_key, identity)
+                filename = index.get(identity)
+                if filename and cache_key not in self.frame_cache:
+                    required.append((cache_key, Path(folder) / art.pack_dir(project) / filename))
+            rep = state.images.get((cid, "art"))
+            needs_art = rep is not None and rep.image is None
+            if not required and not needs_art:
+                self._preview_texture_ready = getattr(self, "_preview_texture_ready", set()) | {token}
+                return True
+
+            def load():
+                loaded = {}
+                for cache_key, path in required:
+                    try:
+                        loaded[cache_key] = pngio.read(path)
+                    except (OSError, ValueError, pngio.PngError):
+                        pass
+                if needs_art:
+                    try:
+                        art.replacement_image(project, cid, "art")
+                    except (OSError, ValueError, pngio.PngError):
+                        pass
+                self._preview_texture_result = (token, loaded)
+
+            self._preview_texture_thread = threading.Thread(
+                target=load, name="fm-editor-preview-assets", daemon=True)
+            self._preview_texture_thread.start()
+            return False
 
         def deferred_preview(self, *_args, **_kwargs):
             generation = getattr(self, "_preview_generation", 0) + 1
@@ -655,9 +883,23 @@ def install() -> None:
             card_id = getattr(self, "current", None)
 
             def render():
-                if (getattr(self, "_preview_generation", 0) == generation
-                        and getattr(self, "current", None) == card_id):
-                    original_preview(self)
+                if (getattr(self, "_preview_generation", 0) != generation
+                        or getattr(self, "current", None) != card_id):
+                    return
+                thread = getattr(self, "_preview_texture_thread", None)
+                if thread is not None and thread.is_alive():
+                    QTimer.singleShot(15, render)
+                    return
+                result = getattr(self, "_preview_texture_result", None)
+                if result is not None:
+                    token, loaded = result
+                    self.frame_cache.update(loaded)
+                    self._preview_texture_ready = getattr(self, "_preview_texture_ready", set()) | {token}
+                    self._preview_texture_result = None
+                if not queue_preview_textures(self, card_id):
+                    QTimer.singleShot(15, render)
+                    return
+                original_preview(self)
             QTimer.singleShot(0, render)
 
         deferred_preview._deferred_preview_compat = True

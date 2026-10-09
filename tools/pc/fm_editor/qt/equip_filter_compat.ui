@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>EquipAdvancedFilterDialog</class>
+ <widget class="QDialog" name="EquipAdvancedFilterDialog">
+  <property name="windowTitle"><string>Advanced monster filters</string></property>
+  <layout class="QVBoxLayout" name="dialogLayout">
+   <property name="spacing"><number>10</number></property>
+   <item><widget class="QLabel" name="filterHint"><property name="text"><string>Filters apply to the monster list for the selected equip card.</string></property><property name="wordWrap"><bool>true</bool></property></widget></item>
+   <item><layout class="QHBoxLayout" name="listsLayout">
+    <item><layout class="QVBoxLayout" name="typesLayout"><item><widget class="QLabel" name="typesLabel"><property name="text"><string>Monster type</string></property></widget></item><item><widget class="QListWidget" name="equipFilterTypes"><property name="spacing"><number>5</number></property><property name="styleSheet"><string notr="true">QListWidget::item { padding: 2px 3px; }</string></property></widget></item></layout></item>
+    <item><layout class="QVBoxLayout" name="attributesLayout"><item><widget class="QLabel" name="attributesLabel"><property name="text"><string>Attribute</string></property></widget></item><item><widget class="QListWidget" name="equipFilterAttributes"><property name="spacing"><number>5</number></property><property name="styleSheet"><string notr="true">QListWidget::item { padding: 2px 3px; }</string></property></widget></item></layout></item>
+   </layout></item>
+   <item><layout class="QGridLayout" name="rangesLayout">
+    <item row="0" column="0"><widget class="QLabel" name="atkLabel"><property name="text"><string>ATK</string></property></widget></item>
+    <item row="0" column="1"><widget class="QLineEdit" name="equipFilterAtkMin"><property name="placeholderText"><string>Minimum</string></property></widget></item>
+    <item row="0" column="2"><widget class="QLineEdit" name="equipFilterAtkMax"><property name="placeholderText"><string>Maximum</string></property></widget></item>
+    <item row="1" column="0"><widget class="QLabel" name="defLabel"><property name="text"><string>DEF</string></property></widget></item>
+    <item row="1" column="1"><widget class="QLineEdit" name="equipFilterDefMin"><property name="placeholderText"><string>Minimum</string></property></widget></item>
+    <item row="1" column="2"><widget class="QLineEdit" name="equipFilterDefMax"><property name="placeholderText"><string>Maximum</string></property></widget></item>
+    <item row="2" column="0"><widget class="QLabel" name="levelLabel"><property name="text"><string>Level</string></property></widget></item>
+    <item row="2" column="1"><widget class="QLineEdit" name="equipFilterLevelMin"><property name="placeholderText"><string>Minimum</string></property></widget></item>
+    <item row="2" column="2"><widget class="QLineEdit" name="equipFilterLevelMax"><property name="placeholderText"><string>Maximum</string></property></widget></item>
+   </layout></item>
+   <item><layout class="QHBoxLayout" name="actionsLayout">
+    <item><widget class="QPushButton" name="clearButton"><property name="text"><string>Clear</string></property></widget></item>
+    <item><spacer name="actionsSpacer"><property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property></spacer></item>
+    <item><widget class="QPushButton" name="cancelButton"><property name="text"><string>Cancel</string></property></widget></item>
+    <item><widget class="QPushButton" name="applyButton"><property name="text"><string>Apply filters</string></property><property name="default"><bool>true</bool></property></widget></item>
+   </layout></item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

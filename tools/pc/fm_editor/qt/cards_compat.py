@@ -23,7 +23,8 @@ def install() -> None:
         return
     from . import common as qt_common
     from .cards import CardsMixin
-    from .common import _qimage, gamedata, guardian_stars, pngio
+    from .common import (_qimage, attribute_icon, decorate_attribute_items,
+                         decorate_type_items, gamedata, guardian_stars, pngio)
     from .. import card_view, card_text
     if getattr(CardsMixin, "_cards_compat_installed", False):
         return
@@ -257,10 +258,12 @@ def install() -> None:
         only_type.addItem("Any", None)
         for name in effects.TYPE_NAMES[:gamedata.TYPE_MAGIC]:
             only_type.addItem(name, name)
+        decorate_type_items(self, only_type, effects.TYPE_NAMES[:gamedata.TYPE_MAGIC])
         only_attribute = line(5, "Only attribute", QComboBox(editor))
         only_attribute.addItem("Any", None)
         for name in effects.ATTRIBUTE_NAMES:
             only_attribute.addItem(name, name)
+        decorate_attribute_items(self, only_attribute, effects.ATTRIBUTE_NAMES)
         attack = line(6, "ATK", QSpinBox(editor))
         defense = line(7, "DEF", QSpinBox(editor))
         amount = line(8, "LP", QSpinBox(editor))
@@ -416,28 +419,19 @@ def install() -> None:
                 border-bottom: 1px solid #0b1220;
             }
         """)
-        # Keep these project-only fields in this compatibility layer.  The
-        # Designer form remains usable by the tracked Qt editor on its own.
-        identity = self.cards_form.findChild(QFormLayout, "identityForm")
-        name_colour = QComboBox(self.cards_form)
-        name_colour.setObjectName("nameColourCombo")
-        name_colour.setToolTip("The colour used for this card's name in the game details.")
-        name_colour.addItem("Retail / default", None)
-        for index, label in enumerate(("White", "Yellow", "Blue", "Green", "Grey", "Orange", "Red", "Unused")):
-            name_colour.addItem(f"{label} ({index})", index)
-        identity.addRow("Name colour", name_colour)
-        self.name_colour = name_colour
-
-        passwords = self.cards_form.findChild(QGridLayout, "passwordGrid")
-        notes_label = QLabel("Notes", self.cards_form)
-        notes = QPlainTextEdit(self.cards_form)
-        notes.setObjectName("cardNotesEdit")
-        notes.setPlaceholderText("Private notes about this card")
-        notes.setToolTip("Saved in the mod for the author. The game does not display it.")
-        notes.setFixedHeight(88)
-        passwords.addWidget(notes_label, 2, 0, 1, 2)
-        passwords.addWidget(notes, 3, 0, 1, 2)
-        self.card_notes = notes
+        # The compatibility-only controls are declared in cards_page.ui;
+        # this layer only binds them to the project data.
+        self.name_colour = self.cards_form.findChild(QComboBox, "nameColourCombo")
+        self.card_notes = self.cards_form.findChild(QPlainTextEdit, "cardNotesEdit")
+        if self.name_colour is None or self.card_notes is None:
+            raise RuntimeError("Cards Designer form is missing compatibility controls")
+        # QUiLoader preserves the Designer text but does not turn its
+        # ``userData`` XML into Qt's UserRole data.  Bind the actual game ramp
+        # number here so selecting Green, for example, saves ``"name": 3``
+        # instead of looking indistinguishable from Retail/default.
+        self.name_colour.setItemData(0, None)
+        for index in range(1, self.name_colour.count()):
+            self.name_colour.setItemData(index, index - 1)
         field_icons(self)
 
     def show_card(self, cid):
@@ -715,10 +709,12 @@ def install() -> None:
         type_box.addItem("Any", None)
         for name in effects.TYPE_NAMES[:20]:
             type_box.addItem(name, name)
+        decorate_type_items(self, type_box, effects.TYPE_NAMES[:20])
         attribute = line(5, "Only attribute", QComboBox(dialog))
         attribute.addItem("Any", None)
         for name in effects.ATTRIBUTE_NAMES:
             attribute.addItem(name, name)
+        decorate_attribute_items(self, attribute, effects.ATTRIBUTE_NAMES)
         attack = line(6, "ATK", QSpinBox(dialog))
         defense = line(7, "DEF", QSpinBox(dialog))
         amount = line(8, "LP", QSpinBox(dialog))

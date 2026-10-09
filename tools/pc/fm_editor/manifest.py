@@ -22,9 +22,9 @@ import re
 import shutil
 from pathlib import Path
 
-from .gamedata import (FUSION_GROUPS, RITUAL_ORIGINS, RITUAL_REQUIREMENT_KEYS, RITUAL_TRIBUTE_MAX, fusion_group_named, ATTRIBUTE_NAMES, CARD_COUNT, DECK_SIZE, DUELIST_NAMES, FRAME_COLOR_NAMES, FRAME_NAMES, POOLS, STAR_NAMES,
+from .gamedata import (FUSION_GROUPS, RITUAL_ORIGINS, RITUAL_REQUIREMENT_KEYS, RITUAL_TRIBUTE_MAX, fusion_group_named, ATTRIBUTE_NAMES, CARD_COUNT, DECK_SIZE, DUELIST_NAMES, FRAME_COLOR_NAMES, FRAME_NAME_ALIASES, FRAME_NAMES, POOLS, STAR_NAMES,
                        EQUIP_BONUS_MAX, STARTER_WEIGHT_LIMIT, TYPE_NAMES, TYPE_MAGIC, TYPE_LIMIT, GameData, is_monster_type)
-from .model import AddedCard, ModInfo, Project, StarterDeck, duelist_named, same_letters, KEY_RE
+from .model import AddedCard, ModInfo, Project, StarterDeck, duelist_named, same_letters, type_named, KEY_RE
 from . import art, board_art, campaign_map, compat, fixed_decks, guardian_stars, packs as packmath, pools as poolmath, roster
 
 INFO_KEYS = ("id", "name", "version", "author", "description")
@@ -103,13 +103,16 @@ def build_cards(project: Project) -> list:
                 del fields[name]        # the mod's text file carries it, codes and all
         extra = project.card_extra.get(cid, {})
         notes = project.notes.get(cid)
-        if fields or extra or notes:
+        tags = project.card_tags.get(cid, [])
+        if fields or extra or notes or tags:
             # With "notes" alone the entry only notes the card (cards.c).
             entry = {"replace": cid}
             entry.update(fields)
             entry.update(extra)
             if notes:
                 entry["notes"] = notes
+            if tags:
+                entry["tags"] = tags
             entries.append(entry)
     for cid in sorted(project.added):
         added = project.added[cid]
@@ -836,17 +839,14 @@ def _apply_fields(project: Project, card, entry: dict, is_replace: bool, message
             messages.append(f"{where}: \"attribute\" is a retail attribute, or an id/name this mod's own "
                             f"\"attributes\" declares; left out")
     if "frame" in entry:
-        value = _choice(entry["frame"], FRAME_NAMES + ["Type"])
-        if not 0 <= value <= len(FRAME_NAMES):
-            # Gold, Green, Pink and Blue: Monster, Magic, Trap and Ritual by their color.
-            value = _choice(entry["frame"], FRAME_COLOR_NAMES)
-            if value >= len(FRAME_COLOR_NAMES):
-                value = -1
+        raw = entry["frame"]
+        value = FRAME_NAME_ALIASES.get(raw.strip().lower(), -1) if isinstance(raw, str) else _choice(raw, FRAME_NAMES + ["Type"])
+        if isinstance(raw, str) and raw.strip().lower() == "type":
+            value = len(FRAME_NAMES)
         if 0 <= value <= len(FRAME_NAMES):
             card.frame = -2 if value == len(FRAME_NAMES) else value  # -2: "Type", never orange
         else:
-            messages.append(f"{where}: \"frame\" is Gold, Green, Pink, Blue, Purple, Orange or Type (or the disc's "
-                            f"Monster, Magic, Trap, Ritual); left out")
+            messages.append(f"{where}: \"frame\" is a frame name, its colour alias, or Type; left out")
 
 
 def _base_id(project: Project, value) -> int:
@@ -905,8 +905,13 @@ def read_cards(project: Project, entries, messages: list):
                 had = project.notes.get(base)
                 project.set_notes(base, f"{had}\n{notes}" if had else notes)
             # What the editor does not show (art, password...) is kept as written.
+            tags = entry.get("tags")
+            if isinstance(tags, list) and all(isinstance(tag, str) and tag and len(tag) <= 31 for tag in tags) and len(tags) <= 32:
+                project.card_tags[base] = list(dict.fromkeys(tags))
+            elif "tags" in entry:
+                messages.append(f"{where}: \"tags\" is up to 32 non-empty strings of 31 characters; left out")
             shown = ("replace", "name", "description", "attack", "defense", "type", "attribute", "level", "stars",
-                     "frame")
+                     "frame", "tags")
             if notes is not None:
                 shown += ("notes",)
             extra = {k: v for k, v in entry.items() if k not in shown}

@@ -1,0 +1,13 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "FM Editor",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "tools.pc.fm_editor.pyside_app",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal"
+        }
+    ]
+}

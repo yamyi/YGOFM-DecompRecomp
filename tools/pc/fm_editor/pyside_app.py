@@ -20,6 +20,9 @@ _install_compat()
 from .qt.common import *          # noqa: F401,F403
 from .qt.common import (_qimage, _line_count, _pairs_text, _parse_pairs, _whole,
                         _card_image)      # noqa: F401
+from .qt.fields_compat import install as _install_fields_compat
+from .qt.equips_compat import install as _install_equips_compat
+from .qt.performance_compat import install as _install_performance_compat
 from .qt.window import ModernEditor, main      # noqa: F401
 from .qt.ui_assets_compat import install as _install_ui_assets_compat
 
@@ -29,7 +32,10 @@ _install_rituals_compat()
 _install_import_compat()
 _install_duelists_compat()
 _install_stars_compat()
+_install_fields_compat()
+_install_equips_compat()
 _install_ui_assets_compat()
+_install_performance_compat()
 
 if __name__ == "__main__":
     raise SystemExit(main())

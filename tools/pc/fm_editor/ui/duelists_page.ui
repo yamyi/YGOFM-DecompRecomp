@@ -334,7 +334,7 @@
          </column>
          <column>
           <property name="text">
-           <string>Stock</string>
+           <string>Retail</string>
           </property>
          </column>
          <column>

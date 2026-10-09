@@ -98,11 +98,17 @@ class EquipsMixin:
                 check.setData(Qt.ItemDataRole.UserRole,monster); table.setItem(row,0,check)
                 state=("" if monster in baseline and monster in now else "added" if monster in now
                        else "removed" if monster in baseline else "")
-                values=(f"{monster:03d}",self.project.cards[monster].name,TYPE_NAMES[self.project.cards[monster].type],
-                        state.title() or ("Stock" if monster in now else ""))
+                card = self.project.cards[monster]
+                values=(f"{monster:03d}", card.name, TYPE_NAMES[card.type],
+                        ATTRIBUTE_NAMES[card.attribute] if 0 <= card.attribute < len(ATTRIBUTE_NAMES) else "—",
+                        state.title() or ("Retail" if monster in now else ""))
                 self._tint_state(check,state)
                 for col,value in enumerate(values,1):
                     item=TableItem(str(value));self._tint_state(item,state)
+                    if col == 3:
+                        item.setIcon(type_icon(self, card.type))
+                    elif col == 4:
+                        item.setIcon(attribute_icon(self, card.attribute))
                     table.setItem(row,col,item)
         sort_resumed(table,held)
         table.blockSignals(False)

@@ -52,6 +52,12 @@
       <enum>Qt::Orientation::Horizontal</enum>
      </property>
      <widget class="QWidget" name="equipListPane">
+      <property name="minimumSize">
+       <size><width>260</width><height>0</height></size>
+      </property>
+      <property name="maximumSize">
+       <size><width>360</width><height>16777215</height></size>
+      </property>
       <layout class="QVBoxLayout" name="equipListLayout">
        <item>
         <widget class="QLabel" name="equipListHeading">
@@ -126,14 +132,32 @@
         </widget>
        </item>
        <item>
-        <widget class="QLineEdit" name="equipMonsterSearchEdit">
-         <property name="placeholderText">
-          <string>Filter monsters by name…</string>
-         </property>
-         <property name="clearButtonEnabled">
-          <bool>true</bool>
-         </property>
-        </widget>
+        <layout class="QHBoxLayout" name="equipMonsterFilterLayout">
+         <item>
+          <widget class="QLineEdit" name="equipMonsterSearchEdit">
+           <property name="placeholderText">
+            <string>Filter monsters by name…</string>
+           </property>
+           <property name="clearButtonEnabled">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="equipAdvancedFilterButton">
+           <property name="text">
+            <string>Advanced…</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="equipClearFilterButton">
+           <property name="text">
+            <string>Clear filters</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
        </item>
        <item>
         <widget class="QTableWidget" name="equipMonsterTable">
@@ -159,6 +183,11 @@
          </column>
          <column>
           <property name="text">
+           <string>Attribute</string>
+          </property>
+         </column>
+         <column>
+          <property name="text">
            <string>State</string>
           </property>
          </column>
@@ -167,33 +196,12 @@
        <item>
         <layout class="QHBoxLayout" name="equipActionsLayout">
          <item>
-          <widget class="QPushButton" name="addMonsterButton">
+          <widget class="QPushButton" name="addSelectedEquipButton">
            <property name="text">
-            <string>Add monster…</string>
+            <string>Add selected</string>
            </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QComboBox" name="equipTypeCombo"/>
-         </item>
-         <item>
-          <widget class="QPushButton" name="addTypeButton">
-           <property name="text">
-            <string>Add every type</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QPushButton" name="removeTypeButton">
-           <property name="text">
-            <string>Remove every type</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QPushButton" name="removeMonsterButton">
-           <property name="text">
-            <string>Remove selected</string>
+           <property name="enabled">
+            <bool>false</bool>
            </property>
           </widget>
          </item>

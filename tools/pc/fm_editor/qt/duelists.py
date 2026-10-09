@@ -205,6 +205,18 @@ class DuelistsMixin:
         if not hasattr(self,"duelist_selected_slot"):self.duelist_selected_slot=1
         page=c["page"].currentIndex();query=c["search"].text().strip().casefold()
         grid.clearContents();grid.setRowCount(5);grid.setColumnCount(8)
+        # Eight portrait tiles are always visible.  Fixed cells prevent Qt
+        # from squeezing labels underneath neighbouring portraits when the
+        # left pane is resized.
+        grid.horizontalHeader().setVisible(False)
+        grid.verticalHeader().setVisible(False)
+        grid.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
+        grid.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
+        tile_width = max(70, grid.viewport().width() // 8)
+        for column in range(8):
+            grid.setColumnWidth(column, tile_width)
+        for row_index in range(5):
+            grid.setRowHeight(row_index, 96)
         for cell in range(40):
             slot=page*40+cell;row,col=divmod(cell,8);record=self.duelist_slots.get(slot)
             item=TableItem("");item.setData(Qt.ItemDataRole.UserRole,slot)
@@ -1090,6 +1102,10 @@ QLabel#statsRank { color: #8aa0bd; }
             for col,value in enumerate(row):
                 item=TableItem(str(value))
                 if col==0:item.setData(Qt.ItemDataRole.UserRole,row[0])
+                elif col==2:
+                    row_card = self.project.cards.get(row[0])
+                    if row_card is not None:
+                        item.setIcon(type_icon(self, row_card.type))
                 self._tint_state(item,row[6].lower())
                 table.setItem(i,col,item)
         sort_resumed(table,held)
@@ -1350,9 +1366,10 @@ QLabel#statsRank { color: #8aa0bd; }
         table.blockSignals(False)
         header = table.horizontalHeader()
         for column, width in ((0, 54), (2, 130), (3, 130)):
-            header.setSectionResizeMode(column, QHeaderView.ResizeMode.Fixed)
+            header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
             header.resizeSection(column, width)
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
+        header.setStretchLastSection(True)
     def _set_duelist_lp(self, side):
         c = self.workspace_controls["Limits"]
         column = 2 if side == "player" else 3

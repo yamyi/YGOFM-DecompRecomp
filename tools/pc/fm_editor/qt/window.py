@@ -24,6 +24,8 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
     FILTERS = ["All cards", "Changed", "Added by the mod", "With notes", "Monsters", "Non-monsters"] + TYPE_NAMES
     NAV = ["Cards", "Art", "Assets", "Campaign", "Fusions", "Equips", "Rituals", "Duelists", "Starter decks",
            "Limits", "Guardian Stars", "Packs", "Mod info", "Problems"]
+    # Kept built and loadable while the asset-replacement page is refined.
+    HIDDEN_WORKSPACES = frozenset({"Assets"})
     def __init__(self, game=None, mod=None, ask=False):
         super().__init__()
         self._ask_recovery = ask      # only the real entry point asks (_build_ui)
@@ -153,6 +155,8 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
         self.nav_buttons = {}
         self.workspace_indices = {"Cards": 0, "Art": 1}
         for name in self.NAV:
+            if name in self.HIDDEN_WORKSPACES:
+                continue
             b = QPushButton(name)
             b.setFlat(True)
             b.setCheckable(True)
@@ -429,18 +433,14 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
                             preview=get(QLabel, "equipCardPreview"),
                             search=get(QLineEdit, "equipSearchEdit"),
                             monster_search=get(QLineEdit, "equipMonsterSearchEdit"),
-                            type=get(QComboBox, "equipTypeCombo"))
-            controls["type"].addItems(TYPE_NAMES[:20])
+                            add_selected=get(QPushButton, "addSelectedEquipButton"))
             controls["search"].textChanged.connect(self._filter_equip_cards)
             controls["monster_search"].textChanged.connect(self._filter_equip_monsters)
             controls["equips"].itemSelectionChanged.connect(self._select_equip)
             controls["monsters"].itemChanged.connect(self._toggle_equip_monster)
             controls["monsters"].setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
             controls["monsters"].setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-            for key, callback in (("addMonsterButton", self._add_equip_monster),
-                                  ("addTypeButton", lambda: self._equip_by_type(True)),
-                                  ("removeTypeButton", lambda: self._equip_by_type(False)),
-                                  ("removeMonsterButton", self._remove_equip_monsters),
+            for key, callback in (("addSelectedEquipButton", self._toggle_selected_equip_monsters),
                                   ("revertEquipButton", self._revert_equip)):
                 get(QPushButton, key).clicked.connect(callback)
         elif name == "Rituals":
@@ -627,7 +627,12 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
             table.setWordWrap(False)
             table.verticalHeader().setVisible(False)
             table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-            table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+            # List columns start usable at any window width and remain
+            # individually resizable.  Grid-style controls below replace this
+            # with their own fixed cell geometry.
+            header = table.horizontalHeader()
+            header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+            header.setStretchLastSection(True)
         if name == "Problems":
             # After the shared pass above: a level and the page it names are
             # short, and what is left belongs to the message.  Those first
@@ -641,18 +646,15 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
             # The shared table setup above stretches every column. Override it
             # here so checkbox and numeric ID columns stay compact.
             equip_header=controls["equips"].horizontalHeader()
-            equip_header.setSectionResizeMode(0,QHeaderView.ResizeMode.Fixed)
-            equip_header.resizeSection(0,58)
-            equip_header.setSectionResizeMode(1,QHeaderView.ResizeMode.Stretch)
-            equip_header.setSectionResizeMode(2,QHeaderView.ResizeMode.Fixed)
-            equip_header.resizeSection(2,58)
+            for column, width in ((0,58), (1,190), (2,58)):
+                equip_header.setSectionResizeMode(column,QHeaderView.ResizeMode.Interactive)
+                equip_header.resizeSection(column,width)
+            equip_header.setStretchLastSection(True)
             monster_header=controls["monsters"].horizontalHeader()
-            monster_header.setSectionResizeMode(0,QHeaderView.ResizeMode.Fixed)
-            monster_header.resizeSection(0,42)
-            monster_header.setSectionResizeMode(1,QHeaderView.ResizeMode.Fixed)
-            monster_header.resizeSection(1,54)
-            for col in (2,3,4):
-                monster_header.setSectionResizeMode(col,QHeaderView.ResizeMode.Stretch)
+            for column, width in ((0,42), (1,54), (2,220), (3,120), (4,110), (5,92)):
+                monster_header.setSectionResizeMode(column,QHeaderView.ResizeMode.Interactive)
+                monster_header.resizeSection(column,width)
+            monster_header.setStretchLastSection(True)
             # Both lists hide what the search box leaves out, and a hidden row
             # is a row number rather than the line in it.
             sort_keeps_filter(controls["equips"],
@@ -733,6 +735,18 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
             self._refresh_mod_info()
         elif name == "Problems":
             self._refresh_problems()
+        # Page refreshers rebuild rows and some set their preferred widths
+        # again.  Keep every row-based list user-resizable after that work;
+        # selector matrices use SelectItems and deliberately retain their
+        # square/grid geometry.
+        page = self.workspace_forms.get(name)
+        if page is not None:
+            for table in page.findChildren(QTableWidget):
+                if table.selectionBehavior() != QAbstractItemView.SelectionBehavior.SelectRows:
+                    continue
+                header = table.horizontalHeader()
+                header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+                header.setStretchLastSection(True)
     @staticmethod
     def _pool_tabs(host):
         """The four pools as tabs over the list. Built here because Designer
@@ -1463,6 +1477,7 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
         self.history = history.History(self.project)
         self._clear_recovery()
         self.recovery = recovery.Recovery()
+        self.recovery_writer = recovery.Writer(self.recovery)
         self._update_edit_actions()
 
     def _clear_recovery(self):
@@ -1494,12 +1509,10 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
         # so a big mod is not pickled twice.
         snapshot = (self.history.items[self.history.position]
                     if self.history is not None and not self._history_timer.isActive() else None)
-        try:
-            self.recovery.write(self.project, None, snapshot)
-        except (OSError, ValueError) as problem:
-            self.statusBar().showMessage(f"Recovery copy failed: {problem} · Ctrl+S saves the mod folder")
-        else:
-            self.statusBar().showMessage("Recovery copy updated · Ctrl+S saves the mod folder")
+        if self.recovery_writer.write(self.project, snapshot):
+            self.statusBar().showMessage("Writing recovery copy in the background · Ctrl+S saves the mod folder")
+        elif self.recovery_writer.error is not None:
+            self.statusBar().showMessage(f"Recovery copy failed: {self.recovery_writer.error} · Ctrl+S saves the mod folder")
 
     def recover_work(self):
         """The recovery copies and save backups on this machine, each opened
@@ -1712,7 +1725,7 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
     def _mark_dirty(self):
         self._schedule_history()
         if not self._restoring:
-            self._recovery_timer.start(2000)
+            self._recovery_timer.start(5000)
         if not self.dirty:
             self.dirty = True
             self.setWindowTitle("* " + self.project.info.name + " — FM Editor")

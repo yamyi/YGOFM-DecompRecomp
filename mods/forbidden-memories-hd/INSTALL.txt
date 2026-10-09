@@ -1,0 +1,9 @@
+Forbidden Memories HD (Unchiga & X@nder), a texture pack for YFM Re-Decomp.
+
+Put this "forbidden-memories-hd" folder in the "mods" folder of your user folder:
+
+  Windows: Documents\My Games\YFM Re-Decomp\mods
+  Linux:   ~/.local/share/YFM Re-Decomp/mods
+
+Create the "mods" folder if it is not there. Then start the game and turn it on or off,
+or pick its parts, in Game > Mods. Shows best at View > Internal 4x with HD text on.

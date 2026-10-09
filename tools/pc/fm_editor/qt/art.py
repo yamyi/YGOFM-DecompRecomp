@@ -113,12 +113,15 @@ class ArtMixin:
                 self.art_info[part][action] = button
 
         self.art_filter.addItems(["All cards", "Art of the mod", "Added by the mod"])
-        self.art_table.setColumnCount(4)
-        self.art_table.setHorizontalHeaderLabels(["ID", "Name", "Type", "Art status"])
+        self.art_table.setColumnCount(3)
+        self.art_table.setHorizontalHeaderLabels(["ID", "Name", "Art status"])
         self.art_table.setColumnWidth(0, 62)
         self.art_table.setColumnWidth(1, 220)
-        self.art_table.setColumnWidth(2, 110)
-        self.art_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        self.art_table.setColumnWidth(2, 150)
+        header = self.art_table.horizontalHeader()
+        for column in range(self.art_table.columnCount()):
+            header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
+        header.setStretchLastSection(True)
         self.art_table.verticalHeader().setVisible(False)
         self.art_search.textChanged.connect(self.refresh_art_list)
         self.art_filter.currentTextChanged.connect(self.refresh_art_list)
@@ -153,7 +156,7 @@ class ArtMixin:
                     part_names.append(art.LABELS[part])
                 elif (cid, part) in state.gated:
                     part_names.append(art.LABELS[part] + " · pack")
-            values = (f"{cid:03d}", card.name, TYPE_NAMES[card.type], ", ".join(part_names) if part_names else "Stock")
+            values = (f"{cid:03d}", card.name, ", ".join(part_names) if part_names else "Retail")
             for column, value in enumerate(values):
                 item = TableItem(value)
                 if column == 0:
