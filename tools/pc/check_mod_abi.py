@@ -510,7 +510,8 @@ def code_only_32(directory):
     data = manifest(directory)
     if not (data.get("library") or data.get("libraries")):
         return None
-    return True if os.path.isfile(os.path.join(directory, build_mod.library_name(directory, "x86_64-windows")))         else "32-bit"
+    has_64 = os.path.isfile(os.path.join(directory, build_mod.library_name(directory, "x86_64-windows")))
+    return True if has_64 else "32-bit"
 
 
 def is_64bit(executable):
@@ -591,7 +592,8 @@ def run_mods(tag, release, executable, build):
         if not wanted or not all(os.path.isdir(os.path.join(release, "mods", m)) and
                                  os.path.isdir(os.path.join(build, "mods", m)) for m in wanted):
             continue
-        if wide and any(code_only_32(os.path.join(side, "mods", m)) for m in wanted for side in (release, build)):
+        if wide and any(code_only_32(os.path.join(side, "mods", m)) == "32-bit" for m in wanted
+                        for side in (release, build)):
             continue   # a 32-bit code mod: refused there, which proves nothing about it
         frames = []
         for side, source in (("baseline", os.path.join(release, "mods")), ("current", os.path.join(build, "mods"))):
