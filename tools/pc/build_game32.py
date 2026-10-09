@@ -711,10 +711,11 @@ def build_mods(build, release=False, code=True, target="i386"):
     the game's own loader links in when the mod is applied
     (src/pc/mods/object_loader.c). One i386 object serves both 32-bit
     systems, so the Linux and the Windows game can carry the same file; the
-    64-bit Windows game carries the x86_64-windows one. build_mod.py keeps it in tmp/pc/mod-build/<mod>-<key>,
-    the key a digest of the compiler, the flags and the preprocessed
-    sources: every checkout shares tmp (the worktrees link it), and one
-    reuses an object only when it would build the same one. It is copied
+    64-bit Windows game carries the x86_64-windows one. build_mod.py keeps
+    it in tmp/pc/mod-build/<mod>-<key>, the key a digest of the compiler,
+    the flags and the preprocessed sources: every checkout shares tmp (the
+    worktrees link it), and one reuses an object only when it would build
+    the same one. It is copied
     beside this game when the copy there differs, and checked against this
     game's exports either way.
 

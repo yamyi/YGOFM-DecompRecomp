@@ -8,9 +8,10 @@
  * back into them. The six are FF 25 and four bytes on both x86 widths: on
  * i386 the slot's address (`jmp *[abs32]`), on x86-64 its distance from the
  * entry (`jmp *[rip+disp32]`, rip being the entry), which reaches it because
- * the slots are in this executable's own image, as the function is. The two-byte store is the only one made to code a thread
- * may be running, and it is one aligned-enough write; everything after that
- * changes only `slot` and the mods' `original` pointers, which are words.
+ * the slots are in this executable's own image, as the function is. The
+ * two-byte store is the only one made to code a thread may be running, and
+ * it is one aligned-enough write; everything after that changes only `slot`
+ * and the mods' `original` pointers, which are words.
  *
  * Hooks on one function chain in the order they were made: the one made
  * last is called first, and its `original` leads to the one before, down to

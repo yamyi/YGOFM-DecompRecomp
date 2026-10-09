@@ -1897,6 +1897,7 @@ not provide. A crash inside a mod names the function it was in
 
 A code mod built against one release keeps working in the later ones,
 without being rebuilt. Every name that release's `sdk/exports.txt` lists
+(`sdk/exports.<target>.txt` for each target, since the 64-bit ones)
 stays exported, with the type its SDK declared. Every structure those
 names reach keeps its layout, and every enumerator (`SET_PGXP`,
 `MENU_ITEM_OPPONENT_NAME`) keeps its value. New settings, menu items and

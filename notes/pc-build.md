@@ -2807,8 +2807,8 @@ box naming the folder to put it in. Crash and hang reports, minidumps and
 menu frame dumps go to `reports/` in the user directory when the game is not
 run from a checkout (`Crash_ReportDir`; `tmp/pc` in one).
 
-The 64-bit Windows archive has the data mods only and no mod SDK ("64-bit
-Windows" below). Where its compiler is missing (x86_64-w64-mingw32-clang 21
+The 64-bit Windows archive carries each code mod's x86_64-windows object
+in place of the 32-bit one, and the same mod SDK ("Mod SDK M1" below). Where its compiler is missing (x86_64-w64-mingw32-clang 21
 or later), `package.py` with no arguments skips it with a message and packs
 the other two; `package.py windows-x64` stops instead.
 
