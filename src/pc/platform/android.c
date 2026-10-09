@@ -35,6 +35,7 @@
 #include "platform.h"
 #include "paths.h"
 #include "game_files.h"
+#include "pc/guest/image.h"
 #include <SDL3/SDL.h>
 #include <android/log.h>
 #include <dirent.h>
@@ -247,6 +248,7 @@ int Platform_SelectDisc(char *path, size_t size, char *why, size_t why_size)
     return result;
 }
 
+#ifndef __LP64__
 /* The game's memory sits at fixed addresses up to 0xB0800000 (image.c).
  * A 32-bit process has 4 GB to place them in on a 64-bit kernel (phones
  * that still run 32-bit apps), and only 3 GB on a 32-bit kernel, where the
@@ -271,18 +273,25 @@ static int four_gigabytes(void)
     fclose(maps);
     return yes;
 }
+#endif
 
 int Platform_GuestMemoryHelp(char *why, size_t size)
 {
+    const char *failed = Memories_GuestMapError();
+#ifndef __LP64__
+    /* Only a 32-bit game (android-x86, for development) can meet a 32-bit
+     * kernel; the app's arm64 game always has the 64-bit address space. */
     if (four_gigabytes() == 0) {
         fprintf(stderr, "memories-pc: this is a 32-bit kernel (3 GB for the app): the guest memory cannot be placed\n");
         snprintf(why, size, "This Android is 32-bit.\n\n"
                  "The game needs a 64-bit Android that can still run 32-bit apps: on a 32-bit system there is no "
                  "room for the memory the game runs in.");
-    } else {
-        snprintf(why, size, "The game could not reserve the memory it runs in at its fixed addresses on this "
-                 "device.\n\nPlease report it with the app's log (adb logcat -s memories).");
+        return 1;
     }
+#endif
+    snprintf(why, size, "The game could not set up the memory it runs in on this device: %s.\n\n"
+             "Please report it with the app's log (adb logcat -s memories).",
+             *failed ? failed : "the reason is in the log");
     return 1;
 }
 

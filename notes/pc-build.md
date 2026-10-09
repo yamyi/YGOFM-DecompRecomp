@@ -3467,7 +3467,10 @@ Screenshots of the device, never the host: `adb exec-out screencap -p`.
   below), asks SDL for landscape, a fullscreen (immersive) window
   and Back for the game, and runs the port's `main`. It has the disc picker
   (`Platform_SelectDisc`) and says what a failed guest mapping means
-  (`Platform_GuestMemoryHelp`). `Platform_HasDesktopGL` answers 0: the
+  (`Platform_GuestMemoryHelp`: the step that failed, from
+  `Memories_GuestMapError` in `image.c`, such as the address range that
+  was taken; "This Android is 32-bit" only in a 32-bit game, android-x86,
+  on a 32-bit kernel). `Platform_HasDesktopGL` answers 0: the
   window takes the SDL renderer path (opengles2), in an OpenGL ES 3.0
   context with the OpenGL picture pass in it where the device has ES 3,
   else showing the software GPU's picture ("OpenGL ES 3 (Android)"). It
