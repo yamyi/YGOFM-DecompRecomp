@@ -311,6 +311,7 @@ static int start_restart_activity(void)
     JNIEnv *env = (JNIEnv *)SDL_GetAndroidJNIEnv();
     jobject activity = env ? (jobject)SDL_GetAndroidActivity() : NULL;
     jclass intent_class = NULL, activity_class = NULL;
+    jmethodID make = NULL, set_class = NULL, put_int = NULL, add_flags = NULL, start = NULL;
     jobject intent = NULL;
     jstring name = NULL, key = NULL;
     int ok = 0;
@@ -320,31 +321,27 @@ static int start_restart_activity(void)
         (*env)->DeleteLocalRef(env, activity);
         return 0;
     }
-    intent_class = (*env)->FindClass(env, "android/content/Intent");
-    if (!java_failed(env) && intent_class) {
-        jmethodID make = (*env)->GetMethodID(env, intent_class, "<init>", "()V");
-        jmethodID set_class = (*env)->GetMethodID(env, intent_class, "setClassName",
-                                                  "(Landroid/content/Context;Ljava/lang/String;)Landroid/content/Intent;");
-        jmethodID put_int = (*env)->GetMethodID(env, intent_class, "putExtra", "(Ljava/lang/String;I)Landroid/content/Intent;");
-        jmethodID add_flags = (*env)->GetMethodID(env, intent_class, "addFlags", "(I)Landroid/content/Intent;");
-        activity_class = (*env)->GetObjectClass(env, activity);
-        jmethodID start = activity_class ? (*env)->GetMethodID(env, activity_class, "startActivity",
-                                                               "(Landroid/content/Intent;)V") : NULL;
-        if (!java_failed(env) && make && set_class && put_int && add_flags && start) {
-            intent = (*env)->NewObject(env, intent_class, make);
-            name = (*env)->NewStringUTF(env, "org.yfmredecomp.game.Restart");
-            key = (*env)->NewStringUTF(env, "pid");
-            if (!java_failed(env) && intent && name && key) {
-                (*env)->CallObjectMethod(env, intent, set_class, activity, name);
-                (*env)->CallObjectMethod(env, intent, put_int, key, (jint)getpid());
-                (*env)->CallObjectMethod(env, intent, add_flags, (jint)0x10000000); /* FLAG_ACTIVITY_NEW_TASK */
-                if (!java_failed(env)) {
-                    (*env)->CallVoidMethod(env, activity, start, intent);
-                    ok = !java_failed(env);
-                }
-            }
-        }
+    /* Each call is checked before the next: a JNI call with an exception
+     * pending aborts the process under CheckJNI. */
+#define CHECKED(value) ((value) && !java_failed(env))
+    if (CHECKED(intent_class = (*env)->FindClass(env, "android/content/Intent")) &&
+        CHECKED(make = (*env)->GetMethodID(env, intent_class, "<init>", "()V")) &&
+        CHECKED(set_class = (*env)->GetMethodID(env, intent_class, "setClassName",
+                                                "(Landroid/content/Context;Ljava/lang/String;)Landroid/content/Intent;")) &&
+        CHECKED(put_int = (*env)->GetMethodID(env, intent_class, "putExtra", "(Ljava/lang/String;I)Landroid/content/Intent;")) &&
+        CHECKED(add_flags = (*env)->GetMethodID(env, intent_class, "addFlags", "(I)Landroid/content/Intent;")) &&
+        CHECKED(activity_class = (*env)->GetObjectClass(env, activity)) &&
+        CHECKED(start = (*env)->GetMethodID(env, activity_class, "startActivity", "(Landroid/content/Intent;)V")) &&
+        CHECKED(intent = (*env)->NewObject(env, intent_class, make)) &&
+        CHECKED(name = (*env)->NewStringUTF(env, "org.yfmredecomp.game.Restart")) &&
+        CHECKED(key = (*env)->NewStringUTF(env, "pid")) &&
+        CHECKED((*env)->CallObjectMethod(env, intent, set_class, activity, name)) &&
+        CHECKED((*env)->CallObjectMethod(env, intent, put_int, key, (jint)getpid())) &&
+        CHECKED((*env)->CallObjectMethod(env, intent, add_flags, (jint)0x10000000))) { /* FLAG_ACTIVITY_NEW_TASK */
+        (*env)->CallVoidMethod(env, activity, start, intent);
+        ok = !java_failed(env);
     }
+#undef CHECKED
     (*env)->PopLocalFrame(env, NULL);
     (*env)->DeleteLocalRef(env, activity);
     return ok;
