@@ -3391,7 +3391,7 @@ adb install -r tmp/pc/android-x86/memories-x86.apk
   port's `main` returns, the process ends with it. If the range cannot be
   had, the game loads where the system puts it and keeps save states for
   that launch only. `tools/pc/package_android.py` then compiles SDL's Java
-  with `javac` against the SDK's `android.jar`, dexes it with `d8`, links
+  and the port's own (`src/pc/platform/android/java/`) with `javac` against the SDK's `android.jar`, dexes it with `d8`, links
   the manifest with `aapt2`, adds `lib/<abi>/libmain.so`, `libgame.so` and
   `libSDL3.so` and the build's `buildid`, `commit` and symbol table as
   assets (`assets/build/`), and aligns and signs the APK (`zipalign`,
@@ -3411,7 +3411,8 @@ adb install -r tmp/pc/android-x86/memories-x86.apk
   saves). The
   package is `org.yfmredecomp.game`; the activity is SDL's own
   `SDLActivity`. Our own Java is each `src/pc/platform/android/*.java`,
-  compiled with SDL's.
+  compiled with SDL's, and the crash report's `ReportProvider` ("Crash
+  reports on Android" below).
 - `--target android-armeabi-v7a` is refused: 32-bit ARM was removed.
 
 **The disc image.** On the first run the game finds no image and shows its
@@ -3454,6 +3455,45 @@ On an image without root, a debuggable build's `run-as` can copy it into
 the program directory's `game/` (`files/program/game/` in the internal
 files folder), which `game_files.c` searches first.
 Screenshots of the device, never the host: `adb exec-out screencap -p`.
+
+### Crash reports on Android
+
+A crash writes its report as on Linux (`crash.c`, in the process: there is
+no monitor), `crash-<pid>.txt` (`hang-<pid>.txt` for a freeze) in
+`reports/` of the external files folder, which no file manager opens since
+Android 11. So the next launch offers it (`android_report.c`, from the end
+of `sdl.c`'s `Platform_Open`) in the game's own notice: **Share** (the
+system's share sheet, the report attached: Discord, a chat app, e-mail),
+**Save to Downloads** (MediaStore, Android 10 and later: before that,
+writing there needs a storage permission the app does not ask for, so the
+button is not offered and only Share is) and **Not now** (nothing; it is
+offered again next launch). Share or Save marks it handled
+(`reports/handled.txt`, the report's time), and every older one with it:
+only the newest report is offered. Headless and scripted runs
+(`MEMORIES_HEADLESS`, `MEMORIES_INPUT`, `MEMORIES_SDL_SCRIPT`) are never
+asked. The desktops have none of it.
+
+What goes out, `yfm-redecomp-crash-<date>-<time>.txt`: the app's version
+(or "development build"), the build id and commit, the device's maker and
+model, the Android version and API level, the memory free now, then the
+game's report with the player's own paths taken out: the user folder
+becomes `<app folder>` (the "user dir" fact, log lines naming a file in
+it), a `content://` URI (the disc image the player picked, whose URI names
+their folders and file) becomes `content://<removed>`, and "started" loses
+its time zone. Nothing of the saves, the settings file or the disc.
+
+Share hands the file to the chosen app through the port's only Java of its
+own, `org.yfmredecomp.game.ReportProvider`
+(`src/pc/platform/android/java/`, compiled with SDL's by
+`package_android.py`): a read-only content provider, not exported, that
+serves the one copy in the cache folder's `shared/` to the app the share's
+Intent grants it to (`FLAG_GRANT_READ_URI_PERMISSION`), with its name and
+size. The Java calls (MediaStore, the Intent) are made through JNI on the
+thread's own stack (`Memories_OnHostStack`).
+
+To try it: `MEMORIES_CRASH_TEST=segv@600` in `environment.txt` (above),
+launch, let it crash, remove the line, launch again; `adb shell ls
+/sdcard/Download` after Save.
 
 ### How it differs (and what is shared)
 
