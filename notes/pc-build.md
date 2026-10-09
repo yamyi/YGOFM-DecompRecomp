@@ -3609,6 +3609,24 @@ untouched: with a mouse every path is the old one, pixel for pixel.
   there. A phone without a keyboard shows it. The desktop's Mods and Controls
   windows are unchanged: PrintWindow captures of both, 32- and 64-bit
   Windows builds before and after, are the same pixels.
+- **Checked again** after the rebase on master's GLES3 renderer and release
+  versioning (2026-10-09, debug-signed arm64 APK, versionCode 20141, on an
+  API 35 x86_64 emulator with `hw.keyboard=no`, SwiftShader): Mods from the
+  Game menu with no Open mods folder in its footer; the search typed on the
+  system's keyboard, which the field opened by itself and Enter closed; the
+  panel-test mod switched on, Apply, then Apply & restart: the game's process
+  ended and a new one started through `:restart` (exit 0), PANEL TEST on the
+  title, the mod Active after it; Controls: Up rebound to J (Rebind, then a
+  key within the listening time), the page dragged, OK, `bind 0 8 key.j` in
+  `controls.txt` and J shown again after a relaunch, Back closing the panel; a code mod
+  (AI Hard Mode) said "has code, which the game cannot run on Android yet";
+  both panels within the safe area with the tall cutout emulated (safe area
+  132,66 2066x926) and at 1280x720 (320 dpi) and 800x480 (240 dpi). A
+  density or overlay change while the game runs ends the process with a
+  SIGABRT in `hwuiTask` as SDL tears the activity down; the same happens with
+  master's APK. The desktop windows are pixel-identical to master's (32- and
+  64-bit, PrintWindow), except the mod's folder path, which names the
+  checkout.
 
 ### What works on the emulator (API 30 x86)
 
