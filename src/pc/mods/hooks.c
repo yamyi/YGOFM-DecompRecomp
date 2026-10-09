@@ -31,6 +31,7 @@
  * rebuilds every chain when a mod is applied or removed. A function no
  * applied mod hooks gets its two nops back. */
 #define _GNU_SOURCE   /* mremap */
+#include "pc/compat/fs.h"   /* getenv: the UTF-8 boundary */
 #include "hooks.h"
 #include "mods.h"
 #include "../compat/mman.h"
@@ -145,9 +146,24 @@ static int protect(unsigned char *from, size_t size, int on)
     return mprotect((void *)start, end - start, on ? PROT_READ | PROT_WRITE | PROT_EXEC : PROT_READ | PROT_EXEC);
 }
 
+/* MEMORIES_TEST_ANON_TEXT=1 (builds that are not releases): take the first
+ * write in place as refused, so the anonymous copy is tested where the
+ * system allows the write (the emulator, a shell process). */
+static int refuse_in_place(void)
+{
+#if defined(MEMORIES_TEST_HOOKS) && defined(A64_PATCH)
+    const char *value = getenv("MEMORIES_TEST_ANON_TEXT");
+    if (hook_path != 2 && value && *value && strcmp(value, "0")) {
+        errno = EACCES;
+        return 1;
+    }
+#endif
+    return 0;
+}
+
 static int writable(unsigned char *from, size_t size, int on)
 {
-    if (!protect(from, size, on)) {
+    if (!(on && refuse_in_place()) && !protect(from, size, on)) {
         if (on && !hook_path) {
             hook_path = 1;
             fprintf(stderr, "memories-pc: hooks: the game's code is patched in place\n");
