@@ -4,8 +4,7 @@ target (--target, default all three):
 
   i386            <library>.o, the 32-bit games' (Linux and Windows)
   x86_64-windows  <library>.x86_64-windows.o, the 64-bit Windows game's
-  aarch64         <library>.aarch64.o, the arm64 (Android) game's, which it
-                  does not load yet: built so that a mod's tooling is ready
+  aarch64         <library>.aarch64.o, the arm64 (Android) game's
 
 ("library": "x" in mod.json; "x.o" names the same three. A "libraries"
 object, {"x86_64-windows": "file.o", ...}, names a target's file outright,
