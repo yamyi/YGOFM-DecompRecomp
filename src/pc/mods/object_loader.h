@@ -23,7 +23,12 @@
 /* The target this game loads mods for: build_mod.py's name for it, the
  * `.memories.abi` tag a 64-bit object carries, and the middle of its file
  * name (`<library>.<target>.o`; the 32-bit games' is `<library>.o`). */
-#if defined(__x86_64__) && defined(_WIN32)
+/* The macOS ARM64 game links a dylib, not an object (build_mod.py --target
+ * macos, ObjectLoader_LoadPath): its "libraries" key is "macos", so an
+ * Android object named under "aarch64" is never handed to it. */
+#if defined(__APPLE__) && defined(__aarch64__) && defined(MEMORIES_TRANSLATED)
+#define OBJECT_LOADER_TARGET "macos"
+#elif defined(__x86_64__) && defined(_WIN32)
 #define OBJECT_LOADER_TARGET "x86_64-windows"
 #elif defined(__x86_64__)
 #define OBJECT_LOADER_TARGET "x86_64-linux"   /* no game is built so; the loader's tests are */

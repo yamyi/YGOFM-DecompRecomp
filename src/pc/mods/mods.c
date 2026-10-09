@@ -1731,8 +1731,8 @@ static void activate_once(int index, int on)
          * (<library>.x86_64-windows.o). A mod made before there was one has
          * only the 32-bit object: it stays off with the reason beside it, as
          * above, and is not a broken mod. */
-        if (strcmp(OBJECT_LOADER_TARGET, "i386") && !mod->broken && mod->library[0] && !mod->object.image && !mod->object.native_handle &&
-            !library_present(mod)) {
+        if (strcmp(OBJECT_LOADER_TARGET, "i386") && !mod->broken && mod->library[0] && !mod->object.image &&
+            !mod->object.native_handle && !library_present(mod)) {
             note(mod, "needs a 64-bit build of this mod (%s): the one it has is for the 32-bit game, which is the one "
                       "to play it with", mod->library);
             drop_overrides(index);
