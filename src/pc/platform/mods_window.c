@@ -99,7 +99,11 @@ static void layout_touch(Layout *l)
     memset(l, 0, sizeof(*l));
     l->apply = rect(width - p - 150 * unit, footer, 150 * unit, t);
     l->close = rect(l->apply.x - g - 94 * unit, footer, 94 * unit, t);
-    l->folder = none(); /* a phone has no folder window to open */
+    /* The footer's slot for the mods' files, left of Close (footer_left()
+     * gives the message the room up to it). Empty: an app has no folder
+     * window to open (Platform_OpenFolder fails on Android). Importing a
+     * mod's .zip through the system's file picker is to go here. */
+    l->folder = none();
     if (!compact || page == 0) {
         int fw = filter_width();
         x = width - p - 2 * save_w - g;
@@ -753,10 +757,13 @@ static const char *apply_label(void)
 /* With a finger: the fields and the list, the details (side by side or the
  * page shown), and the footer: the message (or the counts) beside Close and
  * Apply, up to three lines in the footer's band. */
+/* Where the footer's buttons start: the files slot when it has a button,
+ * else Close. */
+static int footer_left(const Layout *l) { return l->folder.w ? l->folder.x : l->close.x; }
 static void draw_touch(MenuCanvas *c, const Layout *l)
 {
     char line[512];
-    int footer = l->apply.y, room = l->close.x - 8 * unit - 12 * unit;
+    int footer = l->apply.y, room = footer_left(l) - 8 * unit - 12 * unit;
     if (!compact || page == 0) {
         draw_fields(c, l);
         draw_list(c, l);

@@ -71,9 +71,12 @@ by side, two pages: the list, and a mod's page (Back, load order, Enabled,
 the tabs) that a tap on its row opens; the [x] at a row's left switches the
 mod without opening it. A drag scrolls the list or the details; a slider
 follows the finger. Search and the profile name show the on-screen keyboard
-(its Enter ends the typing); Back is Escape. There is no Open mods folder:
-the player's mods go in `mods/` in the app's files folder
-(`Android/data/org.yfmredecomp.game/files`). Apply & restart starts the app
+(its Enter ends the typing); Back is Escape. There is no Open mods folder
+(an app has no folder window to open; `Platform_OpenFolder` fails on
+Android): the player's mods go in `mods/` in the app's files folder
+(`Android/data/org.yfmredecomp.game/files`). Its place in the footer, left
+of Close (`layout_touch`), is kept for importing a mod's `.zip` through the
+system's file picker, which is not there yet. Apply & restart starts the app
 again in a new process. The game is paused while the panel shows.
 
 Implementation: `src/pc/platform/mods_window.c`, `src/pc/mods/manager.c`

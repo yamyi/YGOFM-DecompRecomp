@@ -238,7 +238,7 @@ static void panel_key(MenuKey k)
     Panel_Key(&e, code, 0, 0);
     Panel_Draw(&window);
 }
-/* Where a Mods widget is: found by looking for its colour would be brittle,
+/* Where a Mods widget is: found by looking for its color would be brittle,
  * so the tests tap where the layout puts it (ModsWindow_Locate). */
 static void tap_mods(int id)
 {

@@ -263,6 +263,12 @@ static void resize_mods(int w, int h)
 }
 int HERE(Platform_OpenFolder)(const char *path)
 {
+#ifdef SDL_PLATFORM_ANDROID
+    /* An app has no file manager window to open: SDL_OpenURL there takes a
+     * URI for an activity, and a plain path opens nothing. */
+    (void)path;
+    return -1;
+#endif
     /* xdg-open on Linux, ShellExecute on Windows: both take a plain path. */
 #ifdef _WIN32
     char native[1024];
