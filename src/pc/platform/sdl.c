@@ -2416,6 +2416,11 @@ int Platform_Open(const char *title)
     apply_display_settings();
     menu_visible = !covers_screen() || Settings_Get(SET_SHOW_MENU_FULLSCREEN);
     Menu_SetVisible(menu_visible);
+#ifdef SDL_PLATFORM_ANDROID
+    /* A crash in an earlier run: its report is offered to share or save,
+     * since the player cannot reach the reports folder (android_report.c). */
+    Android_OfferCrashReport();
+#endif
     return 0;
 }
 

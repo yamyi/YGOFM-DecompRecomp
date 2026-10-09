@@ -96,6 +96,14 @@ void Platform_Screenshot(int window_image);
 /* Help > System info: puts `text` on the system clipboard; 0 where the
  * backend cannot. */
 int Platform_CopyText(const char *text);
+#ifdef __ANDROID__
+/* android_report.c: once the window is open (sdl.c's Platform_Open), the
+ * newest crash or hang report a Share or Save has not taken care of yet is
+ * offered in a notice: Share (the system's share sheet), Save to Downloads
+ * (Android 10+) or Not now. Nothing when there is none, and never in a
+ * scripted or headless run. Desktops have no such thing. */
+void Android_OfferCrashReport(void);
+#endif
 /* PS1 digital pad bits, active high (Select 0x0001 ... Square 0x8000).
  * Async-signal-safe: it only reads a word written by Platform_Present. */
 uint16_t Platform_Pad(int port);
