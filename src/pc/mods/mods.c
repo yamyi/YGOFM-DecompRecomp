@@ -1228,6 +1228,9 @@ static int load_library(Mod *mod)
     }
     mod->initialized = 1;
     say("%s: loaded %s", mod->id, mod->library);
+    /* Always said (stderr, which an Android app sends to logcat): which code
+     * ran is the first thing to know about a report. */
+    fprintf(stderr, "memories-pc: mods: %s loaded its code (%s)\n", mod->id, mod->library);
     return 1;
 }
 
