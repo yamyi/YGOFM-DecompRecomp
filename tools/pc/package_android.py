@@ -73,11 +73,12 @@ BUILD_WRITES = ("config/pc/guest_addresses.txt",)
 # touch controls follow a density change (sdl.c, "density"). Unknown names on
 # an older Android are ignored (the manifest holds a bit mask); aapt2 checks
 # each against android.jar, which needs API 34 or later for grammaticalGender
-# (the build's android-35 has it).
+# (MIN_PLATFORM, which platform_dir checks; the build's android-35 has it).
 CONFIG_CHANGES = "|".join((
     "mcc", "mnc", "locale", "touchscreen", "keyboard", "keyboardHidden", "navigation", "orientation",
     "screenLayout", "uiMode", "screenSize", "smallestScreenSize", "layoutDirection", "fontScale", "colorMode",
     "density", "fontWeightAdjustment", "grammaticalGender"))
+MIN_PLATFORM = 34
 MANIFEST = f"""<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="{PACKAGE}" android:versionCode="@VERSION_CODE@" android:versionName="@VERSION_NAME@">
@@ -144,9 +145,14 @@ def build_tools_dir():
 
 def platform_dir():
     """The SDK platform compiled against: android-TARGET_SDK when installed,
-    else the newest installed."""
+    else the newest installed; android-MIN_PLATFORM at the least."""
     path = os.path.join(sdk(), "platforms", f"android-{TARGET_SDK}")
-    return path if os.path.isdir(path) else newest(os.path.join(sdk(), "platforms"), "android-")
+    if not os.path.isdir(path):
+        path = newest(os.path.join(sdk(), "platforms"), "android-")
+    if int(os.path.basename(path)[len("android-"):].split(".")[0]) < MIN_PLATFORM:
+        sys.exit(f"{path}: android-{MIN_PLATFORM} or later is needed (the manifest's configChanges names "
+                 f"grammaticalGender); install it: sdkmanager \"platforms;android-{TARGET_SDK}\"")
+    return path
 
 
 def tool(build_tools, name):

@@ -3360,8 +3360,10 @@ phones too ("Android arm64").
 
 ### Build, install, run
 
-Needs the Android SDK with the NDK (r29 tested), a platform (android-35) and
-build-tools (35), a JDK (17 or later: `javac`, `keytool`), cmake and ninja.
+Needs the Android SDK with the NDK (r29 tested), a platform (android-35;
+`package_android.py` stops below android-34, as the manifest's
+`configChanges` names `grammaticalGender`) and build-tools (35), a JDK (17
+or later: `javac`, `keytool`), cmake and ninja.
 Nothing else: no Gradle, no Android Studio.
 
 ```sh
