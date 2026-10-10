@@ -44,6 +44,8 @@ struct ModsImport {
     unsigned long long total;
     ModsImportMod mods[MODS_IMPORT_MAX];
     int mod_count;
+    unsigned *done;     /* Mods_ImportWatch: bytes unpacked so far (atomic), or NULL */
+    const int *cancel;  /* and nonzero (atomic) to stop between files */
 };
 
 static unsigned le16(const unsigned char *p) { return p[0] | (unsigned)p[1] << 8; }
@@ -595,6 +597,14 @@ fail:
 }
 
 int Mods_ImportCount(const ModsImport *import) { return import ? import->mod_count : 0; }
+unsigned long long Mods_ImportBytes(const ModsImport *import) { return import ? import->total : 0; }
+void Mods_ImportWatch(ModsImport *import, unsigned *done, const int *cancel)
+{
+    if (!import)
+        return;
+    import->done = done;
+    import->cancel = cancel;
+}
 ModsImportMod *Mods_ImportMod(ModsImport *import, int index)
 {
     return import && index >= 0 && index < import->mod_count ? &import->mods[index] : NULL;
@@ -788,6 +798,10 @@ int Mods_ImportInstall(ModsImport *import, const char *mods, char *why, size_t w
              * case-blind file system) */
             if (skipped(e->name) || !prefixed(e->name, mod->prefix) || !e->name[plen])
                 continue;
+            if (import->cancel && __atomic_load_n(import->cancel, __ATOMIC_ACQUIRE)) {
+                snprintf(why, why_size, "Cancelled.");
+                goto done;
+            }
             if (snprintf(path, sizeof(path), "%s/%s", at->staged, e->name + plen) >= (int)sizeof(path)) {
                 snprintf(why, why_size, "A file name in the .zip is too long (%s).", e->name);
                 goto done;
@@ -819,7 +833,13 @@ int Mods_ImportInstall(ModsImport *import, const char *mods, char *why, size_t w
             }
             if (!written)
                 goto done;
+            if (import->done)
+                __atomic_add_fetch(import->done, e->size, __ATOMIC_RELEASE);
         }
+    }
+    if (import->cancel && __atomic_load_n(import->cancel, __ATOMIC_ACQUIRE)) {
+        snprintf(why, why_size, "Cancelled."); /* the last file came with the cancel */
+        goto done;
     }
     /* Everything is unpacked: each mod goes in place, the folder it
      * replaces moved aside first. */

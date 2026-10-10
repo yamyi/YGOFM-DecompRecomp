@@ -379,6 +379,38 @@ int main(void)
         CHECK(import(items, 2, &count, why, sizeof(why)));
         CHECK(file_is("mods/Alpha/data.bin", "data"));
     }
+    /* Watched (the HD pack's download unpacks on a thread of its own): the
+     * bytes so far; a cancel before the next file leaves nothing. */
+    reset();
+    {
+        ZipItem items[] = {{"alpha/mod.json", MANIFEST_A, 1, 0, 0, 0, 0, 0},
+                           {"alpha/a.txt", "0123456789", 1, 0, 0, 0, 0, 0}};
+        unsigned done = 0;
+        int cancel = 0;
+        ModsImport *imp;
+        write_zip(zip, items, 2);
+        imp = Mods_ImportOpen(zip, why, sizeof(why));
+        CHECK(imp != NULL);
+        if (imp) {
+            CHECK(Mods_ImportBytes(imp) == strlen(MANIFEST_A) + 10);
+            Mods_ImportWatch(imp, &done, &cancel);
+            CHECK(Mods_ImportInstall(imp, mods, why, sizeof(why)));
+            CHECK(done == Mods_ImportBytes(imp));
+            Mods_ImportClose(imp);
+        }
+        reset();
+        imp = Mods_ImportOpen(zip, why, sizeof(why));
+        CHECK(imp != NULL);
+        if (imp) {
+            done = 0;
+            cancel = 1;
+            Mods_ImportWatch(imp, &done, &cancel);
+            CHECK(!Mods_ImportInstall(imp, mods, why, sizeof(why)));
+            CHECK(!strcmp(why, "Cancelled.") && done == 0);
+            CHECK(!strcmp(listing("mods"), ""));
+            Mods_ImportClose(imp);
+        }
+    }
     /* What an interrupted import leaves is cleared. */
     reset();
     {
