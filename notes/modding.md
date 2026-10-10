@@ -1667,7 +1667,8 @@ the system's, so the container is the same too. The 64-bit Windows game
 reads its x86-64 object with the same loader (ELF64, the Windows x64
 calling convention); one that has only the 32-bit object stays off there
 with "needs a 64-bit build of this mod" in the Mods window; the arm64
-Android game reads its AArch64 object the same way. A mod ships
+Android game reads its AArch64 object the same way, and one without it
+stays off with "needs an Android build of this mod". A mod ships
 whichever objects it has beside its `mod.json`; `"library": "card-tweaks"`
 (or `"card-tweaks.o"`) names all of them, and `"libraries": {"x86_64-windows":
 "other.o"}` names one target's file outright. Mod authors supporting every

@@ -1742,12 +1742,18 @@ static void activate_once(int index, int on)
          * (<library>.x86_64-windows.o). A mod made before there was one has
          * only the 32-bit object: it stays off with the reason beside it, as
          * above, and is not a broken mod. The macOS game, which has no 32-bit
-         * one to send the player to, reports a missing dylib as broken. */
+         * one to send the player to, reports a missing dylib as broken. On a
+         * phone there is no other game to point to either: the note says only
+         * which object is missing. */
 #if !(defined(__APPLE__) && defined(__aarch64__) && defined(MEMORIES_TRANSLATED))
         if (strcmp(OBJECT_LOADER_TARGET, "i386") && !mod->broken && mod->library[0] && !mod->object.image &&
             !mod->object.native_handle && !library_present(mod)) {
+#ifdef __ANDROID__
+            note(mod, "needs an Android build of this mod: it has no %s", mod->library);
+#else
             note(mod, "needs a 64-bit build of this mod (%s): the one it has is for the 32-bit game, which is the one "
                       "to play it with", mod->library);
+#endif
             drop_overrides(index);
             return;
         }
