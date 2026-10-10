@@ -330,7 +330,7 @@ const char *Paths_UserDir(void)
      * game, which is where the port kept everything before. Not on Android,
      * where "beside the game" is no folder the app can write, and where the
      * folder was made before the game started (android.c): one that is
-     * gone now stays the folder, and each write says why it failed. */
+     * gone now stays the folder, and the writes into it fail there. */
 #ifdef __ANDROID__
     if (Paths_MakeDirs(user_dir)) fprintf(stderr, "memories-pc: cannot create %s: %s\n", user_dir, strerror(errno));
 #else

@@ -3432,14 +3432,17 @@ desktop. Only raw `.bin` images: `game_files.c` reads nothing else (no
 comes back): there the image has to be put in place by other means.
 
 The external files folder has to be there before the game starts:
-`Memories_AndroidMain` makes it, asking again for up to 10 s while the
-shared storage is not mounted (Java's `getExternalFilesDir` then gives no
-folder; `adb shell sm unmount "emulated;0"` shows it), and otherwise says
-"The game could not use its storage folder right now. Close the game and
-open it again." and quits. Android has no fallback folder (the desktop's
-`./saves`, which on Android is no folder the app can write): the disc image
-and the saves would be split between two places. A copy of the picked
-image that cannot make `game/` says the same, with mkdir's reason.
+`Memories_AndroidMain` makes it, asking again for up to 10 s while it
+cannot (while the shared storage is not mounted Java's `getExternalFilesDir`
+gives no folder, `adb shell sm unmount "emulated;0"` shows it; just as it
+mounts, Java may give the folder while mkdir here says "File exists" and
+stat cannot see it yet), and otherwise says "The game could not use
+its storage folder right now. Close the game and open it again." and quits,
+unless the internal `environment.txt` names a `MEMORIES_USER_DIR` (testing).
+Android has no fallback folder (the desktop's `./saves`, which on Android is
+no folder the app can write): the disc image and the saves would be split
+between two places. A copy of the picked image that cannot make `game/`
+says so too, with mkdir's reason, and the welcome box comes back.
 
 Testing aids: `environment.txt`, `NAME=value` per line, in the external
 files folder (or, for a debuggable build, the internal one, which `run-as`
