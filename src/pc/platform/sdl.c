@@ -1433,7 +1433,12 @@ static int es_take_frame(void)
     if (!es_shown_last) {
         fprintf(stderr, "memories-pc: the OpenGL picture cannot be shown; the software GPU draws it\n");
         es_picture = 0;
+        es_enter(); /* its names are deleted in the renderer's context */
         GlPicture_Stop();
+        es_leave();
+        if (es_shown) SDL_DestroyTexture(es_shown); /* nothing copies into it now */
+        es_shown = NULL;
+        es_shown_w = es_shown_h = 0;
         Menu_SetHdPicture(0);
     }
     return es_shown_last;
@@ -2227,7 +2232,11 @@ static void reset_renderer(void)
         quit = 1;
         return;
     }
-    if (!es_picture) GlPicture_Stop(); /* not started again: the software GPU draws the picture */
+    if (!es_picture) { /* not started again: the software GPU draws the picture */
+        es_enter();
+        GlPicture_Stop();
+        es_leave();
+    }
     Menu_SetHdPicture(es_picture);
     swap_interval = -1; /* set again on the new renderer */
     menu_dirty = 1;

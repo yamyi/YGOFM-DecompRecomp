@@ -62,6 +62,7 @@
     X(PFNGLUNIFORM4IPROC, Uniform4i) \
     X(PFNGLUNIFORM2FPROC, Uniform2f) \
     X(PFNGLGENBUFFERSPROC, GenBuffers) \
+    X(PFNGLDELETEBUFFERSPROC, DeleteBuffers) \
     X(PFNGLBINDBUFFERPROC, BindBuffer) \
     X(PFNGLBUFFERDATAPROC, BufferData) \
     X(PFNGLENABLEVERTEXATTRIBARRAYPROC, EnableVertexAttribArray) \
@@ -90,6 +91,7 @@ GL_FUNCTIONS(DECLARE)
 #undef DECLARE
 static PFNGLGENVERTEXARRAYSPROC glGenVertexArrays_; /* optional: a core profile needs one bound */
 static PFNGLBINDVERTEXARRAYPROC glBindVertexArray_;
+static PFNGLDELETEVERTEXARRAYSPROC glDeleteVertexArrays_;
 /* The context is OpenGL ES 3 (Android; MEMORIES_GLES=1 on a desktop): the
  * shaders are made GLSL ES (es_source), and the context is the SDL
  * renderer's, which sdl.c hands over around every call here. */
@@ -107,6 +109,7 @@ static int load_functions(void)
 #undef LOAD
     glGenVertexArrays_ = (PFNGLGENVERTEXARRAYSPROC)SDL_GL_GetProcAddress("glGenVertexArrays");
     glBindVertexArray_ = (PFNGLBINDVERTEXARRAYPROC)SDL_GL_GetProcAddress("glBindVertexArray");
+    glDeleteVertexArrays_ = (PFNGLDELETEVERTEXARRAYSPROC)SDL_GL_GetProcAddress("glDeleteVertexArrays");
     return 1;
 }
 
@@ -880,6 +883,17 @@ static int make_picture(int wanted)
     return 1;
 }
 
+static void delete_names(void); /* every name the pass holds (below) */
+static void forget_names(void);
+
+/* A start that failed half way: what it made deleted, nothing held. */
+static int refuse(void)
+{
+    delete_names();
+    forget_names();
+    return 0;
+}
+
 int GlPicture_Init(void)
 {
     const char *version = (const char *)glGetString(GL_VERSION), *choice = getenv("MEMORIES_GL_PICTURE");
@@ -898,16 +912,17 @@ int GlPicture_Init(void)
                 version ? version : "none");
         return 0;
     }
-    if (!load_functions() || !make_program(Settings_Get(SET_XBR) != 0)) return 0;
+    if (!load_functions()) return 0;
+    if (!make_program(Settings_Get(SET_XBR) != 0)) return refuse();
     vram_texture = make_texture(GL_R16UI, SOFT_GPU_WIDTH, SOFT_GPU_HEIGHT, GL_RED_INTEGER, GL_UNSIGNED_SHORT);
     vram_scratch = make_texture(GL_R16UI, SOFT_GPU_WIDTH, SOFT_GPU_HEIGHT, GL_RED_INTEGER, GL_UNSIGNED_SHORT);
     vram_fbo = make_framebuffer(vram_texture);
     vram_scratch_fbo = make_framebuffer(vram_scratch);
-    if (!vram_fbo || !vram_scratch_fbo) return 0;
+    if (!vram_fbo || !vram_scratch_fbo) return refuse();
     gl_GenBuffers(1, &buffer);
     if (glGenVertexArrays_ && glBindVertexArray_) glGenVertexArrays_(1, &vertex_array);
     if (!arena) arena = malloc(ARENA_WORDS * sizeof(uint32_t)); /* kept from before a lost context */
-    if (!arena) return 0;
+    if (!arena) return refuse();
     glBindTexture(GL_TEXTURE_2D, 0);
     on = 1;
     SoftGpu_SetRecorder(&recorder); /* records the first resync */
@@ -2683,7 +2698,44 @@ int GlPicture_CopyInto(unsigned from, int x, int y, int w, int h, unsigned to)
     return ok;
 }
 
-void GlPicture_Lost(void)
+/* Every name the pass holds, deleted in the current context (its own). */
+static void delete_names(void)
+{
+    int i;
+    if (program) {
+        gl_UseProgram(0);
+        gl_DeleteProgram(program);
+    }
+    if (buffer) gl_DeleteBuffers(1, &buffer);
+    if (vertex_array && glDeleteVertexArrays_) glDeleteVertexArrays_(1, &vertex_array);
+    if (vram_fbo) gl_DeleteFramebuffers(1, &vram_fbo);
+    if (vram_scratch_fbo) gl_DeleteFramebuffers(1, &vram_scratch_fbo);
+    if (vram_texture) glDeleteTextures(1, &vram_texture);
+    if (vram_scratch) glDeleteTextures(1, &vram_scratch);
+    if (picture_fbo) gl_DeleteFramebuffers(1, &picture_fbo);
+    if (picture_scratch_fbo) gl_DeleteFramebuffers(1, &picture_scratch_fbo);
+    if (picture_texture) glDeleteTextures(1, &picture_texture);
+    if (picture_scratch) glDeleteTextures(1, &picture_scratch);
+    free_multisampled(&picture_ms_fbo, &picture_ms_buffer);
+    wide_free();
+    if (banks_texture) glDeleteTextures(1, &banks_texture);
+    if (entry_map_texture) glDeleteTextures(1, &entry_map_texture);
+    if (place_map_texture) glDeleteTextures(1, &place_map_texture);
+    for (i = 0; i < entry_texture_count; i++) {
+        if (entry_textures[i]) glDeleteTextures(1, &entry_textures[i]);
+    }
+    if (capture_texture) glDeleteTextures(1, &capture_texture);
+    if (glyphs_texture) glDeleteTextures(1, &glyphs_texture);
+    if (shown_fbo) gl_DeleteFramebuffers(1, &shown_fbo);
+    if (shown_texture) glDeleteTextures(1, &shown_texture);
+    if (copy_fbo) gl_DeleteFramebuffers(1, &copy_fbo);
+}
+
+/* Every name the pass holds forgotten (deleted or not), and what was made
+ * from them. The record (the arena) is kept: a recorder call already under
+ * way when the recorder is taken out may still reserve room in it, and a
+ * start after a lost context uses it again. */
+static void forget_names(void)
 {
     int bank;
     on = 0;
@@ -2717,8 +2769,12 @@ void GlPicture_Lost(void)
     want_resync = 1; /* VRAM whole into the new picture, at the next replay after Init */
 }
 
+void GlPicture_Lost(void) { forget_names(); } /* they went with the lost context */
+
 void GlPicture_Stop(void)
 {
     on = 0;
     SoftGpu_SetRecorder(NULL); /* the software GPU draws its own picture again, from VRAM */
+    delete_names(); /* the picture, its scratch copy and anti-aliasing: hundreds of MiB at 4x */
+    forget_names();
 }
