@@ -944,17 +944,21 @@ void Menu_SetPlatformItems(int windows, int window_modes, int update_check)
 
 static int hd_picture, present_pass = 1;
 
-/* An item's reason beside it, and dimmed while it has one. */
+/* An item's reason beside it, and dimmed while it has one. Only a row
+ * dimmed here is enabled again (these rows have no shortcut of their own):
+ * a backend may dim one for good (x11.c, Sharp bilinear). */
 static void set_reason(int id, const char *why)
 {
-    int menu, item;
+    int menu, item, had = 0;
     for (menu = 0; menu < MENU_COUNT + SUB_COUNT; menu++) {
         Menu *m = menu < MENU_COUNT ? &menus[menu] : &submenus[menu - MENU_COUNT];
         for (item = 0; item < m->count; item++) {
-            if (m->items[item].id == id) m->items[item].shortcut = why;
+            if (m->items[item].id != id) continue;
+            had |= m->items[item].shortcut != NULL;
+            m->items[item].shortcut = why;
         }
     }
-    Menu_SetItemEnabled(id, !why);
+    if (why || had) Menu_SetItemEnabled(id, !why);
 }
 
 /* The desktop presenter's effects (present_pass.c) are not run on the
@@ -966,7 +970,7 @@ static void update_effect_items(int console, const char *no_picture)
 #ifdef __ANDROID__
     const char *why = present_pass ? NULL : "not on Android yet";
 #else
-    const char *why = present_pass ? NULL : "needs OpenGL";
+    const char *why = present_pass ? NULL : "needs desktop OpenGL";
 #endif
     set_reason(MENU_ITEM_COLOR, why);
     set_reason(MENU_ITEM_CRT, why);
