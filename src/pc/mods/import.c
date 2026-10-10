@@ -729,7 +729,7 @@ int Mods_ImportInstall(ModsImport *import, const char *mods, char *why, size_t w
 {
     char temporary[1100];
     Place *places;
-    int placed = 0, ok = 0, stranded = 0;
+    int placed = 0, ok = 0, stranded = 0, left = -1;
     if (!import || !import->mod_count) {
         snprintf(why, why_size, "This .zip has no mod in it.");
         return 0;
@@ -800,8 +800,17 @@ int Mods_ImportInstall(ModsImport *import, const char *mods, char *why, size_t w
                 }
                 continue;
             }
-            if (make_below(at->staged, e->name + plen, 0) || !(out = fopen(path, "wb"))) {
-                snprintf(why, why_size, "Could not write %s: %s.", e->name, strerror(errno));
+            /* "x": every file is new in the fresh folder, so one that is
+             * there already is another of the .zip's names that this
+             * storage folds into it (Android's shared storage ignores
+             * letter case beyond ASCII, and accents' forms): refused, not
+             * written over. */
+            if (make_below(at->staged, e->name + plen, 0) || !(out = fopen(path, "wbx"))) {
+                if (errno == EEXIST)
+                    snprintf(why, why_size, "Two files in the .zip are one file on this storage, which does not "
+                             "tell their letters apart: %s.", e->name);
+                else
+                    snprintf(why, why_size, "Could not write %s: %s.", e->name, strerror(errno));
                 goto done;
             }
             written = unpack(import, e, out, NULL, why, why_size);
@@ -839,24 +848,37 @@ int Mods_ImportInstall(ModsImport *import, const char *mods, char *why, size_t w
     goto done;
 undo:
     /* `placed` is the mod that failed: it may have moved its old folder.
-     * An old folder that cannot go back is kept, never removed. */
+     * A new mod placed before it goes back out (moved back, else removed:
+     * it is this import's copy); one that cannot is left, and said. An old
+     * folder that cannot go back is kept, never removed. */
     for (int m = placed; m >= 0; m--) {
         Place *at = &places[m];
-        if (m < placed && rename(at->target, at->staged))
-            stranded |= at->moved;
-        else if (at->moved && rename(at->aside, import->mods[m].replace))
+        struct stat info;
+        if (m < placed && rename(at->target, at->staged)) {
+            Mods_ImportRemoveTree(at->target);
+            if (!stat(at->target, &info)) {
+                if (left < 0)
+                    left = m;
+                stranded |= at->moved;
+                continue;
+            }
+        }
+        if (at->moved && rename(at->aside, import->mods[m].replace))
             stranded = 1;
     }
 done:
-    if (stranded) {
+    if (stranded || left >= 0) {
         /* .recovered-* is neither scanned (a dot) nor cleaned up. */
-        char kept[1100];
+        char kept[1100], extra[1300] = "";
         snprintf(kept, sizeof(kept), "%s/.recovered-%s", mods, strrchr(temporary, '-') + 1);
-        if (!rename(temporary, kept))
-            snprintf(why, why_size, "Nothing was imported, and an old mod could not be put back: it is in %s.", kept);
+        if (stranded)
+            snprintf(extra, sizeof(extra), ", and an old mod could not be put back: it is in %s",
+                     rename(temporary, kept) ? temporary : kept);
+        if (left >= 0)
+            snprintf(why, why_size, "Nothing was imported, but %s could not be taken out of the mods folder again "
+                     "(delete that folder)%s.", import->mods[left].folder, extra);
         else
-            snprintf(why, why_size, "Nothing was imported, and an old mod could not be put back: it is in %s.",
-                     temporary);
+            snprintf(why, why_size, "Nothing was imported%s.", extra);
     } else
         Mods_ImportRemoveTree(temporary);
     free(places);

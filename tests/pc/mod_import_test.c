@@ -233,6 +233,22 @@ int main(void)
             }
         }
     }
+    /* Two names that differ only beyond ASCII: one file where the storage
+     * folds them (Windows' NTFS here, as Android's shared storage), so the
+     * import is refused there with nothing written; two files elsewhere. */
+    reset();
+    {
+        ZipItem items[] = {{"fold/mod.json", "{}", 0, 0, 0, 0, 0, 0},
+                           {"fold/\xc3\x89.txt", "upper", 0, 0, 0, 0, 0, 0},
+                           {"fold/\xc3\xa9.txt", "lower", 0, 0, 0, 0, 0, 0}};
+        int done = import(items, 3, &count, why, sizeof(why));
+#ifdef _WIN32
+        CHECK(!done && strstr(why, "are one file on this storage") != NULL);
+        CHECK(!strcmp(listing("mods"), ""));
+#else
+        CHECK(done && file_is("mods/fold/\xc3\x89.txt", "upper") && file_is("mods/fold/\xc3\xa9.txt", "lower"));
+#endif
+    }
     /* Replace: the old folder goes; without it the import is refused and
      * the old one stays as it was. */
     reset();
