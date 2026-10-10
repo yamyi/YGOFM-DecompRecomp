@@ -3408,7 +3408,8 @@ adb install -r tmp/pc/android-x86/memories-x86.apk
   uninstall the test app once first, which deletes its files (disc copy,
   saves). The
   package is `org.yfmredecomp.game`; the activity is SDL's own
-  `SDLActivity`, with no Java of ours.
+  `SDLActivity`. Our own Java is each `src/pc/platform/android/*.java`,
+  compiled with SDL's.
 - `--target android-armeabi-v7a` is refused: 32-bit ARM was removed.
 
 **The disc image.** On the first run the game finds no image and shows its
