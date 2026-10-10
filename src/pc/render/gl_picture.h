@@ -63,9 +63,12 @@ int GlPicture_CopyInto(unsigned from, int x, int y, int w, int h, unsigned to);
  * GlPicture_Init in the new context, whose first replay draws the picture
  * again from VRAM. */
 void GlPicture_Lost(void);
-/* The pass given up (OpenGL ES: a failed start after a lost context, or
- * the presenter's texture cannot be made or drawn into): every name it
- * holds deleted, so the context must be current, the pass off, and the
- * software GPU draws the picture again, from VRAM, as without the pass. */
+/* The pass given up for good (OpenGL ES: a failed start after a lost
+ * context, or the presenter's texture cannot be made or drawn into): every
+ * name it holds deleted, so the context must be current, the pass off, and
+ * the software GPU draws the picture again, from VRAM, as without the pass.
+ * sdl.c does not start it again at a later device reset: the recorder's
+ * return (SoftGpu_SetRecorder) would free the software picture that the
+ * present handling the reset is reading. */
 void GlPicture_Stop(void);
 #endif
