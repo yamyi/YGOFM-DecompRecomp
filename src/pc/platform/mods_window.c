@@ -105,11 +105,11 @@ static void layout_touch(Layout *l)
      * window to open (Platform_OpenFolder fails on Android). Importing a
      * mod's .zip through the system's file picker is to go here. */
     l->folder = none();
-    {   /* A message of two or three lines beside the buttons (a refusal, a
+    {   /* A message of two to four lines beside the buttons (a refusal, a
          * mod that cannot run here) raises the footer's top instead of
          * being cut: the list and the details end above it. */
         int room = (l->folder.w ? l->folder.x : l->close.x) - 20 * unit;
-        int lines = *status ? min(3, max(1, wrap(NULL, 0, 0, room, status, 0) / LINE)) : 1;
+        int lines = *status ? min(4, max(1, wrap(NULL, 0, 0, room, status, 0) / LINE)) : 1;
         l->lift = max(0, lines * LINE + 6 * unit - t);
         footer -= l->lift; /* where the list and the details end; the buttons are placed */
     }
@@ -765,7 +765,7 @@ static const char *apply_label(void)
 }
 /* With a finger: the fields and the list, the details (side by side or the
  * page shown), and the footer: the message (or the counts) beside Close and
- * Apply, up to three lines in the footer's band. */
+ * Apply, up to four lines in the footer's band (layout_touch raises it). */
 /* Where the footer's buttons start: the files slot when it has a button,
  * else Close. */
 static int footer_left(const Layout *l) { return l->folder.w ? l->folder.x : l->close.x; }
@@ -787,7 +787,7 @@ static void draw_touch(MenuCanvas *c, const Layout *l)
     if (l->apply.y + l->apply.h <= c->height) {
         /* A band from the line above the buttons to the bottom clips it. */
         MenuCanvas band = *c;
-        int top = footer - 3 * unit, lines = min(3, max(1, wrap(NULL, 0, 0, room, line, 0) / LINE));
+        int top = footer - 3 * unit, lines = min(4, max(1, wrap(NULL, 0, 0, room, line, 0) / LINE));
         band.pixels = c->pixels + (size_t)top * c->stride;
         band.height = c->height - top;
         /* centred between the line above and the buttons' bottom */
