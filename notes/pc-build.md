@@ -3550,11 +3550,18 @@ untouched: with a mouse every path is the old one, pixel for pixel.
   went down on scrolls, `ModsWindow_Drag`/`ControlsWindow_Drag`: Mods' list
   by rows, its details by the pixel, Controls' page or its device list). A
   press on what follows the finger (an int setting's slider, a scrollbar:
-  `ModsWindow_Grabs`) goes to the module at once. A mouse is passed on as in
-  the window.
+  `ModsWindow_Grabs`) goes to the module at once; a scrollbar takes a press
+  up to 8 units beside it with a finger (3 with a desktop's mouse), one test
+  (`bar_hit`) for both, so a press held for the bar never opens the row
+  under it. A mouse is passed on as in the window; on the Controls page,
+  whose lists are at full length, its wheel scrolls the page a row a notch,
+  as a drag does.
 - **Keys and typing.** Esc, and a phone's Back, are the window's Esc: a
   capture, a dialog, the device list, a mod's page close first, then the
-  panel (asking about unsaved changes as the window does). A hardware
+  panel (asking about unsaved changes as the window does); a desktop's close
+  button under `MEMORIES_PANELS=overlay` does the same
+  (`Panel_RequestClose`), and the next press reaches the quit prompt, which
+  would otherwise ask unseen under the panel. A hardware
   keyboard drives both as on the desktop. While Mods' search or profile
   field has the focus (`Panel_TextFocus`) the system's on-screen keyboard
   shows (`SDL_StartTextInput`; a second tap on the field shows it again) and
@@ -3585,7 +3592,12 @@ untouched: with a mouse every path is the old one, pixel for pixel.
   it start); that activity ends the game's process (its id is the Intent's
   `pid`), waits until it is gone (the game's activity is `singleInstance`: a
   live one would only be brought back), launches the game as the launcher
-  does and ends its own process. Nothing is half applied: the Mods window has
+  does and ends its own process. Gone means no `/proc/<pid>` and no longer
+  in `ActivityManager.getRunningAppProcesses()` (the system's own record,
+  which can trail the process's end); where neither ever showed it, a fixed
+  half second; five seconds at most. The wait runs on a thread of its own
+  (the main thread would be an ANR), the launch back on the main thread
+  while the translucent activity still shows. Nothing is half applied: the Mods window has
   saved the mods, their order and settings (`Mods_Apply`, `Settings_Save`)
   before it asks for the restart, and the new process reads them as any
   start does. If the activity cannot start, or this process is not ended
