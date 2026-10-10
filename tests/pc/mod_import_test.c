@@ -204,20 +204,21 @@ int main(void)
         CHECK(strstr(why, "no mod") != NULL);
         CHECK(!strcmp(listing("mods"), ""));
     }
-    /* Code: the arm64 object, by "library" or by "libraries". */
+    /* Code: as the loader reads it (mods.c), a "library" and nothing else;
+     * what objects the .zip has beside it does not change that. */
     reset();
     {
         static const struct {
             const char *manifest, *file;
-            int code, android;
+            int code;
         } cases[] = {
-            {"{\"id\": \"cm\", \"library\": \"cm\"}", "c/cm.o", 1, 0},
-            {"{\"id\": \"cm\", \"library\": \"cm\"}", "c/cm.aarch64.o", 1, 1},
-            {"{\"id\": \"cm\", \"library\": \"cm.o\"}", "c/cm.aarch64.o", 1, 1},
-            {"{\"id\": \"cm\", \"libraries\": {\"aarch64\": \"arm/x.o\"}}", "c/arm/x.o", 1, 1},
-            {"{\"id\": \"cm\", \"libraries\": {\"x86_64-windows\": \"w.o\"}}", "c/w.o", 1, 0},
-            {"{\"id\": \"cm\", \"libraries\": {\"x86_64-windows\": \"w.o\"}}", "c/cm.aarch64.o", 1, 1},
-            {"{\"id\": \"cm\"}", "c/cm.o", 0, 0},
+            {"{\"id\": \"cm\", \"library\": \"cm\"}", "c/cm.o", 1},
+            {"{\"id\": \"cm\", \"library\": \"cm\"}", "c/cm.aarch64.o", 1},
+            {"{\"id\": \"cm\", \"library\": \"cm.o\"}", "c/cm.aarch64.o", 1},
+            {"{\"id\": \"cm\", \"library\": \"\"}", "c/cm.o", 0},
+            {"{\"id\": \"cm\", \"libraries\": {\"aarch64\": \"arm/x.o\"}}", "c/arm/x.o", 0},
+            {"{\"id\": \"cm\", \"libraries\": {\"x86_64-windows\": \"w.o\"}}", "c/cm.aarch64.o", 0},
+            {"{\"id\": \"cm\"}", "c/cm.o", 0},
         };
         for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
             ZipItem items[] = {{"c/mod.json", cases[i].manifest, 0, 0, 0, 0, 0, 0},
@@ -228,7 +229,6 @@ int main(void)
             CHECK(imp && Mods_ImportCount(imp) == 1);
             if (imp) {
                 CHECK(Mods_ImportMod(imp, 0)->code == cases[i].code);
-                CHECK(Mods_ImportMod(imp, 0)->android_code == cases[i].android);
                 Mods_ImportClose(imp);
             }
         }

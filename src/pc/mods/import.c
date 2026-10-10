@@ -299,15 +299,17 @@ static int folder_valid(const char *s)
 }
 
 /* What the mod in `prefix` is called and whether it carries code, from its
- * mod.json; as the loader names it (mods.c read_manifest): the id from the
- * manifest, else the folder; the object for arm64 from "libraries", else
- * <library without .o>.aarch64.o. */
+ * mod.json, as the loader reads them (mods.c read_manifest): the id from the
+ * manifest, else the folder; code when "library" names an object. That is
+ * the loader's only code key: a mod.json with just "libraries" (the
+ * per-target objects of the 64-bit mod work, not in this loader) loads as
+ * a data mod, so it is one here too. */
 static int describe(ModsImport *import, ModsImportMod *mod, const Entry *manifest, char *why, size_t why_size)
 {
     unsigned char *text = NULL;
     JsonDocument *document = NULL;
     const JsonValue *root = NULL;
-    const char *id = NULL, *name, *library, *named = NULL, *slash;
+    const char *id = NULL, *name, *library, *slash;
     char folder[NAME_MAX_], error[128];
     size_t plen = strlen(mod->prefix);
     if (manifest->size <= MANIFEST_MAX && (text = malloc(manifest->size + 1))) {
@@ -347,31 +349,8 @@ static int describe(ModsImport *import, ModsImportMod *mod, const Entry *manifes
         copy(mod->id, sizeof(mod->id), mod->folder);
     name = Json_String(Json_Member(root, "name"), NULL);
     copy(mod->name, sizeof(mod->name), name && *name ? name : mod->id);
-    {
-        const JsonValue *libraries = Json_Member(root, "libraries");
-        char object[NAME_MAX_ + 32], path[2 * NAME_MAX_ + 64];
-        named = Json_String(Json_Member(libraries, "aarch64"), NULL);
-        library = Json_String(Json_Member(root, "library"), NULL);
-        if ((!library || !*library) && Json_TypeOf(libraries) == JSON_OBJECT && Json_Count(libraries))
-            library = mod->id;
-        mod->code = (named && *named) || (library && *library);
-        mod->android_code = 0;
-        if (named && *named)
-            copy(object, sizeof(object), named);
-        else if (library && *library) {
-            size_t stem = strlen(library);
-            if (stem > 2 && !strcmp(library + stem - 2, ".o"))
-                stem -= 2;
-            snprintf(object, sizeof(object), "%.*s.aarch64.o", (int)(stem > NAME_MAX_ ? NAME_MAX_ : stem), library);
-        } else
-            object[0] = 0;
-        if (object[0]) {
-            const Entry *e;
-            snprintf(path, sizeof(path), "%s%s", mod->prefix, object);
-            e = find(import, path);
-            mod->android_code = e && !e->folder;
-        }
-    }
+    library = Json_String(Json_Member(root, "library"), NULL);
+    mod->code = library && *library;
     Json_Free(document);
     return 1;
 }

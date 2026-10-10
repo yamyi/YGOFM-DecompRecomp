@@ -676,6 +676,17 @@ if(BUILD_TESTING)
         target_compile_options(memories_mods_window_test PRIVATE -Wall -Wextra -Wpedantic -Werror)
     endif()
     add_test(NAME pc_mods_window COMMAND memories_mods_window_test)
+    # The same with no code mod loader (the arm64 Android game): what an
+    # import says about a code mod there.
+    add_executable(memories_mods_window_no_code_test tests/pc/mods_window_test.c src/pc/platform/mods_window.c
+        src/pc/mods/import.c ${MOD_TEST_SOURCES})
+    target_compile_definitions(memories_mods_window_no_code_test PRIVATE MEMORIES_NO_CODE_MODS)
+    target_link_libraries(memories_mods_window_no_code_test PRIVATE m Threads::Threads ZLIB::ZLIB)
+    target_include_directories(memories_mods_window_no_code_test PRIVATE src)
+    if(NOT MSVC)
+        target_compile_options(memories_mods_window_no_code_test PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(NAME pc_mods_window_no_code COMMAND memories_mods_window_no_code_test)
     # Audio replacement: WAV/Ogg decoding, resampling, the "audio" manifest
     # object and the mixer side. stb_vorbis is upstream's file, built as is.
     add_executable(memories_audio_replace_test tests/pc/audio_replace_test.c src/pc/audio/replace.c

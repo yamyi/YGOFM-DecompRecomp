@@ -995,20 +995,24 @@ static int import_names(ModsImport *import, int (*pick)(const ModsImportMod *), 
     return n;
 }
 static int any_mod(const ModsImportMod *mod) { return mod != NULL; }
-/* Code with no arm64 object: built only for the PC. */
-static int pc_only(const ModsImportMod *mod) { return mod->code && !mod->android_code; }
-/* Code for Android that this game cannot run yet (the arm64 game without
- * the AArch64 loader, MEMORIES_NO_CODE_MODS: mods.c leaves such a mod off). */
-static int code_later(const ModsImportMod *mod)
+/* Code this game cannot run: every code mod in a game built without the
+ * code mod loader (MEMORIES_NO_CODE_MODS: the arm64 Android game, where
+ * mods.c leaves such a mod off). A game with the loader (the Android x86
+ * development build, a desktop) runs the mod's "library" as it is. */
+#ifdef __ANDROID__
+#define HERE "on Android" /* where code_off's mods cannot run */
+#else
+#define HERE "in this build"
+#endif
+static int code_off(const ModsImportMod *mod)
 {
 #ifdef MEMORIES_NO_CODE_MODS
-    return mod->code && mod->android_code;
+    return mod->code;
 #else
     (void)mod;
     return 0;
 #endif
 }
-static int code_off(const ModsImportMod *mod) { return pc_only(mod) || code_later(mod); }
 static int replacing(const ModsImportMod *mod) { return mod->replace[0] != 0; }
 /* Every mod of the waiting import into the mods folder, then into the
  * list (Mods_Discover), off: the first of them selected, and a word on
@@ -1065,17 +1069,14 @@ static void import_install(void)
         put(line + strlen(line), sizeof(line) - strlen(line), " It is used after a restart.");
     if (lost)
         put(line + strlen(line), sizeof(line) - strlen(line), " %d could not be added to the list.", lost);
-    several = import_names(import_waiting, pc_only, names, sizeof(names)) > 1;
+    several = import_names(import_waiting, code_off, names, sizeof(names)) > 1;
     if (*names && n == 1)
-        put(status, sizeof(status), "%s This mod has code built only for PC; ask its author for an Android build. "
-            "It stays off and changes nothing in the game.", line);
+        put(status, sizeof(status), "%s This mod has code, which the game cannot run %s yet. It stays off and "
+            "changes nothing in the game.", line, HERE);
     else if (*names)
-        put(status, sizeof(status), "%s %s %s code built only for PC; ask for an Android build. %s off and "
-            "change%s nothing in the game.", line, names, several ? "have" : "has", several ? "They stay" : "It stays",
+        put(status, sizeof(status), "%s %s %s code, which the game cannot run %s yet. %s off and change%s nothing "
+            "in the game.", line, names, several ? "have" : "has", HERE, several ? "They stay" : "It stays",
             several ? "" : "s");
-    else if (import_names(import_waiting, code_later, names, sizeof(names)))
-        put(status, sizeof(status), "%s %s: its code is for Android, but this version of the game cannot run code "
-            "mods yet. It stays off and changes nothing in the game.", line, names);
     else
         put(status, sizeof(status), "%s", line);
     fprintf(stderr, "memories-pc: import: %s\n", status);
