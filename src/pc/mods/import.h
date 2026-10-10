@@ -1,0 +1,57 @@
+#ifndef MEMORIES_PC_MODS_IMPORT_H
+#define MEMORIES_PC_MODS_IMPORT_H
+/* A mod's .zip put into the mods folder (notes/mods-window.md, "Import
+ * mod..."): the Android Mods panel's Import button, which has no folder to
+ * copy a mod into by hand. Platform-independent, so the tests run it on a
+ * desktop; nothing on a desktop calls it.
+ *
+ * Mods_ImportOpen reads the .zip's central directory and checks every
+ * entry before anything is written: no name that leaves the folder (an
+ * absolute path, a drive letter, a ".." or "." part; backslashes count as
+ * slashes), no symbolic link or other special file, no encryption, only
+ * stored and deflated entries, at most MODS_IMPORT_ENTRIES of them and
+ * MODS_IMPORT_BYTES once unpacked. The mods are the folders holding a
+ * mod.json: the .zip's root itself (the folder is then named by the
+ * manifest's id), the folders at its top, or the folders one wrapper folder
+ * down; a mod.json inside a mod is that mod's file. __MACOSX/ is left out.
+ *
+ * Mods_ImportInstall unpacks them into a new hidden folder of the mods
+ * folder (".import-XXXXXX", which the mod scan skips), checking each
+ * entry's size and CRC, and then renames each mod into place, after moving
+ * the folder it replaces (ModsImportMod.replace) aside. Any failure puts
+ * back what it moved and removes the hidden folder: nothing is written
+ * outside the mods folder, and nothing half unpacked is left in it. */
+#include <stddef.h>
+
+#define MODS_IMPORT_MAX 32                    /* mods in one .zip */
+#define MODS_IMPORT_ENTRIES 20000             /* files and folders in one .zip */
+#define MODS_IMPORT_BYTES (512u * 1024 * 1024) /* unpacked */
+
+typedef struct ModsImport ModsImport;
+typedef struct {
+    char folder[128];   /* its folder in the mods folder */
+    char id[64];        /* the manifest's id, else the folder's name */
+    char name[128];     /* the manifest's name, else the id */
+    char prefix[512];   /* its folder inside the .zip, with a slash ("" for the root) */
+    int code;           /* it has code ("library" or "libraries") */
+    int android_code;   /* and the arm64 object for it (<library>.aarch64.o, or "libraries"' "aarch64") */
+    char replace[1024]; /* set by the caller: the folder it replaces, or "" */
+} ModsImportMod;
+
+/* NULL with the reason in `why` (plain words for the player) when the file
+ * is not a .zip this can read or breaks a rule above. A .zip without a mod
+ * opens with Mods_ImportCount 0. */
+ModsImport *Mods_ImportOpen(const char *zip, char *why, size_t why_size);
+int Mods_ImportCount(const ModsImport *import);
+ModsImportMod *Mods_ImportMod(ModsImport *import, int index);
+/* 1 when every mod is in place in `mods`, else 0 with the reason in `why`
+ * and the mods folder as it was. */
+int Mods_ImportInstall(ModsImport *import, const char *mods, char *why, size_t why_size);
+void Mods_ImportClose(ModsImport *import);
+/* Removes what an import cut short left in the mods folder (".import-*"
+ * folders and ".incoming*.zip" files). */
+void Mods_ImportCleanup(const char *mods);
+/* Removes a folder and everything in it, never following a link. 0 when
+ * it is gone. */
+int Mods_ImportRemoveTree(const char *path);
+#endif

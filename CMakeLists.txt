@@ -734,6 +734,18 @@ if(BUILD_TESTING)
         target_compile_options(memories_texture_pack_test PRIVATE -Wall -Wextra -Werror)
     endif()
     add_test(NAME pc_texture_pack COMMAND memories_texture_pack_test)
+    # A mod's .zip into the mods folder (src/pc/mods/import.c, the Android
+    # Mods panel's Import): layouts, the arm64 object check, Replace, and the
+    # .zip files refused before anything is written. zlib came with libpng.
+    find_package(ZLIB REQUIRED)
+    add_executable(memories_mod_import_test tests/pc/mod_import_test.c src/pc/mods/import.c src/pc/mods/json.c
+        src/pc/platform/paths.c)
+    target_include_directories(memories_mod_import_test PRIVATE src)
+    target_link_libraries(memories_mod_import_test PRIVATE ZLIB::ZLIB)
+    if(NOT MSVC)
+        target_compile_options(memories_mod_import_test PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(NAME pc_mod_import COMMAND memories_mod_import_test)
     # Card title plates (src/pc/cards/art.c), set from a name in the serif
     # face as a translated card's is: where FreeType is at hand (beside
     # libpng, as in the Windows dependencies), and skipped (77) on a system
