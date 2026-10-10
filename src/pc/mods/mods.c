@@ -1728,10 +1728,10 @@ static void activate_once(int index, int on)
             }
         }
 #ifdef MEMORIES_NO_CODE_MODS
-        /* The arm64 game (build_game32.py --target android-arm64-v8a) does
-         * not link code mods yet. The mod stays off with the reason beside
-         * it, and its choice and the other mods' Apply are left alone: it is
-         * not a broken mod. */
+        /* A game built without code mods (none is now: the arm64 game links
+         * them since Mod SDK M2). The mod stays off with the reason beside it,
+         * and its choice and the other mods' Apply are left alone: it is not
+         * a broken mod. */
         if (!mod->broken && mod->library[0]) {
             note(mod, "is a code mod, which this game does not load yet");
             drop_overrides(index);

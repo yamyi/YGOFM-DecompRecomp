@@ -151,6 +151,9 @@ static int anonymize_text(void *inside)
         return 0;
     }
     __builtin___clear_cache((char *)copy, (char *)copy + length);
+    /* Linux unmaps the target before it moves the copy there, so a move
+     * that fails then (out of memory) has taken the text with it, this
+     * code included; it fails before that in practice (EINVAL, EFAULT). */
     moved = mremap(copy, length, length, MREMAP_MAYMOVE | MREMAP_FIXED, (void *)text_start);
     if (moved != (void *)text_start) {
         munmap(copy, length);
