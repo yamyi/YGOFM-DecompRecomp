@@ -3391,7 +3391,7 @@ adb install -r tmp/pc/android-x86/memories-x86.apk
   port's `main` returns, the process ends with it. If the range cannot be
   had, the game loads where the system puts it and keeps save states for
   that launch only. `tools/pc/package_android.py` then compiles SDL's Java
-  and the port's own (`src/pc/platform/android/java/`) with `javac` against the SDK's `android.jar`, dexes it with `d8`, links
+  and the port's own (`src/pc/platform/android/*.java`) with `javac` against the SDK's `android.jar`, dexes it with `d8`, links
   the manifest with `aapt2`, adds `lib/<abi>/libmain.so`, `libgame.so` and
   `libSDL3.so` and the build's `buildid`, `commit` and symbol table as
   assets (`assets/build/`), and aligns and signs the APK (`zipalign`,
@@ -3508,7 +3508,7 @@ manifest, `ReportProvider.java` and `android_report.c`;
 
 Share hands the file to the chosen app through the port's only Java of its
 own, `org.yfmredecomp.game.ReportProvider`
-(`src/pc/platform/android/java/`, compiled with SDL's by
+(`src/pc/platform/android/ReportProvider.java`, compiled with SDL's by
 `package_android.py`): a read-only content provider, not exported, that
 serves the one copy in the cache folder's `shared/` to the app the share's
 Intent grants it to (`FLAG_GRANT_READ_URI_PERMISSION`), with its name and
