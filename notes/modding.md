@@ -1799,11 +1799,12 @@ release's `sdk/` also carries `extract_images.py` and `upscale_pack.py` in
 `sdk/tools`, the example mods in `sdk/examples/mods`, and this note with
 `mod-api-3.md` and `more-cards.md` in `sdk/notes`. It needs
 clang (on Windows, the llvm-mingw clang; it builds the Linux object format
-there too) or, on Linux, gcc with 32-bit support. With clang it builds all
-three ELF targets unless `--target` names some; the 64-bit ones also need
-lld and `llvm-objcopy` (looked for beside clang, then on PATH), and without
-`llvm-objcopy` it builds the `i386` object alone and says so. gcc builds
-the `i386` object only. `./build-pc.sh` builds
+there too) or, on Linux, gcc with 32-bit support. clang is used only with
+lld beside it or on PATH. With clang it builds all three ELF targets unless
+`--target` names some; the 64-bit ones also need `llvm-objcopy` (looked for
+beside clang and beside the file a `clang` link points to, then on PATH and
+in llvm-mingw), and without it the script builds the `i386` object alone
+and says so. gcc builds the `i386` object only. `./build-pc.sh` builds
 every directory under `mods/` this way, once, and copies the same file into
 both games' `mods/` directories. The script keeps what it builds in
 `tmp/pc/mod-build` (beside `sdk/`, or in the repository), under a key of the
