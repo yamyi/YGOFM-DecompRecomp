@@ -1198,11 +1198,26 @@ settings that are off at their defaults:
     picture made of several rectangles shows no seams. HD text and texture
     pack images are left as they are. A texel like the four beside it is
     drawn after five reads, so at 4x the duel's replay time stays within
-    its noise (about 2 to 3.5 ms here, on or off).
+    its noise (about 2 to 3.5 ms here, on or off). The neighbourhood is
+    kept as 25 words and each color made from its word where it is read,
+    the outer 16 fetched one by one: a phone's GPU (Adreno 660) keeps an
+    array of 25 colors filled in a loop in memory, and the Free Duel screen
+    at 4x took 120 ms a frame (7.5 frames a second, 27 at 2x). Now 44 at 4x
+    with 2x anti-aliasing and 60 at 2x, the picture the same pixel for
+    pixel (on the phone, and on NVIDIA against the base build). Named
+    variables instead of any array ran faster still but that driver then
+    read some texels as transparent (black corners).
 
 While every effect is at its default, the pass is not used, and the picture
 is drawn by the fixed-function quad exactly as before. The SDL_Render
-fallback (no OpenGL) has no pass.
+fallback (no OpenGL) has no pass, and neither has the OpenGL ES path
+(Android, below): where it does not run, Video > Color, CRT scanlines,
+Reduce flashes and Sharp bilinear are dimmed with the reason beside them
+("not on Android yet", "needs OpenGL"), and xBR, the OpenGL picture's at
+2x and up there, says "needs Internal 2x" at 1x (`Menu_SetPresentPass`,
+from `use_gl`). On a phone (2400x1080) with Integer scaling, Internal 4x
+shows the 1280x960 picture pixel for pixel, so Filtering has nothing to
+filter there; at 1x and 2x, or with Fit to window, Smooth shows.
 
 ### Speed, frame rate and vsync
 
@@ -1767,7 +1782,8 @@ texture as an SDL texture does not work: SDL's `GLES2_CreateTexture`
 specifies the storage of a texture it is handed, which wipes it.) A
 repaint of the menu over a still frame shows the same texture again.
 `use_gl` stays 0 on this path: the desktop presenter and Video > Color
-(`present_pass.c`, fixed function) are desktop only. A device without
+(`present_pass.c`, fixed function) are desktop only; their menu rows are
+dimmed there ("Present pass" above). A device without
 ES 3 (or a failed context) gets the renderer SDL picks and the software
 picture, as before, and Video > HD text says "needs OpenGL ES 3".
 
