@@ -500,12 +500,28 @@ def through_pass(command, source, obj):
     run([command[0], *flags, "-Wno-unused-command-line-argument", "-x", "ir", "-c", ir, "-o", obj])
 
 
+@functools.lru_cache(maxsize=None)
+def find_objcopy():
+    """llvm-objcopy: beside clang first, as ld.lld is, and beside the clang
+    a link points to (Debian's /usr/bin/clang is /usr/lib/llvm-NN/bin/clang,
+    and that is the only place its llvm-objcopy has no version suffix); then
+    PATH and llvm-mingw. None when there is none."""
+    path, clang, _ = programs()
+    if clang:
+        for folder in dict.fromkeys((os.path.dirname(path), os.path.dirname(os.path.realpath(path)))):
+            beside = os.path.join(folder, "llvm-objcopy")
+            found = next((p for p in (beside + ".exe", beside) if os.path.exists(p)), None)
+            if found:
+                return found
+    return tool("llvm-objcopy")
+
+
 def tag_abi(output, target):
     """The `.memories.abi` section: the target's name, NUL-terminated, which
     the game's loader holds against its own (object_loader.c)."""
-    objcopy = tool("llvm-objcopy")
+    objcopy = find_objcopy()
     if not objcopy:
-        sys.exit("build_mod: llvm-objcopy (beside clang) is needed for the 64-bit targets")
+        sys.exit("build_mod: llvm-objcopy (beside clang, or on PATH) is needed for the 64-bit targets")
     with tempfile.NamedTemporaryFile("wb", suffix=".abi", delete=False) as handle:
         handle.write(target.encode() + b"\0")
     try:
@@ -675,6 +691,11 @@ def main():
         parser.error("--game checks one target's names: name it with --target")
     if not options.target and not programs()[1]:
         print("build_mod: gcc builds the i386 object only; the 64-bit ones need clang")
+    elif not options.target and not find_objcopy():
+        # Not asked for by name: the i386 object, as before there were others.
+        targets = ["i386"]
+        print("build_mod: no llvm-objcopy beside clang or on PATH; building the i386 object only "
+              "(the 64-bit ones need it)")
     for target in targets:
         if target == "macos":
             from build_mod_arm64 import build as build_arm64_mod
