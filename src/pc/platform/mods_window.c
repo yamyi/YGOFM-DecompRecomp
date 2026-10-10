@@ -1054,8 +1054,13 @@ static void import_install(void)
         put(line, sizeof(line), "Replaced %s.", names);
     else if (n == 1)
         put(line, sizeof(line), "Imported %s.", names);
-    else
+    else {
+        char replaced[300];
+        int k = import_names(import_waiting, replacing, replaced, sizeof(replaced));
         put(line, sizeof(line), "Imported %d mods: %s.", n, names);
+        if (k)
+            put(line + strlen(line), sizeof(line) - strlen(line), " %d of them replaced the installed ones.", k);
+    }
     if (later) /* a mod with that id in place this launch (the release's own) */
         put(line + strlen(line), sizeof(line) - strlen(line), " It is used after a restart.");
     if (lost)
