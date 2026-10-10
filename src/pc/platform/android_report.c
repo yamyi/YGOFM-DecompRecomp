@@ -18,8 +18,10 @@
  *                      the button is not offered);
  *   Not now            nothing; the report is offered again next launch.
  *
- * Share or Save marks the report handled (reports/handled.txt holds its
- * time), and with it every older one: only the newest report is offered.
+ * Share and Save retire the report, and every other one in the folder with
+ * it (report_folder.h: renamed to <name>.sent, the newest few kept): only
+ * the newest report is offered, and no clock decides which have been dealt
+ * with.
  *
  * What goes out is the app's version and build, the device's maker and
  * model, the Android version, the memory free now, and the game's report
@@ -35,6 +37,7 @@
 #include "platform.h"
 #include "menu.h"
 #include "paths.h"
+#include "report_folder.h"
 #include "pc/debug/crash.h"
 #include "pc/guest/state.h"
 #include <SDL3/SDL.h>
@@ -55,15 +58,15 @@
 extern const char Memories_Version[];
 
 #define AUTHORITY "org.yfmredecomp.game.reports" /* ReportProvider.AUTHORITY, the manifest's provider */
-#define HANDLED "handled.txt"
 #define REPORT_LIMIT (512 * 1024)            /* of the game's report read; one is a few KB */
 #define DOWNLOADS_API 29                     /* MediaStore.Downloads */
 
 static struct {
     char path[1024];           /* the report offered */
     char name[128];            /* its file name in the reports folder */
-    long long sec, nsec;       /* its modification time */
+    long long sec;             /* its modification time */
     char file_name[96];        /* what the copy is called: yfm-redecomp-crash-<when>.txt */
+    char saved_name[128];      /* what Downloads called it ("" when unknown) */
     char *text;                /* the copy: built when offered */
     size_t size;
     int api;                   /* the device's API level */
@@ -71,77 +74,22 @@ static struct {
 
 /* --- which report, if any -------------------------------------------- */
 
-static int report_name(const char *name)
-{
-    size_t length = strlen(name);
-    return (!strncmp(name, "crash-", 6) || !strncmp(name, "hang-", 5)) && length > 4 &&
-           !strcmp(name + length - 4, ".txt");
-}
-
-static void handled_path(char *out, size_t size) { snprintf(out, size, "%s/" HANDLED, Crash_ReportDir); }
-
-/* The time of the last report Share or Save took care of; 0 when none. */
-static void read_handled(long long *sec, long long *nsec)
-{
-    char path[640];
-    FILE *file;
-    *sec = *nsec = 0;
-    handled_path(path, sizeof(path));
-    if ((file = fopen(path, "r")) != NULL) {
-        if (fscanf(file, "%lld %lld", sec, nsec) != 2) *sec = *nsec = 0;
-        fclose(file);
-    }
-}
-
-static void mark_handled(void)
-{
-    char path[640], temporary[700];
-    FILE *file;
-    handled_path(path, sizeof(path));
-    snprintf(temporary, sizeof(temporary), "%s.tmp", path);
-    if (!(file = fopen(temporary, "w"))) {
-        fprintf(stderr, "memories-pc: crash report: could not write %s: %s\n", temporary, strerror(errno));
-        return;
-    }
-    fprintf(file, "%lld %lld %s\n", offer.sec, offer.nsec, offer.name);
-    if (fclose(file) || rename(temporary, path)) {
-        fprintf(stderr, "memories-pc: crash report: could not write %s: %s\n", path, strerror(errno));
-        remove(temporary);
-        return;
-    }
-    fprintf(stderr, "memories-pc: crash report %s handled\n", offer.name);
-}
-
-static int later(long long sec, long long nsec, long long than_sec, long long than_nsec)
-{
-    return sec > than_sec || (sec == than_sec && nsec > than_nsec);
-}
-
-/* The newest report not handled yet, into `offer`; 0 when there is none. */
+/* The newest report, into `offer`; 0 when there is none. */
 static int find_report(void)
 {
-    DIR *folder = opendir(Crash_ReportDir);
-    struct dirent *entry;
-    struct stat info;
-    char path[1024];
-    long long handled_sec, handled_nsec;
-    int found = 0;
-    if (!folder) return 0;
-    read_handled(&handled_sec, &handled_nsec);
-    while ((entry = readdir(folder)) != NULL) {
-        if (!report_name(entry->d_name) || strlen(entry->d_name) >= sizeof(offer.name)) continue;
-        snprintf(path, sizeof(path), "%s/%s", Crash_ReportDir, entry->d_name);
-        if (stat(path, &info) || !S_ISREG(info.st_mode) || info.st_size <= 0) continue;
-        if (!later(info.st_mtim.tv_sec, info.st_mtim.tv_nsec, handled_sec, handled_nsec)) continue;
-        if (found && !later(info.st_mtim.tv_sec, info.st_mtim.tv_nsec, offer.sec, offer.nsec)) continue;
-        snprintf(offer.path, sizeof(offer.path), "%s", path);
-        snprintf(offer.name, sizeof(offer.name), "%s", entry->d_name);
-        offer.sec = info.st_mtim.tv_sec;
-        offer.nsec = info.st_mtim.tv_nsec;
-        found = 1;
-    }
-    closedir(folder);
-    return found;
+    ReportFile file;
+    if (!ReportFolder_Newest(Crash_ReportDir, &file)) return 0;
+    snprintf(offer.path, sizeof(offer.path), "%s/%s", Crash_ReportDir, file.name);
+    snprintf(offer.name, sizeof(offer.name), "%s", file.name);
+    offer.sec = file.sec;
+    return 1;
+}
+
+/* Every report there is now out of the offer (report_folder.h); 0 when one
+ * could not be, which may then be offered again. */
+static int retire_reports(void)
+{
+    return ReportFolder_Retire(Crash_ReportDir, (long)getpid(), REPORT_FOLDER_KEEP);
 }
 
 /* --- what goes out --------------------------------------------------- */
@@ -363,6 +311,52 @@ static jstring string(Java *java, const char *text)
     return failed(java, "A Java string", !made) ? NULL : made;
 }
 
+/* The name Downloads gave the copy (MediaStore adds " (1)" when the name is
+ * taken), into offer.saved_name; "" when it cannot be had. Its steps run on
+ * a Java of their own (`look`), so that their failing does not fail the
+ * save. */
+static void saved_name(JNIEnv *env, jclass resolver_type, jobject resolver, jobject uri, jstring name_key)
+{
+    Java look;
+    jclass string_type, cursor_type;
+    jmethodID query, first, get, close;
+    jobjectArray columns;
+    jobject cursor;
+    jstring name;
+    jboolean row;
+    const char *chars;
+    memset(&look, 0, sizeof(look));
+    look.env = env;
+    offer.saved_name[0] = '\0';
+    string_type = find_class(&look, "java/lang/String");
+    cursor_type = find_class(&look, "android/database/Cursor");
+    query = method(&look, resolver_type, "query",
+                   "(Landroid/net/Uri;[Ljava/lang/String;Ljava/lang/String;[Ljava/lang/String;Ljava/lang/String;)"
+                   "Landroid/database/Cursor;");
+    first = method(&look, cursor_type, "moveToFirst", "()Z");
+    get = method(&look, cursor_type, "getString", "(I)Ljava/lang/String;");
+    close = method(&look, cursor_type, "close", "()V");
+    if (look.bad) return;
+    columns = (*env)->NewObjectArray(env, 1, string_type, name_key);
+    if (failed(&look, "Reading the saved name", !columns)) return;
+    cursor = (*env)->CallObjectMethod(env, resolver, query, uri, columns, NULL, NULL, NULL);
+    if (failed(&look, "Reading the saved name", !cursor)) return;
+    row = (*env)->CallBooleanMethod(env, cursor, first);
+    if (!failed(&look, "Reading the saved name", !row)) {
+        name = (jstring)(*env)->CallObjectMethod(env, cursor, get, (jint)0);
+        if (!failed(&look, "Reading the saved name", !name)) {
+            chars = (*env)->GetStringUTFChars(env, name, NULL);
+            if (!failed(&look, "Reading the saved name", !chars)) {
+                snprintf(offer.saved_name, sizeof(offer.saved_name), "%s", chars);
+                (*env)->ReleaseStringUTFChars(env, name, chars);
+            }
+        }
+    }
+    /* Closed whatever happened (failed() cleared any exception). */
+    (*env)->CallVoidMethod(env, cursor, close);
+    if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+}
+
 /* Downloads, through MediaStore (API 29+): the entry is added pending
  * (hidden from other apps), the bytes written, then it is published; a
  * failure after the entry exists removes it. */
@@ -448,7 +442,10 @@ static int save_to_downloads(Java *java, jobject activity)
             (*env)->CallVoidMethod(env, values, put_integer, pending_key, published);
             if (!failed(java, "Publishing the report", 0)) {
                 updated = (*env)->CallIntMethod(env, resolver, update, uri, values, NULL, NULL);
-                if (!failed(java, "Publishing the report", updated < 1)) return 1;
+                if (!failed(java, "Publishing the report", updated < 1)) {
+                    saved_name(env, resolver_type, resolver, uri, name_key);
+                    return 1;
+                }
             }
         }
     }
@@ -599,12 +596,15 @@ static void java_call(void *argument)
 
 /* --- the notice ------------------------------------------------------ */
 
+/* Added to what the player is told when a report could not be retired. */
+#define AGAIN "\n\nIt may be offered again next launch."
+
 static void chosen(int button, int *quit)
 {
     static const char *const ok[] = {"OK"};
     Java call;
     char text[768];
-    int save = offer.api >= DOWNLOADS_API;
+    int save = offer.api >= DOWNLOADS_API, retired;
     (void)quit;
     memset(&call, 0, sizeof(call));
     if (button == 0) {
@@ -615,14 +615,23 @@ static void chosen(int button, int *quit)
         fprintf(stderr, "memories-pc: crash report %s: not now (offered again next launch)\n", offer.name);
         return;
     }
+    offer.saved_name[0] = '\0';
     Memories_OnHostStack(java_call, &call);
     if (!call.bad) {
-        mark_handled();
+        retired = retire_reports();
         fprintf(stderr, "memories-pc: crash report %s: %s %s\n", offer.name,
-                call.share ? "shared as" : "saved to Downloads as", offer.file_name);
+                call.share ? "shared as" : "saved to Downloads as",
+                offer.saved_name[0] ? offer.saved_name : offer.file_name);
         if (!call.share) {
-            snprintf(text, sizeof(text), "It is in your Downloads folder as %s.", offer.file_name);
+            if (offer.saved_name[0])
+                snprintf(text, sizeof(text), "It is in your Downloads folder as %s.%s", offer.saved_name,
+                         retired ? "" : AGAIN);
+            else
+                snprintf(text, sizeof(text), "It is in your Downloads folder.%s", retired ? "" : AGAIN);
             Menu_ShowNotice("Report saved", text, ok, 1, 0, NULL);
+        } else if (!retired) {
+            /* Under the share sheet, for when the player comes back. */
+            Menu_ShowNotice("Report shared", "The report went to the share sheet." AGAIN, ok, 1, 0, NULL);
         }
         return;
     }
@@ -638,6 +647,7 @@ void Android_OfferCrashReport(void)
     char value[PROP_VALUE_MAX];
     struct tm when;
     time_t seconds;
+    int save;
     /* Scripted and agent-driven runs are tests: nothing in their way (the
      * control channel's own notice would replace this one). */
     if (getenv("MEMORIES_INPUT") || getenv("MEMORIES_SDL_SCRIPT") || getenv("MEMORIES_HEADLESS") ||
@@ -651,6 +661,7 @@ void Android_OfferCrashReport(void)
     }
     property("ro.build.version.sdk", value);
     offer.api = atoi(value);
+    save = offer.api >= DOWNLOADS_API;
     seconds = (time_t)offer.sec;
     localtime_r(&seconds, &when);
     strftime(offer.file_name, sizeof(offer.file_name), "yfm-redecomp-crash-%Y%m%d-%H%M%S.txt", &when);
@@ -659,7 +670,6 @@ void Android_OfferCrashReport(void)
                     "A report of what happened helps fix it. It holds the game's version, your phone's model, "
                     "its Android version and free memory, and the game's crash log with its settings and mods: "
                     "no personal data and none of your saves.",
-                    offer.api >= DOWNLOADS_API ? with_save : share_only, offer.api >= DOWNLOADS_API ? 3 : 2,
-                    offer.api >= DOWNLOADS_API ? 2 : 1, chosen);
+                    save ? with_save : share_only, save ? 3 : 2, save ? 2 : 1, chosen);
 }
 #endif
