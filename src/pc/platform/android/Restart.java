@@ -26,7 +26,9 @@ import java.util.List;
  * system's list of this app's processes, which is the one the launch is
  * matched against and can trail the process's own end. A device that shows
  * neither (a /proc that hides it) gets a fixed half second instead. At most
- * five seconds: then the launch goes out anyway.
+ * five seconds: then the launch goes out anyway. The activity takes every
+ * configuration change itself (package_android.py), so a rotation while
+ * the game behind it goes is no second onCreate, wait and launch.
  */
 public class Restart extends Activity {
     @Override

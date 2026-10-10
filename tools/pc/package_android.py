@@ -82,6 +82,7 @@ MANIFEST = f"""<?xml version="1.0" encoding="utf-8"?>
         </activity>
         <activity android:name="org.yfmredecomp.game.Restart" android:exported="false"
             android:process=":restart" android:excludeFromRecents="true" android:noHistory="true"
+            android:configChanges="layoutDirection|locale|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
     </application>
 </manifest>
