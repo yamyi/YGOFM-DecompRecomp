@@ -128,6 +128,18 @@ const char *Mods_Directory(int mod);
 /* Where players put new mods (MEMORIES_MODS_DIR, else the user mods
  * folder), created if missing; 0 on success. */
 int Mods_InstallDirectory(char *out, size_t size);
+/* A mod folder put in the player's mods folder while the game runs (the
+ * Android Mods panel's Import mod..., import.h), read as the startup scan
+ * reads one. A new id joins the list, off (its setting is recorded as off:
+ * the caller saves the settings), at the end, so no other mod's index
+ * moves. A mod with that id that was never put in place takes the new
+ * manifest; one that was (or is) in place keeps what it has until the next
+ * launch, now needs a restart for any change, and sets *later. The mod's
+ * index, or -1 when there is no mod.json or no room. */
+int Mods_Discover(const char *directory, int *later);
+/* The mods' list or a manifest changed: the next Mods_Overlaps works its
+ * lines out again. */
+void Mods_OverlapsForget(void);
 const char *Mods_Origin(int mod);
 int Mods_Active(int mod);
 int Mods_Failed(int mod);
