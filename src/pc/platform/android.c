@@ -54,6 +54,7 @@
 #include <sys/stat.h>
 #include <sys/statvfs.h>
 #include <fcntl.h>
+#include <jni.h>
 #include <linux/ashmem.h>
 #include <pthread.h>
 #include <signal.h>
@@ -827,6 +828,55 @@ const HdNet *Platform_HdNet(void)
     return &net;
 }
 
+/* --- the screen's rotation --------------------------------------------- */
+
+/* SDL asks for the activity's orientation when it makes the window, from
+ * SDL_HINT_ORIENTATIONS (Memories_AndroidMain): both landscapes give
+ * USER_LANDSCAPE, which turns over only while the system's auto-rotate is
+ * on, so with it off (a phone's rotation lock) a phone turned upside down
+ * showed the picture upside down. SDL gives SENSOR_LANDSCAPE only without
+ * the hint and for a window that cannot be resized, and the port's can, so
+ * the activity is asked here instead, after the window is made and when
+ * the setting changes (sdl.c, apply_display_settings): SENSOR_LANDSCAPE
+ * follows the sensor to either landscape whatever auto-rotate says, as most
+ * landscape games do; USER_LANDSCAPE is SDL's own request. SDL asks again
+ * only when a window is made or made resizable (SDL_androidwindow.c), which
+ * the port does once. Turning over by half a circle changes no
+ * configuration: the activity stays, and so does the surface's size. */
+void Android_ApplyScreenRotation(int follow_system)
+{
+    enum { SENSOR_LANDSCAPE = 6, USER_LANDSCAPE = 11 }; /* ActivityInfo.SCREEN_ORIENTATION_* */
+    static int asked = -1;
+    int wanted = follow_system ? USER_LANDSCAPE : SENSOR_LANDSCAPE;
+    JNIEnv *env;
+    jobject activity;
+    jclass type;
+    jmethodID request;
+    if (wanted == asked) return;
+    env = (JNIEnv *)SDL_GetAndroidJNIEnv();
+    activity = env ? (jobject)SDL_GetAndroidActivity() : NULL;
+    if (!activity) {
+        fprintf(stderr, "memories-pc: screen rotation: no activity (%s)\n", SDL_GetError());
+        return;
+    }
+    type = (*env)->GetObjectClass(env, activity);
+    request = (*env)->GetMethodID(env, type, "setRequestedOrientation", "(I)V");
+    if (request) (*env)->CallVoidMethod(env, activity, request, wanted);
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        request = NULL;
+    }
+    (*env)->DeleteLocalRef(env, type);
+    (*env)->DeleteLocalRef(env, activity);
+    if (!request) {
+        fprintf(stderr, "memories-pc: screen rotation: setRequestedOrientation(%d) failed\n", wanted);
+        return;
+    }
+    asked = wanted;
+    fprintf(stderr, "memories-pc: screen rotation: %s (requested orientation %d)\n",
+            follow_system ? "follows auto-rotate" : "turns with the phone", wanted);
+}
+
 static int log_pipe[2] = {-1, -1};
 static int log_forwarding; /* 1 while forward_log runs (__atomic) */
 
@@ -1225,7 +1275,8 @@ int Memories_AndroidMain(int argc, char **argv)
     unpack_program();
     check_load_bias();
     /* The window is resizable, which SDL takes for "any orientation";
-     * the game is a landscape picture. */
+     * the game is a landscape picture. Which landscape follows what is
+     * asked again once the window is made (Android_ApplyScreenRotation). */
     SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
     /* Back is the game's to answer (sdl.c: menus, notices, then the quit
      * question), not the system's, which would end the activity at once. */
