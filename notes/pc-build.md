@@ -3597,7 +3597,8 @@ untouched: with a mouse every path is the old one, pixel for pixel.
   which can trail the process's end); where neither ever showed it, a fixed
   half second; five seconds at most. The wait runs on a thread of its own
   (the main thread would be an ANR), the launch back on the main thread
-  while the translucent activity still shows. Nothing is half applied: the Mods window has
+  while the translucent activity still shows; it takes configuration
+  changes itself, so a rotation during the wait does not recreate it. Nothing is half applied: the Mods window has
   saved the mods, their order and settings (`Mods_Apply`, `Settings_Save`)
   before it asks for the restart, and the new process reads them as any
   start does. If the activity cannot start, or this process is not ended
