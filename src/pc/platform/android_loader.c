@@ -149,8 +149,9 @@ int SDL_main(int argc, char **argv)
      * of SDL's Java shell finding a finished main in a live process. This
      * exit is for one that returns anyway: it reaches end_process, the
      * first atexit handler Memories_AndroidMain registers, which ends the
-     * process before the system libraries' destructors run under the
-     * activity's live threads. */
+     * process before the destructors of the system libraries loaded before
+     * it run under the activity's live threads (those of a library loaded
+     * later, such as one SDL opens during main, run first). */
     exit(run(argc, argv));
 }
 #endif

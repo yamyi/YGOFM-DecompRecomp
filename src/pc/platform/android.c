@@ -851,15 +851,21 @@ static void *forward_log(void *unused)
     return NULL;
 }
 
-/* The reader starts first, with every signal blocked (the clock's must
- * reach the game's thread), and only then do stdout and stderr go into the
- * pipe: without a reader, a full pipe would stop the game, and its end
- * (fflush) for good. The pipe is not inherited by a child (close on exec),
- * whose copy would keep drain_log from ever seeing its end. */
+/* The reader starts first, with the game clock (SIGALRM) blocked, as it
+ * must reach the game's thread, and only then do stdout and stderr go into
+ * the pipe: without a reader, a full pipe would stop the game, and its end
+ * (fflush) for good. A fault in the reader still reaches crash.c's handler
+ * (its report goes to the report file, not to logcat: stderr is this pipe,
+ * which no one reads any more; with the pipe full, the handler would stop
+ * at its first write),
+ * and read retries on EINTR. The pipe's own two descriptors are close on
+ * exec; stdout and stderr, which point into it, are not, so a child would
+ * keep the pipe open past drain_log's wait (200 ms). Nothing starts one on
+ * Android. */
 static void log_to_logcat(void)
 {
     pthread_t thread;
-    sigset_t all, previous;
+    sigset_t held, previous;
     int started;
     if (pipe(log_pipe)) {
         log_pipe[0] = log_pipe[1] = -1;
@@ -868,8 +874,9 @@ static void log_to_logcat(void)
     fcntl(log_pipe[0], F_SETFD, FD_CLOEXEC); /* pipe2 needs _GNU_SOURCE in bionic */
     fcntl(log_pipe[1], F_SETFD, FD_CLOEXEC);
     __atomic_store_n(&log_forwarding, 1, __ATOMIC_RELEASE);
-    sigfillset(&all);
-    pthread_sigmask(SIG_BLOCK, &all, &previous);
+    sigemptyset(&held);
+    sigaddset(&held, SIGALRM);
+    pthread_sigmask(SIG_BLOCK, &held, &previous);
     started = pthread_create(&thread, NULL, forward_log, NULL) == 0;
     pthread_sigmask(SIG_SETMASK, &previous, NULL);
     if (!started) {
@@ -927,8 +934,9 @@ static int exit_status;
 
 void __real_exit(int status) __attribute__((noreturn));
 void __wrap_exit(int status) __attribute__((noreturn, visibility("hidden")));
-int __cxa_finalize(void *dso);
+void __cxa_finalize(void *dso);
 extern void *__dso_handle; /* this library's (crtbegin_so) */
+static void end_process(void) __attribute__((noreturn));
 
 static void end_process(void)
 {
@@ -1130,7 +1138,10 @@ int Memories_AndroidMain(int argc, char **argv)
     /* An exit() from outside the game (Java's System.exit; the loader's,
      * should this function return) runs the handlers registered so far,
      * newest first: this one, the first of the game's, ends the process
-     * before the system libraries' destructors that were loaded before it. */
+     * before the system libraries' destructors that were loaded before it.
+     * Those of a library loaded later (one SDL opens during main) run
+     * first. An atexit handler is not told the status: that exit ends with
+     * 0. */
     atexit(end_process);
     log_to_logcat();
     if (files && *files) {

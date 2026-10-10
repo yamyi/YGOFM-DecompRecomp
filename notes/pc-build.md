@@ -3746,8 +3746,9 @@ untouched: with a mouse every path is the old one, pixel for pixel.
   `Memories_AndroidMain` ends with `exit(main(...))`, so a return from
   `main` goes the same way. An `exit()` from outside the game (Java's
   `System.exit`) reaches `end_process` as the first `atexit` handler
-  `Memories_AndroidMain` registers; the loader's start-up failures
-  `_exit(1)`. The headless runner calls `main` and keeps the system's
+  `Memories_AndroidMain` registers (after the handlers of libraries loaded
+  later, and with status 0: a handler is not told it); the loader's start-up
+  failures `_exit(1)`. The headless runner calls `main` and keeps the system's
   `exit()`. Nothing of the player's is written at exit (memory cards, save
   states, deck slots and settings are written and renamed into place when
   they change). When the system re-creates the activity (a change the
