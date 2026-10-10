@@ -735,6 +735,12 @@ void ControlsWindow_Event(const MenuEvent *e)
     }
     if (e->type == MENU_EVENT_WHEEL) {
         ui.click_id = 0;
+        if (touch && !ui.popup) {
+            /* The lists are at full length on the page: the wheel scrolls
+             * the page, a row per notch, as a finger's drag does. */
+            ControlsWindow_Drag(0, 0, e->wheel * ROW_H * (ui.draw_scale ? ui.draw_scale : 1));
+            return;
+        }
         /* The wheel scrolls the list under the pointer. */
         Rect g = list_rect[1];
         int host = !ui.popup && ui.pointer_x >= g.x && ui.pointer_x < g.x + g.w && ui.pointer_y >= g.y &&
@@ -1419,7 +1425,11 @@ static void draw_touch(MenuCanvas *c, ControllerDevice *d, uint64_t rows)
     ui.view_top = header_h;
     ui.view_bottom = h - footer_h - message_h;
     view_h = ui.view_bottom - ui.view_top;
-    fill(0, 0, w, h, bg);
+    /* Every pixel, including those past the last whole unit at the right
+     * and bottom, which a fill in units leaves see-through. */
+    for (int j = 0; j < c->height; j++)
+        for (int i = 0; i < c->width; i++)
+            c->pixels[j * c->stride + i] = bg;
 
     /* Where each part of the page goes, from the page's top. */
     y = 12;

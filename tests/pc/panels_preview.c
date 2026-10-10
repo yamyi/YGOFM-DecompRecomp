@@ -193,6 +193,7 @@ static const struct {
                {"phone-3200x1440", 3200, 1440, 3.5f},  {"tablet-2560x1600", 2560, 1600, 2.0f},
                {"tablet-2048x1536", 2048, 1536, 2.0f}, {"tablet-2208x1768", 2208, 1768, 2.625f}};
 static MenuCanvas window;
+static int wheel_scrolled; /* screens whose Controls page the wheel scrolled */
 static void panel_draw(MenuCanvas *c) { Panel_Draw(c); }
 static void finger_tap(int x, int y)
 {
@@ -302,6 +303,44 @@ static void touch_screens(void)
         assert(Panel_Open(PANEL_CONTROLS));
         snprintf(name, sizeof(name), "%s-controls-keyboard", screens[s].name);
         save(&window, name);
+        {
+            /* A mouse's wheel scrolls the page as a finger's drag does: to
+             * the end and back, the first binding shown where the drag
+             * puts it. */
+            int row = 0, x, y0, y_wheel = -1, y_drag = -1, y_back;
+            MenuEvent e = {0};
+            while (row < CTRL_ROW_COUNT && !ControlsWindow_Locate(CONTROLS_UI_BINDING + row * 2, &x, &y0))
+                row++;
+            assert(row < CTRL_ROW_COUNT);
+            e.type = MENU_EVENT_WHEEL;
+            e.x = screens[s].w / 2;
+            e.y = screens[s].h / 2;
+            e.wheel = -100;
+            Panel_Pointer(&e, 0);
+            Panel_Draw(&window);
+            ControlsWindow_Locate(CONTROLS_UI_BINDING + row * 2, &x, &y_wheel);
+            e.wheel = 100;
+            Panel_Pointer(&e, 0);
+            Panel_Draw(&window);
+            assert(ControlsWindow_Locate(CONTROLS_UI_BINDING + row * 2, &x, &y_back) && y_back == y0);
+            finger_drag(screens[s].w / 2, screens[s].h * 2 / 3, -screens[s].h * 20);
+            ControlsWindow_Locate(CONTROLS_UI_BINDING + row * 2, &x, &y_drag);
+            assert(y_wheel == y_drag);
+            wheel_scrolled += y_wheel != y0;
+        }
+        for (int inset = 1; inset <= 3; inset++) {
+            /* A safe area that is no whole number of units wide or tall:
+             * every pixel is the panel's, none left see-through. */
+            memset(window.pixels, 0, (size_t)window.stride * window.height * 4);
+            Panel_Layout(screens[s].w, screens[s].h, inset, 0, screens[s].w - 2 * inset - 1, screens[s].h - inset);
+            Panel_Draw(&window);
+            for (int i = 0; i < window.stride * window.height; i++)
+                assert((window.pixels[i] >> 24) == 0xff);
+        }
+        Panel_Layout(screens[s].w, screens[s].h, 0, 0, screens[s].w, screens[s].h);
+        Panel_Close(); /* the page from its top again, as the pictures below expect */
+        assert(Panel_Open(PANEL_CONTROLS));
+        Panel_Draw(&window);
         finger_drag(screens[s].w / 2, screens[s].h * 2 / 3, -screens[s].h / 2);
         snprintf(name, sizeof(name), "%s-controls-scrolled", screens[s].name);
         save(&window, name);
@@ -336,6 +375,7 @@ static void touch_screens(void)
         free(window.pixels);
     }
     touch_row = 0;
+    assert(wheel_scrolled); /* a phone's page is longer than its screen */
 }
 #endif
 
