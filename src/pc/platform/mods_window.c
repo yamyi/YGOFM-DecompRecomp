@@ -991,17 +991,28 @@ static void bar_move(const Layout *l, int y)
     else if (bar_drag == 2)
         detail_scroll = thumb_to(l->bar, body_height(l), l->view.h, y - bar_grab);
 }
+/* Whether a press at x, y lands on scrollbar `which` (1 the list's, 2 the
+ * details'), with a margin beside it: wider for a finger. One test for
+ * bar_press and ModsWindow_Grabs, so a press the panel hands over as held
+ * is one the bar takes. */
+static int bar_hit(const Layout *l, int which, int x, int y)
+{
+    Rect track = which == 1 ? l->list_bar : l->bar;
+    int total = which == 1 ? shown_count() : body_height(l), shown = which == 1 ? rows() : l->view.h,
+        margin = (touch ? 8 : 3) * unit;
+    return total > shown && inside(rect(track.x - margin, track.y, track.w + 2 * margin, track.h), x, y);
+}
 /* Pressing a scrollbar grabs its thumb, or centres the thumb on the pointer. */
 static int bar_press(const Layout *l, int which, int x, int y)
 {
     Rect track = which == 1 ? l->list_bar : l->bar, t;
     int total = which == 1 ? shown_count() : body_height(l), shown = which == 1 ? rows() : l->view.h,
-        at = which == 1 ? scroll : detail_scroll;
-    if (total <= shown || !inside(rect(track.x - 3 * unit, track.y, track.w + 6 * unit, track.h), x, y))
+        at = which == 1 ? scroll : detail_scroll, margin = (touch ? 8 : 3) * unit;
+    if (!bar_hit(l, which, x, y))
         return 0;
     t = thumb(track, total, shown, at);
     bar_drag = which;
-    bar_grab = inside(rect(track.x - 3 * unit, t.y, track.w + 6 * unit, t.h), x, y) ? y - t.y : t.h / 2;
+    bar_grab = inside(rect(track.x - margin, t.y, track.w + 2 * margin, t.h), x, y) ? y - t.y : t.h / 2;
     bar_move(l, y);
     return 1;
 }
@@ -1096,12 +1107,11 @@ int ModsWindow_Grabs(int x, int y)
     layout(&l);
     if (pending)
         return 0;
-    if (inside(rect(l.list_bar.x - 8 * unit, l.list_bar.y, l.list_bar.w + 16 * unit, l.list_bar.h), x, y) &&
-        shown_count() > rows())
+    if (bar_hit(&l, 1, x, y))
         return 1;
     if (selected < 0)
         return 0;
-    if (inside(rect(l.bar.x - 8 * unit, l.bar.y, l.bar.w + 16 * unit, l.bar.h), x, y) && body_height(&l) > l.view.h)
+    if (bar_hit(&l, 2, x, y))
         return 1;
     return tab == 1 && counts[selected] && inside(l.view, x, y) && option_press(&l, x, y, 0);
 }
