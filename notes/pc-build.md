@@ -3585,6 +3585,20 @@ untouched: with a mouse every path is the old one, pixel for pixel.
 - **The footer's message** beside Close and Apply: one of two to four lines
   (a refusal, a code mod's note) raises the footer's top, and the list and
   the details end above it, instead of being cut.
+- **Import mod...** In the Mods panel's footer, left of Close: the
+  system's file picker (SDL's file dialog, as for the disc; any document),
+  and the chosen `.zip`'s mods go into `mods/` and into the list, off, with
+  no restart ([Mod manager](mods-window.md): the layouts it takes, Replace,
+  code without an arm64 object, what it refuses). `Platform_PickModZip`
+  returns at once and the answer comes on the Java thread; the panel asks
+  for it once per pump (`Panel_Tick`, `ModsWindow_Tick`,
+  `Platform_PickedModZip`), shows "Importing...", and then the document is
+  copied into the mods folder (`mods/.incoming.zip`, `Platform_FetchModZip`)
+  through `SDL_IOFromFile` before it is read, so a provider's stream that
+  cannot seek works too. A big `.zip` holds the frame while it is copied and
+  unpacked. `MEMORIES_IMPORT_ZIP=<file>` in `environment.txt` takes that file
+  instead of the picker. The picker puts the app in the background; coming
+  back is as above (the panel repainted for a second).
 - **Apply & restart.** A change that needs a restart (a load order, a mod
   or setting that says so) restarts the app for real: `Platform_RestartGame`
   in `android.c` starts `Restart.java`'s activity (`org.yfmredecomp.game.Restart`,

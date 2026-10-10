@@ -74,14 +74,70 @@ follows the finger. Search and the profile name show the on-screen keyboard
 (its Enter ends the typing); Back is Escape. There is no Open mods folder
 (an app has no folder window to open; `Platform_OpenFolder` fails on
 Android): the player's mods go in `mods/` in the app's files folder
-(`Android/data/org.yfmredecomp.game/files`). Importing a mod's `.zip`
-through the system's file picker is not there yet; its button is to go in
-the footer left of Close (`layout_touch`'s `folder` slot, empty now, so the
-message line runs up to Close). Apply & restart starts the app
-again in a new process. The game is paused while the panel shows.
+(`Android/data/org.yfmredecomp.game/files`), and **Import mod...** (in the
+footer left of Close, on the list's page) puts one there from its `.zip`,
+below. Apply & restart starts the app again in a new process. The game is
+paused while the panel shows.
+
+**Import mod...** (Android; `ModsWindow_SetImport`, which no desktop
+calls, so the desktop window and the desktop's test panels have no such
+button) opens the system's file picker; the chosen document is copied into
+the mods folder (`mods/.incoming.zip`), read
+(`src/pc/mods/import.c`), and its mods are put in place and added to the
+list, off, without a restart (`Mods_Discover`): the first one is selected,
+and the message line says "Imported <name>." (or "Imported 3 mods: A, B and
+C."). Turning one on is then like any other mod's change (Apply, a restart
+when the mod needs one).
+
+- **What counts as a mod in it**: every folder with a `mod.json` at the
+  `.zip`'s root (the whole `.zip` is then the mod, in a folder named by the
+  manifest's `id`), in its top folders, or one wrapper folder down (a
+  `Downloads/` or `mods/` the mod was zipped in; files beside the mods there
+  are left out). A `mod.json` deeper inside a mod is that mod's file;
+  `__MACOSX/` is skipped. A `.zip` with none says "This .zip has no mod in
+  it."
+- **Already installed** (the folder of that name holds a mod with the same
+  `id`, or an installed mod has that `id`): "<name> is already installed.
+  Replace it with the one in this .zip?" with Replace and Cancel (Back
+  cancels too). Replace moves the old folder aside, puts the new one in and
+  then deletes the old one. A folder of that name that holds another mod, or
+  no mod, is never replaced: the new mod goes in `<folder>-2` (`-3`, ...). A
+  mod that is (or was) in place this launch is not replaced at all, since
+  its data, pictures and code are read from its folder while it runs: "<name>
+  is in use, so its files cannot be replaced now. Turn it off, Apply &
+  restart, then import it again." A new mod with the `id` of one the release
+  ships goes in beside it and replaces it from the next launch, as on a
+  desktop ("It is used after a restart.").
+- **Code** (the manifest names a `library` or `libraries`): imported, off.
+  Without `<library>.aarch64.o` (or the `libraries` `"aarch64"` file) the
+  message says "This mod has code built only for PC; ask its author for an
+  Android build. It stays off and changes nothing in the game." With it, the
+  mod still stays off in this build, whose arm64 game links no code mods yet
+  (`MEMORIES_NO_CODE_MODS`): "its code is for Android, but this version of
+  the game cannot run code mods yet."
+- **Refused, with nothing written**: a name that would land outside the
+  folder (`..`, `.` or empty parts, an absolute path, a drive letter or any
+  `:`; backslashes count as slashes), more than 32 folders deep, a link or
+  other special file, a password, a compression other than stored and
+  deflate, two entries for one file (ASCII letter case aside), two mods with
+  one folder or one `id`, names that are not UTF-8, ZIP64 or split
+  archives, more than 20,000 entries, more than 512 MB unpacked, a `.zip`
+  over 1 GB, a file that is not a `.zip`, or more mods than the game takes
+  (256). A mod at the `.zip`'s root without an `id` goes in `imported-mod`.
+  Unpacking goes into a hidden `mods/.import-XXXXXX` folder (the scan skips
+  names starting with a dot), checking each file's size and CRC; only then
+  is each mod renamed into place, and any failure puts back what was moved
+  and removes the hidden folder (an old folder that cannot be put back is
+  kept in `mods/.recovered-XXXXXX` and named in the message). What an
+  import cut short leaves (a crash) is removed when the panel opens again.
+- **Testing**: `MEMORIES_IMPORT_ZIP=<file>` (in `environment.txt`) makes
+  Import mod... take that file instead of opening the picker.
+  `pc_mod_import` checks the reader and the installer on `.zip` files it
+  writes; `pc_mods_window` drives the panel's import with a fake picker.
 
 Implementation: `src/pc/platform/mods_window.c`, `src/pc/mods/manager.c`
-(`src/pc/mods/overlap.c` for the overlaps), and
+(`src/pc/mods/overlap.c` for the overlaps, `src/pc/mods/import.c` for Import
+mod...), and
 window ownership in `sdl.c` / `x11.c`. `pc_mods_window` exercises real settings
 and manifests with a fake renderer/restart. `tools/pc/test_mods_context.sh`
 checks actual SDL/OpenGL context ownership during secondary-window operations.
