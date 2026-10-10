@@ -3569,6 +3569,14 @@ untouched: with a mouse every path is the old one, pixel for pixel.
   (`ControlsRuntime_Block`, for both panels): no hotkey such as Turbo,
   Pause, Exit or a save state acts behind it. The desktop's windows leave
   the game running beside them, as before.
+- **Coming back** (Home and back, or another activity in front, such as a
+  system file picker): the panel's still picture is repainted for a second,
+  since the window's surface returns a moment after
+  `SDL_EVENT_DID_ENTER_FOREGROUND` (before, the screen stayed black until
+  the next touch). Desktops never set that deadline.
+- **The footer's message** beside Close and Apply: one of two to four lines
+  (a refusal, a code mod's note) raises the footer's top, and the list and
+  the details end above it, instead of being cut.
 - **Apply & restart.** A change that needs a restart (a load order, a mod
   or setting that says so) restarts the app for real: `Platform_RestartGame`
   in `android.c` starts `Restart.java`'s activity (`org.yfmredecomp.game.Restart`,
