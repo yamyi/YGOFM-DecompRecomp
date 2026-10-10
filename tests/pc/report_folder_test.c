@@ -33,9 +33,12 @@ static void write_file(const char *name, const char *text, time_t when)
     assert(!fclose(file));
     {
 #ifdef _WIN32
+        /* The wide call: the scratch folder's path is UTF-8 (fs.h). */
         struct _utimbuf times;
+        wchar_t *wide = Memories_Utf8ToWide(path);
         times.actime = times.modtime = when;
-        assert(!_utime(path, &times));
+        assert(wide && !_wutime(wide, &times));
+        free(wide);
 #else
         struct utimbuf times;
         times.actime = times.modtime = when;

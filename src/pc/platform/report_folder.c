@@ -137,7 +137,8 @@ int ReportFolder_Retire(const char *folder, long own_pid, int keep)
             snprintf(to, sizeof(to), "%s" SENT, from) >= (int)sizeof(to)) {
             fprintf(stderr, "memories-pc: crash report: the path of %s is too long\n", files[i].name);
             ok = 0;
-        } else if (rename(from, to) && errno != ENOENT) { /* gone already is as good as retired */
+        } else if (rename(from, to)) {
+            if (errno == ENOENT) continue; /* gone already is as good as retired */
             fprintf(stderr, "memories-pc: crash report: could not retire %s: %s\n", from, strerror(errno));
             ok = 0;
         } else {

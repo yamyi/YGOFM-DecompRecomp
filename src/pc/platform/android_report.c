@@ -93,7 +93,14 @@ static int find_report(void)
  * could not be, which may then be offered again. */
 static int retire_reports(void)
 {
-    return ReportFolder_Retire(Crash_ReportDir, (long)getpid(), REPORT_FOLDER_KEEP);
+    char mine[2][64];
+    long own = (long)getpid();
+    /* A launch that got the crashed run's pid offers that run's report,
+     * which then goes too. */
+    snprintf(mine[0], sizeof(mine[0]), "crash-%ld.txt", own);
+    snprintf(mine[1], sizeof(mine[1]), "hang-%ld.txt", own);
+    if (!strcmp(offer.name, mine[0]) || !strcmp(offer.name, mine[1])) own = -1;
+    return ReportFolder_Retire(Crash_ReportDir, own, REPORT_FOLDER_KEEP);
 }
 
 /* --- what goes out --------------------------------------------------- */
@@ -622,10 +629,12 @@ static void chosen(int button, int *quit)
         Settings_Save();
         retired = retire_reports();
         fprintf(stderr, "memories-pc: crash report %s: don't ask again (offer_crash_reports=0)\n", offer.name);
+        /* With the offer off, one not retired comes back only once it is
+         * turned on again: worth a word, not a warning. */
         snprintf(text, sizeof(text),
                  "No crash report will be offered from now on. Help > Offer crash reports at start turns this "
                  "back on.%s",
-                 retired ? "" : AGAIN);
+                 retired ? "" : "\n\nThis report could not be put away: it is offered again if you turn this back on.");
         Menu_ShowNotice("Crash reports off", text, ok, 1, 0, NULL);
         return;
     } else {
