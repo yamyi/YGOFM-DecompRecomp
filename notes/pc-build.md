@@ -3467,11 +3467,28 @@ of `sdl.c`'s `Platform_Open`) in the game's own notice: **Share** (the
 system's share sheet, the report attached: Discord, a chat app, e-mail),
 **Save to Downloads** (MediaStore, Android 10 and later: before that,
 writing there needs a storage permission the app does not ask for, so the
-button is not offered and only Share is) and **Not now** (nothing; it is
-offered again next launch). Share or Save marks it handled
-(`reports/handled.txt`, the report's time), and every older one with it:
-only the newest report is offered. Share counts once the share sheet
-opens, whether or not an app is then picked. Headless, scripted and
+button is not offered and only Share is), **Don't ask again** and **Not
+now** (nothing: it is offered again next launch; Back presses it, the
+last button). Share, Save and Don't ask again retire every
+report in the folder at that moment (`report_folder.c`): `crash-<pid>.txt`
+becomes `crash-<pid>.txt.sent`, which is no longer offered; the newest ten
+retired ones are kept and older ones removed; a report with the running
+game's pid is left, unless it is the one offered (a pid used again). No
+time is compared: a report is offered until
+it is retired, even one written while the clock was behind (only the
+newest report is offered at a time; the others go with it). If a report
+cannot be renamed, the player is told it may be offered again (after Don't
+ask again: if the offer is turned back on). Share
+counts once the share sheet opens, whether or not an app is then picked.
+"Report saved" names the file as Downloads has it (MediaStore adds
+" (1)" when the name is taken). Don't ask again also sets
+**Help > Offer crash reports at start** (`offer_crash_reports`,
+`MEMORIES_OFFER_CRASH_REPORTS`: 1, the default, offers; 0 does not) to 0:
+that Help row, on Android only, is the way back, since `settings.txt` is
+in the folder the player cannot reach. Turned back on, it offers the
+newest report not retired: one written while it was off, or one still there
+when it was turned off in the menu (retired ones stay retired). The folder
+logic has a host test, `pc_report_folder`. Headless, scripted and
 agent-driven runs (`MEMORIES_HEADLESS`, `MEMORIES_INPUT`,
 `MEMORIES_SDL_SCRIPT`, `MEMORIES_CONTROL`) are never asked. The desktops
 have none of it.
