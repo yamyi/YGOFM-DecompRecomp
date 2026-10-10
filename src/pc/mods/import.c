@@ -360,9 +360,18 @@ static int describe(ModsImport *import, ModsImportMod *mod, const Entry *manifes
     return 1;
 }
 
+/* Shallowest first (a mod before anything inside it), then by name. */
+static int depth(const char *s)
+{
+    int n = 0;
+    for (; *s; s++)
+        n += *s == '/';
+    return n;
+}
 static int by_depth(const void *x, const void *y)
 {
-    return (int)strlen(((const ModsImportMod *)x)->prefix) - (int)strlen(((const ModsImportMod *)y)->prefix);
+    const char *a = ((const ModsImportMod *)x)->prefix, *b = ((const ModsImportMod *)y)->prefix;
+    return depth(a) != depth(b) ? depth(a) - depth(b) : strcmp(a, b);
 }
 
 ModsImport *Mods_ImportOpen(const char *zip, char *why, size_t why_size)
@@ -624,6 +633,14 @@ int Mods_ImportRemoveTree(const char *path)
         closedir(directory);
     }
     return rmdir(path) ? -1 : 0;
+}
+
+int Mods_ImportTaken(const char *mods, const char *folder, char *path, size_t size)
+{
+    struct stat info;
+    if (snprintf(path, size, "%s/%s", mods, folder) >= (int)size)
+        return 0;
+    return !stat(path, &info);
 }
 
 void Mods_ImportCleanup(const char *mods)

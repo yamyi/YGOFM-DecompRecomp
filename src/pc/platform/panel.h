@@ -55,7 +55,8 @@ int Panel_Pointer(const MenuEvent *event, int finger);
  * panel must be drawn again. */
 int Panel_Key(const MenuEvent *event, int control_key, int repeat, int modifiers);
 /* Once per pump while shown: the Controls panel listens for a binding and
- * shows the pad live. 1 when the panel must be drawn again. */
+ * shows the pad live; the Mods panel takes an import's next step
+ * (ModsWindow_Tick). 1 when the panel must be drawn again. */
 int Panel_Tick(void);
 /* A field of the panel takes typing now: show the on-screen keyboard. */
 int Panel_TextFocus(void);

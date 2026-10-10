@@ -666,8 +666,11 @@ if(BUILD_TESTING)
         target_compile_options(memories_serif_test PRIVATE -Wall -Wextra -Wpedantic -Werror)
     endif()
     add_test(NAME pc_serif COMMAND memories_serif_test)
-    add_executable(memories_mods_window_test tests/pc/mods_window_test.c src/pc/platform/mods_window.c ${MOD_TEST_SOURCES})
-    target_link_libraries(memories_mods_window_test PRIVATE m Threads::Threads)
+    # Import mod... (src/pc/mods/import.c) inflates with zlib.
+    find_package(ZLIB REQUIRED)
+    add_executable(memories_mods_window_test tests/pc/mods_window_test.c src/pc/platform/mods_window.c
+        src/pc/mods/import.c ${MOD_TEST_SOURCES})
+    target_link_libraries(memories_mods_window_test PRIVATE m Threads::Threads ZLIB::ZLIB)
     target_include_directories(memories_mods_window_test PRIVATE src)
     if(NOT MSVC)
         target_compile_options(memories_mods_window_test PRIVATE -Wall -Wextra -Wpedantic -Werror)
@@ -736,8 +739,7 @@ if(BUILD_TESTING)
     add_test(NAME pc_texture_pack COMMAND memories_texture_pack_test)
     # A mod's .zip into the mods folder (src/pc/mods/import.c, the Android
     # Mods panel's Import): layouts, the arm64 object check, Replace, and the
-    # .zip files refused before anything is written. zlib came with libpng.
-    find_package(ZLIB REQUIRED)
+    # .zip files refused before anything is written.
     add_executable(memories_mod_import_test tests/pc/mod_import_test.c src/pc/mods/import.c src/pc/mods/json.c
         src/pc/platform/paths.c)
     target_include_directories(memories_mod_import_test PRIVATE src)

@@ -48,6 +48,9 @@ ModsImportMod *Mods_ImportMod(ModsImport *import, int index);
  * and the mods folder as it was. */
 int Mods_ImportInstall(ModsImport *import, const char *mods, char *why, size_t why_size);
 void Mods_ImportClose(ModsImport *import);
+/* Whether `mods`/`folder` is taken (a folder or a file is there); its
+ * path in `path` either way. */
+int Mods_ImportTaken(const char *mods, const char *folder, char *path, size_t size);
 /* Removes what an import cut short left in the mods folder (".import-*"
  * folders and ".incoming*.zip" files). */
 void Mods_ImportCleanup(const char *mods);

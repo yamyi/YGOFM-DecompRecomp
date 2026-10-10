@@ -34,6 +34,18 @@ enum {
     MODS_UI_OPTION = 100
 };
 int ModsWindow_Locate(int id, int *x, int *y);
+/* Import mod... (a phone's panel, which has no folder to copy a mod into):
+ * `pick` opens the system's file picker and returns at once (0, or -1 with
+ * the reason); `picked`, asked once per ModsWindow_Tick while it is open,
+ * says 0 while it is, 1 once the chosen file is copied to `path` (a .zip
+ * the window imports and then removes), -1 when nothing was chosen and -2
+ * on a failure (why). Without them (NULL, the default: every desktop) the
+ * panel has no Import button and nothing else changes. */
+void ModsWindow_SetImport(int (*pick)(char *why, size_t why_size),
+                          int (*picked)(char *path, size_t size, char *why, size_t why_size));
+/* Once per pump while the panel shows: an import's next step. 1 when the
+ * window must be drawn again. */
+int ModsWindow_Tick(void);
 int ModsWindow_Grabs(int x, int y);
 void ModsWindow_Drag(int x, int y, int dy);
 #endif

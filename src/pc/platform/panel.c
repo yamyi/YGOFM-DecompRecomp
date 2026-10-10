@@ -104,7 +104,7 @@ static void log_widgets(void)
     } mods[] = {{MODS_UI_SEARCH, "search"},   {MODS_UI_FILTER, "filter"},   {MODS_UI_PROFILE, "profile"},
                 {MODS_UI_SAVE, "save"},       {MODS_UI_LOAD, "load"},       {MODS_UI_TOGGLE, "toggle"},
                 {MODS_UI_BACK, "back"},       {MODS_UI_DEFAULTS, "defaults"}, {MODS_UI_CLOSE, "close"},
-                {MODS_UI_APPLY, "apply"},     {MODS_UI_ROW_SELECTED, "selected-row"},
+                {MODS_UI_APPLY, "apply"},     {MODS_UI_FOLDER, "import"},   {MODS_UI_ROW_SELECTED, "selected-row"},
                 {MODS_UI_ROW_FIRST, "first-row"}, {MODS_UI_CHECK_SELECTED, "selected-check"},
                 {MODS_UI_CHECK_FIRST, "first-check"},
                 {MODS_UI_TAB, "tab-about"},   {MODS_UI_TAB + 1, "tab-settings"}, {MODS_UI_TAB + 2, "tab-compat"},
@@ -299,6 +299,8 @@ int Panel_Key(const MenuEvent *event, int control_key, int repeat, int modifiers
 int Panel_Tick(void)
 {
     uint64_t now;
+    if (shown == PANEL_MODS)
+        return ModsWindow_Tick(); /* an import's next step */
     if (shown != PANEL_CONTROLS)
         return 0;
     ControlsWindow_Tick();

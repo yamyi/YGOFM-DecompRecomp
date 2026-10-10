@@ -12,12 +12,14 @@
  * scrollbar is held at once instead (ModsWindow_Grabs). */
 #include "mods_window.h"
 #include "../../types.h"
+#include "pc/mods/import.h"
 #include "pc/mods/json.h"
 #include "pc/mods/mods.h"
 #include "pc/mods/overlap.h"
 #include "platform.h"
 #include "settings.h"
 #include <ctype.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -49,6 +51,14 @@ static int width, height, unit, selected, scroll, detail_scroll, tab, filter, fo
 static int touch, compact, page, drag_rest;
 static int wanted[MODS_MAX], ranks[MODS_MAX], *values[MODS_MAX], counts[MODS_MAX];
 static int slider_drag = -1, bar_drag, bar_grab; /* bar_drag: 1 the list's scrollbar, 2 the details' */
+/* Import mod... (ModsWindow_SetImport): the platform's picker, the step an
+ * import is at (1 the picker is open, 2 a .zip came and is read at the
+ * next tick), the .zip, and the import that waits for Replace or Cancel
+ * (pending 3). */
+static int (*import_pick)(char *, size_t), (*import_picked)(char *, size_t, char *, size_t);
+static int import_step;
+static char import_zip[1024];
+static ModsImport *import_waiting;
 static char query[96], profile[65] = "Default", status[512];
 static const char *filters[] = {"All mods", "Enabled", "Disabled", "Issues"};
 static const char *pad_names[] = {"Select", "L3", "R3", "Start", "Up",       "Right",  "Down",  "Left",
@@ -101,10 +111,14 @@ static void layout_touch(Layout *l)
     l->apply = rect(width - p - 150 * unit, footer, 150 * unit, t);
     l->close = rect(l->apply.x - g - 94 * unit, footer, 94 * unit, t);
     /* The footer's slot for the mods' files, left of Close (footer_left()
-     * gives the message the room up to it). Empty: an app has no folder
-     * window to open (Platform_OpenFolder fails on Android). Importing a
-     * mod's .zip through the system's file picker is to go here. */
+     * gives the message the room up to it): Import mod..., where the
+     * platform has a file picker for it (an app has no folder window to
+     * open: Platform_OpenFolder fails on Android); on the list's page. */
     l->folder = none();
+    if (import_pick && (!compact || page == 0)) {
+        int w = max(120 * unit, width_text("Import mod...") + 24 * unit);
+        l->folder = rect(l->close.x - g - w, footer, w, t);
+    }
     {   /* A message of two to four lines beside the buttons (a refusal, a
          * mod that cannot run here) raises the footer's top instead of
          * being cut: the list and the details end above it. */
@@ -266,6 +280,25 @@ static int changed(void)
     }
     return 0;
 }
+/* What the window stages for mod `i`, as the mod is now: at the start, and
+ * for a mod an import adds or changes. */
+static void adopt(int i)
+{
+    char key[160];
+    wanted[i] = Mods_Enabled(i);
+    snprintf(key, sizeof(key), "mod.%s.order", Mods_Id(i));
+    ranks[i] = Settings_GetNamed(key, num(Mods_Manifest(i), "priority", 0));
+    free(values[i]);
+    counts[i] = Mods_OptionCount(i);
+    values[i] = calloc((size_t)max(1, counts[i]), sizeof(int));
+    if (!values[i]) {
+        counts[i] = 0;
+        snprintf(status, sizeof(status), "Could not allocate mod settings");
+        return;
+    }
+    for (int j = 0; j < counts[i]; j++)
+        values[i][j] = Mods_OptionValue(i, j);
+}
 void ModsWindow_Init(void)
 {
     unit = Menu_Scale();
@@ -283,20 +316,12 @@ void ModsWindow_Init(void)
         values[i] = NULL;
         counts[i] = 0;
     }
-    for (int i = 0; i < Mods_Count(); i++) {
-        char key[160];
-        wanted[i] = Mods_Enabled(i);
-        snprintf(key, sizeof(key), "mod.%s.order", Mods_Id(i));
-        ranks[i] = Settings_GetNamed(key, num(Mods_Manifest(i), "priority", 0));
-        counts[i] = Mods_OptionCount(i);
-        values[i] = calloc((size_t)max(1, counts[i]), sizeof(int));
-        if (!values[i]) {
-            counts[i] = 0;
-            snprintf(status, sizeof(status), "Could not allocate mod settings");
-            continue;
-        }
-        for (int j = 0; j < counts[i]; j++)
-            values[i][j] = Mods_OptionValue(i, j);
+    for (int i = 0; i < Mods_Count(); i++)
+        adopt(i);
+    if (import_waiting) { /* a Replace question the last showing left open */
+        Mods_ImportClose(import_waiting);
+        import_waiting = NULL;
+        Mods_ImportRemoveTree(import_zip);
     }
 }
 void ModsWindow_Resize(int w, int h)
@@ -761,7 +786,7 @@ static void draw_details(MenuCanvas *c, const Layout *l)
 }
 static const char *apply_label(void)
 {
-    return pending == 2 ? "Discard changes" : pending == 1 ? "Apply & restart" : "Apply changes";
+    return pending == 3 ? "Replace" : pending == 2 ? "Discard changes" : pending == 1 ? "Apply & restart" : "Apply changes";
 }
 /* With a finger: the fields and the list, the details (side by side or the
  * page shown), and the footer: the message (or the counts) beside Close and
@@ -794,6 +819,8 @@ static void draw_touch(MenuCanvas *c, const Layout *l)
         wrap(&band, 12 * unit, footer - top + (l->lift + l->apply.h) / 2 - lines * LINE / 2, room, line,
              pending ? WARN : *status ? TEXT : DIM);
     }
+    if (l->folder.w)
+        button(c, l->folder, import_step ? "Importing..." : "Import mod...", 0);
     button(c, l->close, pending ? "Cancel" : "Close", 0);
     button(c, l->apply, apply_label(), changed() || pending);
 }
@@ -921,6 +948,210 @@ static void apply(void)
     for (int i = 0; i < Mods_Count(); i++)
         free(old_values[i]);
 }
+/* --- Import mod... (ModsWindow_SetImport) ----------------------------- */
+
+/* snprintf, for lines that may be cut short at the buffer's end. */
+static void put(char *out, size_t size, const char *format, ...)
+{
+    va_list list;
+    va_start(list, format);
+    vsnprintf(out, size, format, list);
+    va_end(list);
+}
+
+void ModsWindow_SetImport(int (*pick)(char *, size_t), int (*picked)(char *, size_t, char *, size_t))
+{
+    import_pick = pick;
+    import_picked = picked;
+}
+static void import_done(void)
+{
+    Mods_ImportClose(import_waiting);
+    import_waiting = NULL;
+    Mods_ImportRemoveTree(import_zip);
+}
+/* The names of the mods of `import` that `pick` picks, "A", "A and B",
+ * "A, B and C", into `out`; how many. */
+static int import_names(ModsImport *import, int (*pick)(const ModsImportMod *), char *out, size_t size)
+{
+    int n = 0, total = 0;
+    for (int i = 0; i < Mods_ImportCount(import); i++)
+        total += pick(Mods_ImportMod(import, i));
+    out[0] = 0;
+    for (int i = 0; i < Mods_ImportCount(import); i++) {
+        const ModsImportMod *mod = Mods_ImportMod(import, i);
+        size_t used = strlen(out);
+        if (!pick(mod))
+            continue;
+        put(out + used, size - used, "%s%s", n == 0 ? "" : n == total - 1 ? " and " : ", ", mod->name);
+        n++;
+    }
+    return n;
+}
+static int any_mod(const ModsImportMod *mod) { return mod != NULL; }
+static int pc_only(const ModsImportMod *mod) { return mod->code && !mod->android_code; }
+static int replacing(const ModsImportMod *mod) { return mod->replace[0] != 0; }
+/* Every mod of the waiting import into the mods folder, then into the
+ * list (Mods_Discover), off: the first of them selected, and a word on
+ * what came, what waits for a restart and what cannot run here. */
+static void import_install(void)
+{
+    char why[400], folder[1024], names[300], line[512];
+    int first = -1, later = 0, old_count = Mods_Count(), n, several;
+    if (Mods_InstallDirectory(folder, sizeof(folder))) {
+        put(status, sizeof(status), "Could not make the mods folder.");
+        import_done();
+        return;
+    }
+    if (!Mods_ImportInstall(import_waiting, folder, why, sizeof(why))) {
+        put(status, sizeof(status), "Nothing was imported. %s", why);
+        import_done();
+        return;
+    }
+    for (int i = 0; i < Mods_ImportCount(import_waiting); i++) {
+        const ModsImportMod *mod = Mods_ImportMod(import_waiting, i);
+        char path[1200];
+        int waits = 0, index;
+        put(path, sizeof(path), "%s/%s", folder, mod->folder);
+        index = Mods_Discover(path, &waits);
+        if (index < 0)
+            continue;
+        /* Code built only for the PC: it cannot run here, so it stays off. */
+        if (pc_only(mod) && Mods_Enabled(index))
+            Mods_SetEnabled(index, 0);
+        later |= waits;
+        if (index >= old_count || !waits)
+            adopt(index);
+        if (first < 0)
+            first = index;
+    }
+    if (Settings_Save() < 0)
+        fprintf(stderr, "memories-pc: the settings could not be saved after an import\n");
+    n = import_names(import_waiting, any_mod, names, sizeof(names));
+    if (n == 1 && replacing(Mods_ImportMod(import_waiting, 0)))
+        put(line, sizeof(line), "Replaced %s.%s", names, later ? " The new files are used after a restart." : "");
+    else if (n == 1)
+        put(line, sizeof(line), "Imported %s.", names);
+    else
+        put(line, sizeof(line), "Imported %d mods: %s.%s", n, names,
+                 later ? " Replaced ones use their new files after a restart." : "");
+    several = import_names(import_waiting, pc_only, names, sizeof(names)) > 1;
+    if (*names && n == 1)
+        put(status, sizeof(status), "%s This mod has code built only for PC; ask its author for an Android build. "
+                 "Until then it stays off and changes nothing in the game.", line);
+    else if (*names)
+        put(status, sizeof(status), "%s %s %s code built only for PC; ask for an Android build. Until then %s "
+                 "off and change%s nothing in the game.", line, names, several ? "have" : "has",
+                 several ? "they stay" : "it stays", several ? "" : "s");
+    else
+        put(status, sizeof(status), "%s", line);
+    fprintf(stderr, "memories-pc: import: %s\n", status);
+    import_done();
+    if (first >= 0) { /* shown, selected and in view */
+        int at = 0;
+        filter = 0;
+        query[0] = 0;
+        selected = first;
+        detail_scroll = 0;
+        for (int i = 0; i < first; i++)
+            at += visible(i);
+        if (at < scroll || at >= scroll + rows())
+            scroll = max(0, min(at, shown_count() - rows()));
+    }
+}
+/* A .zip came: read, and either installed or held for Replace/Cancel when
+ * a mod in it is installed already (its folder name taken, or its id an
+ * installed mod's). */
+static void import_read(void)
+{
+    char why[400], folder[1024], names[300];
+    int taken = 0;
+    import_waiting = Mods_ImportOpen(import_zip, why, sizeof(why));
+    if (!import_waiting) {
+        put(status, sizeof(status), "%s", why);
+        import_done();
+        return;
+    }
+    if (!Mods_ImportCount(import_waiting)) {
+        put(status, sizeof(status), "This .zip has no mod in it.");
+        import_done();
+        return;
+    }
+    if (Mods_InstallDirectory(folder, sizeof(folder))) {
+        put(status, sizeof(status), "Could not make the mods folder.");
+        import_done();
+        return;
+    }
+    for (int i = 0; i < Mods_ImportCount(import_waiting); i++) {
+        ModsImportMod *mod = Mods_ImportMod(import_waiting, i);
+        char path[1200];
+        if (!Mods_ImportTaken(folder, mod->folder, mod->replace, sizeof(mod->replace))) {
+            mod->replace[0] = 0;
+            for (int j = 0; j < Mods_Count(); j++)
+                if (!strcmp(Mods_Id(j), mod->id) && !strcmp(Mods_Origin(j), "installed") &&
+                    Mods_ImportTaken(Mods_Directory(j), ".", path, sizeof(path))) {
+                    put(mod->replace, sizeof(mod->replace), "%s", Mods_Directory(j));
+                    break;
+                }
+        }
+        taken += mod->replace[0] != 0;
+    }
+    if (!taken) {
+        import_install();
+        return;
+    }
+    pending = 3;
+    import_names(import_waiting, replacing, names, sizeof(names));
+    if (taken == 1)
+        put(status, sizeof(status), "%s is already installed. Replace it with the one in this .zip?", names);
+    else
+        put(status, sizeof(status), "%s are already installed. Replace them with the ones in this .zip?", names);
+}
+static void import_start(void)
+{
+    char why[400];
+    if (import_step)
+        return;
+    if (import_pick(why, sizeof(why))) {
+        put(status, sizeof(status), "%s", why);
+        return;
+    }
+    import_step = 1;
+    put(status, sizeof(status), "Choose a mod's .zip.");
+}
+int ModsWindow_Tick(void)
+{
+    char why[400];
+    int result;
+    if (import_step == 2) { /* the "Importing..." was drawn: now the work */
+        import_step = 0;
+        import_read();
+        return 1;
+    }
+    if (import_step != 1 || !import_picked)
+        return 0;
+    result = import_picked(import_zip, sizeof(import_zip), why, sizeof(why));
+    if (!result)
+        return 0;
+    import_step = result > 0 ? 2 : 0;
+    if (result > 0)
+        put(status, sizeof(status), "Importing...");
+    else if (result == -1)
+        status[0] = 0;
+    else
+        put(status, sizeof(status), "%s", why);
+    return 1;
+}
+/* Escape, Cancel or closing the window answer a question with no: an
+ * import's Replace goes with it. */
+static void cancel_pending(void)
+{
+    if (pending == 3)
+        import_done();
+    pending = 0;
+    status[0] = 0;
+}
+
 static void select_step(int step)
 {
     int at = -1, n = shown_count();
@@ -1140,6 +1371,8 @@ int ModsWindow_Redraws(const MenuEvent *e)
 }
 int ModsWindow_RequestClose(void)
 {
+    if (pending == 3)
+        cancel_pending();
     focus = 0;
     slider_drag = -1;
     bar_drag = 0;
@@ -1167,8 +1400,7 @@ int ModsWindow_Event(const MenuEvent *e)
     if (e->type == MENU_EVENT_KEY_DOWN) {
         if (e->key == MENU_KEY_ESCAPE) {
             if (pending) {
-                pending = 0;
-                status[0] = 0;
+                cancel_pending();
                 return 0;
             }
             if (focus) {
@@ -1208,7 +1440,11 @@ int ModsWindow_Event(const MenuEvent *e)
             if (e->key == MENU_KEY_ENTER) {
                 if (pending == 2)
                     return 1;
-                apply();
+                if (pending == 3) {
+                    pending = 0;
+                    import_install();
+                } else
+                    apply();
             }
             return 0;
         }
@@ -1232,10 +1468,9 @@ int ModsWindow_Event(const MenuEvent *e)
             detail_scroll = min(max(0, detail_scroll - e->wheel * 3 * LINE), detail_limit(&l));
     } else if (e->type == MENU_EVENT_BUTTON_DOWN && e->button == 1) {
         if (inside(l.close, e->x, e->y)) {
-            if (pending) {
-                pending = 0;
-                status[0] = 0;
-            } else if (changed()) {
+            if (pending)
+                cancel_pending();
+            else if (changed()) {
                 pending = 2;
                 snprintf(status, sizeof(status), "Discard your unsaved mod changes?");
             } else
@@ -1243,7 +1478,13 @@ int ModsWindow_Event(const MenuEvent *e)
         } else if (inside(l.apply, e->x, e->y)) {
             if (pending == 2)
                 return 1;
-            apply();
+            if (pending == 3) {
+                pending = 0;
+                import_install();
+            } else
+                apply();
+        } else if (!pending && touch && import_pick && inside(l.folder, e->x, e->y)) {
+            import_start();
         } else if (!pending && inside(l.folder, e->x, e->y)) {
             char path[1024];
             if (Mods_InstallDirectory(path, sizeof(path)))
