@@ -53,6 +53,8 @@
 #include <unistd.h>
 #include <jni.h>
 #include "pc/guest/state.h"
+#include "pc/mods/import.h"
+#include "pc/mods/mods.h"
 #include "jni_guard.h" /* last: after SDL's own headers */
 
 #define LOG_TAG "memories"
@@ -246,6 +248,109 @@ int Platform_SelectDisc(char *path, size_t size, char *why, size_t why_size)
     }
     SDL_QuitSubSystem(SDL_INIT_VIDEO);
     return result;
+}
+
+/* --- a mod's .zip, through the same picker (the Mods panel) ---------- */
+
+/* Import mod... in the Mods panel (mods_window.c, ModsWindow_SetImport).
+ * The picker returns while the game runs on: its answer comes on the Java
+ * thread (picked, above) and the panel asks for it once per pump. The
+ * chosen document is copied into the mods folder first, as the disc image
+ * is: a cloud drive may hand over a stream that cannot seek, and the right
+ * to read it does not outlast the app. */
+static Picked mod_pick;
+static int mod_picking;
+
+int Platform_PickModZip(char *why, size_t why_size)
+{
+    /* Any document, as for the disc: a .zip's type is not the same with
+     * every provider, and the file is checked by what it holds. */
+    static const SDL_DialogFileFilter filters[] = {{"Mod (.zip)", "*"}};
+    const char *test = getenv("MEMORIES_IMPORT_ZIP");
+    (void)why;
+    (void)why_size;
+    if (mod_picking) return 0;
+    memset(&mod_pick, 0, sizeof(mod_pick));
+    mod_picking = 1;
+    if (test && *test) {
+        snprintf(mod_pick.uri, sizeof(mod_pick.uri), "%s", test);
+        mod_pick.result = 1;
+        SDL_SetAtomicInt(&mod_pick.done, 1);
+        return 0;
+    }
+    SDL_ShowOpenFileDialog(picked, &mod_pick, NULL, filters, 1, NULL, false);
+    return 0;
+}
+
+int Platform_PickedModZip(char *path, size_t size, char *why, size_t why_size)
+{
+    static unsigned char buffer[1 << 16];
+    char folder[1024];
+    SDL_IOStream *stream;
+    FILE *out;
+    Sint64 total = 0;
+    size_t got;
+    int ok = 1;
+    if (!mod_picking || !SDL_GetAtomicInt(&mod_pick.done)) return 0;
+    mod_picking = 0;
+    if (mod_pick.result < 0) {
+        snprintf(why, why_size, "Could not open the file picker: %s", SDL_GetError());
+        return -2;
+    }
+    if (!mod_pick.result) return -1;
+    fprintf(stderr, "memories-pc: mod chosen: %s\n", mod_pick.uri);
+    if (Mods_InstallDirectory(folder, sizeof(folder)) ||
+        snprintf(path, size, "%s/.incoming.zip", folder) >= (int)size) {
+        snprintf(why, why_size, "Could not make the mods folder.");
+        return -2;
+    }
+    Mods_ImportCleanup(folder); /* what an import cut short left */
+    if (!(stream = SDL_IOFromFile(mod_pick.uri, "rb"))) {
+        snprintf(why, why_size, "Could not read that file: %s", SDL_GetError());
+        return -2;
+    }
+    if (!(out = fopen(path, "wb"))) {
+        snprintf(why, why_size, "Could not write in the mods folder: %s.", strerror(errno));
+        SDL_CloseIO(stream);
+        return -2;
+    }
+    while ((got = SDL_ReadIO(stream, buffer, sizeof(buffer))) > 0) {
+        if (!total && (got < 4 || memcmp(buffer, "PK", 2) || (buffer[2] != 3 && buffer[2] != 5))) {
+            snprintf(why, why_size, "That file is not a .zip.");
+            ok = 0;
+            break;
+        }
+        total += (Sint64)got;
+        if (total > (1 << 30)) {
+            snprintf(why, why_size, "That file is too large for a mod (more than 1 GB).");
+            ok = 0;
+            break;
+        }
+        if (fwrite(buffer, 1, got, out) != got) {
+            snprintf(why, why_size, "Could not copy the .zip into the mods folder: %s.", strerror(errno));
+            ok = 0;
+            break;
+        }
+    }
+    if (ok && SDL_GetIOStatus(stream) == SDL_IO_STATUS_ERROR) {
+        snprintf(why, why_size, "Could not read that file: %s", SDL_GetError());
+        ok = 0;
+    }
+    if (ok && !total) {
+        snprintf(why, why_size, "That file is empty.");
+        ok = 0;
+    }
+    SDL_CloseIO(stream);
+    if (fclose(out) && ok) {
+        snprintf(why, why_size, "Could not copy the .zip into the mods folder: %s.", strerror(errno));
+        ok = 0;
+    }
+    if (!ok) {
+        remove(path);
+        return -2;
+    }
+    fprintf(stderr, "memories-pc: mod .zip copied to %s (%lld bytes)\n", path, (long long)total);
+    return 1;
 }
 
 #ifndef __LP64__

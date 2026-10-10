@@ -15,6 +15,15 @@ void Platform_ShowError(const char *title, const char *message);
  * 1: UTF-8 path selected, 0: cancelled, -1: unavailable/failed (why). */
 int Platform_SelectDisc(char *path, size_t size, char *why, size_t why_size);
 void Platform_OpenMods(void);
+/* Android only (android.c; sdl.c hands them to ModsWindow_SetImport there):
+ * a mod's .zip through the system's file picker, for the Mods panel's
+ * Import mod... Platform_PickModZip opens the picker and returns at once (0,
+ * or -1 with why); Platform_PickedModZip is 0 while it is open, 1 once the
+ * chosen file is copied to `path` in the mods folder, -1 when nothing was
+ * chosen, -2 on a failure (why). MEMORIES_IMPORT_ZIP=<file> takes that
+ * file instead of opening the picker (tests). */
+int Platform_PickModZip(char *why, size_t why_size);
+int Platform_PickedModZip(char *path, size_t size, char *why, size_t why_size);
 void Platform_OpenControls(void);
 /* Show a folder in the system's file manager; 0 on success. */
 int Platform_OpenFolder(const char *path);
