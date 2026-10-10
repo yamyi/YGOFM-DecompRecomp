@@ -913,6 +913,13 @@ int GlPicture_Init(void)
         return 0;
     }
     if (!load_functions()) return 0;
+    /* On ES the context is SDL's renderer's: without a vertex array of the
+     * pass's own, unbind_attributes would turn off the attributes SDL's
+     * draws use in the one there is (the menu and overlays would vanish). */
+    if (es && (!glGenVertexArrays_ || !glBindVertexArray_ || !glDeleteVertexArrays_)) {
+        fprintf(stderr, "memories-pc: OpenGL picture: no glGenVertexArrays, which OpenGL ES 3 has\n");
+        return 0;
+    }
     if (!make_program(Settings_Get(SET_XBR) != 0)) return refuse();
     vram_texture = make_texture(GL_R16UI, SOFT_GPU_WIDTH, SOFT_GPU_HEIGHT, GL_RED_INTEGER, GL_UNSIGNED_SHORT);
     vram_scratch = make_texture(GL_R16UI, SOFT_GPU_WIDTH, SOFT_GPU_HEIGHT, GL_RED_INTEGER, GL_UNSIGNED_SHORT);
@@ -921,6 +928,10 @@ int GlPicture_Init(void)
     if (!vram_fbo || !vram_scratch_fbo) return refuse();
     gl_GenBuffers(1, &buffer);
     if (glGenVertexArrays_ && glBindVertexArray_) glGenVertexArrays_(1, &vertex_array);
+    if (es && !vertex_array) {
+        fprintf(stderr, "memories-pc: OpenGL picture: no vertex array\n");
+        return refuse();
+    }
     if (!arena) arena = malloc(ARENA_WORDS * sizeof(uint32_t)); /* kept from before a lost context */
     if (!arena) return refuse();
     glBindTexture(GL_TEXTURE_2D, 0);
