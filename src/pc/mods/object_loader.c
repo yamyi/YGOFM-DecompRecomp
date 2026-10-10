@@ -343,9 +343,13 @@ static int lay_out(Loader *loader, size_t *code_size, size_t *total)
                 return fail(loader, "section %u has an alignment of %llu", i, (unsigned long long)align);
             }
             cursor = (cursor + align - 1) & ~(align - 1);
+            /* A .bss size is not bounded by the file, and a 64-bit one
+             * could wrap the cursor back round to a small image. */
+            if (cursor > IMAGE_MAX || section->size > IMAGE_MAX - cursor) {
+                return fail(loader, "is larger than %u MiB", IMAGE_MAX >> 20);
+            }
             loader->place[i] = cursor;
             cursor += section->size;
-            if (cursor > IMAGE_MAX) return fail(loader, "is larger than %u MiB", IMAGE_MAX >> 20);
         }
         if (loader->wide) {
             cursor = (cursor + 15) & ~(uint64_t)15;

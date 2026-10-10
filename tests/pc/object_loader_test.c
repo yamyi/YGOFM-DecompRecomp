@@ -232,6 +232,48 @@ static void damaged(const char *directory)
     free(data);
 }
 
+static uint64_t field(const unsigned char *at, unsigned bytes)
+{
+    uint64_t value = 0;
+    while (bytes--) value = value << 8 | at[bytes];
+    return value;
+}
+
+/* A .bss takes no room in the file, so nothing there bounds its size: one
+ * just short of 2^64 (or 2^32) must be refused, not wrap the layout round
+ * to a small image that the sections after it are then written past. */
+static void huge_bss(const char *directory)
+{
+    static const uint64_t shortfall[] = {1, 0x10, 0x1000, 0x10000, 0x1000000};
+    size_t size;
+    unsigned char *data = read_file(directory, "good.o", &size);
+    int wide = data[4] == 2;
+    uint64_t table = field(data + (wide ? 0x28 : 0x20), wide ? 8 : 4);
+    unsigned entry = (unsigned)field(data + (wide ? 0x3a : 0x2e), 2);
+    unsigned count = (unsigned)field(data + (wide ? 0x3c : 0x30), 2), i, k, tried = 0;
+    for (i = 0; i < count && table + (uint64_t)(i + 1) * entry <= size; i++) {
+        unsigned char *section = data + table + (size_t)i * entry;
+        unsigned char *length = section + (wide ? 32 : 20);
+        unsigned char saved[8];
+        if (field(section + 4, 4) != 8 /* SHT_NOBITS */ || !(field(section + 8, 4) & 2 /* SHF_ALLOC */)) continue;
+        memcpy(saved, length, 8);
+        for (k = 0; k < sizeof(shortfall) / sizeof(shortfall[0]); k++) {
+            uint64_t value = (wide ? 0 : (uint64_t)1 << 32) - shortfall[k];
+            LoadedObject object;
+            char error[256];
+            unsigned b;
+            for (b = 0; b < (wide ? 8u : 4u); b++) length[b] = (unsigned char)(value >> (8 * b));
+            CHECK(ObjectLoader_Load(data, size, resolve, NULL, &object, error, sizeof(error)) == -1,
+                  "a .bss of 0x%llx bytes loaded", (unsigned long long)value);
+            CHECK(strstr(error, "larger than") != NULL, "a .bss of 0x%llx bytes: \"%s\"", (unsigned long long)value, error);
+            tried++;
+        }
+        memcpy(length, saved, 8);
+    }
+    CHECK(tried > 0, "good.o has no .bss");
+    free(data);
+}
+
 int main(int argc, char **argv)
 {
     const char *directory = argc > 1 ? argv[1] : ".";
@@ -255,6 +297,7 @@ int main(int argc, char **argv)
     expect_failure(directory, "truncated.o", "cut short");
     expect_failure(directory, "garbage.o", "not an ELF");
     expect_failure(directory, "empty.o", "not an ELF");
+    huge_bss(directory);
     damaged(directory);
     printf("object_loader: %d of %d checks passed\n", checks - failures, checks);
     return failures ? 1 : 0;
