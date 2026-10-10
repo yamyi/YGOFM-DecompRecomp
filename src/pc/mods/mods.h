@@ -137,6 +137,9 @@ int Mods_InstallDirectory(char *out, size_t size);
  * launch, now needs a restart for any change, and sets *later. The mod's
  * index, or -1 when there is no mod.json or no room. */
 int Mods_Discover(const char *directory, int *later);
+/* Whether a mod is (or was, this launch) in place: its code, data, or
+ * pictures are the files read then, so they must not change under it. */
+int Mods_InUse(int mod);
 /* The mods' list or a manifest changed: the next Mods_Overlaps works its
  * lines out again. */
 void Mods_OverlapsForget(void);

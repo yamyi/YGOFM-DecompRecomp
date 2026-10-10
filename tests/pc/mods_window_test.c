@@ -79,7 +79,13 @@ static int fake_pick(char *why, size_t size)
     picks++;
     return 0;
 }
-static int fake_picked(char *path, size_t size, char *why, size_t why_size)
+static int fake_picked(char *why, size_t size)
+{
+    (void)why;
+    (void)size;
+    return 1;
+}
+static int fake_fetch(char *path, size_t size, char *why, size_t why_size)
 {
     (void)why;
     (void)why_size;
@@ -140,11 +146,11 @@ static void test_import(void)
     const char *said;
     snprintf(import_source, sizeof(import_source), "%s/picked.zip", root);
     test_touch = 48;
-    ModsWindow_SetImport(NULL, NULL);
+    ModsWindow_SetImport(NULL, NULL, NULL);
     ModsWindow_Init();
     ModsWindow_Resize(1600, 900);
     assert(!ModsWindow_Locate(MODS_UI_FOLDER, &x, &y)); /* no picker: no button */
-    ModsWindow_SetImport(fake_pick, fake_picked);
+    ModsWindow_SetImport(fake_pick, fake_picked, fake_fetch);
     ModsWindow_Init();
     ModsWindow_Resize(1600, 900);
     said = import_zip(good, 2);
@@ -168,23 +174,29 @@ static void test_import(void)
     /* Several at once; none at all; a name that leaves the folder. */
     said = import_zip(two, 2);
     assert(strstr(said, "Imported 2 mods: First and Second.") && find("m1") >= 0 && find("m2") >= 0);
-    /* One of them in place: its new files wait for the next launch. */
+    /* One of them in place: its files are this launch's, so no Replace. */
     Mods_SetEnabled(find("m1"), 1);
-    assert(Mods_Active(find("m1")) && !Mods_RequiresRestart(find("m1")));
+    assert(Mods_Active(find("m1")));
     count = Mods_Count();
     said = import_zip(two, 2);
-    assert(strstr(said, "First and Second are already installed. Replace them"));
-    tap_widget(MODS_UI_APPLY);
-    draw(1600, 900);
-    assert(strstr(drawn, "Replaced ones use their new files after a restart.") && Mods_Count() == count);
-    assert(Mods_RequiresRestart(find("m1")) && !Mods_RequiresRestart(find("m2")) && Mods_Active(find("m1")));
+    assert(strstr(said, "First is in use, so its files cannot be replaced now.") && Mods_Count() == count);
+    assert(folder_has("mods/m1/mod.json") && !folder_has("picked.zip"));
+    /* A folder of that name with another mod in it: never replaced, the new
+     * one gets a free name. */
+    {
+        static const ZipItem other[] = {{"mod05/mod.json", "{\"id\": \"other\", \"name\": \"Other\"}", 0, 0, 0, 0, 0, 0}};
+        said = import_zip(other, 1);
+        assert(strstr(said, "Imported Other.") && find("other") >= 0 && find("mod05") >= 0);
+        assert(folder_has("mods/mod05-2/mod.json") && !strcmp(Mods_Id(find("mod05")), "mod05"));
+        assert(strstr(Mods_Directory(find("other")), "mod05-2"));
+    }
     said = import_zip(none, 1);
     assert(strstr(said, "This .zip has no mod in it."));
     count = Mods_Count();
     said = import_zip(slip, 2);
     assert(strstr(said, "points outside its folder") && Mods_Count() == count);
     assert(!folder_has("escaped.txt") && !folder_has("mods/escaped.txt"));
-    ModsWindow_SetImport(NULL, NULL);
+    ModsWindow_SetImport(NULL, NULL, NULL);
     test_touch = 0;
 }
 /* menu.h's UTF-8 cuts: never inside a character. */

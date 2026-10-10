@@ -282,15 +282,8 @@ int Platform_PickModZip(char *why, size_t why_size)
     return 0;
 }
 
-int Platform_PickedModZip(char *path, size_t size, char *why, size_t why_size)
+int Platform_PickedModZip(char *why, size_t why_size)
 {
-    static unsigned char buffer[1 << 16];
-    char folder[1024];
-    SDL_IOStream *stream;
-    FILE *out;
-    Sint64 total = 0;
-    size_t got;
-    int ok = 1;
     if (!mod_picking || !SDL_GetAtomicInt(&mod_pick.done)) return 0;
     mod_picking = 0;
     if (mod_pick.result < 0) {
@@ -299,20 +292,32 @@ int Platform_PickedModZip(char *path, size_t size, char *why, size_t why_size)
     }
     if (!mod_pick.result) return -1;
     fprintf(stderr, "memories-pc: mod chosen: %s\n", mod_pick.uri);
+    return 1;
+}
+
+int Platform_FetchModZip(char *path, size_t size, char *why, size_t why_size)
+{
+    static unsigned char buffer[1 << 16];
+    char folder[1024];
+    SDL_IOStream *stream;
+    FILE *out;
+    Sint64 total = 0;
+    size_t got;
+    int ok = 1;
     if (Mods_InstallDirectory(folder, sizeof(folder)) ||
         snprintf(path, size, "%s/.incoming.zip", folder) >= (int)size) {
         snprintf(why, why_size, "Could not make the mods folder.");
-        return -2;
+        return 0;
     }
     Mods_ImportCleanup(folder); /* what an import cut short left */
     if (!(stream = SDL_IOFromFile(mod_pick.uri, "rb"))) {
         snprintf(why, why_size, "Could not read that file: %s", SDL_GetError());
-        return -2;
+        return 0;
     }
     if (!(out = fopen(path, "wb"))) {
         snprintf(why, why_size, "Could not write in the mods folder: %s.", strerror(errno));
         SDL_CloseIO(stream);
-        return -2;
+        return 0;
     }
     while ((got = SDL_ReadIO(stream, buffer, sizeof(buffer))) > 0) {
         if (!total && (got < 4 || memcmp(buffer, "PK", 2) || (buffer[2] != 3 && buffer[2] != 5))) {
@@ -347,7 +352,7 @@ int Platform_PickedModZip(char *path, size_t size, char *why, size_t why_size)
     }
     if (!ok) {
         remove(path);
-        return -2;
+        return 0;
     }
     fprintf(stderr, "memories-pc: mod .zip copied to %s (%lld bytes)\n", path, (long long)total);
     return 1;

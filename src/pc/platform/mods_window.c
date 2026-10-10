@@ -55,7 +55,8 @@ static int slider_drag = -1, bar_drag, bar_grab; /* bar_drag: 1 the list's scrol
  * import is at (1 the picker is open, 2 a .zip came and is read at the
  * next tick), the .zip, and the import that waits for Replace or Cancel
  * (pending 3). */
-static int (*import_pick)(char *, size_t), (*import_picked)(char *, size_t, char *, size_t);
+static int (*import_pick)(char *, size_t), (*import_picked)(char *, size_t),
+    (*import_fetch)(char *, size_t, char *, size_t);
 static int import_step;
 static char import_zip[1024];
 static ModsImport *import_waiting;
@@ -820,7 +821,7 @@ static void draw_touch(MenuCanvas *c, const Layout *l)
              pending ? WARN : *status ? TEXT : DIM);
     }
     if (l->folder.w)
-        button(c, l->folder, import_step ? "Importing..." : "Import mod...", 0);
+        button(c, l->folder, import_step == 2 ? "Importing..." : "Import mod...", 0);
     button(c, l->close, pending ? "Cancel" : "Close", 0);
     button(c, l->apply, apply_label(), changed() || pending);
 }
@@ -958,11 +959,16 @@ static void put(char *out, size_t size, const char *format, ...)
     vsnprintf(out, size, format, list);
     va_end(list);
 }
-
-void ModsWindow_SetImport(int (*pick)(char *, size_t), int (*picked)(char *, size_t, char *, size_t))
+void ModsWindow_SetImport(int (*pick)(char *, size_t), int (*picked)(char *, size_t),
+                          int (*fetch)(char *, size_t, char *, size_t))
 {
+    char folder[1024];
     import_pick = pick;
     import_picked = picked;
+    import_fetch = fetch;
+    /* what an import cut short (the app ended in it) left in the mods folder */
+    if (pick && !import_step && !import_waiting && !Mods_InstallDirectory(folder, sizeof(folder)))
+        Mods_ImportCleanup(folder);
 }
 static void import_done(void)
 {
@@ -989,7 +995,20 @@ static int import_names(ModsImport *import, int (*pick)(const ModsImportMod *), 
     return n;
 }
 static int any_mod(const ModsImportMod *mod) { return mod != NULL; }
+/* Code with no arm64 object: built only for the PC. */
 static int pc_only(const ModsImportMod *mod) { return mod->code && !mod->android_code; }
+/* Code for Android that this game cannot run yet (the arm64 game without
+ * the AArch64 loader, MEMORIES_NO_CODE_MODS: mods.c leaves such a mod off). */
+static int code_later(const ModsImportMod *mod)
+{
+#ifdef MEMORIES_NO_CODE_MODS
+    return mod->code && mod->android_code;
+#else
+    (void)mod;
+    return 0;
+#endif
+}
+static int code_off(const ModsImportMod *mod) { return pc_only(mod) || code_later(mod); }
 static int replacing(const ModsImportMod *mod) { return mod->replace[0] != 0; }
 /* Every mod of the waiting import into the mods folder, then into the
  * list (Mods_Discover), off: the first of them selected, and a word on
@@ -997,14 +1016,14 @@ static int replacing(const ModsImportMod *mod) { return mod->replace[0] != 0; }
 static void import_install(void)
 {
     char why[400], folder[1024], names[300], line[512];
-    int first = -1, later = 0, old_count = Mods_Count(), n, several;
+    int first = -1, later = 0, old_count = Mods_Count(), n, several, lost = 0;
     if (Mods_InstallDirectory(folder, sizeof(folder))) {
         put(status, sizeof(status), "Could not make the mods folder.");
         import_done();
         return;
     }
     if (!Mods_ImportInstall(import_waiting, folder, why, sizeof(why))) {
-        put(status, sizeof(status), "Nothing was imported. %s", why);
+        put(status, sizeof(status), "%s%s", strncmp(why, "Nothing was", 11) ? "Nothing was imported. " : "", why);
         import_done();
         return;
     }
@@ -1014,14 +1033,17 @@ static void import_install(void)
         int waits = 0, index;
         put(path, sizeof(path), "%s/%s", folder, mod->folder);
         index = Mods_Discover(path, &waits);
-        if (index < 0)
+        if (index < 0) {
+            lost++;
             continue;
-        /* Code built only for the PC: it cannot run here, so it stays off. */
-        if (pc_only(mod) && Mods_Enabled(index))
+        }
+        /* Code that cannot run here: it stays off. */
+        if (code_off(mod) && Mods_Enabled(index))
             Mods_SetEnabled(index, 0);
         later |= waits;
         if (index >= old_count || !waits)
             adopt(index);
+        wanted[index] = Mods_Enabled(index); /* nothing staged for it stays */
         if (first < 0)
             first = index;
     }
@@ -1029,20 +1051,26 @@ static void import_install(void)
         fprintf(stderr, "memories-pc: the settings could not be saved after an import\n");
     n = import_names(import_waiting, any_mod, names, sizeof(names));
     if (n == 1 && replacing(Mods_ImportMod(import_waiting, 0)))
-        put(line, sizeof(line), "Replaced %s.%s", names, later ? " The new files are used after a restart." : "");
+        put(line, sizeof(line), "Replaced %s.", names);
     else if (n == 1)
         put(line, sizeof(line), "Imported %s.", names);
     else
-        put(line, sizeof(line), "Imported %d mods: %s.%s", n, names,
-                 later ? " Replaced ones use their new files after a restart." : "");
+        put(line, sizeof(line), "Imported %d mods: %s.", n, names);
+    if (later) /* a mod with that id in place this launch (the release's own) */
+        put(line + strlen(line), sizeof(line) - strlen(line), " It is used after a restart.");
+    if (lost)
+        put(line + strlen(line), sizeof(line) - strlen(line), " %d could not be added to the list.", lost);
     several = import_names(import_waiting, pc_only, names, sizeof(names)) > 1;
     if (*names && n == 1)
         put(status, sizeof(status), "%s This mod has code built only for PC; ask its author for an Android build. "
-                 "It stays off and changes nothing in the game.", line);
+            "It stays off and changes nothing in the game.", line);
     else if (*names)
-        put(status, sizeof(status), "%s %s %s code built only for PC; ask for an Android build. %s "
-                 "off and change%s nothing in the game.", line, names, several ? "have" : "has",
-                 several ? "They stay" : "It stays", several ? "" : "s");
+        put(status, sizeof(status), "%s %s %s code built only for PC; ask for an Android build. %s off and "
+            "change%s nothing in the game.", line, names, several ? "have" : "has", several ? "They stay" : "It stays",
+            several ? "" : "s");
+    else if (import_names(import_waiting, code_later, names, sizeof(names)))
+        put(status, sizeof(status), "%s %s: its code is for Android, but this version of the game cannot run code "
+            "mods yet. It stays off and changes nothing in the game.", line, names);
     else
         put(status, sizeof(status), "%s", line);
     fprintf(stderr, "memories-pc: import: %s\n", status);
@@ -1059,13 +1087,60 @@ static void import_install(void)
             scroll = max(0, min(at, shown_count() - rows()));
     }
 }
+/* The installed mod a mod of the .zip would replace: its folder when the
+ * folder is that mod's (the same id), else an installed mod with its id.
+ * A folder that holds something else gives the new mod a free name
+ * (<folder>-2, ...) instead: Replace never removes another mod or a
+ * folder of the player's. 0, or -1 with the reason in `status`. */
+static int import_target(ModsImportMod *mod, const char *folder)
+{
+    char path[1200], id[64];
+    mod->replace[0] = 0;
+    if (Mods_ImportTaken(folder, mod->folder, path, sizeof(path))) {
+        if (Mods_ImportFolderId(path, id, sizeof(id)) && !strcmp(id, mod->id))
+            put(mod->replace, sizeof(mod->replace), "%s", path);
+        else {
+            char base[sizeof(mod->folder)], name[sizeof(mod->folder)];
+            int k;
+            put(base, sizeof(base), "%.*s", (int)sizeof(base) - 5, mod->folder);
+            for (k = 2; k < 100; k++) {
+                put(name, sizeof(name), "%s-%d", base, k);
+                if (!Mods_ImportTaken(folder, name, path, sizeof(path)))
+                    break;
+            }
+            if (k == 100) {
+                put(status, sizeof(status), "Nothing was imported: the mods folder has no free name for %s.", mod->name);
+                return -1;
+            }
+            put(mod->folder, sizeof(mod->folder), "%s", name);
+        }
+    }
+    for (int j = 0; j < Mods_Count(); j++) {
+        if (strcmp(Mods_Id(j), mod->id))
+            continue;
+        if (!mod->replace[0] && !strcmp(Mods_Origin(j), "installed") &&
+            Mods_ImportTaken(Mods_Directory(j), ".", path, sizeof(path)))
+            put(mod->replace, sizeof(mod->replace), "%s", Mods_Directory(j));
+        /* Its code, data or pictures are this launch's files: they must
+         * not change under it. */
+        if (mod->replace[0] && Mods_InUse(j)) {
+            put(status, sizeof(status), "%s is in use, so its files cannot be replaced now. Turn it off, Apply "
+                "& restart, then import it again.", Mods_Name(j));
+            return -1;
+        }
+    }
+    return 0;
+}
 /* A .zip came: read, and either installed or held for Replace/Cancel when
- * a mod in it is installed already (its folder name taken, or its id an
- * installed mod's). */
+ * a mod in it is installed already. */
 static void import_read(void)
 {
     char why[400], folder[1024], names[300];
-    int taken = 0;
+    int taken = 0, fresh = 0;
+    if (!import_fetch(import_zip, sizeof(import_zip), why, sizeof(why))) {
+        put(status, sizeof(status), "%s", why);
+        return;
+    }
     import_waiting = Mods_ImportOpen(import_zip, why, sizeof(why));
     if (!import_waiting) {
         put(status, sizeof(status), "%s", why);
@@ -1084,17 +1159,20 @@ static void import_read(void)
     }
     for (int i = 0; i < Mods_ImportCount(import_waiting); i++) {
         ModsImportMod *mod = Mods_ImportMod(import_waiting, i);
-        char path[1200];
-        if (!Mods_ImportTaken(folder, mod->folder, mod->replace, sizeof(mod->replace))) {
-            mod->replace[0] = 0;
-            for (int j = 0; j < Mods_Count(); j++)
-                if (!strcmp(Mods_Id(j), mod->id) && !strcmp(Mods_Origin(j), "installed") &&
-                    Mods_ImportTaken(Mods_Directory(j), ".", path, sizeof(path))) {
-                    put(mod->replace, sizeof(mod->replace), "%s", Mods_Directory(j));
-                    break;
-                }
+        int known = 0;
+        if (import_target(mod, folder)) {
+            import_done();
+            return;
         }
         taken += mod->replace[0] != 0;
+        for (int j = 0; j < Mods_Count(); j++)
+            known |= !strcmp(Mods_Id(j), mod->id);
+        fresh += !known;
+    }
+    if (Mods_Count() + fresh > MODS_MAX) {
+        put(status, sizeof(status), "Nothing was imported: the game takes at most %d mods.", MODS_MAX);
+        import_done();
+        return;
     }
     if (!taken) {
         import_install();
@@ -1123,14 +1201,14 @@ int ModsWindow_Tick(void)
 {
     char why[400];
     int result;
-    if (import_step == 2) { /* the "Importing..." was drawn: now the work */
+    if (import_step == 2) { /* "Importing..." was drawn: now the work */
         import_step = 0;
         import_read();
         return 1;
     }
     if (import_step != 1 || !import_picked)
         return 0;
-    result = import_picked(import_zip, sizeof(import_zip), why, sizeof(why));
+    result = import_picked(why, sizeof(why));
     if (!result)
         return 0;
     import_step = result > 0 ? 2 : 0;

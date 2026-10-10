@@ -1820,11 +1820,13 @@ int Mods_InstallDirectory(char *out, size_t size)
 /* A mod folder that came while the game runs (Import mod..., import.h).
  * Never put in place before: borrowed strings live until exit, so an old
  * manifest it replaces stays allocated. */
+static Mod *at(int index);
 static int untouched(const Mod *mod)
 {
     return !mod->active && !mod->initialized && !mod->data_prepared && !mod->runtime_options && !mod->sequence &&
            !mod->object.image && !mod->object.native_handle;
 }
+int Mods_InUse(int index) { return at(index) && !untouched(&mods[index]); }
 int Mods_Discover(const char *directory, int *later)
 {
     Mod candidate;

@@ -18,12 +18,14 @@ void Platform_OpenMods(void);
 /* Android only (android.c; sdl.c hands them to ModsWindow_SetImport there):
  * a mod's .zip through the system's file picker, for the Mods panel's
  * Import mod... Platform_PickModZip opens the picker and returns at once (0,
- * or -1 with why); Platform_PickedModZip is 0 while it is open, 1 once the
- * chosen file is copied to `path` in the mods folder, -1 when nothing was
- * chosen, -2 on a failure (why). MEMORIES_IMPORT_ZIP=<file> takes that
- * file instead of opening the picker (tests). */
+ * or -1 with why); Platform_PickedModZip is 0 while it is open, 1 once a
+ * file was chosen, -1 when none was, -2 on a failure (why);
+ * Platform_FetchModZip then copies the chosen file to `path` in the mods
+ * folder (1; 0 with why). MEMORIES_IMPORT_ZIP=<file> takes that file
+ * instead of opening the picker (tests). */
 int Platform_PickModZip(char *why, size_t why_size);
-int Platform_PickedModZip(char *path, size_t size, char *why, size_t why_size);
+int Platform_PickedModZip(char *why, size_t why_size);
+int Platform_FetchModZip(char *path, size_t size, char *why, size_t why_size);
 void Platform_OpenControls(void);
 /* Show a folder in the system's file manager; 0 on success. */
 int Platform_OpenFolder(const char *path);

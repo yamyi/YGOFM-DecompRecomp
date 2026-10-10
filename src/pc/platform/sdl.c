@@ -445,7 +445,7 @@ static void open_panel(int kind)
 #ifdef SDL_PLATFORM_ANDROID
     /* An app has no mods folder the player can open: Import mod... takes a
      * mod's .zip through the system's file picker instead. */
-    if (kind == PANEL_MODS) ModsWindow_SetImport(Platform_PickModZip, Platform_PickedModZip);
+    if (kind == PANEL_MODS) ModsWindow_SetImport(Platform_PickModZip, Platform_PickedModZip, Platform_FetchModZip);
 #endif
     if (!Panel_Open(kind)) return;
     if (kind == PANEL_CONTROLS) controls_sync_keys();
