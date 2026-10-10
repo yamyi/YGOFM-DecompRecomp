@@ -382,7 +382,9 @@ static int start(int from, int state, void *(*step)(void *), unsigned long total
     job.why[0] = 0;
     publish(state);
     if (pthread_create(&job.thread, NULL, step, NULL)) {
-        snprintf(job.why, sizeof(job.why), "Could not start the download.");
+        snprintf(job.why, sizeof(job.why), state == HD_INSTALLING ? "Could not start unpacking the HD pack."
+                                           : state == HD_LOOKING ? "Could not ask GitHub for the HD pack."
+                                                                 : "Could not start the download.");
         publish(HD_FAILED);
         return 0;
     }

@@ -729,7 +729,8 @@ static void draw_fields(MenuCanvas *c, const Layout *l)
     button(c, l->save, "Save", 0);
     button(c, l->load, "Load", 0);
     if (l->hd.w)
-        button(c, l->hd, hd_step && hd_step != 2 && HdPack_Busy() ? "Stop" : "HD pack...", hd_step != 0);
+        button(c, l->hd, hd_step == 3 || (hd_step && hd_step != 2 && HdPack_Busy()) ? "Stop" : "HD pack...",
+               hd_step != 0); /* Stop where hd_tap stops */
 }
 static void draw_list(MenuCanvas *c, const Layout *l)
 {
