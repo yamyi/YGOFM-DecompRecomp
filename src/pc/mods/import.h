@@ -20,7 +20,10 @@
  * entry's size and CRC, and then renames each mod into place, after moving
  * the folder it replaces (ModsImportMod.replace) aside. Any failure puts
  * back what it moved and removes the hidden folder: nothing is written
- * outside the mods folder, and nothing half unpacked is left in it. */
+ * outside the mods folder, and nothing half unpacked is left in it. An old
+ * folder that cannot be put back is kept in ".recovered-XXXXXX" (named in
+ * the reason), never removed. Names are at most 32 folders deep; two mods
+ * with one folder or one id are refused. */
 #include <stddef.h>
 
 #define MODS_IMPORT_MAX 32                    /* mods in one .zip */
@@ -51,10 +54,14 @@ void Mods_ImportClose(ModsImport *import);
 /* Whether `mods`/`folder` is taken (a folder or a file is there); its
  * path in `path` either way. */
 int Mods_ImportTaken(const char *mods, const char *folder, char *path, size_t size);
+/* Whether `directory` holds a mod (a mod.json), with its id in `id`: the
+ * manifest's, else the folder's name, as the loader takes it. */
+int Mods_ImportFolderId(const char *directory, char *id, size_t size);
 /* Removes what an import cut short left in the mods folder (".import-*"
  * folders and ".incoming*.zip" files). */
 void Mods_ImportCleanup(const char *mods);
-/* Removes a folder and everything in it, never following a link. 0 when
- * it is gone. */
+/* Removes a folder and everything in it, never following a link (on
+ * Windows, where only the tests run it, a junction is followed). 0 when it
+ * is gone. */
 int Mods_ImportRemoveTree(const char *path);
 #endif

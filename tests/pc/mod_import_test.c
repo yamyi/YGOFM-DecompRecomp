@@ -298,6 +298,10 @@ int main(void)
             {{"alpha/x.txt", "x", 0, 0, 0, 12, 0, 0}, {"alpha/mod.json", "{}", 0, 0, 0, 0, 0, 0}},
             {{"alpha/mod.json", "{}", 0, 0, 0, 0, 0, 0}, {"alpha/mod.json", "{}", 0, 0, 0, 0, 0, 0}},
             {{"alpha/Name.txt", "a", 0, 0, 0, 0, 0, 0}, {"alpha/name.TXT", "b", 0, 0, 0, 0, 0, 0}},
+            {{"a/mod.json", "{\"id\": \"same\"}", 0, 0, 0, 0, 0, 0}, {"b/mod.json", "{\"id\": \"same\"}", 0, 0, 0, 0, 0, 0}},
+            {{"alpha/mod.json", "{}", 0, 0, 0, 0, 0, 0},
+             {"alpha/1/2/3/4/5/6/7/8/9/10/11/12/13/14/15/16/17/18/19/20/21/22/23/24/25/26/27/28/29/30/31/32/x", "deep",
+              0, 0, 0, 0, 0, 0}},
         };
         for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
             reset();
@@ -335,6 +339,15 @@ int main(void)
         fclose(f);
         CHECK(Mods_ImportOpen(zip, why, sizeof(why)) == NULL);
         CHECK(strstr(why, "not a .zip") != NULL);
+    }
+    /* A mod's folder in two letter cases is one folder (a case-blind file
+     * system): both halves are unpacked into it. */
+    reset();
+    {
+        ZipItem items[] = {{"Alpha/mod.json", MANIFEST_A, 0, 0, 0, 0, 0, 0},
+                           {"alpha/data.bin", "data", 0, 0, 0, 0, 0, 0}};
+        CHECK(import(items, 2, &count, why, sizeof(why)));
+        CHECK(file_is("mods/Alpha/data.bin", "data"));
     }
     /* What an interrupted import leaves is cleared. */
     reset();

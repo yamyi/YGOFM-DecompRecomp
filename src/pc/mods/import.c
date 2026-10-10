@@ -26,6 +26,7 @@
 #define MANIFEST_MAX (4u << 20)         /* a mod.json read to name the mod */
 #define NAME_MAX_ 512
 #define CHUNK 65536
+#define PARTS_MAX 32                    /* folders deep, in a name */
 
 typedef struct {
     char *name;   /* '/' between parts; a folder's ends with '/' */
@@ -92,7 +93,7 @@ static int utf8(const unsigned char *s, size_t n)
  * or ".." part, no control characters, well-formed UTF-8. */
 static int clean_name(const unsigned char *raw, unsigned length, char *out, int *folder)
 {
-    unsigned i, start = 0;
+    unsigned i, start = 0, parts;
     if (!length || length >= NAME_MAX_ || !utf8(raw, length))
         return 0;
     for (i = 0; i < length; i++) {
@@ -107,28 +108,43 @@ static int clean_name(const unsigned char *raw, unsigned length, char *out, int 
         length--;
     if (!length || out[0] == '/')
         return 0;
-    for (i = 0; i <= length; i++) {
+    for (i = 0, parts = 0; i <= length; i++) {
         if (i == length || out[i] == '/') {
             unsigned part = i - start;
             if (!part || (part == 1 && out[start] == '.') || (part == 2 && out[start] == '.' && out[start + 1] == '.'))
                 return 0;
             start = i + 1;
+            if (++parts > PARTS_MAX)
+                return 0;
         }
     }
     return 1;
 }
 
-/* `text` cut to fit `size` (the names here are checked for length first). */
+/* `text` cut to fit `size`, never inside a UTF-8 character (a manifest's
+ * name may be longer than the room for it). */
 static void copy(char *out, size_t size, const char *text)
 {
     size_t n = strlen(text);
-    if (n >= size)
+    if (n >= size) {
         n = size - 1;
+        while (n && ((unsigned char)text[n] & 0xC0) == 0x80)
+            n--;
+    }
     memcpy(out, text, n);
     out[n] = 0;
 }
 
 static int lower(int c) { return c >= 'A' && c <= 'Z' ? c + 32 : c; }
+/* Whether `name` is inside the folder `prefix` (ending in '/', or "" for
+ * the root), letters compared as a case-blind file system would. */
+static int prefixed(const char *name, const char *prefix)
+{
+    for (; *prefix; prefix++, name++)
+        if (lower((unsigned char)*prefix) != lower((unsigned char)*name))
+            return 0;
+    return 1;
+}
 /* Names compared as a case-blind file system would (Android's shared
  * storage is one): a folder's slash left out, ASCII letters folded. */
 static int same_name(const char *a, const char *b)
@@ -378,6 +394,7 @@ ModsImport *Mods_ImportOpen(const char *zip, char *why, size_t why_size)
 {
     ModsImport *import = calloc(1, sizeof(*import));
     unsigned char *tail = NULL, *directory = NULL, *p, *end;
+    ModsImportMod *found_mods = NULL;
     long size;
     unsigned long tail_size, eocd = 0, start, length;
     unsigned entries;
@@ -532,9 +549,12 @@ ModsImport *Mods_ImportOpen(const char *zip, char *why, size_t why_size)
     /* The mods: every mod.json at most one wrapper folder down, the
      * shallowest first; one inside a mod already found is that mod's. */
     {
-        ModsImportMod found_mods[MODS_IMPORT_MAX];
         const Entry *manifests[MODS_IMPORT_MAX];
         int n = 0;
+        if (!(found_mods = calloc(MODS_IMPORT_MAX, sizeof(*found_mods)))) {
+            snprintf(why, why_size, "Out of memory.");
+            goto fail;
+        }
         for (int i = 0; i < import->count; i++) {
             const Entry *e = &import->entries[i];
             const char *base = strrchr(e->name, '/');
@@ -559,7 +579,7 @@ ModsImport *Mods_ImportOpen(const char *zip, char *why, size_t why_size)
         for (int i = 0; i < n; i++) {
             int inside = 0;
             for (int j = 0; j < import->mod_count; j++)
-                if (!strncmp(found_mods[i].prefix, import->mods[j].prefix, strlen(import->mods[j].prefix)))
+                if (prefixed(found_mods[i].prefix, import->mods[j].prefix))
                     inside = 1;
             if (inside)
                 continue;
@@ -578,15 +598,20 @@ ModsImport *Mods_ImportOpen(const char *zip, char *why, size_t why_size)
                 if (same_name(import->mods[i].folder, import->mods[j].folder)) {
                     snprintf(why, why_size, "Two mods in the .zip go in one folder, %s.", import->mods[i].folder);
                     goto fail;
+                } else if (!strcmp(import->mods[i].id, import->mods[j].id)) {
+                    snprintf(why, why_size, "Two mods in the .zip have one id, %s.", import->mods[i].id);
+                    goto fail;
                 }
         }
     }
     free(tail);
     free(directory);
+    free(found_mods);
     return import;
 fail:
     free(tail);
     free(directory);
+    free(found_mods);
     Mods_ImportClose(import);
     return NULL;
 }
@@ -614,6 +639,8 @@ int Mods_ImportRemoveTree(const char *path)
     struct stat info;
     DIR *directory;
     struct dirent *entry;
+    /* lstat: a link is removed, never followed. Windows has none here (a
+     * junction is followed: only the desktop tests run this there). */
 #ifdef _WIN32
     if (stat(path, &info))
 #else
@@ -623,13 +650,15 @@ int Mods_ImportRemoveTree(const char *path)
     if (!S_ISDIR(info.st_mode))
         return remove(path) ? -1 : 0;
     if ((directory = opendir(path))) {
-        while ((entry = readdir(directory))) {
-            char inner[2048];
+        size_t size = strlen(path) + 2 + sizeof(entry->d_name);
+        char *inner = malloc(size); /* off the stack: one per level of folders */
+        while (inner && (entry = readdir(directory))) {
             if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
                 continue;
-            if (snprintf(inner, sizeof(inner), "%s/%s", path, entry->d_name) < (int)sizeof(inner))
-                Mods_ImportRemoveTree(inner);
+            snprintf(inner, size, "%s/%s", path, entry->d_name);
+            Mods_ImportRemoveTree(inner);
         }
+        free(inner);
         closedir(directory);
     }
     return rmdir(path) ? -1 : 0;
@@ -641,6 +670,23 @@ int Mods_ImportTaken(const char *mods, const char *folder, char *path, size_t si
     if (snprintf(path, size, "%s/%s", mods, folder) >= (int)size)
         return 0;
     return !stat(path, &info);
+}
+
+int Mods_ImportFolderId(const char *directory, char *id, size_t size)
+{
+    char path[2048], error[128];
+    const char *slash = strrchr(directory, '/'), *text;
+    JsonDocument *document;
+    FILE *file;
+    if (snprintf(path, sizeof(path), "%s/mod.json", directory) >= (int)sizeof(path) || !(file = fopen(path, "rb")))
+        return 0;
+    fclose(file);
+    document = Json_ParseFile(path, error, sizeof(error));
+    text = Json_String(Json_Member(Json_Root(document), "id"), NULL);
+    /* as the loader names it (mods.c read_manifest): the folder without one */
+    copy(id, size, text && *text ? text : slash ? slash + 1 : directory);
+    Json_Free(document);
+    return 1;
 }
 
 void Mods_ImportCleanup(const char *mods)
@@ -694,18 +740,40 @@ static int make_below(const char *base, const char *relative, int all)
     return 0;
 }
 
+/* Where each mod is unpacked, its old folder moved and its place. */
+typedef struct {
+    char staged[1200], aside[1200], target[1200];
+    int moved;
+} Place;
+
 int Mods_ImportInstall(ModsImport *import, const char *mods, char *why, size_t why_size)
 {
     char temporary[1100];
-    char staged[MODS_IMPORT_MAX][1200], aside[MODS_IMPORT_MAX][1200], target[MODS_IMPORT_MAX][1200];
-    int moved[MODS_IMPORT_MAX] = {0}, placed = 0, ok = 0;
+    Place *places;
+    int placed = 0, ok = 0, stranded = 0;
     if (!import || !import->mod_count) {
         snprintf(why, why_size, "This .zip has no mod in it.");
+        return 0;
+    }
+    /* No folder replaced twice, or replaced by one mod and taken by another. */
+    for (int m = 0; m < import->mod_count; m++)
+        for (int n = 0; n < import->mod_count && import->mods[m].replace[0]; n++) {
+            char other[1200];
+            snprintf(other, sizeof(other), "%s/%s", mods, import->mods[n].folder);
+            if (n != m && (!strcmp(import->mods[m].replace, import->mods[n].replace) ||
+                           !strcmp(import->mods[m].replace, other))) {
+                snprintf(why, why_size, "Two mods in the .zip would replace the same installed mod.");
+                return 0;
+            }
+        }
+    if (!(places = calloc((size_t)import->mod_count, sizeof(*places)))) {
+        snprintf(why, why_size, "Out of memory.");
         return 0;
     }
     if (snprintf(temporary, sizeof(temporary), "%s/.import-XXXXXX", mods) >= (int)sizeof(temporary) ||
         !mkdtemp(temporary)) {
         snprintf(why, why_size, "Could not write in the mods folder (%s): %s.", mods, strerror(errno));
+        free(places);
         return 0;
     }
 #ifndef _WIN32
@@ -722,12 +790,13 @@ int Mods_ImportInstall(ModsImport *import, const char *mods, char *why, size_t w
 #endif
     for (int m = 0; m < import->mod_count; m++) {
         const ModsImportMod *mod = &import->mods[m];
+        Place *at = &places[m];
         size_t plen = strlen(mod->prefix);
         char number[16];
         snprintf(number, sizeof(number), "%d", m);
-        snprintf(staged[m], sizeof(staged[m]), "%s/%d", temporary, m);
-        snprintf(aside[m], sizeof(aside[m]), "%s/old-%d", temporary, m);
-        if (snprintf(target[m], sizeof(target[m]), "%s/%s", mods, mod->folder) >= (int)sizeof(target[m]) ||
+        snprintf(at->staged, sizeof(at->staged), "%s/%d", temporary, m);
+        snprintf(at->aside, sizeof(at->aside), "%s/old-%d", temporary, m);
+        if (snprintf(at->target, sizeof(at->target), "%s/%s", mods, mod->folder) >= (int)sizeof(at->target) ||
             make_below(temporary, number, 1)) {
             snprintf(why, why_size, "Could not write in the mods folder: %s.", strerror(errno));
             goto done;
@@ -737,20 +806,22 @@ int Mods_ImportInstall(ModsImport *import, const char *mods, char *why, size_t w
             char path[2048];
             FILE *out;
             int written;
-            if (skipped(e->name) || strncmp(e->name, mod->prefix, plen) || !e->name[plen])
+            /* inside the mod's folder, letter case aside (one folder on a
+             * case-blind file system) */
+            if (skipped(e->name) || !prefixed(e->name, mod->prefix) || !e->name[plen])
                 continue;
-            if (snprintf(path, sizeof(path), "%s/%s", staged[m], e->name + plen) >= (int)sizeof(path)) {
+            if (snprintf(path, sizeof(path), "%s/%s", at->staged, e->name + plen) >= (int)sizeof(path)) {
                 snprintf(why, why_size, "A file name in the .zip is too long (%s).", e->name);
                 goto done;
             }
             if (e->folder) {
-                if (make_below(staged[m], e->name + plen, 1)) {
+                if (make_below(at->staged, e->name + plen, 1)) {
                     snprintf(why, why_size, "Could not make the folder %s: %s.", e->name, strerror(errno));
                     goto done;
                 }
                 continue;
             }
-            if (make_below(staged[m], e->name + plen, 0) || !(out = fopen(path, "wb"))) {
+            if (make_below(at->staged, e->name + plen, 0) || !(out = fopen(path, "wb"))) {
                 snprintf(why, why_size, "Could not write %s: %s.", e->name, strerror(errno));
                 goto done;
             }
@@ -767,19 +838,20 @@ int Mods_ImportInstall(ModsImport *import, const char *mods, char *why, size_t w
      * replaces moved aside first. */
     for (placed = 0; placed < import->mod_count; placed++) {
         ModsImportMod *mod = &import->mods[placed];
+        Place *at = &places[placed];
         struct stat info;
         if (mod->replace[0] && !stat(mod->replace, &info)) {
-            if (rename(mod->replace, aside[placed])) {
+            if (rename(mod->replace, at->aside)) {
                 snprintf(why, why_size, "Could not move the old %s aside: %s.", mod->folder, strerror(errno));
                 goto undo;
             }
-            moved[placed] = 1;
+            at->moved = 1;
         }
-        if (!stat(target[placed], &info)) {
+        if (!stat(at->target, &info)) {
             snprintf(why, why_size, "A folder named %s is already in the mods folder.", mod->folder);
             goto undo;
         }
-        if (rename(staged[placed], target[placed])) {
+        if (rename(at->staged, at->target)) {
             snprintf(why, why_size, "Could not put %s in the mods folder: %s.", mod->folder, strerror(errno));
             goto undo;
         }
@@ -787,14 +859,27 @@ int Mods_ImportInstall(ModsImport *import, const char *mods, char *why, size_t w
     ok = 1;
     goto done;
 undo:
-    /* `placed` is the mod that failed: it may have moved its old folder. */
+    /* `placed` is the mod that failed: it may have moved its old folder.
+     * An old folder that cannot go back is kept, never removed. */
     for (int m = placed; m >= 0; m--) {
-        if (m < placed)
-            rename(target[m], staged[m]);
-        if (moved[m])
-            rename(aside[m], import->mods[m].replace);
+        Place *at = &places[m];
+        if (m < placed && rename(at->target, at->staged))
+            stranded |= at->moved;
+        else if (at->moved && rename(at->aside, import->mods[m].replace))
+            stranded = 1;
     }
 done:
-    Mods_ImportRemoveTree(temporary);
+    if (stranded) {
+        /* .recovered-* is neither scanned (a dot) nor cleaned up. */
+        char kept[1100];
+        snprintf(kept, sizeof(kept), "%s/.recovered-%s", mods, strrchr(temporary, '-') + 1);
+        if (!rename(temporary, kept))
+            snprintf(why, why_size, "Nothing was imported, and an old mod could not be put back: it is in %s.", kept);
+        else
+            snprintf(why, why_size, "Nothing was imported, and an old mod could not be put back: it is in %s.",
+                     temporary);
+    } else
+        Mods_ImportRemoveTree(temporary);
+    free(places);
     return ok;
 }
