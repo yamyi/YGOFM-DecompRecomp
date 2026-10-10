@@ -40,6 +40,7 @@ typedef struct {
     Rect search, filter, list, list_bar, detail, toggle, tabs[3], view, bar, apply, close, profile, save, load,
         order[2], defaults, folder, back;
     int name_y, meta_y; /* the middles of the details' name and metadata lines */
+    int lift;           /* with a finger: how far a long message raises the footer's top */
 } Layout;
 static int width, height, unit, selected, scroll, detail_scroll, tab, filter, focus, pending;
 /* touch: the finger's target in pixels (0 with a mouse). compact: touch, and
@@ -104,6 +105,14 @@ static void layout_touch(Layout *l)
      * window to open (Platform_OpenFolder fails on Android). Importing a
      * mod's .zip through the system's file picker is to go here. */
     l->folder = none();
+    {   /* A message of two or three lines beside the buttons (a refusal, a
+         * mod that cannot run here) raises the footer's top instead of
+         * being cut: the list and the details end above it. */
+        int room = (l->folder.w ? l->folder.x : l->close.x) - 20 * unit;
+        int lines = *status ? min(3, max(1, wrap(NULL, 0, 0, room, status, 0) / LINE)) : 1;
+        l->lift = max(0, lines * LINE + 6 * unit - t);
+        footer -= l->lift; /* where the list and the details end; the buttons are placed */
+    }
     if (!compact || page == 0) {
         int fw = filter_width();
         x = width - p - 2 * save_w - g;
@@ -763,7 +772,7 @@ static int footer_left(const Layout *l) { return l->folder.w ? l->folder.x : l->
 static void draw_touch(MenuCanvas *c, const Layout *l)
 {
     char line[512];
-    int footer = l->apply.y, room = footer_left(l) - 8 * unit - 12 * unit;
+    int footer = l->apply.y - l->lift, room = footer_left(l) - 8 * unit - 12 * unit;
     if (!compact || page == 0) {
         draw_fields(c, l);
         draw_list(c, l);
@@ -775,13 +784,14 @@ static void draw_touch(MenuCanvas *c, const Layout *l)
         snprintf(line, sizeof(line), "%s", status);
     else
         counts_line(line, sizeof(line), room);
-    if (footer + l->apply.h <= c->height) {
+    if (l->apply.y + l->apply.h <= c->height) {
         /* A band from the line above the buttons to the bottom clips it. */
         MenuCanvas band = *c;
         int top = footer - 3 * unit, lines = min(3, max(1, wrap(NULL, 0, 0, room, line, 0) / LINE));
         band.pixels = c->pixels + (size_t)top * c->stride;
         band.height = c->height - top;
-        wrap(&band, 12 * unit, footer - top + l->apply.h / 2 - lines * LINE / 2, room, line,
+        /* centred between the line above and the buttons' bottom */
+        wrap(&band, 12 * unit, footer - top + (l->lift + l->apply.h) / 2 - lines * LINE / 2, room, line,
              pending ? WARN : *status ? TEXT : DIM);
     }
     button(c, l->close, pending ? "Cancel" : "Close", 0);
