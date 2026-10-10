@@ -1,7 +1,8 @@
 /* Android: the crash report, offered on the next launch (platform.h,
  * Android_OfferCrashReport; notes/pc-build.md, "Crash reports on Android").
  *
- * A crash writes crash-<pid>.txt (hang-<pid>.txt for a freeze) into the
+ * A crash writes crash-<pid>.txt (hang-<pid>.txt where a freeze watchdog
+ * runs, which is not the Android default) into the
  * reports folder of the player's folder (crash.c), which on Android is
  * /sdcard/Android/data/<package>/files/reports: since Android 11 no file
  * manager the player has opens it. So the next launch shows a notice over
@@ -217,7 +218,7 @@ static void redact(const char *line, char *out, size_t size)
         return;
     }
     while (*at && used + 1 < size) {
-        if (user_length > 1 && !strncmp(at, user, user_length)) {
+        if (user_length > 1 && user[0] == '/' && !strncmp(at, user, user_length)) {
             used += (size_t)snprintf(out + used, size - used, "<app folder>");
             at += user_length;
         } else if (!strncmp(at, "content://", 10)) {
@@ -272,6 +273,8 @@ static char *build_report(size_t *size)
         read_bytes += strlen(line);
         redact(line, clean, sizeof(clean));
         append(&text, &used, &room, clean, strlen(clean));
+        /* A line cut short by redact keeps its end of line. */
+        if (strchr(line, '\n') && !strchr(clean, '\n')) append(&text, &used, &room, "\n", 1);
     }
     fclose(file);
     if (text) *size = used;
@@ -318,7 +321,8 @@ static int failed(Java *java, const char *what, int empty)
             (*env)->ExceptionClear(env);
             message = NULL;
         }
-        if (message) chars = (*env)->GetStringUTFChars(env, message, NULL);
+        if (message && !(chars = (*env)->GetStringUTFChars(env, message, NULL)) && (*env)->ExceptionCheck(env))
+            (*env)->ExceptionClear(env); /* out of memory for the text: the step still failed */
         snprintf(java->why, sizeof(java->why), "%s failed: %s", what, chars ? chars : "unknown error");
         if (chars) (*env)->ReleaseStringUTFChars(env, message, chars);
     }
@@ -634,8 +638,11 @@ void Android_OfferCrashReport(void)
     char value[PROP_VALUE_MAX];
     struct tm when;
     time_t seconds;
-    /* Scripted runs are tests: nothing in their way. */
-    if (getenv("MEMORIES_INPUT") || getenv("MEMORIES_SDL_SCRIPT") || getenv("MEMORIES_HEADLESS")) return;
+    /* Scripted and agent-driven runs are tests: nothing in their way (the
+     * control channel's own notice would replace this one). */
+    if (getenv("MEMORIES_INPUT") || getenv("MEMORIES_SDL_SCRIPT") || getenv("MEMORIES_HEADLESS") ||
+        getenv("MEMORIES_CONTROL"))
+        return;
     if (!find_report()) return;
     free(offer.text);
     if (!(offer.text = build_report(&offer.size))) {
@@ -648,18 +655,11 @@ void Android_OfferCrashReport(void)
     localtime_r(&seconds, &when);
     strftime(offer.file_name, sizeof(offer.file_name), "yfm-redecomp-crash-%Y%m%d-%H%M%S.txt", &when);
     fprintf(stderr, "memories-pc: offering crash report %s (%zu bytes) as %s\n", offer.name, offer.size, offer.file_name);
-    if (offer.api >= DOWNLOADS_API) {
-        Menu_ShowNotice("The game stopped last time",
-                        "A report of what happened helps fix it. It holds the game's version, your phone's model, "
-                        "its Android version and free memory, and the game's crash log: no personal data and "
-                        "none of your saves.",
-                        with_save, 3, 2, chosen);
-    } else {
-        Menu_ShowNotice("The game stopped last time",
-                        "A report of what happened helps fix it. It holds the game's version, your phone's model, "
-                        "its Android version and free memory, and the game's crash log: no personal data and "
-                        "none of your saves.",
-                        share_only, 2, 1, chosen);
-    }
+    Menu_ShowNotice("The game stopped last time",
+                    "A report of what happened helps fix it. It holds the game's version, your phone's model, "
+                    "its Android version and free memory, and the game's crash log with its settings and mods: "
+                    "no personal data and none of your saves.",
+                    offer.api >= DOWNLOADS_API ? with_save : share_only, offer.api >= DOWNLOADS_API ? 3 : 2,
+                    offer.api >= DOWNLOADS_API ? 2 : 1, chosen);
 }
 #endif
