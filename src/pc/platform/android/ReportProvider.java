@@ -16,8 +16,10 @@ import java.io.FileNotFoundException;
  * (android:exported="false", android:grantUriPermissions="true" in
  * tools/pc/package_android.py's manifest). The files are the ones
  * android_report.c writes into the cache folder's shared/; a name with a
- * slash or starting with a dot is refused, so nothing else is reached. The
- * only Java of the port's own: the rest of the app is SDL's SDLActivity. */
+ * slash or starting with a dot is refused, so nothing else is reached. One
+ * of the port's own Java classes (src/pc/platform/android/*.java, compiled
+ * with SDL's by package_android.py); the game's activity is SDL's
+ * SDLActivity. */
 public class ReportProvider extends ContentProvider {
     public static final String AUTHORITY = "org.yfmredecomp.game.reports";
 

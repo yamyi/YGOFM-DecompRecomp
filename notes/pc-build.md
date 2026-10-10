@@ -3411,8 +3411,7 @@ adb install -r tmp/pc/android-x86/memories-x86.apk
   saves). The
   package is `org.yfmredecomp.game`; the activity is SDL's own
   `SDLActivity`. Our own Java is each `src/pc/platform/android/*.java`,
-  compiled with SDL's, and the crash report's `ReportProvider` ("Crash
-  reports on Android" below).
+  compiled with SDL's.
 - `--target android-armeabi-v7a` is refused: 32-bit ARM was removed.
 
 **The disc image.** On the first run the game finds no image and shows its
@@ -3506,7 +3505,7 @@ the disc. The authority `org.yfmredecomp.game.reports` is spelled in the
 manifest, `ReportProvider.java` and `android_report.c`;
 `package_android.py` stops if one differs.
 
-Share hands the file to the chosen app through the port's only Java of its
+Share hands the file to the chosen app through a Java class of the port's
 own, `org.yfmredecomp.game.ReportProvider`
 (`src/pc/platform/android/ReportProvider.java`, compiled with SDL's by
 `package_android.py`): a read-only content provider, not exported, that
