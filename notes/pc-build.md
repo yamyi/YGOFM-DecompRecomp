@@ -3300,6 +3300,15 @@ loads each code mod's `<library>.aarch64.o`.
   the copy is tried where the write would be allowed;
   `test_mods_lifecycle.py --target android-arm64` runs the hooks test on
   the adb device both ways.
+- **Pages.** An AArch64 kernel may run 4, 16 or 64 KiB pages (Android 15
+  phones can run 16 KiB ones). The loader lays an aarch64 image out on the
+  system's page, 16 KiB at least, so the code's `mprotect` covers the code
+  alone and an image (and its hash in save states) is the same on 4 KiB
+  and 16 KiB phones; the hooks take the page for `mprotect` and the
+  anonymous copy from `sysconf(_SC_PAGESIZE)`. The x86 targets keep 4 KiB.
+  A game whose mod range could not be held loads no code mod (rather than
+  one somewhere it may not be reachable from a 4-byte slot), and a failed
+  anonymous copy is unmapped and not tried again.
 - **ptr32.** Every mod unit goes through `ptr32_stores.py`, as the game's
   (NDK r29's clang still has the narrow-store bug; AI Hard Mode had one
   such write).
