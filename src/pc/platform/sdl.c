@@ -133,6 +133,9 @@ static int focus_clock_rate = 100, focus_paused;
 /* A phone or tablet app sent to the background (SDL's application events,
  * which desktops never send): the game clock stops until it comes back. */
 static int background_clock_rate, background_paused;
+/* Android: until when (real_now_us) a still picture is repainted after
+ * the app comes back (repaint_menu, below). */
+static uint64_t foreground_repaint_until;
 static float known_refresh; /* what the wayland driver reported before a fallback to x11 */
 
 static void show(void);
@@ -1766,6 +1769,13 @@ static bool SDLCALL app_event(void *userdata, SDL_Event *event)
             background_paused = 0;
             if (background_clock_rate && Platform_ClockRate() == 0) Platform_SetClockRate(background_clock_rate);
             menu_dirty = 1;
+#ifdef SDL_PLATFORM_ANDROID
+            /* The window's surface comes back a moment after this event:
+             * a still picture (a panel, which pauses the game, or the
+             * system's file picker it opened) repainted only now stayed
+             * black until the next touch. Repainted for a second instead. */
+            foreground_repaint_until = real_now_us() + 1000000;
+#endif
             LOG(LOG_WINDOW, "app in the foreground: clock at %d%%", Platform_ClockRate());
         }
         break;
@@ -2577,6 +2587,8 @@ void HERE(Platform_PumpEvents)(void)
     pump();
     Update_Frame();
     if (Menu_TakeChanged()) menu_dirty = 1;
+    if (foreground_repaint_until && real_now_us() < foreground_repaint_until) menu_dirty = 1;
+    else foreground_repaint_until = 0;
     if (gl_pass() && GlPicture_Behind()) replay();
     /* A running game shows the change with its next frame; paused, the wait
      * loop pumps every half millisecond, so keep hover repaints to ~120/s. */
