@@ -26,8 +26,11 @@
 #include <mach-o/loader.h>
 #include "pc/compat/fs.h"
 #endif
+#if defined(__aarch64__) && !defined(_WIN32)
+#include <unistd.h>   /* sysconf */
+#endif
 
-#define PAGE 4096u
+#define PAGE 4096u   /* the most a section may ask to be aligned to, on every target */
 #define IMAGE_MAX (64u << 20)   /* far more than any mod; keeps the arithmetic small */
 
 /* ELF, as far as a relocatable object needs it. */
@@ -347,6 +350,25 @@ static int read_sections(Loader *loader)
     return 0;
 }
 
+/* The page code and data each start on, so that mprotect makes the code
+ * executable and nothing else: 4 KiB, except on AArch64, whose kernels run
+ * 4, 16 or 64 KiB pages (Android 15 phones can run 16 KiB ones). There it
+ * is the system's page, 16 KiB at least, so that an image, and the hash of
+ * it a save state holds, is the same on every Android phone. */
+static uint64_t layout_page(void)
+{
+#if defined(__aarch64__) && !defined(_WIN32)
+    static uint64_t page;
+    if (!page) {
+        long system = sysconf(_SC_PAGESIZE);
+        page = system > 16384 ? (uint64_t)system : 16384;
+    }
+    return page;
+#else
+    return PAGE;
+#endif
+}
+
 /* Code first, then everything else, each part starting on a page, so the
  * code pages can be made executable and the rest left writable. A 64-bit
  * object's veneers end the code, and its GOT the rest: room for one each
@@ -354,7 +376,7 @@ static int read_sections(Loader *loader)
 static int lay_out(Loader *loader, size_t *code_size, size_t *total)
 {
     int pass;
-    uint64_t cursor = 0;
+    uint64_t cursor = 0, page = layout_page();
     for (pass = 0; pass < 2; pass++) {
         unsigned i;
         for (i = 0; i < loader->section_count; i++) {
@@ -385,7 +407,7 @@ static int lay_out(Loader *loader, size_t *code_size, size_t *total)
             }
             if (cursor > IMAGE_MAX) return fail(loader, "is larger than %u MiB", IMAGE_MAX >> 20);
         }
-        cursor = (cursor + PAGE - 1) & ~(uint64_t)(PAGE - 1);
+        cursor = (cursor + page - 1) & ~(page - 1);
         if (!pass) *code_size = (size_t)cursor;
     }
     *total = (size_t)cursor;

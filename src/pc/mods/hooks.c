@@ -43,6 +43,9 @@
 #if defined(__aarch64__) && defined(__linux__)
 #include <link.h>
 #endif
+#if defined(__aarch64__) && !defined(_WIN32)
+#include <unistd.h>   /* sysconf */
+#endif
 
 /* The macOS game (translated) registers each hookable function's body
  * instead (Hooks_Register); the Linux/Android arm64 game is patched. */
@@ -92,6 +95,22 @@ static int target_count;
 static Hook hooks[HOOKS_MAX];
 static int hook_count, serial;
 
+/* The system's page, which mprotect works in: 4 KiB on x86, and 4, 16 or
+ * 64 KiB on AArch64 (Android 15 phones can run 16 KiB ones). */
+static uintptr_t page_size(void)
+{
+#if defined(__aarch64__) && !defined(_WIN32)
+    static uintptr_t page;
+    if (!page) {
+        long system = sysconf(_SC_PAGESIZE);
+        page = system > 0 ? (uintptr_t)system : 4096;
+    }
+    return page;
+#else
+    return 4096;
+#endif
+}
+
 #if defined(A64_PATCH)
 /* The game's text, copied into anonymous memory moved over the same range,
  * where writing it is an anonymous mapping's execmem and not a file's
@@ -106,8 +125,9 @@ static int find_text(struct dl_phdr_info *info, size_t size, void *data)
         uintptr_t start = info->dlpi_addr + phdr->p_vaddr;
         if (phdr->p_type != PT_LOAD || !(phdr->p_flags & PF_X)) continue;
         if ((uintptr_t)data >= start && (uintptr_t)data < start + phdr->p_memsz) {
-            text_start = start & ~(uintptr_t)4095;
-            text_end = (start + phdr->p_memsz + 4095) & ~(uintptr_t)4095;
+            uintptr_t page = page_size();
+            text_start = start & ~(page - 1);
+            text_end = (start + phdr->p_memsz + page - 1) & ~(page - 1);
         }
     }
     return 0;
@@ -142,7 +162,7 @@ static int hook_path;
 
 static int protect(unsigned char *from, size_t size, int on)
 {
-    uintptr_t page = 4096, start = (uintptr_t)from & ~(page - 1), end = ((uintptr_t)from + size + page - 1) & ~(page - 1);
+    uintptr_t page = page_size(), start = (uintptr_t)from & ~(page - 1), end = ((uintptr_t)from + size + page - 1) & ~(page - 1);
     return mprotect((void *)start, end - start, on ? PROT_READ | PROT_WRITE | PROT_EXEC : PROT_READ | PROT_EXEC);
 }
 
