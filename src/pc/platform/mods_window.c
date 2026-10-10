@@ -1372,7 +1372,9 @@ static void hd_downloaded(void)
         return;
     }
     if (!HdPack_Install(folder)) {
-        put(status, sizeof(status), "%s", *HdPack_Why() ? HdPack_Why() : "Could not start unpacking the HD pack.");
+        if (HdPack_State() == HD_FAILED)
+            return; /* a Stop that came after the download, or no thread: hd_tick says so next */
+        put(status, sizeof(status), "Could not start unpacking the HD pack.");
         hd_end();
         return;
     }
@@ -1457,7 +1459,10 @@ static void hd_tap(void)
         hd_clearing = 1;
         return;
     }
-    if (HdPack_Busy()) {
+    /* Stop while a step runs, or in the frames between the download's
+     * end and the unpacking's start (hd_step 3): HdPack_Install then
+     * refuses. Once the unpacking ends the pack is in. */
+    if (HdPack_Busy() || hd_step == 3) {
         HdPack_Cancel();
         put(status, sizeof(status), "Stopping...");
         return;

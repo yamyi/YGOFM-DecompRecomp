@@ -425,6 +425,11 @@ static void test_hd_pack_asset(void)
                             "\"size\": 2000000000, \"digest\": \"sha256:" FAKE_SHA "\", "
                             "\"browser_download_url\": \"https://x/y.zip\"}]}",
                             &r, why, sizeof(why)) == 0);
+    assert(strstr(why, "too large: more than 512 MB once unpacked"));
+    assert(HdPack_PickAsset("{\"tag_name\": \"v1.0.0\", \"assets\": [{\"name\": \"" HD_PACK_PREFIX "v1.0.0.zip\", "
+                            "\"size\": 600000000, \"digest\": \"sha256:" FAKE_SHA "\", "
+                            "\"browser_download_url\": \"https://x/y.zip\"}]}",
+                            &r, why, sizeof(why)) == 0); /* under 1 GB, but more than the importer unpacks */
     assert(strstr(why, "too large"));
     assert(HdPack_PickAsset("{\"message\": \"Not Found\"}", &r, why, sizeof(why)) == -1);
     assert(HdPack_PickAsset("<html>", &r, why, sizeof(why)) == -1);
@@ -556,6 +561,18 @@ static void test_hd_pack(void)
     tap_widget(MODS_UI_APPLY);
     assert(strstr(hd_said(), "The HD pack's download was stopped.") && downloads_empty() && !folder_has("mods/assets-hd"));
     fake_stop_in_hash = 0;
+    /* Stop in the frames after the download is checked, before the window
+     * takes it: the Stop is not lost, and nothing is unpacked. */
+    tap_widget(MODS_UI_HD);
+    hd_said();
+    tap_widget(MODS_UI_APPLY);
+    while (HdPack_State() != HD_DOWNLOADED) {
+        assert(HdPack_State() != HD_FAILED);
+        nap();
+    }
+    tap_widget(MODS_UI_HD); /* Stop */
+    assert(strstr(hd_said(), "The HD pack's download was stopped. Nothing was installed."));
+    assert(Mods_Count() == count && downloads_empty() && !folder_has("mods/assets-hd"));
     /* The window's own question while a job runs keeps the line and its
      * buttons; Cancel brings the share back. */
     fake_gate = 0;

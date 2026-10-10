@@ -21,7 +21,6 @@
 #endif
 
 #define API_MAX (2L << 20)                  /* the /releases/latest answer */
-#define ZIP_MAX (1024UL * 1024 * 1024)      /* the importer's cap on a .zip */
 
 static struct {
     const HdNet *net;
@@ -157,8 +156,9 @@ int HdPack_PickAsset(const char *json, HdRelease *out, char *why, size_t why_siz
             snprintf(why, why_size, "GitHub's answer could not be read.");
             break;
         }
-        if ((unsigned long)size > ZIP_MAX) {
-            snprintf(why, why_size, "The HD pack of %s is too large (more than 1 GB).", out->tag);
+        if ((unsigned long)size > MODS_IMPORT_BYTES) { /* the importer's cap: pictures barely compress */
+            snprintf(why, why_size, "The HD pack of %s is too large: more than %u MB once unpacked.", out->tag,
+                     MODS_IMPORT_BYTES >> 20);
             break;
         }
         if (!hex_digest(Json_String(Json_Member(asset, "digest"), NULL), out->sha256)) {
@@ -417,6 +417,10 @@ int HdPack_Install(const char *mods)
 {
     if (HdPack_State() != HD_DOWNLOADED)
         return 0;
+    if (load(&job.cancel)) { /* a Stop after the download's last check: nothing goes in */
+        fail("Cancelled.");
+        return 0;
+    }
     snprintf(job.mods, sizeof(job.mods), "%s", mods);
     return start(HD_DOWNLOADED, HD_INSTALLING, install, (unsigned long)Mods_ImportBytes(job.import));
 }
