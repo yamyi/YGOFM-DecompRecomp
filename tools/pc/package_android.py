@@ -65,6 +65,9 @@ BUILD_WRITES = ("config/pc/guest_addresses.txt",)
 MANIFEST = f"""<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="{PACKAGE}" android:versionCode="@VERSION_CODE@" android:versionName="@VERSION_NAME@">
+    <!-- The Mods panel's HD pack... (hd_pack.h): granted at install, no
+         prompt; nothing is contacted until the player taps it. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-feature android:glEsVersion="0x00020000" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <uses-feature android:name="android.hardware.gamepad" android:required="false" />
@@ -358,7 +361,8 @@ def package(build, abi, library, game, assets):
     os.makedirs(os.path.join(work, "classes"))
     os.makedirs(os.path.join(work, "dex"))
     # SDL's Java shell, from the SDL release libSDL3.so was built from, and
-    # the game's own: the activity that restarts it (Restart.java).
+    # the game's own: the activity that restarts it (Restart.java) and the
+    # HD pack's download (HdDownload.java).
     sources = sorted(glob.glob(os.path.join(build_android_deps.OUT, "java", "**", "*.java"), recursive=True))
     sources += sorted(glob.glob(os.path.join(ROOT, "src", "pc", "platform", "android", "*.java")))
     javac = shutil.which("javac") or sys.exit("javac is not on PATH (a JDK, 17 or later)")

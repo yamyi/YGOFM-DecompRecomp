@@ -14,6 +14,7 @@
 #include "pc/saves/deck_menu.h"
 #include "pc/render/present_pass.h"
 #include "mods_window.h"
+#include "pc/mods/hd_pack.h"
 #include "controls_window.h"
 #include "controls_linux.h"
 #include "panel.h"
@@ -445,7 +446,11 @@ static void open_panel(int kind)
 #ifdef SDL_PLATFORM_ANDROID
     /* An app has no mods folder the player can open: Import mod... takes a
      * mod's .zip through the system's file picker instead. */
-    if (kind == PANEL_MODS) ModsWindow_SetImport(Platform_PickModZip, Platform_PickedModZip, Platform_FetchModZip);
+    if (kind == PANEL_MODS) {
+        /* and HD pack... downloads the release's HD pack into it */
+        HdPack_SetNet(Platform_HdNet());
+        ModsWindow_SetImport(Platform_PickModZip, Platform_PickedModZip, Platform_FetchModZip);
+    }
 #endif
     if (!Panel_Open(kind)) return;
     if (kind == PANEL_CONTROLS) controls_sync_keys();

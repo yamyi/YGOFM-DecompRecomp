@@ -53,11 +53,16 @@
 #include <unistd.h>
 #include <jni.h>
 #include "pc/guest/state.h"
+#include "pc/mods/hd_pack.h"
 #include "pc/mods/import.h"
 #include "pc/mods/mods.h"
+#include "update.h"
 #include "jni_guard.h" /* last: after SDL's own headers */
 
 #define LOG_TAG "memories"
+
+/* The release this build is (build_game32.py), "" for a development one. */
+extern const char Memories_Version[];
 
 #if __ANDROID_API__ < 30
 int memories_memfd_create(const char *name, unsigned flags) /* android_compat.h */
@@ -480,6 +485,265 @@ int Platform_RestartGame(void)
     int result = 0;
     Memories_OnHostStack(restart_on_host, &result); /* JNI: never from the game stack */
     return result;
+}
+
+/* --- the HD pack's download (hd_pack.h), through Java ------------------- */
+
+/* HdNet over HdDownload.java: HttpURLConnection for the question to
+ * GitHub's API, the system's DownloadManager for the pack (it goes on
+ * while the app is in the background, which an app's own connection does
+ * not on Android 15). hd_pack.c calls these on its job's threads only,
+ * threads of its own (pthread_create, their own stacks), never the game's:
+ * SDL attaches each to the VM on its first JNI use and detaches it when it
+ * ends. The game thread makes no JNI call for the download at all; it
+ * reads the job's atomic counters. A thread that native code attached
+ * finds only the system's classes with FindClass, so HdDownload comes
+ * through the activity's class loader, once, with the application's
+ * context (DownloadManager's). */
+typedef struct {
+    jobject self;     /* global: the HdDownload */
+    jbyteArray bytes; /* global: what its read() fills */
+} HdStream;
+
+#define HD_BYTES (64 << 10)
+static jclass hd_class;    /* global */
+static jobject hd_context; /* global: the application */
+static jmethodID hd_open, hd_read, hd_close, hd_fetch, hd_poll, hd_where, hd_stop, hd_forget, hd_sha256;
+static jfieldID hd_error, hd_status;
+
+/* A JNI call's result, good when no exception is pending (one that is, is
+ * cleared): every call is checked, so none is left pending for the next
+ * call (CheckJNI aborts) or for the thread's detach (which hands it to the
+ * uncaught-exception handler, ending the app). */
+static int hd_ok(JNIEnv *env, const void *value)
+{
+    return !java_failed(env) && value != NULL;
+}
+
+static JNIEnv *hd_java(void)
+{
+    JNIEnv *env = (JNIEnv *)SDL_GetAndroidJNIEnv();
+    jobject activity, loader = NULL, found = NULL, context = NULL;
+    jclass activity_class = NULL, loader_class = NULL;
+    jmethodID get_loader = NULL, load = NULL, get_context = NULL;
+    jstring name = NULL;
+    if (!env || hd_class) return env;
+    if (!(activity = (jobject)SDL_GetAndroidActivity())) return NULL;
+    if ((*env)->PushLocalFrame(env, 16) < 0) {
+        java_failed(env);
+        (*env)->DeleteLocalRef(env, activity);
+        return NULL;
+    }
+#define CHECKED(value) hd_ok(env, (const void *)(value))
+#define METHOD(out, kind, method, signature) CHECKED(out = (*env)->kind(env, found, method, signature))
+    if (CHECKED(activity_class = (*env)->GetObjectClass(env, activity)) &&
+        CHECKED(get_loader = (*env)->GetMethodID(env, activity_class, "getClassLoader", "()Ljava/lang/ClassLoader;")) &&
+        CHECKED(get_context = (*env)->GetMethodID(env, activity_class, "getApplicationContext",
+                                                  "()Landroid/content/Context;")) &&
+        CHECKED(context = (*env)->CallObjectMethod(env, activity, get_context)) &&
+        CHECKED(loader = (*env)->CallObjectMethod(env, activity, get_loader)) &&
+        CHECKED(loader_class = (*env)->GetObjectClass(env, loader)) &&
+        CHECKED(load = (*env)->GetMethodID(env, loader_class, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;")) &&
+        CHECKED(name = (*env)->NewStringUTF(env, "org.yfmredecomp.game.HdDownload")) &&
+        CHECKED(found = (*env)->CallObjectMethod(env, loader, load, name)) &&
+        METHOD(hd_open, GetStaticMethodID, "open", "(Ljava/lang/String;)Lorg/yfmredecomp/game/HdDownload;") &&
+        METHOD(hd_read, GetMethodID, "read", "([BI)I") && METHOD(hd_close, GetMethodID, "close", "()V") &&
+        METHOD(hd_fetch, GetStaticMethodID, "fetch",
+               "(Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)J") &&
+        METHOD(hd_poll, GetStaticMethodID, "poll", "(Landroid/content/Context;J)[J") &&
+        METHOD(hd_where, GetStaticMethodID, "where", "(Landroid/content/Context;J)Ljava/lang/String;") &&
+        METHOD(hd_stop, GetStaticMethodID, "stop", "(Landroid/content/Context;J)V") &&
+        METHOD(hd_forget, GetStaticMethodID, "forget", "(Landroid/content/Context;)V") &&
+        METHOD(hd_sha256, GetStaticMethodID, "sha256", "(Ljava/lang/String;)Ljava/lang/String;") &&
+        CHECKED(hd_error = (*env)->GetFieldID(env, found, "error", "I")) &&
+        CHECKED(hd_status = (*env)->GetFieldID(env, found, "status", "I")) &&
+        CHECKED(hd_context = (*env)->NewGlobalRef(env, context)))
+        hd_class = (jclass)(*env)->NewGlobalRef(env, found);
+#undef METHOD
+#undef CHECKED
+    (*env)->PopLocalFrame(env, NULL);
+    (*env)->DeleteLocalRef(env, activity);
+    if (!hd_class) fprintf(stderr, "memories-pc: HD pack: HdDownload.java is not in the app\n");
+    return hd_class ? env : NULL;
+}
+
+static void hd_drop(JNIEnv *env, HdStream *stream)
+{
+    if (stream->self) {
+        (*env)->CallVoidMethod(env, stream->self, hd_close);
+        java_failed(env);
+        (*env)->DeleteGlobalRef(env, stream->self);
+    }
+    if (stream->bytes) (*env)->DeleteGlobalRef(env, stream->bytes);
+    free(stream);
+}
+
+static int hd_net_open(const char *url, void **out, int *status)
+{
+    JNIEnv *env = hd_java();
+    HdStream *stream;
+    jstring text;
+    jobject self;
+    jbyteArray bytes;
+    int error;
+    *out = NULL;
+    *status = 0;
+    if (!env || !(stream = calloc(1, sizeof(*stream)))) return HD_NET_FAILED;
+    if (!hd_ok(env, text = (*env)->NewStringUTF(env, url))) {
+        free(stream);
+        return HD_NET_FAILED;
+    }
+    self = (*env)->CallStaticObjectMethod(env, hd_class, hd_open, text);
+    (*env)->DeleteLocalRef(env, text);
+    if (!hd_ok(env, self)) {
+        free(stream);
+        return HD_NET_FAILED;
+    }
+    stream->self = (*env)->NewGlobalRef(env, self);
+    (*env)->DeleteLocalRef(env, self);
+    error = (*env)->GetIntField(env, stream->self, hd_error);
+    *status = (*env)->GetIntField(env, stream->self, hd_status);
+    if (!error && hd_ok(env, bytes = (*env)->NewByteArray(env, HD_BYTES))) {
+        stream->bytes = (jbyteArray)(*env)->NewGlobalRef(env, bytes);
+        (*env)->DeleteLocalRef(env, bytes);
+    }
+    if (error || !stream->bytes) {
+        hd_drop(env, stream);
+        return error ? error : HD_NET_FAILED;
+    }
+    *out = stream;
+    return 0;
+}
+
+static long hd_net_read(void *data, unsigned char *buffer, size_t size)
+{
+    HdStream *stream = data;
+    JNIEnv *env = hd_java();
+    jint got;
+    if (!env) return HD_NET_FAILED;
+    got = (*env)->CallIntMethod(env, stream->self, hd_read, stream->bytes, (jint)(size < HD_BYTES ? size : HD_BYTES));
+    if (java_failed(env)) return HD_NET_FAILED;
+    if (got > 0) {
+        (*env)->GetByteArrayRegion(env, stream->bytes, 0, got, (jbyte *)buffer);
+        if (java_failed(env)) return HD_NET_FAILED;
+    }
+    return got;
+}
+
+static void hd_net_close(void *data)
+{
+    JNIEnv *env = hd_java();
+    if (data && env) hd_drop(env, data);
+}
+
+static int hd_net_fetch(const char *url, const char *path, long long *id)
+{
+    JNIEnv *env = hd_java();
+    jstring text = NULL, file = NULL, title = NULL;
+    jlong got = HD_NET_FAILED;
+    if (!env) return HD_NET_FAILED;
+    if (hd_ok(env, text = (*env)->NewStringUTF(env, url)) && hd_ok(env, file = (*env)->NewStringUTF(env, path)) &&
+        hd_ok(env, title = (*env)->NewStringUTF(env, "YFM Re-Decomp: HD pack"))) {
+        got = (*env)->CallStaticLongMethod(env, hd_class, hd_fetch, hd_context, text, file, title);
+        if (java_failed(env)) got = HD_NET_FAILED;
+    }
+    if (text) (*env)->DeleteLocalRef(env, text);
+    if (file) (*env)->DeleteLocalRef(env, file);
+    if (title) (*env)->DeleteLocalRef(env, title);
+    if (got < 0) return got == HD_NET_NO_MANAGER ? HD_NET_NO_MANAGER : HD_NET_FAILED;
+    *id = (long long)got;
+    fprintf(stderr, "memories-pc: HD pack: the download manager took it (id %lld)\n", *id);
+    return 0;
+}
+
+static int hd_net_poll(long long id, unsigned long *done, int *reason)
+{
+    JNIEnv *env = hd_java();
+    jlongArray answer;
+    jlong values[3] = {HD_FETCH_FAILED, 0, 1000};
+    if (!env) return HD_FETCH_FAILED;
+    answer = (jlongArray)(*env)->CallStaticObjectMethod(env, hd_class, hd_poll, hd_context, (jlong)id);
+    if (hd_ok(env, answer)) {
+        (*env)->GetLongArrayRegion(env, answer, 0, 3, values);
+        java_failed(env);
+    }
+    if (answer) (*env)->DeleteLocalRef(env, answer);
+    *done = values[1] > 0 ? (unsigned long)values[1] : 0;
+    *reason = (int)values[2];
+    return (int)values[0];
+}
+
+static int hd_net_where(long long id, char *path, size_t size)
+{
+    JNIEnv *env = hd_java();
+    jstring found;
+    const char *text;
+    path[0] = 0;
+    if (!env) return 0;
+    found = (jstring)(*env)->CallStaticObjectMethod(env, hd_class, hd_where, hd_context, (jlong)id);
+    if (!hd_ok(env, found)) return 0;
+    if ((text = (*env)->GetStringUTFChars(env, found, NULL))) {
+        snprintf(path, size, "%s", text);
+        (*env)->ReleaseStringUTFChars(env, found, text);
+    } else
+        java_failed(env);
+    (*env)->DeleteLocalRef(env, found);
+    return path[0] != 0;
+}
+
+static void hd_net_stop(long long id)
+{
+    JNIEnv *env = hd_java();
+    if (!env) return;
+    (*env)->CallStaticVoidMethod(env, hd_class, hd_stop, hd_context, (jlong)id);
+    java_failed(env);
+}
+
+static void hd_net_forget(void)
+{
+    JNIEnv *env = hd_java();
+    if (!env) return;
+    (*env)->CallStaticVoidMethod(env, hd_class, hd_forget, hd_context);
+    java_failed(env);
+}
+
+static int hd_net_sha256(const char *path, char *out)
+{
+    JNIEnv *env = hd_java();
+    jstring file, hex = NULL;
+    const char *text;
+    out[0] = 0;
+    if (!env || !hd_ok(env, file = (*env)->NewStringUTF(env, path))) return 0;
+    hex = (jstring)(*env)->CallStaticObjectMethod(env, hd_class, hd_sha256, file);
+    (*env)->DeleteLocalRef(env, file);
+    if (!hd_ok(env, hex)) return 0;
+    if ((text = (*env)->GetStringUTFChars(env, hex, NULL))) {
+        snprintf(out, 65, "%s", text);
+        (*env)->ReleaseStringUTFChars(env, hex, text);
+    } else
+        java_failed(env);
+    (*env)->DeleteLocalRef(env, hex);
+    return strlen(out) == 64;
+}
+
+/* The download's network, for HdPack_SetNet (sdl.c, on the game thread:
+ * nothing here calls Java). MEMORIES_HD_TEST_SHA256=<hex> (environment.txt)
+ * makes a download need that SHA-256 instead of the release's, to see the
+ * damaged-download path; a release build (one with a version) ignores it. */
+const HdNet *Platform_HdNet(void)
+{
+    static HdNet net = {hd_net_open, hd_net_read, hd_net_close,  hd_net_fetch,  hd_net_poll,
+                        hd_net_where, hd_net_stop, hd_net_sha256, hd_net_forget, NULL};
+    static int once;
+    const char *test = getenv("MEMORIES_HD_TEST_SHA256");
+    if (once++) return &net; /* set before any job's thread reads it */
+    if (test && *test) {
+        if (Update_ParseVersion(Memories_Version, NULL))
+            fprintf(stderr, "memories-pc: MEMORIES_HD_TEST_SHA256 is ignored in a release build\n");
+        else
+            net.test_sha256 = test;
+    }
+    return &net;
 }
 
 static int log_pipe[2];
