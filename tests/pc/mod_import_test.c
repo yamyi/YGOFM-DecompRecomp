@@ -234,19 +234,31 @@ int main(void)
         }
     }
     /* Two names that differ only beyond ASCII: one file where the storage
-     * folds them (Windows' NTFS here, as Android's shared storage), so the
+     * folds them (NTFS, APFS, Android's shared storage; probed here), so the
      * import is refused there with nothing written; two files elsewhere. */
     reset();
     {
         ZipItem items[] = {{"fold/mod.json", "{}", 0, 0, 0, 0, 0, 0},
                            {"fold/\xc3\x89.txt", "upper", 0, 0, 0, 0, 0, 0},
                            {"fold/\xc3\xa9.txt", "lower", 0, 0, 0, 0, 0, 0}};
-        int done = import(items, 3, &count, why, sizeof(why));
+        char probe[1200];
+        FILE *f;
+        int done, folds;
+        snprintf(probe, sizeof(probe), "%s/probe-\xc3\x89", root);
+        f = fopen(probe, "wb");
+        CHECK(f != NULL);
+        if (f)
+            fclose(f);
+        folds = exists("probe-\xc3\xa9");
+        remove(probe);
+        done = import(items, 3, &count, why, sizeof(why));
+        if (folds) {
+            CHECK(!done && strstr(why, "are one file on this storage") != NULL);
+            CHECK(!strcmp(listing("mods"), ""));
+        } else
+            CHECK(done && file_is("mods/fold/\xc3\x89.txt", "upper") && file_is("mods/fold/\xc3\xa9.txt", "lower"));
 #ifdef _WIN32
-        CHECK(!done && strstr(why, "are one file on this storage") != NULL);
-        CHECK(!strcmp(listing("mods"), ""));
-#else
-        CHECK(done && file_is("mods/fold/\xc3\x89.txt", "upper") && file_is("mods/fold/\xc3\xa9.txt", "lower"));
+        CHECK(folds); /* NTFS folds them: the refusal is tested there */
 #endif
     }
     /* Replace: the old folder goes; without it the import is refused and

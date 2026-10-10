@@ -729,7 +729,7 @@ int Mods_ImportInstall(ModsImport *import, const char *mods, char *why, size_t w
 {
     char temporary[1100];
     Place *places;
-    int placed = 0, ok = 0, stranded = 0, left = -1;
+    int placed = 0, ok = 0, stranded = 0, left = -1, lefts = 0;
     if (!import || !import->mod_count) {
         snprintf(why, why_size, "This .zip has no mod in it.");
         return 0;
@@ -857,10 +857,12 @@ undo:
         if (m < placed && rename(at->target, at->staged)) {
             Mods_ImportRemoveTree(at->target);
             if (!stat(at->target, &info)) {
-                if (left < 0)
-                    left = m;
-                stranded |= at->moved;
-                continue;
+                left = m;
+                lefts++;
+                if (at->moved && !strcmp(import->mods[m].replace, at->target)) {
+                    stranded = 1; /* its place is the new mod's */
+                    continue;
+                }
             }
         }
         if (at->moved && rename(at->aside, import->mods[m].replace))
@@ -874,12 +876,16 @@ done:
         if (stranded)
             snprintf(extra, sizeof(extra), ", and an old mod could not be put back: it is in %s",
                      rename(temporary, kept) ? temporary : kept);
-        if (left >= 0)
+        if (left >= 0 && lefts > 1)
+            snprintf(why, why_size, "Nothing was imported, but %s and %d more could not be taken out of the mods "
+                     "folder again (delete those folders)%s.", import->mods[left].folder, lefts - 1, extra);
+        else if (left >= 0)
             snprintf(why, why_size, "Nothing was imported, but %s could not be taken out of the mods folder again "
                      "(delete that folder)%s.", import->mods[left].folder, extra);
         else
             snprintf(why, why_size, "Nothing was imported%s.", extra);
-    } else
+    }
+    if (!stranded)
         Mods_ImportRemoveTree(temporary);
     free(places);
     return ok;
