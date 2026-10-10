@@ -1182,7 +1182,7 @@ static void *load_object(Mod *mod, const char *path)
 #endif
 }
 
-#ifndef MEMORIES_NO_CODE_MODS
+#if !defined(MEMORIES_NO_CODE_MODS) && !(defined(__APPLE__) && defined(__aarch64__) && defined(MEMORIES_TRANSLATED))
 /* Whether the mod's object for this game is there to load. */
 static int library_present(const Mod *mod)
 {
@@ -1731,13 +1731,15 @@ static void activate_once(int index, int on)
          * only the 32-bit object: it stays off with the reason beside it, as
          * above, and is not a broken mod. The macOS game, which has no 32-bit
          * one to send the player to, reports a missing dylib as broken. */
-        if (strcmp(OBJECT_LOADER_TARGET, "i386") && strcmp(OBJECT_LOADER_TARGET, "macos") && !mod->broken &&
-            mod->library[0] && !mod->object.image && !mod->object.native_handle && !library_present(mod)) {
+#if !(defined(__APPLE__) && defined(__aarch64__) && defined(MEMORIES_TRANSLATED))
+        if (strcmp(OBJECT_LOADER_TARGET, "i386") && !mod->broken && mod->library[0] && !mod->object.image &&
+            !mod->object.native_handle && !library_present(mod)) {
             note(mod, "needs a 64-bit build of this mod (%s): the one it has is for the 32-bit game, which is the one "
                       "to play it with", mod->library);
             drop_overrides(index);
             return;
         }
+#endif
 #endif
         /* A mod that cannot load keeps the player's choice and its reason:
          * the window shows both, and removing it still works. */
