@@ -1737,6 +1737,11 @@ static int dispatch_panel(const SDL_Event *event, const MenuEvent *menu_event)
     case SDL_EVENT_TEXT_INPUT:
         redraw = Panel_Key(menu_event, 0, 0, 0);
         break;
+    case SDL_EVENT_WINDOW_CLOSE_REQUESTED: /* MEMORIES_PANELS=overlay: the quit prompt would ask under the panel */
+        if (SDL_GetWindowFromEvent(event) != window) return 0;
+        Panel_RequestClose();
+        redraw = 1;
+        break;
     default:
         return 0;
     }

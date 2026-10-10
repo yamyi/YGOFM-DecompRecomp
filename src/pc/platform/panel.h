@@ -32,6 +32,10 @@ enum { PANEL_NONE, PANEL_MODS, PANEL_CONTROLS };
 int Panel_Open(int kind);
 /* Closes it now, unsaved changes or not (the module asked first). */
 void Panel_Close(void);
+/* The window's close button while the panel shows: the panel closes as its
+ * own Close would (asking first about unsaved changes), so nothing it covers
+ * asks behind it; the next press of the button reaches the game's prompt. */
+void Panel_RequestClose(void);
 /* The panel shown (PANEL_*), or PANEL_NONE. */
 int Panel_Shown(void);
 /* The window's size, and the part of it the panel's contents keep within

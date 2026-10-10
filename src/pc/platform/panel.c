@@ -59,6 +59,19 @@ void Panel_Close(void)
     memset(&press, 0, sizeof(press));
 }
 
+void Panel_RequestClose(void)
+{
+    if (shown == PANEL_MODS) {
+        if (ModsWindow_RequestClose())
+            Panel_Close();
+    } else if (shown == PANEL_CONTROLS) {
+        ControlsWindow_RequestClose();
+        ControlsWindow_Tick();
+        if (ControlsWindow_ShouldClose())
+            Panel_Close();
+    }
+}
+
 int Panel_Open(int kind)
 {
     if (kind != PANEL_MODS && kind != PANEL_CONTROLS)
