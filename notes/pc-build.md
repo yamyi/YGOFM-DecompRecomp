@@ -3436,7 +3436,7 @@ The external files folder has to be there before the game starts:
 cannot (while the shared storage is not mounted Java's `getExternalFilesDir`
 gives no folder, `adb shell sm unmount "emulated;0"` shows it; just as it
 mounts, Java may give the folder while mkdir here says "File exists" and
-stat cannot see it yet), and otherwise says "The game could not use
+stat may not see it yet), and otherwise says "The game could not use
 its storage folder right now. Close the game and open it again." and quits,
 unless the internal `environment.txt` names a `MEMORIES_USER_DIR` (testing).
 Android has no fallback folder (the desktop's `./saves`, which on Android is

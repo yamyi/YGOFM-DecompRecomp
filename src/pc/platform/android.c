@@ -1166,7 +1166,7 @@ static const char *user_folder(char *why, size_t why_size)
         } else {
             /* Even "File exists" is waited for: just as the storage mounts,
              * Java may give the folder (made under /data/media) while mkdir
-             * here says it exists and stat cannot see it yet. */
+             * here says it exists, whether or not stat sees it yet. */
             int error = errno;
             struct stat seen;
             int found = stat(files, &seen) ? errno : 0;
@@ -1179,7 +1179,7 @@ static const char *user_folder(char *why, size_t why_size)
             snprintf(said, sizeof(said), "%s", why);
         }
     }
-    fprintf(stderr, "memories-pc: no external files folder (%s)\n", why);
+    fprintf(stderr, "memories-pc: no external files folder after 10 s (%s)\n", why);
     return NULL;
 }
 
@@ -1212,6 +1212,9 @@ int Memories_AndroidMain(int argc, char **argv)
          * internal environment.txt) stands in for it. */
         const char *named = getenv("MEMORIES_USER_DIR");
         if (!named || !*named || Paths_MakeDirs(named)) {
+            if (named && *named)
+                fprintf(stderr, "memories-pc: nor the MEMORIES_USER_DIR environment.txt names: %s: %s\n", named,
+                        strerror(errno));
             snprintf(message, sizeof(message), "The game could not use its storage folder right now.\n\n"
                      "Close the game and open it again.\n\n(%s)", why);
             Platform_ShowError("Yu-Gi-Oh! Forbidden Memories", message);
