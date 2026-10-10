@@ -16,12 +16,15 @@
  *                      Android 10 and later; earlier, writing there needs
  *                      a storage permission the app does not ask for, so
  *                      the button is not offered);
+ *   Don't ask again    no report is offered from now on (the setting
+ *                      offer_crash_reports, Help > Offer crash reports at
+ *                      start, turns it back on);
  *   Not now            nothing; the report is offered again next launch.
  *
- * Share and Save retire the report, and every other one in the folder with
- * it (report_folder.h: renamed to <name>.sent, the newest few kept): only
- * the newest report is offered, and no clock decides which have been dealt
- * with.
+ * Share, Save and Don't ask again retire the report, and every other one in
+ * the folder with it (report_folder.h: renamed to <name>.sent, the newest
+ * few kept): only the newest report is offered, and no clock decides which
+ * have been dealt with.
  *
  * What goes out is the app's version and build, the device's maker and
  * model, the Android version, the memory free now, and the game's report
@@ -38,6 +41,7 @@
 #include "menu.h"
 #include "paths.h"
 #include "report_folder.h"
+#include "settings.h"
 #include "pc/debug/crash.h"
 #include "pc/guest/state.h"
 #include <SDL3/SDL.h>
@@ -611,6 +615,19 @@ static void chosen(int button, int *quit)
         call.share = 1;
     } else if (button == 1 && save) {
         call.share = 0;
+    } else if (button == (save ? 2 : 1)) {
+        /* Don't ask again. A setting that could not be saved is told by
+         * menu.c ("Settings not saved") once this notice has closed. */
+        Settings_Set(SET_CRASH_REPORT_OFFER, 0);
+        Settings_Save();
+        retired = retire_reports();
+        fprintf(stderr, "memories-pc: crash report %s: don't ask again (offer_crash_reports=0)\n", offer.name);
+        snprintf(text, sizeof(text),
+                 "No crash report will be offered from now on. Help > Offer crash reports at start turns this "
+                 "back on.%s",
+                 retired ? "" : AGAIN);
+        Menu_ShowNotice("Crash reports off", text, ok, 1, 0, NULL);
+        return;
     } else {
         fprintf(stderr, "memories-pc: crash report %s: not now (offered again next launch)\n", offer.name);
         return;
@@ -642,8 +659,9 @@ static void chosen(int button, int *quit)
 
 void Android_OfferCrashReport(void)
 {
-    static const char *const with_save[] = {"Share", "Save to Downloads", "Not now"};
-    static const char *const share_only[] = {"Share", "Not now"};
+    /* Not now stays the last button: Back, Escape and Circle press it. */
+    static const char *const with_save[] = {"Share", "Save to Downloads", "Don't ask again", "Not now"};
+    static const char *const share_only[] = {"Share", "Don't ask again", "Not now"};
     char value[PROP_VALUE_MAX];
     struct tm when;
     time_t seconds;
@@ -654,6 +672,10 @@ void Android_OfferCrashReport(void)
         getenv("MEMORIES_CONTROL"))
         return;
     if (!find_report()) return;
+    if (!Settings_Get(SET_CRASH_REPORT_OFFER)) {
+        fprintf(stderr, "memories-pc: crash report %s not offered (offer_crash_reports=0)\n", offer.name);
+        return;
+    }
     free(offer.text);
     if (!(offer.text = build_report(&offer.size))) {
         fprintf(stderr, "memories-pc: crash report %s could not be read\n", offer.path);
@@ -670,6 +692,6 @@ void Android_OfferCrashReport(void)
                     "A report of what happened helps fix it. It holds the game's version, your phone's model, "
                     "its Android version and free memory, and the game's crash log with its settings and mods: "
                     "no personal data and none of your saves.",
-                    save ? with_save : share_only, save ? 3 : 2, save ? 2 : 1, chosen);
+                    save ? with_save : share_only, save ? 4 : 3, save ? 3 : 2, chosen);
 }
 #endif

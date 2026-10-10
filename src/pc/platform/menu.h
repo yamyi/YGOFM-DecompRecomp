@@ -14,7 +14,8 @@
  * Game  > Mods opens the searchable mod manager; Restart game goes back to
  *         the title screen once confirmed (title_jump.h)
  * Debug > development helpers (src/pc/debug)
- * Help  > update checks and this build's version (update_check.h) */
+ * Help  > update checks and this build's version (update_check.h); on
+ *         Android, whether a crash's report is offered (android_report.c) */
 
 typedef struct MenuCanvas {
     uint32_t *pixels; /* 0xAARRGGBB (alpha ignored unless `alpha`), row-major */
