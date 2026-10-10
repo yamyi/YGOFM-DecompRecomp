@@ -3459,7 +3459,8 @@ Screenshots of the device, never the host: `adb exec-out screencap -p`.
 ### Crash reports on Android
 
 A crash writes its report as on Linux (`crash.c`, in the process: there is
-no monitor), `crash-<pid>.txt` (`hang-<pid>.txt` for a freeze) in
+no monitor), `crash-<pid>.txt` (or `hang-<pid>.txt` where a freeze
+watchdog runs, which it does not on Android by default) in
 `reports/` of the external files folder, which no file manager opens since
 Android 11. So the next launch offers it (`android_report.c`, from the end
 of `sdl.c`'s `Platform_Open`) in the game's own notice: **Share** (the
@@ -3469,9 +3470,11 @@ writing there needs a storage permission the app does not ask for, so the
 button is not offered and only Share is) and **Not now** (nothing; it is
 offered again next launch). Share or Save marks it handled
 (`reports/handled.txt`, the report's time), and every older one with it:
-only the newest report is offered. Headless and scripted runs
-(`MEMORIES_HEADLESS`, `MEMORIES_INPUT`, `MEMORIES_SDL_SCRIPT`) are never
-asked. The desktops have none of it.
+only the newest report is offered. Share counts once the share sheet
+opens, whether or not an app is then picked. Headless, scripted and
+agent-driven runs (`MEMORIES_HEADLESS`, `MEMORIES_INPUT`,
+`MEMORIES_SDL_SCRIPT`, `MEMORIES_CONTROL`) are never asked. The desktops
+have none of it.
 
 What goes out, `yfm-redecomp-crash-<date>-<time>.txt`: the app's version
 (or "development build"), the build id and commit, the device's maker and
@@ -3480,7 +3483,11 @@ game's report with the player's own paths taken out: the user folder
 becomes `<app folder>` (the "user dir" fact, log lines naming a file in
 it), a `content://` URI (the disc image the player picked, whose URI names
 their folders and file) becomes `content://<removed>`, and "started" loses
-its time zone. Nothing of the saves, the settings file or the disc.
+its time zone. The report's own facts stay (settings, mods, GPU, CPU, the
+start time without its zone). Nothing of the saves, the settings file or
+the disc. The authority `org.yfmredecomp.game.reports` is spelled in the
+manifest, `ReportProvider.java` and `android_report.c`;
+`package_android.py` stops if one differs.
 
 Share hands the file to the chosen app through the port's only Java of its
 own, `org.yfmredecomp.game.ReportProvider`
