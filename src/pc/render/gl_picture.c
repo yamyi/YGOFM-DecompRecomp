@@ -603,7 +603,8 @@ static const char *fragment_source =
  * samplers) or low (sampler2D) stated high, and without "noperspective",
  * which GLSL ES does not have. Every vertex's w is 1.0 (vertex_source), so
  * the perspective-correct interpolation ES does instead is the same
- * interpolation, up to rounding. NULL when out of memory. */
+ * interpolation, up to rounding. NULL when the first line is another (what
+ * is changed holds for GLSL 1.30 alone) or out of memory. */
 static char *es_source(const char *source)
 {
     static const char header[] = "#version 300 es\n"
@@ -612,11 +613,19 @@ static char *es_source(const char *source)
                                  "precision highp sampler2D;\n"
                                  "precision highp usampler2D;\n"
                                  "precision highp usampler2DArray;\n";
-    const char *body = strchr(source, '\n'), *from;
+    static const char desktop[] = "#version 130\n";
+    const char *body = source + sizeof(desktop) - 2, *from; /* at the first line's end */
     char *out, *to;
-    if (!body) return NULL;
+    if (strncmp(source, desktop, sizeof(desktop) - 1)) {
+        fprintf(stderr, "memories-pc: OpenGL picture: a shader for OpenGL ES that is not GLSL 1.30 (\"%.*s\")\n",
+                (int)strcspn(source, "\n"), source);
+        return NULL;
+    }
     out = malloc(sizeof(header) + strlen(body));
-    if (!out) return NULL;
+    if (!out) {
+        fprintf(stderr, "memories-pc: OpenGL picture: no memory for a shader\n");
+        return NULL;
+    }
     memcpy(out, header, sizeof(header) - 1);
     to = out + sizeof(header) - 1;
     for (from = body + 1; *from;) {
