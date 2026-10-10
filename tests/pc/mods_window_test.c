@@ -212,6 +212,15 @@ static void test_import(void)
         assert(folder_has("mods/mod05-2/mod.json") && !strcmp(Mods_Id(find("mod05")), "mod05"));
         assert(strstr(Mods_Directory(find("other")), "mod05-2"));
     }
+    {
+        /* The free name is not another mod's of the same .zip: mod06 is
+         * taken by another mod, and mod06-2 is the second mod's own. */
+        static const ZipItem pair[] = {{"mod06/mod.json", "{\"id\": \"first6\", \"name\": \"First6\"}", 0, 0, 0, 0, 0, 0},
+                                       {"Mod06-2/mod.json", "{\"id\": \"second6\", \"name\": \"Second6\"}", 0, 0, 0, 0, 0, 0}};
+        said = import_zip(pair, 2);
+        assert(strstr(said, "Imported 2 mods: ") && strstr(said, "First6") && strstr(said, "Second6"));
+        assert(strstr(Mods_Directory(find("first6")), "mod06-3") && strstr(Mods_Directory(find("second6")), "Mod06-2"));
+    }
     said = import_zip(none, 1);
     assert(strstr(said, "This .zip has no mod in it."));
     count = Mods_Count();

@@ -1093,17 +1093,36 @@ static void import_install(void)
             scroll = max(0, min(at, shown_count() - rows()));
     }
 }
-/* The installed mod a mod of the .zip would replace: its folder when the
- * folder is that mod's (the same id), else an installed mod with its id.
- * A folder that holds something else gives the new mod a free name
- * (<folder>-2, ...) instead: Replace never removes another mod or a
- * folder of the player's. 0, or -1 with the reason in `status`. */
-static int import_target(ModsImportMod *mod, const char *folder)
+/* Another mod of `import` than mod `index` has the folder `name` (its own,
+ * or the free one it was given), letter case aside: one folder on a
+ * case-blind file system. */
+static int import_clash(ModsImport *import, const char *name, int index)
 {
+    for (int j = 0; j < Mods_ImportCount(import); j++) {
+        const char *a = name, *b = Mods_ImportMod(import, j)->folder;
+        while (*a && tolower((unsigned char)*a) == tolower((unsigned char)*b))
+            a++, b++;
+        if (j != index && !*a && !*b)
+            return 1;
+    }
+    return 0;
+}
+/* The installed mod mod `index` of `import` would replace: its folder when
+ * the folder is that mod's (the same id), else an installed mod with its
+ * id. A folder that holds something else, or whose name another mod of the
+ * .zip has (import_clash), gives the new mod a free name (<folder>-2, ...)
+ * instead: Replace never removes another mod or a folder of the player's.
+ * 0, or -1 with the reason in `status`. */
+static int import_target(ModsImport *import, int index, const char *folder)
+{
+    ModsImportMod *mod = Mods_ImportMod(import, index);
     char path[1200], id[64];
+    int taken, clash;
     mod->replace[0] = 0;
-    if (Mods_ImportTaken(folder, mod->folder, path, sizeof(path))) {
-        if (Mods_ImportFolderId(path, id, sizeof(id)) && !strcmp(id, mod->id))
+    taken = Mods_ImportTaken(folder, mod->folder, path, sizeof(path));
+    clash = import_clash(import, mod->folder, index);
+    if (taken || clash) {
+        if (!clash && Mods_ImportFolderId(path, id, sizeof(id)) && !strcmp(id, mod->id))
             put(mod->replace, sizeof(mod->replace), "%s", path);
         else {
             char base[sizeof(mod->folder)], name[sizeof(mod->folder)];
@@ -1111,7 +1130,7 @@ static int import_target(ModsImportMod *mod, const char *folder)
             put(base, sizeof(base), "%.*s", (int)sizeof(base) - 5, mod->folder);
             for (k = 2; k < 100; k++) {
                 put(name, sizeof(name), "%s-%d", base, k);
-                if (!Mods_ImportTaken(folder, name, path, sizeof(path)))
+                if (!Mods_ImportTaken(folder, name, path, sizeof(path)) && !import_clash(import, name, index))
                     break;
             }
             if (k == 100) {
@@ -1166,7 +1185,7 @@ static void import_read(void)
     for (int i = 0; i < Mods_ImportCount(import_waiting); i++) {
         ModsImportMod *mod = Mods_ImportMod(import_waiting, i);
         int known = 0;
-        if (import_target(mod, folder)) {
+        if (import_target(import_waiting, i, folder)) {
             import_done();
             return;
         }
