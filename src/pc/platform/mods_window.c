@@ -1038,11 +1038,11 @@ static void import_install(void)
     several = import_names(import_waiting, pc_only, names, sizeof(names)) > 1;
     if (*names && n == 1)
         put(status, sizeof(status), "%s This mod has code built only for PC; ask its author for an Android build. "
-                 "Until then it stays off and changes nothing in the game.", line);
+                 "It stays off and changes nothing in the game.", line);
     else if (*names)
-        put(status, sizeof(status), "%s %s %s code built only for PC; ask for an Android build. Until then %s "
+        put(status, sizeof(status), "%s %s %s code built only for PC; ask for an Android build. %s "
                  "off and change%s nothing in the game.", line, names, several ? "have" : "has",
-                 several ? "they stay" : "it stays", several ? "" : "s");
+                 several ? "They stay" : "It stays", several ? "" : "s");
     else
         put(status, sizeof(status), "%s", line);
     fprintf(stderr, "memories-pc: import: %s\n", status);
