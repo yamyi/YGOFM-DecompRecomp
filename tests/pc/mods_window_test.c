@@ -117,7 +117,9 @@ int main(void)
                          j ? "," : "", j);
             strcat(json, "]}");
             write_text(path, json);
-        } else
+        } else if (i == 5) /* code, named only under "libraries" (an aarch64 entry) */
+            write_text(path, "{\"libraries\":{\"aarch64\":\"other.aarch64.o\"}}");
+        else
             write_text(path, i ? "{}"
                                : "{\"restart\":true,\"settings\":[{\"key\":\"speed\",\"label\":\"Speed\",\"default\":5,"
                                  "\"min\":0,\"max\":10}]}");
@@ -252,6 +254,17 @@ int main(void)
             assert(Mods_OverlapCount(Mods_Overlaps(both, NULL, staged)) == 5);
             assert(Mods_OverlapCount(Mods_Overlaps(both, NULL, NULL)) == 6); /* saved: its default, on */
         }
+    }
+    ModsWindow_Init();
+    {
+        /* The Details tab calls a mod with only "libraries" a code mod, as
+         * the loader does; one with neither key a content mod. */
+        click(100, 142 + find("mod05") * 58 + 20);
+        draw(920, 640);
+        assert(strstr(drawn, "Native code mod") && !strstr(drawn, "Content mod"));
+        click(100, 142 + find("mod04") * 58 + 20);
+        draw(920, 640);
+        assert(strstr(drawn, "Content mod") && !strstr(drawn, "Native code mod"));
     }
     ModsWindow_Init();
     ModsWindow_Resize(720, 480);

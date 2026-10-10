@@ -448,8 +448,8 @@ static int body(MenuCanvas *c, int w, int y)
         y = wrap(c, 0, y, w, line, DIM);
         y = wrap(c, 0, y, w, Mods_Directory(selected), DIM) + 16 * unit;
         y = wrap(c, 0, y, w,
-                 *Mods_Metadata(selected, "library") ? "Native code mod: runs game code from this author."
-                                                     : "Content mod: assets, cards or data patches.",
+                 Mods_HasCode(selected) ? "Native code mod: runs game code from this author."
+                                        : "Content mod: assets, cards or data patches.",
                  DIM);
         if (Mods_Status(selected)[0])
             y = wrap(c, 0, y + 16 * unit, w, Mods_Status(selected), Mods_Failed(selected) ? RED : WARN);
