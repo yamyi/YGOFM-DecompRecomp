@@ -81,8 +81,14 @@ typedef enum {
     MENU_ITEM_OPPONENT_NAME, /* View > Opponent's name for COM: drawn by the OpenGL picture pass at
                               * Internal 2x and up (Menu_SetHdPicture), by the software GPU at 1x */
     MENU_ITEM_RESTART, /* Game > Restart game: asks, then goes back as MENU_ITEM_TITLE does */
-    MENU_ITEM_PGXP /* Video > Precise geometry: needs the OpenGL picture pass at Internal 2x and up,
-                    * no software-GPU fallback (Menu_SetHdPicture) */
+    MENU_ITEM_PGXP, /* Video > Precise geometry: needs the OpenGL picture pass at Internal 2x and up,
+                     * no software-GPU fallback (Menu_SetHdPicture) */
+    MENU_ITEM_COLOR, /* Video > Color, and Effects > CRT scanlines and Reduce flashes: the desktop
+                      * presenter's (present_pass.c, Menu_SetPresentPass) */
+    MENU_ITEM_CRT,
+    MENU_ITEM_FLASH,
+    MENU_ITEM_XBR /* Video > Effects > xBR: the desktop presenter's, or the OpenGL picture
+                   * pass's at Internal 2x and up */
 } MenuItemId;
 
 /* The stored settings (settings.txt in the user directory, see paths.h;
@@ -175,6 +181,12 @@ void Menu_SetPlatformItems(int windows, int window_modes, int update_check);
  * it, or at console resolution, the Video menu's HD items could show
  * nothing: they are dimmed with the reason beside them. */
 void Menu_SetHdPicture(int on);
+/* Whether the backend runs the present pass (present_pass.h: the desktop
+ * OpenGL presenter). Without it Video > Color, CRT scanlines, Reduce
+ * flashes and Sharp bilinear would do nothing, and xBR needs the OpenGL
+ * picture pass at Internal 2x: they are dimmed with the reason beside
+ * them. On until the backend says otherwise. */
+void Menu_SetPresentPass(int on);
 
 /* A notice over the middle of the picture, drawn with the menu (also while
  * the bar is hidden in fullscreen): a title, text wrapped to fit (newlines
