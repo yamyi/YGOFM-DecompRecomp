@@ -3891,6 +3891,37 @@ untouched: with a mouse every path is the old one, pixel for pixel.
 - Presents take 20-40 ms at 2280x1080 with the emulator's host GPU
   (`-gpu host`), 40-80 ms with SwiftShader; the game clock keeps time and
   presents drop frames.
+- **Portrait after the file picker (API 35 x86_64 emulator; system side,
+  not fixed):** the picker (DocumentsUI, `SDL_ShowOpenFileDialog`: the
+  first run's disc, and the mod import where it exists) opens in the
+  game's task (`dumpsys activity activities`: both in the same task) and
+  follows the device, so on a device held upright it is portrait, and
+  closing it rotates the display back to landscape in a shell transition
+  (likely played by SystemUI's WindowManagerShell). In one emulator boot
+  that had a SystemUI ANR, two returns left the display in portrait:
+  `dumpsys window` had `DisplayRotation mRotation=1` while the display's
+  configuration stayed `ROTATION_0`, with `USER_LANDSCAPE` as the app's
+  orientation (the game's request is right) and
+  `mTopFullscreenOpaqueWindowState` still naming the closed picker. The
+  game's landscape picture was shown cropped in the portrait display, so
+  the game itself saw no change (in the frozen runs below, SDL only reports
+  a 2280x1080 surface). Home and back to the game recovers it, likely
+  because the launcher's portrait is a real rotation change and the way
+  back to landscape is then delivered; a second landscape request
+  presumably does not, as `mRotation` already holds the landscape
+  rotation. Redrawing the panel steadily (tried on the mod import branch)
+  did not help. Not reproduced otherwise: 25 cancels and a pick of the
+  disc picker, and 47 picks or cancels of the mod import (10 of them after
+  a natural SystemUI ANR), all came back landscape. Freezing SystemUI
+  (`kill -STOP`) across a return only holds the picker on screen in
+  portrait while it is frozen (top window the picker, app orientation
+  unspecified), landscape again within 6 s of `kill -CONT`; the sighting's
+  state (the game in front, `mRotation=1` not applied) was not produced.
+  An app-side recovery would have to ask for portrait and then landscape
+  again when the display's real rotation (the `DisplayManager` display,
+  not the activity's, which follows the activity's own configuration)
+  stays 0 or 180 under a landscape request, focused, for a few seconds;
+  it was not added, as it could not be tested.
 
 ### M4, where it stopped
 
