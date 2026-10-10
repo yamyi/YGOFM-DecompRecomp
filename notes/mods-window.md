@@ -101,25 +101,32 @@ when the mod needs one).
   Replace it with the one in this .zip?" with Replace and Cancel (Back
   cancels too). Replace moves the old folder aside, puts the new one in and
   then deletes the old one. A folder of that name that holds another mod, or
-  no mod, is never replaced: the new mod goes in `<folder>-2` (`-3`, ...). A
+  no mod, is never replaced: the new mod goes in `<folder>-2` (`-3`, ...),
+  a name no other mod of the same `.zip` has either (letter case aside). A
   mod that is (or was) in place this launch is not replaced at all, since
   its data, pictures and code are read from its folder while it runs: "<name>
   is in use, so its files cannot be replaced now. Turn it off, Apply &
   restart, then import it again." A new mod with the `id` of one the release
   ships goes in beside it and replaces it from the next launch, as on a
   desktop ("It is used after a restart.").
-- **Code** (the manifest names a `library` or `libraries`): imported, off.
-  Without `<library>.aarch64.o` (or the `libraries` `"aarch64"` file) the
-  message says "This mod has code built only for PC; ask its author for an
-  Android build. It stays off and changes nothing in the game." With it, the
-  mod still stays off in this build, whose arm64 game links no code mods yet
-  (`MEMORIES_NO_CODE_MODS`): "its code is for Android, but this version of
-  the game cannot run code mods yet."
+- **Code** (the manifest names a `library`, as the loader reads it,
+  `mods.c` `read_manifest`): imported, off. The arm64 game links no code
+  mods (`MEMORIES_NO_CODE_MODS`), so whatever objects the mod ships, the
+  message says "This mod has code, which the game cannot run on Android
+  yet. It stays off and changes nothing in the game." (as the mod's own
+  note in the list does). A game with the loader (the Android x86
+  development build) says nothing more: the mod runs its `library` there.
+  A `mod.json` with only `libraries` (the per-target objects of the 64-bit
+  mod work, `<library>.aarch64.o` among them, which this loader does not
+  read) is a data mod to this loader, and so to the import.
 - **Refused, with nothing written**: a name that would land outside the
   folder (`..`, `.` or empty parts, an absolute path, a drive letter or any
   `:`; backslashes count as slashes), more than 32 folders deep, a link or
   other special file, a password, a compression other than stored and
-  deflate, two entries for one file (ASCII letter case aside), two mods with
+  deflate, two entries for one file (ASCII letter case aside; two names
+  the storage itself takes for one, such as `É.png` and `é.png` on
+  Android's shared storage, are found as the second is written: "Two files
+  in the .zip are one file on this storage..."), two mods with
   one folder or one `id`, names that are not UTF-8, ZIP64 or split
   archives, more than 20,000 entries, more than 512 MB unpacked, a `.zip`
   over 1 GB, a file that is not a `.zip`, or more mods than the game takes
@@ -128,7 +135,10 @@ when the mod needs one).
   names starting with a dot), checking each file's size and CRC; only then
   is each mod renamed into place, and any failure puts back what was moved
   and removes the hidden folder (an old folder that cannot be put back is
-  kept in `mods/.recovered-XXXXXX` and named in the message). What an
+  kept in `mods/.recovered-XXXXXX` and named in the message; a new mod
+  already placed that can be neither moved back nor removed is named too,
+  "...could not be taken out of the mods folder again (delete that
+  folder)"). What an
   import cut short leaves (a crash) is removed when the panel opens again.
 - **Testing**: `MEMORIES_IMPORT_ZIP=<file>` (in `environment.txt`) makes
   Import mod... take that file instead of opening the picker.

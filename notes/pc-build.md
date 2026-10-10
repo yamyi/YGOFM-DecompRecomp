@@ -3589,7 +3589,7 @@ untouched: with a mouse every path is the old one, pixel for pixel.
   system's file picker (SDL's file dialog, as for the disc; any document),
   and the chosen `.zip`'s mods go into `mods/` and into the list, off, with
   no restart ([Mod manager](mods-window.md): the layouts it takes, Replace,
-  code without an arm64 object, what it refuses). `Platform_PickModZip`
+  a code mod staying off, what it refuses). `Platform_PickModZip`
   returns at once and the answer comes on the Java thread; the panel asks
   for it once per pump (`Panel_Tick`, `ModsWindow_Tick`,
   `Platform_PickedModZip`), shows "Importing...", and then the document is
