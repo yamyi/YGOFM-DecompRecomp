@@ -109,16 +109,16 @@ when the mod needs one).
   restart, then import it again." A new mod with the `id` of one the release
   ships goes in beside it and replaces it from the next launch, as on a
   desktop ("It is used after a restart.").
-- **Code** (the manifest names a `library`, as the loader reads it,
-  `mods.c` `read_manifest`): imported, off. The arm64 game links no code
-  mods (`MEMORIES_NO_CODE_MODS`), so whatever objects the mod ships, the
-  message says "This mod has code, which the game cannot run on Android
-  yet. It stays off and changes nothing in the game." (as the mod's own
-  note in the list does). A game with the loader (the Android x86
-  development build) says nothing more: the mod runs its `library` there.
-  A `mod.json` with only `libraries` (the per-target objects of the 64-bit
-  mod work, `<library>.aarch64.o` among them, which this loader does not
-  read) is a data mod to this loader, and so to the import.
+- **Code** (the manifest names a `library`, or a `libraries` object with
+  any entry, as the loader reads it: `Manifest_HasCode`, which `mods.c`
+  `read_manifest` and the import share): imported, off. A game with the
+  loader (every build target since Mod SDK M2, the arm64 game among them)
+  says nothing more: whether the mod has an object for it is found at
+  Apply, and said beside the mod (`mods.c`). A game built without the
+  loader (`MEMORIES_NO_CODE_MODS`, which no build target sets now; the
+  `pc_mods_window_no_code` test builds one) says, whatever objects the mod
+  ships, "This mod has code, which the game cannot run in this build yet.
+  It stays off and changes nothing in the game." ("on Android" there).
 - **Refused, with nothing written**: a name that would land outside the
   folder (`..`, `.` or empty parts, an absolute path, a drive letter or any
   `:`; backslashes count as slashes), more than 32 folders deep, a link or

@@ -996,9 +996,10 @@ static int import_names(ModsImport *import, int (*pick)(const ModsImportMod *), 
 }
 static int any_mod(const ModsImportMod *mod) { return mod != NULL; }
 /* Code this game cannot run: every code mod in a game built without the
- * code mod loader (MEMORIES_NO_CODE_MODS: the arm64 Android game, where
- * mods.c leaves such a mod off). A game with the loader (the Android x86
- * development build, a desktop) runs the mod's "library" as it is. */
+ * code mod loader (MEMORIES_NO_CODE_MODS, where mods.c leaves such a mod
+ * off; no build target sets it since the arm64 game loads code mods). A
+ * game with the loader finds out at Apply whether the mod has an object
+ * for it, and says so beside the mod (mods.c). */
 #ifdef __ANDROID__
 #define HERE "on Android" /* where code_off's mods cannot run */
 #else

@@ -36,7 +36,7 @@ typedef struct {
     char id[64];        /* the manifest's id, else the folder's name */
     char name[128];     /* the manifest's name, else the id */
     char prefix[512];   /* its folder inside the .zip, with a slash ("" for the root) */
-    int code;           /* it has code: "library", as the loader reads it (mods.c) */
+    int code;           /* it has code: "library" or "libraries", as the loader reads it (mods.c) */
     char replace[1024]; /* set by the caller: the folder it replaces, or "" */
 } ModsImportMod;
 

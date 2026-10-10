@@ -676,8 +676,8 @@ if(BUILD_TESTING)
         target_compile_options(memories_mods_window_test PRIVATE -Wall -Wextra -Wpedantic -Werror)
     endif()
     add_test(NAME pc_mods_window COMMAND memories_mods_window_test)
-    # The same with no code mod loader (the arm64 Android game): what an
-    # import says about a code mod there.
+    # The same with no code mod loader (MEMORIES_NO_CODE_MODS, which no game
+    # build sets now): what an import says about a code mod there.
     add_executable(memories_mods_window_no_code_test tests/pc/mods_window_test.c src/pc/platform/mods_window.c
         src/pc/mods/import.c ${MOD_TEST_SOURCES})
     target_compile_definitions(memories_mods_window_no_code_test PRIVATE MEMORIES_NO_CODE_MODS)
@@ -749,7 +749,7 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME pc_texture_pack COMMAND memories_texture_pack_test)
     # A mod's .zip into the mods folder (src/pc/mods/import.c, the Android
-    # Mods panel's Import): layouts, the arm64 object check, Replace, and the
+    # Mods panel's Import): layouts, what counts as code, Replace, and the
     # .zip files refused before anything is written.
     add_executable(memories_mod_import_test tests/pc/mod_import_test.c src/pc/mods/import.c src/pc/mods/json.c
         src/pc/platform/paths.c)

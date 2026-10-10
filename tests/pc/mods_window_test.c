@@ -141,8 +141,8 @@ static void test_import(void)
                                                       "\"armmod\"}", 0, 0, 0, 0, 0, 0},
                                   {"armmod/armmod.o", "ELF", 0, 0, 0, 0, 0, 0},
                                   {"armmod/armmod.aarch64.o", "ELF", 0, 0, 0, 0, 0, 0}};
-    static const ZipItem data[] = {{"datamod/mod.json", "{\"id\": \"datamod\", \"name\": \"Data mod\", "
-                                                        "\"libraries\": {\"aarch64\": \"d.o\"}}", 0, 0, 0, 0, 0, 0}};
+    static const ZipItem perm[] = {{"permod/mod.json", "{\"id\": \"permod\", \"name\": \"Per-target mod\", "
+                                                       "\"libraries\": {\"aarch64\": \"d.o\"}}", 0, 0, 0, 0, 0, 0}};
     static const ZipItem two[] = {{"m1/mod.json", "{\"name\": \"First\"}", 0, 0, 0, 0, 0, 0},
                                   {"m2/mod.json", "{\"name\": \"Second\"}", 0, 0, 0, 0, 0, 0}};
     static const ZipItem none[] = {{"readme.txt", "no mod here", 0, 0, 0, 0, 0, 0}};
@@ -174,9 +174,9 @@ static void test_import(void)
     draw(1600, 900);
     assert(strstr(drawn, "Replaced New mod.") && Mods_Count() == count + 1);
     /* Code: imported, off; where the game has no code mod loader
-     * (MEMORIES_NO_CODE_MODS, the arm64 Android game) said so whatever
+     * (MEMORIES_NO_CODE_MODS, which no game build sets now) said so whatever
      * objects it has, an arm64 one or not; with the loader, nothing to say.
-     * "libraries" is no code to this loader: a data mod. */
+     * "libraries" alone is code too, as the loader reads it. */
     said = import_zip(pc, 2);
 #ifdef MEMORIES_NO_CODE_MODS
     assert(strstr(said, "Imported PC mod. This mod has code, which the game cannot run in this build yet. "
@@ -191,8 +191,13 @@ static void test_import(void)
 #else
     assert(strstr(said, "Imported Arm mod.") && !strstr(said, "cannot run"));
 #endif
-    said = import_zip(data, 1);
-    assert(strstr(said, "Imported Data mod.") && !strstr(said, "cannot run"));
+    said = import_zip(perm, 1);
+#ifdef MEMORIES_NO_CODE_MODS
+    assert(strstr(said, "Imported Per-target mod. This mod has code, which the game cannot run in this build yet."));
+#else
+    assert(strstr(said, "Imported Per-target mod.") && !strstr(said, "cannot run"));
+#endif
+    assert(!Mods_Enabled(find("permod")));
     /* Several at once; none at all; a name that leaves the folder. */
     said = import_zip(two, 2);
     assert(strstr(said, "Imported 2 mods: First and Second.") && find("m1") >= 0 && find("m2") >= 0);

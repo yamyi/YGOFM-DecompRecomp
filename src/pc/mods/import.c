@@ -8,6 +8,7 @@
 #include "pc/compat/fs.h"
 #include "import.h"
 #include "json.h"
+#include "manifest_code.h"
 #include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -300,16 +301,15 @@ static int folder_valid(const char *s)
 
 /* What the mod in `prefix` is called and whether it carries code, from its
  * mod.json, as the loader reads them (mods.c read_manifest): the id from the
- * manifest, else the folder; code when "library" names an object. That is
- * the loader's only code key: a mod.json with just "libraries" (the
- * per-target objects of the 64-bit mod work, not in this loader) loads as
- * a data mod, so it is one here too. */
+ * manifest, else the folder; code by the loader's own test
+ * (Manifest_HasCode): a "library", or "libraries" with any entry, whether
+ * or not the .zip has an object for this game. */
 static int describe(ModsImport *import, ModsImportMod *mod, const Entry *manifest, char *why, size_t why_size)
 {
     unsigned char *text = NULL;
     JsonDocument *document = NULL;
     const JsonValue *root = NULL;
-    const char *id = NULL, *name, *library, *slash;
+    const char *id = NULL, *name, *slash;
     char folder[NAME_MAX_], error[128];
     size_t plen = strlen(mod->prefix);
     if (manifest->size <= MANIFEST_MAX && (text = malloc(manifest->size + 1))) {
@@ -349,8 +349,7 @@ static int describe(ModsImport *import, ModsImportMod *mod, const Entry *manifes
         copy(mod->id, sizeof(mod->id), mod->folder);
     name = Json_String(Json_Member(root, "name"), NULL);
     copy(mod->name, sizeof(mod->name), name && *name ? name : mod->id);
-    library = Json_String(Json_Member(root, "library"), NULL);
-    mod->code = library && *library;
+    mod->code = Manifest_HasCode(root);
     Json_Free(document);
     return 1;
 }

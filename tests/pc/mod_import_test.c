@@ -1,6 +1,6 @@
 /* The mod .zip import (src/pc/mods/import.h): .zip files written here, entry
  * by entry, then opened and installed into a scratch mods folder. Checks
- * the layouts a mod comes in, the arm64 object check, Replace, and that a
+ * the layouts a mod comes in, what counts as code, Replace, and that a
  * bad .zip (names leaving the folder, links, damage) writes nothing. */
 #define _POSIX_C_SOURCE 200809L
 #include "pc/compat/fs.h"
@@ -204,8 +204,9 @@ int main(void)
         CHECK(strstr(why, "no mod") != NULL);
         CHECK(!strcmp(listing("mods"), ""));
     }
-    /* Code: as the loader reads it (mods.c), a "library" and nothing else;
-     * what objects the .zip has beside it does not change that. */
+    /* Code: as the loader reads it (mods.c), a "library" or a "libraries"
+     * object with any entry, even one without this game's target; what
+     * objects the .zip has beside it does not change that. */
     reset();
     {
         static const struct {
@@ -216,8 +217,9 @@ int main(void)
             {"{\"id\": \"cm\", \"library\": \"cm\"}", "c/cm.aarch64.o", 1},
             {"{\"id\": \"cm\", \"library\": \"cm.o\"}", "c/cm.aarch64.o", 1},
             {"{\"id\": \"cm\", \"library\": \"\"}", "c/cm.o", 0},
-            {"{\"id\": \"cm\", \"libraries\": {\"aarch64\": \"arm/x.o\"}}", "c/arm/x.o", 0},
-            {"{\"id\": \"cm\", \"libraries\": {\"x86_64-windows\": \"w.o\"}}", "c/cm.aarch64.o", 0},
+            {"{\"id\": \"cm\", \"libraries\": {\"aarch64\": \"arm/x.o\"}}", "c/arm/x.o", 1},
+            {"{\"id\": \"cm\", \"libraries\": {\"x86_64-windows\": \"w.o\"}}", "c/cm.aarch64.o", 1},
+            {"{\"id\": \"cm\", \"libraries\": {}}", "c/cm.o", 0},
             {"{\"id\": \"cm\"}", "c/cm.o", 0},
         };
         for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {

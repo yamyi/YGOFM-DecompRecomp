@@ -29,6 +29,7 @@
 #include "exports.h"
 #include "object_loader.h"
 #include "json.h"
+#include "manifest_code.h"
 #include "events.h"
 #include "hooks.h"
 #include "pc/platform/paths.h"
@@ -1295,15 +1296,6 @@ static void check_keys(Mod *mod, const JsonValue *root)
     }
 }
 
-/* A code mod: a "library", or a "libraries" object with any entry (one
- * without this game's target still looks for <id>.<target>.o). */
-static int has_code(const JsonValue *root)
-{
-    const char *library = Json_String(Json_Member(root, "library"), NULL);
-    const JsonValue *libraries = Json_Member(root, "libraries");
-    return (library && *library) || (Json_TypeOf(libraries) == JSON_OBJECT && Json_Count(libraries));
-}
-
 /* mod.json, read into the record. Returns 0 when it is not a mod at all. */
 static int read_manifest(Mod *mod, const char *directory, const char *origin)
 {
@@ -1347,7 +1339,7 @@ static int read_manifest(Mod *mod, const char *directory, const char *origin)
         const char *named = Json_String(Json_Member(libraries, OBJECT_LOADER_TARGET), NULL);
         text = Json_String(Json_Member(root, "library"), NULL);
         if (named && *named) text = named;
-        else if ((!text || !*text) && has_code(root)) text = mod->id;
+        else if ((!text || !*text) && Manifest_HasCode(root)) text = mod->id;
         if (text && *text) {
             if (!Paths_Contained(text)) {
                 mod->broken = 1;
@@ -2121,7 +2113,7 @@ const char *Mods_Directory(int index) { return at(index) ? mods[index].directory
 const char *Mods_Origin(int index) { return at(index) ? mods[index].origin : ""; }
 int Mods_Active(int index) { return at(index) && mods[index].active; }
 int Mods_Failed(int index) { return at(index) && (mods[index].broken || mods[index].failed); }
-int Mods_HasCode(int index) { return at(index) && has_code(Mods_Manifest(index)); }
+int Mods_HasCode(int index) { return at(index) && Manifest_HasCode(Mods_Manifest(index)); }
 
 unsigned Mods_CodeHash(int index) { return at(index) ? mods[index].code_hash : 0; }
 
