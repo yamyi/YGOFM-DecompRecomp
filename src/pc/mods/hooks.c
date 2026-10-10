@@ -135,8 +135,11 @@ static int find_text(struct dl_phdr_info *info, size_t size, void *data)
 
 static int anonymize_text(void *inside)
 {
+    static int tried;   /* once: a copy that failed fails again, and each would cost the text's size */
     void *copy, *moved;
     size_t length;
+    if (tried) return 0;
+    tried = 1;
     dl_iterate_phdr(find_text, inside);
     if (!text_end) return 0;
     length = text_end - text_start;
@@ -149,7 +152,11 @@ static int anonymize_text(void *inside)
     }
     __builtin___clear_cache((char *)copy, (char *)copy + length);
     moved = mremap(copy, length, length, MREMAP_MAYMOVE | MREMAP_FIXED, (void *)text_start);
-    return moved == (void *)text_start;
+    if (moved != (void *)text_start) {
+        munmap(copy, length);
+        return 0;
+    }
+    return 1;
 }
 
 static void flush(unsigned char *from, size_t size) { __builtin___clear_cache((char *)from, (char *)from + size); }
@@ -186,7 +193,10 @@ static int writable(unsigned char *from, size_t size, int on)
     if (!(on && refuse_in_place()) && !protect(from, size, on)) {
         if (on && !hook_path) {
             hook_path = 1;
+#if defined(A64_PATCH)
+            /* The arm64 game's two ways (above); the others have one. */
             fprintf(stderr, "memories-pc: hooks: the game's code is patched in place\n");
+#endif
         }
         return 1;
     }

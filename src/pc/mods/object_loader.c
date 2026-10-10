@@ -953,9 +953,10 @@ static unsigned char *map_at(uintptr_t at, size_t size)
 }
 
 /* The image's memory: the first free place in the game's range, in 64 KiB
- * steps (Windows' allocation granularity). Without the range (the tests),
- * the first free place after this code, which its calls into the host
- * reach. */
+ * steps (Windows' allocation granularity). A game that could not hold its
+ * range loads no code mod: anywhere else a mod's function might not fit a
+ * 4-byte slot. Without a game (the tests), the first free place after this
+ * code, which its calls into the host reach. */
 static unsigned char *map_image(size_t size)
 {
     uintptr_t start, end, at;
@@ -978,6 +979,7 @@ static unsigned char *map_image(size_t size)
         }
         return NULL;
     }
+    if (Memories_ModCodeRange) return NULL;
     start = ((uintptr_t)map_image + 0xffffu) & ~(uintptr_t)0xffffu;
     for (at = start; at - start < (1u << 30); at += 0x10000u) {
         unsigned char *image = map_at(at, size);
