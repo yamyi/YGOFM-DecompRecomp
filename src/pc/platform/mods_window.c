@@ -12,12 +12,15 @@
  * scrollbar is held at once instead (ModsWindow_Grabs). */
 #include "mods_window.h"
 #include "../../types.h"
+#include "pc/mods/hd_pack.h"
 #include "pc/mods/import.h"
 #include "pc/mods/json.h"
 #include "pc/mods/mods.h"
 #include "pc/mods/overlap.h"
+#include "paths.h"
 #include "platform.h"
 #include "settings.h"
+#include "update.h"
 #include <ctype.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -40,7 +43,7 @@ typedef struct {
 } Rect;
 typedef struct {
     Rect search, filter, list, list_bar, detail, toggle, tabs[3], view, bar, apply, close, profile, save, load,
-        order[2], defaults, folder, back;
+        order[2], defaults, folder, back, hd;
     int name_y, meta_y; /* the middles of the details' name and metadata lines */
     int lift;           /* with a finger: how far a long message raises the footer's top */
 } Layout;
@@ -60,6 +63,11 @@ static int (*import_pick)(char *, size_t), (*import_picked)(char *, size_t),
 static int import_step;
 static char import_zip[1024];
 static ModsImport *import_waiting;
+/* HD pack... (hd_pack.h, where the platform has a network for it): what
+ * the window did with the job (0 nothing, 1 asked GitHub, 2 asks the
+ * player (pending 4), 3 downloads, 4 unpacks), and the share of the step
+ * last shown, in thousandths (a new one draws the window again). */
+static int hd_step, hd_shown = -1, hd_clearing;
 static char query[96], profile[65] = "Default", status[512];
 static const char *filters[] = {"All mods", "Enabled", "Disabled", "Issues"};
 static const char *pad_names[] = {"Select", "L3", "R3", "Start", "Up",       "Right",  "Down",  "Left",
@@ -133,6 +141,15 @@ static void layout_touch(Layout *l)
         x = width - p - 2 * save_w - g;
         l->save = rect(x, p, save_w, t);
         l->load = rect(x + save_w + g, p, save_w, t);
+        /* HD pack..., where the platform can download it: left of Save,
+         * the footer being Import's and the message's (its progress and
+         * its errors take two lines on a phone). The search field (on a
+         * phone) or the profile field gives it the room. */
+        if (HdPack_Available()) {
+            int w = max(width_text("HD pack...") + 24 * unit, width_text("Stop") + 24 * unit);
+            l->hd = rect(x - g - w, p, w, t);
+            x = l->hd.x;
+        }
         if (compact) { /* across the whole width: search, filter, profile, Save, Load */
             l->profile = rect(x - g - 120 * unit, p, 120 * unit, t);
             l->filter = rect(l->profile.x - g - fw, p, fw, t);
@@ -213,6 +230,7 @@ static void layout(Layout *l)
     l->close = rect(width - p - 252 * unit, height - 48 * unit, 94 * unit, 30 * unit);
     l->folder = rect(width - p - 418 * unit, height - 48 * unit, 158 * unit, 30 * unit);
     l->back = rect(0, 0, 0, 0);
+    l->hd = none(); /* a phone's panel only (layout_touch) */
     l->name_y = l->detail.y + 24 * unit;
     l->meta_y = l->detail.y + 57 * unit;
 }
@@ -324,6 +342,11 @@ void ModsWindow_Init(void)
         import_waiting = NULL;
         Mods_ImportRemoveTree(import_zip);
     }
+    if (hd_step == 2) { /* the HD pack's Download question, left open */
+        HdPack_Reset();
+        hd_step = 0;
+    }
+    hd_shown = -1;
 }
 void ModsWindow_Resize(int w, int h)
 {
@@ -705,6 +728,8 @@ static void draw_fields(MenuCanvas *c, const Layout *l)
     text(c, l->profile.x + 10 * unit, l->profile.y + l->profile.h / 2, l->profile.w - 20 * unit, profile, TEXT);
     button(c, l->save, "Save", 0);
     button(c, l->load, "Load", 0);
+    if (l->hd.w)
+        button(c, l->hd, hd_step && hd_step != 2 && HdPack_Busy() ? "Stop" : "HD pack...", hd_step != 0);
 }
 static void draw_list(MenuCanvas *c, const Layout *l)
 {
@@ -787,7 +812,7 @@ static void draw_details(MenuCanvas *c, const Layout *l)
 }
 static const char *apply_label(void)
 {
-    return pending == 3 ? "Replace" : pending == 2 ? "Discard changes" : pending == 1 ? "Apply & restart" : "Apply changes";
+    return pending == 4 ? "Download" : pending == 3 ? "Replace" : pending == 2 ? "Discard changes" : pending == 1 ? "Apply & restart" : "Apply changes";
 }
 /* With a finger: the fields and the list, the details (side by side or the
  * page shown), and the footer: the message (or the counts) beside Close and
@@ -966,9 +991,14 @@ void ModsWindow_SetImport(int (*pick)(char *, size_t), int (*picked)(char *, siz
     import_pick = pick;
     import_picked = picked;
     import_fetch = fetch;
-    /* what an import cut short (the app ended in it) left in the mods folder */
-    if (pick && !import_step && !import_waiting && !Mods_InstallDirectory(folder, sizeof(folder)))
+    /* what an import cut short (the app ended in it) left in the mods
+     * folder; never while the HD pack's job has files there */
+    if (pick && !import_step && !import_waiting && HdPack_State() == HD_IDLE &&
+        !Mods_InstallDirectory(folder, sizeof(folder))) {
         Mods_ImportCleanup(folder);
+        if (HdPack_Available() && !Paths_User(folder, sizeof(folder), "downloads"))
+            HdPack_Cleanup(folder);
+    }
 }
 static void import_done(void)
 {
@@ -1018,10 +1048,56 @@ static int replacing(const ModsImportMod *mod) { return mod->replace[0] != 0; }
 /* Every mod of the waiting import into the mods folder, then into the
  * list (Mods_Discover), off: the first of them selected, and a word on
  * what came, what waits for a restart and what cannot run here. */
+/* Every mod of `import`, in the mods folder `folder` now, into the list
+ * (Mods_Discover), off: the first one's index (else -1), whether one waits
+ * for a restart (*later) and how many could not be added (*lost). */
+static int import_discover(ModsImport *import, const char *folder, int *later, int *lost)
+{
+    int first = -1, old_count = Mods_Count();
+    *later = *lost = 0;
+    for (int i = 0; i < Mods_ImportCount(import); i++) {
+        const ModsImportMod *mod = Mods_ImportMod(import, i);
+        char path[1200];
+        int waits = 0, index;
+        put(path, sizeof(path), "%s/%s", folder, mod->folder);
+        index = Mods_Discover(path, &waits);
+        if (index < 0) {
+            (*lost)++;
+            continue;
+        }
+        /* Code that cannot run here: it stays off. */
+        if (code_off(mod) && Mods_Enabled(index))
+            Mods_SetEnabled(index, 0);
+        *later |= waits;
+        if (index >= old_count || !waits)
+            adopt(index);
+        wanted[index] = Mods_Enabled(index); /* nothing staged for it stays */
+        if (first < 0)
+            first = index;
+    }
+    if (Settings_Save() < 0)
+        fprintf(stderr, "memories-pc: the settings could not be saved after an import\n");
+    return first;
+}
+/* Mod `first` shown, selected and in view (the filter and search cleared). */
+static void import_show(int first)
+{
+    int at = 0;
+    if (first < 0)
+        return;
+    filter = 0;
+    query[0] = 0;
+    selected = first;
+    detail_scroll = 0;
+    for (int i = 0; i < first; i++)
+        at += visible(i);
+    if (at < scroll || at >= scroll + rows())
+        scroll = max(0, min(at, shown_count() - rows()));
+}
 static void import_install(void)
 {
     char why[400], folder[1024], names[300], line[512];
-    int first = -1, later = 0, old_count = Mods_Count(), n, several, lost = 0;
+    int first, later, n, several, lost;
     if (Mods_InstallDirectory(folder, sizeof(folder))) {
         put(status, sizeof(status), "Could not make the mods folder.");
         import_done();
@@ -1032,28 +1108,7 @@ static void import_install(void)
         import_done();
         return;
     }
-    for (int i = 0; i < Mods_ImportCount(import_waiting); i++) {
-        const ModsImportMod *mod = Mods_ImportMod(import_waiting, i);
-        char path[1200];
-        int waits = 0, index;
-        put(path, sizeof(path), "%s/%s", folder, mod->folder);
-        index = Mods_Discover(path, &waits);
-        if (index < 0) {
-            lost++;
-            continue;
-        }
-        /* Code that cannot run here: it stays off. */
-        if (code_off(mod) && Mods_Enabled(index))
-            Mods_SetEnabled(index, 0);
-        later |= waits;
-        if (index >= old_count || !waits)
-            adopt(index);
-        wanted[index] = Mods_Enabled(index); /* nothing staged for it stays */
-        if (first < 0)
-            first = index;
-    }
-    if (Settings_Save() < 0)
-        fprintf(stderr, "memories-pc: the settings could not be saved after an import\n");
+    first = import_discover(import_waiting, folder, &later, &lost);
     n = import_names(import_waiting, any_mod, names, sizeof(names));
     if (n == 1 && replacing(Mods_ImportMod(import_waiting, 0)))
         put(line, sizeof(line), "Replaced %s.", names);
@@ -1082,17 +1137,7 @@ static void import_install(void)
         put(status, sizeof(status), "%s", line);
     fprintf(stderr, "memories-pc: import: %s\n", status);
     import_done();
-    if (first >= 0) { /* shown, selected and in view */
-        int at = 0;
-        filter = 0;
-        query[0] = 0;
-        selected = first;
-        detail_scroll = 0;
-        for (int i = 0; i < first; i++)
-            at += visible(i);
-        if (at < scroll || at >= scroll + rows())
-            scroll = max(0, min(at, shown_count() - rows()));
-    }
+    import_show(first);
 }
 /* Another mod of `import` than mod `index` has the folder `name` (its own,
  * or the free one it was given), letter case aside: one folder on a
@@ -1223,10 +1268,226 @@ static void import_start(void)
     import_step = 1;
     put(status, sizeof(status), "Choose a mod's .zip.");
 }
+/* --- HD pack... (hd_pack.h) -------------------------------------------- */
+
+/* The installed HD pack's index (an installed mod with its id), else -1. */
+static int hd_installed(void)
+{
+    for (int j = 0; j < Mods_Count(); j++)
+        if (!strcmp(Mods_Id(j), HD_PACK_ID))
+            return j;
+    return -1;
+}
+static void hd_end(void)
+{
+    HdPack_Reset();
+    hd_step = 0;
+    hd_shown = -1;
+}
+/* Decimal megabytes, as Android's storage settings count them. */
+static unsigned long megabytes(unsigned long long bytes) { return (unsigned long)((bytes + 500000) / 1000000); }
+/* GitHub named the latest release: already there, newer there, in use, no
+ * room, or the question (pending 4) with its size and the room it needs. */
+static void hd_found(void)
+{
+    const HdRelease *release = HdPack_Release();
+    char tag[64];
+    int j = hd_installed(), known = j >= 0 && HdPack_InstalledTag(Mods_Directory(j), tag, sizeof(tag));
+    unsigned long long need = HdPack_SpaceNeeded(release);
+    long long room = HdPack_FreeBytes(Paths_UserDir()); /* the downloads folder's and the mods folder's */
+    UpdateVersion have, latest;
+    if (known && !strcmp(tag, release->tag)) {
+        put(status, sizeof(status), "The HD pack is already installed (%s).", tag);
+        hd_end();
+        return;
+    }
+    if (known && Update_ParseVersion(tag, &have) && Update_ParseVersion(release->tag, &latest) &&
+        Update_CompareVersions(&have, &latest) > 0) {
+        put(status, sizeof(status), "The installed HD pack (%s) is newer than the latest release (%s).", tag,
+            release->tag);
+        hd_end();
+        return;
+    }
+    if (j >= 0 && Mods_InUse(j)) {
+        put(status, sizeof(status), "The HD pack is in use, so it cannot be replaced now. Turn it off, Apply & "
+            "restart, then tap HD pack... again.");
+        hd_end();
+        return;
+    }
+    if (j < 0 && Mods_Count() >= MODS_MAX) {
+        put(status, sizeof(status), "The game takes at most %d mods: remove one to add the HD pack.", MODS_MAX);
+        hd_end();
+        return;
+    }
+    if (room >= 0 && (unsigned long long)room < need) {
+        put(status, sizeof(status), "Not enough free space for the HD pack: it needs about %lu MB, and %lu MB are "
+            "free.", megabytes(need), megabytes((unsigned long long)room));
+        hd_end();
+        return;
+    }
+    if (j < 0)
+        put(status, sizeof(status), "Download the HD pack (%s)? %lu MB; Wi-Fi recommended. Needs ~%lu MB free.",
+            release->tag, megabytes(release->size), megabytes(need));
+    else if (known)
+        put(status, sizeof(status), "Update the HD pack from %s to %s? %lu MB; Wi-Fi recommended. Needs ~%lu MB "
+            "free.", tag, release->tag, megabytes(release->size), megabytes(need));
+    else
+        put(status, sizeof(status), "Download the HD pack (%s) over the installed one? %lu MB; Wi-Fi recommended. "
+            "Needs ~%lu MB free.", release->tag, megabytes(release->size), megabytes(need));
+    pending = 4;
+    hd_step = 2;
+}
+/* Download, to the question. */
+static void hd_confirm(void)
+{
+    char folder[1024];
+    pending = 0;
+    if (Paths_User(folder, sizeof(folder), "downloads") || Paths_MakeDirs(folder)) {
+        put(status, sizeof(status), "Could not make the app's downloads folder.");
+        hd_end();
+        return;
+    }
+    if (!HdPack_Download(folder)) {
+        put(status, sizeof(status), "%s", *HdPack_Why() ? HdPack_Why() : "Could not start the download.");
+        hd_end();
+        return;
+    }
+    hd_step = 3;
+    hd_shown = -1;
+    put(status, sizeof(status), "Downloading the HD pack (%s)...", HdPack_Release()->tag);
+}
+/* The .zip is checked: where it goes (a copy there is replaced, as Import
+ * replaces the same mod), then its unpacking on the job's thread. */
+static void hd_downloaded(void)
+{
+    char folder[1024];
+    ModsImport *import = HdPack_Import();
+    if (Mods_InstallDirectory(folder, sizeof(folder))) {
+        put(status, sizeof(status), "Could not make the mods folder.");
+        hd_end();
+        return;
+    }
+    if (import_target(import, 0, folder)) { /* the reason is in `status` */
+        hd_end();
+        return;
+    }
+    if (!HdPack_Install(folder)) {
+        put(status, sizeof(status), "%s", *HdPack_Why() ? HdPack_Why() : "Could not start unpacking the HD pack.");
+        hd_end();
+        return;
+    }
+    hd_step = 4;
+    hd_shown = -1;
+}
+/* In the mods folder: into the list (off, as an import), selected. */
+static void hd_done(void)
+{
+    char folder[1024];
+    const ModsImportMod *mod = Mods_ImportMod(HdPack_Import(), 0);
+    int replaced = mod->replace[0] != 0, first = -1, later = 0, lost = 0;
+    if (!Mods_InstallDirectory(folder, sizeof(folder)))
+        first = import_discover(HdPack_Import(), folder, &later, &lost);
+    if (first < 0)
+        put(status, sizeof(status), "The HD pack (%s) is in the mods folder, but could not be added to the list. "
+            "Restart the game to see it.", HdPack_Release()->tag);
+    else
+        put(status, sizeof(status), "HD pack %s (%s). %s", replaced ? "updated" : "installed", HdPack_Release()->tag,
+            later ? "It is used after a restart." : Mods_Enabled(first) ? "Apply to use it."
+                                                                         : "Tick it and apply to use it.");
+    fprintf(stderr, "memories-pc: HD pack: %s\n", status);
+    hd_end();
+    import_show(first);
+}
+/* The step's share in the message; 1 when it changed (draw again). */
+static int hd_progress(const char *what)
+{
+    unsigned long done = HdPack_Done(), total = HdPack_Total();
+    int shown = total ? (int)((unsigned long long)done * 100 / total) : 0, waiting = HdPack_Waiting();
+    if (shown * 3 + waiting == hd_shown)
+        return 0;
+    hd_shown = shown * 3 + waiting;
+    if (waiting) /* the download manager waits for a connection (or retries), or for Wi-Fi */
+        put(status, sizeof(status), "Waiting for %s to go on with the HD pack (%s): %d%% of %lu MB.",
+            waiting == 2 ? "Wi-Fi" : "the network", HdPack_Release()->tag, shown, megabytes(total));
+    else
+        put(status, sizeof(status), "%s the HD pack (%s): %d%% of %lu MB.", what, HdPack_Release()->tag, shown,
+            megabytes(total));
+    return 1;
+}
+/* Once per tick while the window has a job: its next step. */
+static int hd_tick(void)
+{
+    int state = HdPack_State();
+    /* The window's own question (Discard your changes?) keeps the message
+     * line and the buttons until it is answered; the job waits. */
+    if (pending && pending != 4)
+        return 0;
+    if (state == HD_FAILED) {
+        if (HdPack_Cancelled())
+            put(status, sizeof(status), "The HD pack's download was stopped. Nothing was installed.");
+        else
+            put(status, sizeof(status), "%s", HdPack_Why());
+        fprintf(stderr, "memories-pc: HD pack: %s\n", status);
+        hd_end();
+        return 1;
+    }
+    if (hd_step == 1 && state == HD_FOUND) {
+        hd_found();
+        return 1;
+    }
+    if (hd_step == 3 && state == HD_DOWNLOADING)
+        return hd_progress("Downloading");
+    if (hd_step == 3 && state == HD_DOWNLOADED) {
+        hd_downloaded();
+        return 1;
+    }
+    if (hd_step == 4 && state == HD_INSTALLING)
+        return hd_progress("Unpacking");
+    if (hd_step == 4 && state == HD_INSTALLED) {
+        hd_done();
+        return 1;
+    }
+    return 0;
+}
+/* HD pack...: ask GitHub (the network's first use), or Stop. */
+static void hd_tap(void)
+{
+    if (!hd_step && HdPack_State() == HD_CLEANING) { /* what a cut-short job left, being removed */
+        put(status, sizeof(status), "Clearing an earlier download; tap HD pack... again in a moment.");
+        hd_clearing = 1;
+        return;
+    }
+    if (HdPack_Busy()) {
+        HdPack_Cancel();
+        put(status, sizeof(status), "Stopping...");
+        return;
+    }
+    if (hd_step)
+        return;
+    if (import_step || import_waiting) {
+        put(status, sizeof(status), "Wait for the import to finish first.");
+        return;
+    }
+    if (!HdPack_Lookup()) {
+        put(status, sizeof(status), "%s", *HdPack_Why() ? HdPack_Why() : "Could not start the download.");
+        hd_end();
+        return;
+    }
+    hd_step = 1;
+    put(status, sizeof(status), "Asking GitHub for the latest HD pack...");
+}
 int ModsWindow_Tick(void)
 {
     char why[400];
     int result;
+    if (hd_step)
+        return hd_tick();
+    if (hd_clearing && HdPack_State() != HD_CLEANING) { /* that message's moment is over */
+        hd_clearing = 0;
+        if (!pending)
+            put(status, sizeof(status), "Ready: tap HD pack... again.");
+        return 1;
+    }
     if (import_step == 2) { /* "Importing..." was drawn: now the work */
         import_step = 0;
         import_read();
@@ -1252,7 +1513,12 @@ static void cancel_pending(void)
 {
     if (pending == 3)
         import_done();
+    if (pending == 4) {
+        HdPack_Reset();
+        hd_step = 0;
+    }
     pending = 0;
+    hd_shown = -1; /* a job's share is said again */
     status[0] = 0;
 }
 
@@ -1400,6 +1666,7 @@ int ModsWindow_Locate(int id, int *x, int *y)
     case MODS_UI_CLOSE: r = l.close; break;
     case MODS_UI_APPLY: r = l.apply; break;
     case MODS_UI_FOLDER: r = l.folder; break;
+    case MODS_UI_HD: r = l.hd; break;
     case MODS_UI_TAB: case MODS_UI_TAB + 1: case MODS_UI_TAB + 2: r = selected >= 0 ? l.tabs[id - MODS_UI_TAB] : none(); break;
     case MODS_UI_ORDER: case MODS_UI_ORDER + 1: r = selected >= 0 ? l.order[id - MODS_UI_ORDER] : none(); break;
     case MODS_UI_ROW_SELECTED: case MODS_UI_ROW_FIRST: case MODS_UI_CHECK_SELECTED: case MODS_UI_CHECK_FIRST:
@@ -1475,7 +1742,7 @@ int ModsWindow_Redraws(const MenuEvent *e)
 }
 int ModsWindow_RequestClose(void)
 {
-    if (pending == 3)
+    if (pending == 3 || pending == 4)
         cancel_pending();
     focus = 0;
     slider_drag = -1;
@@ -1547,7 +1814,9 @@ int ModsWindow_Event(const MenuEvent *e)
                 if (pending == 3) {
                     pending = 0;
                     import_install();
-                } else
+                } else if (pending == 4)
+                    hd_confirm();
+                else
                     apply();
             }
             return 0;
@@ -1585,10 +1854,19 @@ int ModsWindow_Event(const MenuEvent *e)
             if (pending == 3) {
                 pending = 0;
                 import_install();
-            } else
+            } else if (pending == 4)
+                hd_confirm();
+            else if (hd_step)
+                put(status, sizeof(status), "Wait for the HD pack to finish, or stop it, before applying changes.");
+            else
                 apply();
+        } else if (!pending && l.hd.w && inside(l.hd, e->x, e->y)) {
+            hd_tap();
         } else if (!pending && touch && import_pick && inside(l.folder, e->x, e->y)) {
-            import_start();
+            if (hd_step)
+                put(status, sizeof(status), "Wait for the HD pack to finish, or stop it, before importing.");
+            else
+                import_start();
         } else if (!pending && inside(l.folder, e->x, e->y)) {
             char path[1024];
             if (Mods_InstallDirectory(path, sizeof(path)))
