@@ -305,8 +305,15 @@ int Platform_SelectDisc(char *path, size_t size, char *why, size_t why_size)
             Platform_ShowError("Unable to use this ROM", why);
             continue;
         }
-        if (Paths_User(target, sizeof(target), "game/rpg-yfm.bin") ||
-            !copy_disc(file, SDL_GetIOSize(stream), target, why, why_size)) {
+        if (Paths_User(target, sizeof(target), "game/rpg-yfm.bin")) {
+            /* mkdir's reason (Paths_MakeDirs), before anything else sets errno */
+            snprintf(why, why_size, "The game could not use its storage folder right now, so the disc image cannot be "
+                     "copied.\n\nClose the game and open it again.\n\n(%s/game: %s)", Paths_UserDir(), strerror(errno));
+            SDL_CloseIO(stream);
+            Platform_ShowError("Yu-Gi-Oh! Forbidden Memories", why);
+            continue;
+        }
+        if (!copy_disc(file, SDL_GetIOSize(stream), target, why, why_size)) {
             SDL_CloseIO(stream);
             Platform_ShowError("Unable to use this ROM", why);
             continue;
@@ -1128,12 +1135,43 @@ static void check_load_bias(void)
                     "this launch only (%s)\n", bias, directory);
 }
 
+/* The player's folder (the external files folder, top of this file), made
+ * if it is not there yet; NULL when it cannot be, with the reason in `why`.
+ * While the shared storage is not mounted (it can be unmounted, and may
+ * not be mounted yet just after a boot) Java's getExternalFilesDir gives
+ * no folder, and SDL asks Java again on the next call: so a few seconds
+ * of asking again, and the storage mounted meanwhile reaches this process
+ * too. There is no other folder to fall back on: the disc image and the
+ * saves are in this one, and a second folder would split them. */
+static const char *user_folder(char *why, size_t why_size)
+{
+    const char *files = NULL;
+    int attempt;
+    for (attempt = 0; attempt < 40; attempt++) { /* 10 s */
+        if (attempt) SDL_Delay(250);
+        files = SDL_GetAndroidExternalStoragePath();
+        if (!files || !*files) {
+            snprintf(why, why_size, "Android gave no folder: %s", SDL_GetError());
+            files = NULL;
+        } else if (!Paths_MakeDirs(files)) {
+            if (attempt) fprintf(stderr, "memories-pc: the external files folder is there after %d ms\n", attempt * 250);
+            return files;
+        } else {
+            snprintf(why, why_size, "%s: %s", files, strerror(errno));
+        }
+        if (!attempt) fprintf(stderr, "memories-pc: no external files folder yet (%s); waiting for the storage\n", why);
+    }
+    fprintf(stderr, "memories-pc: no external files folder after 10 s (%s)\n", why);
+    return NULL;
+}
+
 /* Called by the loader (android_loader.c) in place of SDL_main. */
 int Memories_AndroidMain(int argc, char **argv)
 {
     static char name[] = "memories-pc";
     char *args[] = {name, NULL};
-    const char *files = SDL_GetAndroidExternalStoragePath();
+    char why[600], message[900];
+    const char *files;
     (void)argc;
     (void)argv;
     app_process = 1;
@@ -1146,12 +1184,14 @@ int Memories_AndroidMain(int argc, char **argv)
      * 0. */
     atexit(end_process);
     log_to_logcat();
-    if (files && *files) {
-        setenv("MEMORIES_USER_DIR", files, 0);
-        read_environment(files);
-    } else {
-        fprintf(stderr, "memories-pc: no external files folder (%s)\n", SDL_GetError());
+    if (!(files = user_folder(why, sizeof(why)))) {
+        snprintf(message, sizeof(message), "The game could not use its storage folder right now.\n\n"
+                 "Close the game and open it again.\n\n(%s)", why);
+        Platform_ShowError("Yu-Gi-Oh! Forbidden Memories", message);
+        return 1;
     }
+    setenv("MEMORIES_USER_DIR", files, 0);
+    read_environment(files);
     if (SDL_GetAndroidInternalStoragePath()) read_environment(SDL_GetAndroidInternalStoragePath());
     unpack_program();
     check_load_bias();
