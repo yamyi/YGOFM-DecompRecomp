@@ -156,7 +156,10 @@ installs a `.zip`. Nothing is contacted until it is tapped.
   and pre-releases are never "latest", so a preview's pack is not offered)
   and takes its asset `yfm-redecomp-hd-mod-<tag>.zip` (else the first
   `yfm-redecomp-hd-mod-*.zip`), its size and its `digest` (an asset without
-  one is refused: the download could not be checked). Then:
+  one is refused: the download could not be checked; one over the
+  importer's 512 MB unpacked is refused before anything is downloaded, since
+  pictures barely compress: "The HD pack of <tag> is too large: more than
+  512 MB once unpacked."). Then:
   - the same release installed (its tag in the mod folder's `.hd-release`,
     since the pack's `mod.json` says `"version": "1.0"` in every release):
     "The HD pack is already installed (v0.2.0)." and nothing is downloaded;
@@ -207,8 +210,9 @@ installs a `.zip`. Nothing is contacted until it is tapped.
   the API says), "That download is not the HD pack", "This phone's download
   manager is turned off ...", the importer's own refusals. Stop says "The HD
   pack's download was stopped. Nothing was installed."; a Stop that comes
-  after the last piece (while the file is checked, or with the importer's
-  last file) still installs nothing.
+  after the last piece (while the file is checked, in the frames between the
+  download's end and the unpacking's start, or with the importer's last
+  file) still installs nothing: `HdPack_Install` refuses once a Stop came.
 - **Threads**: each step (the question to GitHub, the download, the
   unpacking, the clean-up) runs on a thread of its own (`hd_pack.c`); the
   network is `HdDownload.java` (`HttpURLConnection` for the API,
