@@ -3847,6 +3847,25 @@ untouched: with a mouse every path is the old one, pixel for pixel.
   manifest cannot take, such as `cmd overlay enable
   com.android.internal.display.cutout.emulation.corner`), the game quits
   the same clean way, the app closes, and the next launch starts afresh.
+- **Rotation:** Video > Screen rotation (`screen_rotation`,
+  `MEMORIES_SCREEN_ROTATION`). "Turn with the phone" (0, the default) turns
+  the picture over when the phone is turned over, whether the system's
+  auto-rotate is on or off, as most landscape games do; "Follow auto-rotate"
+  (1) turns it only while auto-rotate is on. SDL asks for the activity's
+  orientation when it makes the window: the `LandscapeLeft LandscapeRight`
+  hint gives `USER_LANDSCAPE` (11), which honours the rotation lock, and SDL
+  gives `SENSOR_LANDSCAPE` (6) only without a hint and for a window that
+  cannot be resized, which the port's can. So `Android_ApplyScreenRotation`
+  (android.c) asks the activity again over JNI
+  (`setRequestedOrientation`) after the window is made and when the setting
+  changes (sdl.c, `apply_display_settings`); SDL asks again only when a
+  window is made or made resizable. Turning over by half a circle is no
+  configuration change: the activity, the game and the surface's size stay
+  (emulator, auto-rotate locked: the accelerometer to either landscape
+  turns the display between rotations 1 and 3, the same process and a
+  2280x1080 surface throughout, and a tap in the turned picture lands where
+  it is drawn). Before this, a Xiaomi 11T Pro with auto-rotate off stayed
+  upside down when turned over.
 - **Save states:** `libgame.so` sits at `0x08000000` with load bias 0 on
   every launch; F5 on the Options screen, the app force-stopped and started
   again, F7 at the title brings the Options screen back, live.
