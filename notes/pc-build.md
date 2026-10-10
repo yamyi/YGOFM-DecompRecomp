@@ -3813,8 +3813,10 @@ Java heap. Every native path translates a retail scratchpad address to the
 view at 0x9F800000 ("How it works" above), the words the interpreter hands
 to native code included, since the retail view is not mapped there
 (`Memories_ScratchpadRetailView` 0). `MEMORIES_TEST_HOLD_SCRATCHPAD` holds
-the page as ART does, in a test build (Linux or Android). Code mods, which
-could write a retail address of their own, are not loaded on arm64.
+the page as ART does, in a test build (Linux or Android). A code mod (loaded
+on arm64 since Mod SDK M2, above) is held to the same rule: one that wrote
+a retail scratchpad address of its own would reach that heap; the shipped
+ones write none.
 
 **SDL's calls into Java run on the thread's own stack.** SDL reaches Java
 (JNI) for events and joysticks (`Android_JNI_PollInputDevices`, every 3 s
