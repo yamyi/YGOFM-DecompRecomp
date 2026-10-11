@@ -152,7 +152,7 @@ static void test_import(void)
     static const ZipItem none[] = {{"readme.txt", "no mod here", 0, 0, 0, 0, 0, 0}};
     static const ZipItem slip[] = {{"newmod/../../escaped.txt", "x", 0, 0, 0, 0, 0, 0},
                                    {"newmod/mod.json", "{}", 0, 0, 0, 0, 0, 0}};
-    int count = Mods_Count(), x, y, mod;
+    int count = Mods_Count(), x, y, mod = -1;
     const char *said;
     snprintf(import_source, sizeof(import_source), "%s/picked.zip", root);
     test_touch = 48;

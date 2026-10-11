@@ -24,7 +24,6 @@ UNUSED_GAME_FUNCTION(Menu_Height)
 UNUSED_GAME_FUNCTION(Platform_SetPresentRefresh)
 UNUSED_GAME_FUNCTION(Settings_Set)
 UNUSED_GAME_FUNCTION(Settings_Save)
-UNUSED_GAME_FUNCTION(Platform_ClockRate)
 UNUSED_GAME_FUNCTION(GlPicture_Replay)
 UNUSED_GAME_FUNCTION(GlPicture_Scale)
 UNUSED_GAME_FUNCTION(GlPicture_WideTexture)
@@ -52,7 +51,6 @@ UNUSED_GAME_FUNCTION(ModsWindow_TextFocus)
 UNUSED_GAME_FUNCTION(ModsWindow_Locate)
 UNUSED_GAME_FUNCTION(Menu_Event)
 UNUSED_GAME_FUNCTION(Spu_SetOutputVolume)
-UNUSED_GAME_FUNCTION(Platform_SetClockRate)
 UNUSED_GAME_FUNCTION(Spu_Muted)
 UNUSED_GAME_FUNCTION(Spu_SetMuted)
 UNUSED_GAME_FUNCTION(QuitPrompt_Request)
@@ -101,11 +99,3 @@ UNUSED_GAME_FUNCTION(TouchPad_TakeMenu)
 UNUSED_GAME_FUNCTION(TouchPad_TakePresses)
 UNUSED_GAME_FUNCTION(TouchPad_Update)
 UNUSED_GAME_FUNCTION(TouchPadArt_Draw)
-
-/* Logging is reached (MEMORIES_TRACE=input names the controllers and keys,
- * sdl.c): off here, so LOG never calls Log_Printf. */
-int Log_Wanted(int channel)
-{
-    (void)channel;
-    return 0;
-}
