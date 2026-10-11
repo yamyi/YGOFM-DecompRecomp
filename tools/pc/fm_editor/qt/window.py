@@ -25,7 +25,7 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
     NAV = ["Cards", "Art", "Assets", "Campaign", "Fusions", "Equips", "Rituals", "Duelists", "Starter decks",
            "Limits", "Guardian Stars", "Packs", "Mod info", "Problems"]
     # Kept built and loadable while the asset-replacement page is refined.
-    HIDDEN_WORKSPACES = frozenset({"Assets"})
+    HIDDEN_WORKSPACES = frozenset()
     def __init__(self, game=None, mod=None, ask=False):
         super().__init__()
         self._ask_recovery = ask      # only the real entry point asks (_build_ui)
