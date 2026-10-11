@@ -1351,6 +1351,11 @@ def main():
         link_android_loader(options.build, output)
     # Code mods: an object per target (build_mod.py), the one for this game
     # beside it (and in the APK's assets).
+    # The aarch64 objects need clang with lld: the NDK's has both, where a
+    # CI runner's /usr/bin/clang comes without ld.lld (build_mod.py then
+    # falls back to gcc and stops).
+    if A64 and not os.environ.get("MEMORIES_MOD_CC"):
+        os.environ["MEMORIES_MOD_CC"] = CC
     build_mods(options.build, options.release, target="x86_64-windows" if X64 else "aarch64" if A64 else "i386")
     copy_languages(options.build, options.release)
     # Save states are carried between builds with these tables

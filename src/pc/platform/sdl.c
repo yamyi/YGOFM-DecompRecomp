@@ -452,8 +452,12 @@ static void open_panel(int kind)
     layout_panel();
     if (!panel_paused) {
         panel_paused = 1;
-        panel_clock_rate = Platform_ClockRate();
-        if (panel_clock_rate) Platform_SetClockRate(0);
+        /* Turbo ends with the panel (its key is let go behind it), so
+         * closing it resumes the chosen speed, not 400%, as focus loss does. */
+        panel_clock_rate = Platform_ClockRate() && ControlsRuntime_HostHeld() >> CTRL_HOST_TURBO & 1
+                               ? Settings_Get(SET_SPEED)
+                               : Platform_ClockRate();
+        if (Platform_ClockRate()) Platform_SetClockRate(0);
     }
     mouse_bits = wheel_now = 0;
     wheel_frames = 0;
