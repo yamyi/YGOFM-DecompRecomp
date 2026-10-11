@@ -29,6 +29,7 @@
 #include "exports.h"
 #include "object_loader.h"
 #include "json.h"
+#include "manifest_code.h"
 #include "events.h"
 #include "hooks.h"
 #include "pc/platform/paths.h"
@@ -1295,15 +1296,6 @@ static void check_keys(Mod *mod, const JsonValue *root)
     }
 }
 
-/* A code mod: a "library", or a "libraries" object with any entry (one
- * without this game's target still looks for <id>.<target>.o). */
-static int has_code(const JsonValue *root)
-{
-    const char *library = Json_String(Json_Member(root, "library"), NULL);
-    const JsonValue *libraries = Json_Member(root, "libraries");
-    return (library && *library) || (Json_TypeOf(libraries) == JSON_OBJECT && Json_Count(libraries));
-}
-
 /* mod.json, read into the record. Returns 0 when it is not a mod at all. */
 static int read_manifest(Mod *mod, const char *directory, const char *origin)
 {
@@ -1347,7 +1339,7 @@ static int read_manifest(Mod *mod, const char *directory, const char *origin)
         const char *named = Json_String(Json_Member(libraries, OBJECT_LOADER_TARGET), NULL);
         text = Json_String(Json_Member(root, "library"), NULL);
         if (named && *named) text = named;
-        else if ((!text || !*text) && has_code(root)) text = mod->id;
+        else if ((!text || !*text) && Manifest_HasCode(root)) text = mod->id;
         if (text && *text) {
             if (!Paths_Contained(text)) {
                 mod->broken = 1;
@@ -1817,6 +1809,55 @@ int Mods_InstallDirectory(char *out, size_t size)
     return Paths_MakeDirs(out);
 }
 
+/* A mod folder that came while the game runs (Import mod..., import.h).
+ * Never put in place before: borrowed strings live until exit, so an old
+ * manifest it replaces stays allocated. */
+static Mod *at(int index);
+static int untouched(const Mod *mod)
+{
+    return !mod->active && !mod->initialized && !mod->data_prepared && !mod->runtime_options && !mod->sequence &&
+           !mod->object.image && !mod->object.native_handle;
+}
+int Mods_InUse(int index) { return at(index) && !untouched(&mods[index]); }
+int Mods_Discover(const char *directory, int *later)
+{
+    Mod candidate;
+    char error[160], key[256];
+    int index;
+    *later = 0;
+    if (!read_manifest(&candidate, directory, "installed")) return -1;
+    index = by_id(candidate.id);
+    if (index < 0) {
+        if (mod_count >= MODS_MAX) {
+            Json_Free(candidate.manifest);
+            fprintf(stderr, "memories-pc: more than %d mods; %s was skipped\n", MODS_MAX, candidate.id);
+            return -1;
+        }
+        /* New: off until the player turns it on, at this launch and the next. */
+        candidate.enabled = 0;
+        if (setting_key(key, sizeof(key), candidate.id, NULL)) Settings_SetNamed(key, 0);
+        index = mod_count++;
+        mods[index] = candidate;
+    } else if (untouched(&mods[index])) {
+        /* The player's choice is the setting, which read_manifest read. */
+        mods[index] = candidate;
+    } else {
+        /* In place (or once was): its object, data and pictures are the old
+         * files' until the game starts again, so a change to it waits for
+         * that launch too. */
+        Json_Free(candidate.manifest);
+        mods[index].restart = 1;
+        note(&mods[index], "its files were replaced: the new ones are used from the next launch");
+        *later = 1;
+        Mods_OverlapsForget();
+        return index;
+    }
+    if (!Mods_CheckManifest(index, error, sizeof(error))) { mods[index].broken = 1; note(&mods[index], "%s", error); }
+    Mods_OverlapsForget();
+    say("%s: found in %s", mods[index].id, directory);
+    return index;
+}
+
 void Mods_Load(void)
 {
     const char *all = getenv("MEMORIES_MODS");
@@ -2072,7 +2113,7 @@ const char *Mods_Directory(int index) { return at(index) ? mods[index].directory
 const char *Mods_Origin(int index) { return at(index) ? mods[index].origin : ""; }
 int Mods_Active(int index) { return at(index) && mods[index].active; }
 int Mods_Failed(int index) { return at(index) && (mods[index].broken || mods[index].failed); }
-int Mods_HasCode(int index) { return at(index) && has_code(Mods_Manifest(index)); }
+int Mods_HasCode(int index) { return at(index) && Manifest_HasCode(Mods_Manifest(index)); }
 
 unsigned Mods_CodeHash(int index) { return at(index) ? mods[index].code_hash : 0; }
 

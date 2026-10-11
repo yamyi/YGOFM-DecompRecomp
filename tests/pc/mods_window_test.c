@@ -5,6 +5,7 @@
 #undef main
 #include "pc/platform/mods_window.h"
 #include "pc/mods/overlap.h"
+#include "zip_writer.h"
 static int restarts;
 int Menu_Scale(void) { return 1; }
 static int test_touch; /* Menu_TouchTarget: 0 with a mouse */
@@ -67,6 +68,173 @@ static int input(MenuEventType type, int x, int y, MenuKey key, const char *text
     return ModsWindow_Event(&e);
 }
 static int click(int x, int y) { return input(MENU_EVENT_BUTTON_DOWN, x, y, MENU_KEY_OTHER, NULL); }
+/* Import mod... with a file picker that answers at once with the .zip
+ * the test wrote (ModsWindow_SetImport), and what the window then says. */
+static char import_source[1024];
+static int picks;
+static int fake_pick(char *why, size_t size)
+{
+    (void)why;
+    (void)size;
+    picks++;
+    return 0;
+}
+static int fake_picked(char *why, size_t size)
+{
+    (void)why;
+    (void)size;
+    return 1;
+}
+static int fake_fetch(char *path, size_t size, char *why, size_t why_size)
+{
+    (void)why;
+    (void)why_size;
+    snprintf(path, size, "%s", import_source);
+    return 1;
+}
+static void tap_widget(int id)
+{
+    int x, y;
+    assert(ModsWindow_Locate(id, &x, &y));
+    click(x, y);
+    input(MENU_EVENT_BUTTON_UP, x, y, MENU_KEY_OTHER, NULL);
+}
+/* Writes `items` as the picked .zip, taps Import mod... and runs the ticks
+ * (the picker's answer, then the import); what the footer says. */
+static const char *import_zip(const ZipItem *items, int n)
+{
+    static char said[4096];
+    const char *line;
+    write_zip(import_source, items, n);
+    tap_widget(MODS_UI_FOLDER);
+    while (ModsWindow_Tick()) {
+    }
+    draw(1600, 900);
+    said[0] = 0;
+    for (line = drawn; *line; line = strchr(line, '\n') + 1) {
+        const char *text = strchr(strchr(line, ' ') + 1, ' ') + 1;
+        size_t length = (size_t)(strchr(line, '\n') - text);
+        if (strlen(said) + length + 2 < sizeof(said)) {
+            strncat(said, text, length);
+            strcat(said, " ");
+        }
+    }
+    return said;
+}
+static int folder_has(const char *relative)
+{
+    char path[2048];
+    struct stat info;
+    snprintf(path, sizeof(path), "%s/%s", root, relative);
+    return !stat(path, &info);
+}
+/* The panel on a phone or tablet (touch), as an Android app has it. */
+static void test_import(void)
+{
+    static const ZipItem good[] = {{"Downloads/newmod/mod.json", "{\"id\": \"newmod\", \"name\": \"New mod\", "
+                                                                "\"enabled\": true}", 1, 0, 0, 0, 0, 0},
+                                   {"Downloads/newmod/name.txt", "hello", 1, 0, 0, 0, 0, 0}};
+    static const ZipItem pc[] = {{"pcmod/mod.json", "{\"id\": \"pcmod\", \"name\": \"PC mod\", \"library\": "
+                                                    "\"pcmod\"}", 0, 0, 0, 0, 0, 0},
+                                 {"pcmod/pcmod.o", "ELF", 0, 0, 0, 0, 0, 0}};
+    static const ZipItem arm[] = {{"armmod/mod.json", "{\"id\": \"armmod\", \"name\": \"Arm mod\", \"library\": "
+                                                      "\"armmod\"}", 0, 0, 0, 0, 0, 0},
+                                  {"armmod/armmod.o", "ELF", 0, 0, 0, 0, 0, 0},
+                                  {"armmod/armmod.aarch64.o", "ELF", 0, 0, 0, 0, 0, 0}};
+    static const ZipItem perm[] = {{"permod/mod.json", "{\"id\": \"permod\", \"name\": \"Per-target mod\", "
+                                                       "\"libraries\": {\"aarch64\": \"d.o\"}}", 0, 0, 0, 0, 0, 0}};
+    static const ZipItem two[] = {{"m1/mod.json", "{\"name\": \"First\"}", 0, 0, 0, 0, 0, 0},
+                                  {"m2/mod.json", "{\"name\": \"Second\"}", 0, 0, 0, 0, 0, 0}};
+    static const ZipItem none[] = {{"readme.txt", "no mod here", 0, 0, 0, 0, 0, 0}};
+    static const ZipItem slip[] = {{"newmod/../../escaped.txt", "x", 0, 0, 0, 0, 0, 0},
+                                   {"newmod/mod.json", "{}", 0, 0, 0, 0, 0, 0}};
+    int count = Mods_Count(), x, y, mod = -1;
+    const char *said;
+    snprintf(import_source, sizeof(import_source), "%s/picked.zip", root);
+    test_touch = 48;
+    ModsWindow_SetImport(NULL, NULL, NULL);
+    ModsWindow_Init();
+    ModsWindow_Resize(1600, 900);
+    assert(!ModsWindow_Locate(MODS_UI_FOLDER, &x, &y)); /* no picker: no button */
+    ModsWindow_SetImport(fake_pick, fake_picked, fake_fetch);
+    ModsWindow_Init();
+    ModsWindow_Resize(1600, 900);
+    said = import_zip(good, 2);
+    assert(picks == 1 && strstr(said, "Imported New mod."));
+    assert(Mods_Count() == count + 1 && (mod = find("newmod")) == count);
+    assert(!Mods_Enabled(mod) && Settings_GetNamed("mod.newmod", 1) == 0); /* off, and off at the next launch */
+    assert(folder_has("mods/newmod/name.txt") && !folder_has("picked.zip"));
+    /* The same again: Replace or Cancel. */
+    said = import_zip(good, 2);
+    assert(strstr(said, "New mod is already installed. Replace it") && strstr(said, "Replace"));
+    tap_widget(MODS_UI_CLOSE); /* Cancel */
+    assert(Mods_Count() == count + 1 && folder_has("mods/newmod/name.txt") && !folder_has("picked.zip"));
+    said = import_zip(good, 2);
+    tap_widget(MODS_UI_APPLY); /* Replace */
+    draw(1600, 900);
+    assert(strstr(drawn, "Replaced New mod.") && Mods_Count() == count + 1);
+    /* Code: imported, off; where the game has no code mod loader
+     * (MEMORIES_NO_CODE_MODS, which no game build sets now) said so whatever
+     * objects it has, an arm64 one or not; with the loader, nothing to say.
+     * "libraries" alone is code too, as the loader reads it. */
+    said = import_zip(pc, 2);
+#ifdef MEMORIES_NO_CODE_MODS
+    assert(strstr(said, "Imported PC mod. This mod has code, which the game cannot run in this build yet. "
+                        "It stays off and changes nothing in the game."));
+#else
+    assert(strstr(said, "Imported PC mod.") && !strstr(said, "cannot run"));
+#endif
+    assert(!Mods_Enabled(find("pcmod")));
+    said = import_zip(arm, 3);
+#ifdef MEMORIES_NO_CODE_MODS
+    assert(strstr(said, "Imported Arm mod. This mod has code, which the game cannot run in this build yet."));
+#else
+    assert(strstr(said, "Imported Arm mod.") && !strstr(said, "cannot run"));
+#endif
+    said = import_zip(perm, 1);
+#ifdef MEMORIES_NO_CODE_MODS
+    assert(strstr(said, "Imported Per-target mod. This mod has code, which the game cannot run in this build yet."));
+#else
+    assert(strstr(said, "Imported Per-target mod.") && !strstr(said, "cannot run"));
+#endif
+    assert(!Mods_Enabled(find("permod")));
+    /* Several at once; none at all; a name that leaves the folder. */
+    said = import_zip(two, 2);
+    assert(strstr(said, "Imported 2 mods: First and Second.") && find("m1") >= 0 && find("m2") >= 0);
+    /* One of them in place: its files are this launch's, so no Replace. */
+    Mods_SetEnabled(find("m1"), 1);
+    assert(Mods_Active(find("m1")));
+    count = Mods_Count();
+    said = import_zip(two, 2);
+    assert(strstr(said, "First is in use, so its files cannot be replaced now.") && Mods_Count() == count);
+    assert(folder_has("mods/m1/mod.json") && !folder_has("picked.zip"));
+    /* A folder of that name with another mod in it: never replaced, the new
+     * one gets a free name. */
+    {
+        static const ZipItem other[] = {{"mod05/mod.json", "{\"id\": \"other\", \"name\": \"Other\"}", 0, 0, 0, 0, 0, 0}};
+        said = import_zip(other, 1);
+        assert(strstr(said, "Imported Other.") && find("other") >= 0 && find("mod05") >= 0);
+        assert(folder_has("mods/mod05-2/mod.json") && !strcmp(Mods_Id(find("mod05")), "mod05"));
+        assert(strstr(Mods_Directory(find("other")), "mod05-2"));
+    }
+    {
+        /* The free name is not another mod's of the same .zip: mod06 is
+         * taken by another mod, and mod06-2 is the second mod's own. */
+        static const ZipItem pair[] = {{"mod06/mod.json", "{\"id\": \"first6\", \"name\": \"First6\"}", 0, 0, 0, 0, 0, 0},
+                                       {"Mod06-2/mod.json", "{\"id\": \"second6\", \"name\": \"Second6\"}", 0, 0, 0, 0, 0, 0}};
+        said = import_zip(pair, 2);
+        assert(strstr(said, "Imported 2 mods: ") && strstr(said, "First6") && strstr(said, "Second6"));
+        assert(strstr(Mods_Directory(find("first6")), "mod06-3") && strstr(Mods_Directory(find("second6")), "Mod06-2"));
+    }
+    said = import_zip(none, 1);
+    assert(strstr(said, "This .zip has no mod in it."));
+    count = Mods_Count();
+    said = import_zip(slip, 2);
+    assert(strstr(said, "points outside its folder") && Mods_Count() == count);
+    assert(!folder_has("escaped.txt") && !folder_has("mods/escaped.txt"));
+    ModsWindow_SetImport(NULL, NULL, NULL);
+    test_touch = 0;
+}
 /* menu.h's UTF-8 cuts: never inside a character. */
 static void test_text_cuts(void)
 {
@@ -277,6 +445,7 @@ int main(void)
         assert(grabbed > 10);
         test_touch = 0;
     }
+    test_import();
     ModsWindow_Init();
     {
         /* The Details tab calls a mod with only "libraries" a code mod, as
