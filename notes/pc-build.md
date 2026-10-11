@@ -1643,7 +1643,7 @@ cards never come up: the fight ends the battle itself.
   alone, as the effect itself does with 0.
 - A direct attack's number is step 9's in its plain form: size 0-2, not the
   burst of 3-5.
-- The effect adds its colour to whatever is under it, so over a pale monster
+- The effect adds its color to whatever is under it, so over a pale monster
   the digits all but vanished. Each number goes above the head of the monster
   it is for, against the dark behind the fight; a direct attack's goes over
   the middle of the screen, above the attacker. The head is the top of the
@@ -1708,13 +1708,13 @@ keeps its equip and fusion tables.
     fades at 500-520 (its command-0 table at module +0x38A4), never fired
     within its 270-frame attack row. It is handed 2.
   - **Space.** A module works at the arena's scale, around slot 0's arena
-    pose. It aims at the other slot's body centre (`field_DD0`, through
+    pose. It aims at the other slot's body center (`field_DD0`, through
     `Model_CopySlotU16Values`) and draws camera-facing billboards with
     view-space sizes (`GsGetLs`, then `ReadRotMatrix`, `RotMatrix`,
     `ScaleMatrix`, `SetRotMatrix`). So for the call:
     - the attacker stands at the arena pose (`func_8005A4C4(slot, 0, 0, 0,
       0)`, scale 1);
-    - both body centres go through the inverse of its field root matrix T
+    - both body centers go through the inverse of its field root matrix T
       (`field_D18`: rotation times its scale s, then its position);
     - `GsWSMATRIX` (`D_800FE148`, which the port's `GsGetLs` reads too) is
       WS T scaled by 1/s. That keeps the field's screen positions at the
@@ -1724,7 +1724,7 @@ keeps its equip and fusion tables.
   - **Camera.** Its camera requests are refused (`D_8009B07B`/`D_8009B07C`).
   - **Reactions.** The reactions it would start in slot 1 go with the copy
     of the defender put there for the call. For a direct attack, the copy's
-    body centre is the empty zone across.
+    body center is the empty zone across.
 - **Timing.** The module's answer times the fight:
   - its first 4, 3 or 1 lands the attacker's blow (or the end of the attack
     row, if it never says);

@@ -2164,10 +2164,10 @@ static int fight_turn(int dx, int dz)
  *   the VBlanks a frame took: 2 in the 30 fps arena, 1 on the 60 fps field,
  *   where it ran at half speed and Blue-Eyes never fired. It is handed 2.
  * - space: it works at the arena's scale around slot 0's arena pose, aims at
- *   the other slot's body centre (field_DD0, through
+ *   the other slot's body center (field_DD0, through
  *   Model_CopySlotU16Values) and draws camera-facing billboards sized in
  *   view space. So for the call the attacker stands at that pose, both body
- *   centres are carried into it through the inverse of its field root matrix
+ *   centers are carried into it through the inverse of its field root matrix
  *   T (field_D18: rotation times its scale s, and its position), and the
  *   world-screen matrix (GsWSMATRIX, which GsGetLs reads too) is WS T scaled
  *   by 1/s: the field's screen positions at the arena's depth, so everything
@@ -2559,7 +2559,7 @@ static void fight_screen(int side, int *sx, int *sy)
 }
 
 /* Where a number goes: over the head of the monster it is for, all of it on
- * the screen. The effect adds its colour to what is under it, so over the
+ * the screen. The effect adds its color to what is under it, so over the
  * monster, a pale one above all, it all but went; the dark behind the fight
  * shows it whole. A direct attack's is over the middle of the screen, above
  * the attacker. */
@@ -2922,8 +2922,8 @@ static void draw_frame(void)
 }
 
 /* The card under a summoned monster. Duel_DrawFieldCards draws each field
- * card through func_80015EF4, which takes its colour from the card's display
- * object: for FLASH_FRAMES frames after the card has landed that colour rises
+ * card through func_80015EF4, which takes its color from the card's display
+ * object: for FLASH_FRAMES frames after the card has landed that color rises
  * to full, then the card is not drawn at all while the monster stands on it.
  * This runs in the game's frame, before draw_frame (GsDrawOt), so it reads
  * what the last frame left in summons[]. A card drawn the other way (flag
