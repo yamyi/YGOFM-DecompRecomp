@@ -1511,17 +1511,25 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
             QMessageBox.information(self, "Recover work",
                                     "No recovery copies or save backups are available.")
             return
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Recover work")
-        dialog.resize(860, 420)
-        layout = QVBoxLayout(dialog)
-        layout.addWidget(QLabel("Open a separate copy. \"Save as…\" chooses where to keep it.", dialog))
-        table = QTableWidget(len(rows), 4, dialog)
-        table.setHorizontalHeaderLabels(["Mod", "Saved (UTC)", "Copy", "Original folder"])
+        source_file = QFile(str(UI_DIR / "recover_work.ui"))
+        if not source_file.open(QIODevice.OpenModeFlag.ReadOnly):
+            raise RuntimeError(f"Could not open Recover work form: {source_file.errorString()}")
+        loader = QUiLoader()
+        dialog = loader.load(source_file, self)
+        source_file.close()
+        if dialog is None:
+            raise RuntimeError(f"Could not load Recover work form: {loader.errorString()}")
+        table = dialog.findChild(QTableWidget, "recoverWorkTable")
+        open_button = dialog.findChild(QPushButton, "openCopyButton")
+        open_button.setObjectName("primary")
+        delete_button = dialog.findChild(QPushButton, "deleteSelectedButton")
+        delete_all_button = dialog.findChild(QPushButton, "deleteAllButton")
+        close_button = dialog.findChild(QPushButton, "closeButton")
         table.verticalHeader().setVisible(False)
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
+        table.setRowCount(len(rows))
         for row, (_, _, data) in enumerate(rows):
             values = (data.get("name", "Mod"), str(data.get("time", "")).replace("T", " ")[:19],
                       "Backup" if data.get("backup") else "Draft", data.get("source") or "Not saved yet")
@@ -1532,49 +1540,58 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
         for column in (0, 1, 2):
             header.setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
         table.selectRow(0)
-        layout.addWidget(table, 1)
-        buttons = QHBoxLayout()
-        open_button = QPushButton("Open copy", dialog)
-        open_button.setObjectName("primary")
-        delete_button = QPushButton("Delete copy", dialog)
-        close_button = QPushButton("Close", dialog)
-        for button in (open_button, delete_button):
-            buttons.addWidget(button)
-        buttons.addStretch(1)
-        buttons.addWidget(close_button)
-        layout.addLayout(buttons)
 
         def chosen():
             row = table.currentRow()
             return rows[row] if 0 <= row < len(rows) else None
+
+        def selected_indices():
+            """Selected row numbers, highest first: removing them in that
+            order never shifts one still to come under an index already used."""
+            return sorted({index.row() for index in table.selectionModel().selectedRows()}, reverse=True)
 
         def open_copy():
             found = chosen()
             if found is not None and self._open_recovery(found[1], found[2]):
                 dialog.accept()
 
-        def delete_copy():
-            found = chosen()
-            if found is None:
-                return
-            index, _, data = found
-            if QMessageBox.question(dialog, "Recover work",
-                                    f"Delete this copy of {data.get('name', 'the mod')}?") \
-                    != QMessageBox.StandardButton.Yes:
-                return
-            try:
-                shutil.rmtree(index.parent)
-            except OSError as problem:
-                QMessageBox.critical(dialog, "Recover work", str(problem))
-                return
-            row = table.currentRow()
-            table.removeRow(row)
-            rows.pop(row)
+        def delete_rows(indices):
+            """indices: row numbers, highest first (selected_indices())."""
+            problems = []
+            for row in indices:
+                index, _, data = rows[row]
+                try:
+                    shutil.rmtree(index.parent)
+                except OSError as problem:
+                    problems.append(f"{data.get('name', 'the mod')}: {problem}")
+                    continue
+                table.removeRow(row)
+                rows.pop(row)
+            if problems:
+                QMessageBox.critical(dialog, "Recover work", "\n".join(problems))
             if rows:
-                table.selectRow(min(row, len(rows) - 1))
+                table.selectRow(min(indices[-1], len(rows) - 1))
+
+        def delete_selected():
+            indices = selected_indices()
+            if not indices:
+                return
+            prompt = (f"Delete this copy of {rows[indices[0]][2].get('name', 'the mod')}?" if len(indices) == 1
+                      else f"Delete these {len(indices)} copies?")
+            if QMessageBox.question(dialog, "Recover work", prompt) == QMessageBox.StandardButton.Yes:
+                delete_rows(indices)
+
+        def delete_all():
+            if not rows:
+                return
+            if QMessageBox.question(dialog, "Recover work",
+                                    f"Delete all {len(rows)} copies? This cannot be undone.") \
+                    == QMessageBox.StandardButton.Yes:
+                delete_rows(list(range(len(rows) - 1, -1, -1)))
 
         open_button.clicked.connect(open_copy)
-        delete_button.clicked.connect(delete_copy)
+        delete_button.clicked.connect(delete_selected)
+        delete_all_button.clicked.connect(delete_all)
         close_button.clicked.connect(dialog.reject)
         table.doubleClicked.connect(open_copy)
         dialog.exec()
