@@ -152,7 +152,7 @@ static void test_import(void)
     static const ZipItem none[] = {{"readme.txt", "no mod here", 0, 0, 0, 0, 0, 0}};
     static const ZipItem slip[] = {{"newmod/../../escaped.txt", "x", 0, 0, 0, 0, 0, 0},
                                    {"newmod/mod.json", "{}", 0, 0, 0, 0, 0, 0}};
-    int count = Mods_Count(), x, y, mod;
+    int count = Mods_Count(), x, y, mod = -1;
     const char *said;
     snprintf(import_source, sizeof(import_source), "%s/picked.zip", root);
     test_touch = 48;
@@ -458,7 +458,7 @@ static void test_hd_pack(void)
     static const ZipItem other[] = {{"mods/other/mod.json", "{\"id\": \"not-hd\"}", 0, 0, 0, 0, 0, 0}};
     char marker[64], path[2048];
     const char *said;
-    int count, x, y, hd, picked = picks;
+    int count, x, y, hd = -1, picked = picks;
     long size;
     test_hd_pack_asset();
     snprintf(fake_zip, sizeof(fake_zip), "%s/served.zip", root);
