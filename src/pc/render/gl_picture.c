@@ -62,6 +62,7 @@
     X(PFNGLUNIFORM4IPROC, Uniform4i) \
     X(PFNGLUNIFORM2FPROC, Uniform2f) \
     X(PFNGLGENBUFFERSPROC, GenBuffers) \
+    X(PFNGLDELETEBUFFERSPROC, DeleteBuffers) \
     X(PFNGLBINDBUFFERPROC, BindBuffer) \
     X(PFNGLBUFFERDATAPROC, BufferData) \
     X(PFNGLENABLEVERTEXATTRIBARRAYPROC, EnableVertexAttribArray) \
@@ -90,6 +91,7 @@ GL_FUNCTIONS(DECLARE)
 #undef DECLARE
 static PFNGLGENVERTEXARRAYSPROC glGenVertexArrays_; /* optional: a core profile needs one bound */
 static PFNGLBINDVERTEXARRAYPROC glBindVertexArray_;
+static PFNGLDELETEVERTEXARRAYSPROC glDeleteVertexArrays_;
 /* The context is OpenGL ES 3 (Android; MEMORIES_GLES=1 on a desktop): the
  * shaders are made GLSL ES (es_source), and the context is the SDL
  * renderer's, which sdl.c hands over around every call here. */
@@ -107,6 +109,7 @@ static int load_functions(void)
 #undef LOAD
     glGenVertexArrays_ = (PFNGLGENVERTEXARRAYSPROC)SDL_GL_GetProcAddress("glGenVertexArrays");
     glBindVertexArray_ = (PFNGLBINDVERTEXARRAYPROC)SDL_GL_GetProcAddress("glBindVertexArray");
+    glDeleteVertexArrays_ = (PFNGLDELETEVERTEXARRAYSPROC)SDL_GL_GetProcAddress("glDeleteVertexArrays");
     return 1;
 }
 
@@ -326,12 +329,18 @@ static const char *vertex_source =
  * is on (TEXTURE_XBR, make_program): its 25-texel neighbourhood made the
  * NVIDIA program of every primitive 51 registers and a local array where 8
  * do without it, and an older GPU (a GTX 550 Ti) ran a battle's effects at
- * 4x at half speed although xBR was off. */
+ * 4x at half speed although xBR was off. The neighbourhood is kept as its
+ * words alone, each color made where it is read (nbc), and the outer 16
+ * are fetched one by one rather than in a loop: on a phone (Adreno 660) an
+ * array of the 25 colors, filled in a loop, made the Free Duel screen at
+ * Internal 4x take 120 ms a frame (7.5 frames a second, 60 with xBR off;
+ * 44 like this, 60 at 2x), and that array filled one by one gave black
+ * corners where the driver read some of its texels as transparent. */
 #define TEXTURE_XBR_SOURCE \
     "uint centre_word, near_word;\n" \
     "uint nb_word[25];\n" \
-    "vec4 nb[25];\n" \
     "int nbi(int x, int y) { return (y + 2) * 5 + x + 2; }\n" \
+    "vec4 nbc(int i) { uint w = nb_word[i]; return w == 0u ? vec4(0.0) : vec4(expand(w) / 255.0, 1.0); }\n" \
     "float tdist(vec4 a, vec4 b) {\n" \
     "    if (a.a != b.a) return 1.0;\n" \
     "    vec3 k = a.rgb - b.rgb;\n" \
@@ -342,9 +351,9 @@ static const char *vertex_source =
     "bool tsame(vec4 a, vec4 b) { return tdist(a, b) < 0.06; }\n" \
     "float tcover(float f, float slope, float w) { return clamp(f / (slope * w) + 0.5, 0.0, 1.0); }\n" \
     "vec2 tcorner(int dx, int dy, vec2 q, float w) {\n" \
-    "    vec4 E = nb[12], B = nb[nbi(0, -dy)], C = nb[nbi(dx, -dy)], D = nb[nbi(-dx, 0)], F = nb[nbi(dx, 0)];\n" \
-    "    vec4 G = nb[nbi(-dx, dy)], H = nb[nbi(0, dy)], I = nb[nbi(dx, dy)], F4 = nb[nbi(2 * dx, 0)];\n" \
-    "    vec4 I4 = nb[nbi(2 * dx, dy)], H5 = nb[nbi(0, 2 * dy)], I5 = nb[nbi(dx, 2 * dy)];\n" \
+    "    vec4 E = nbc(12), B = nbc(nbi(0, -dy)), C = nbc(nbi(dx, -dy)), D = nbc(nbi(-dx, 0)), F = nbc(nbi(dx, 0));\n" \
+    "    vec4 G = nbc(nbi(-dx, dy)), H = nbc(nbi(0, dy)), I = nbc(nbi(dx, dy)), F4 = nbc(nbi(2 * dx, 0));\n" \
+    "    vec4 I4 = nbc(nbi(2 * dx, dy)), H5 = nbc(nbi(0, 2 * dy)), I5 = nbc(nbi(dx, 2 * dy));\n" \
     "    bool may = !tsame(E, F) && !tsame(E, H) &&\n" \
     "               (!tsame(F, B) && !tsame(H, D) || tsame(E, I) && !tsame(F, I4) && !tsame(H, I5) ||\n" \
     "                tsame(E, G) || tsame(E, C));\n" \
@@ -362,7 +371,6 @@ static const char *vertex_source =
     "    ivec2 t = clamp(e + ivec2(x, y), lo, hi);\n" \
     "    uint word = texel_word(t.x, t.y);\n" \
     "    nb_word[nbi(x, y)] = word;\n" \
-    "    nb[nbi(x, y)] = word == 0u ? vec4(0.0) : vec4(expand(word) / 255.0, 1.0);\n" \
     "}\n" \
     "vec4 texture_xbr(vec2 p, vec2 half_step, float w) {\n" \
     "    ivec2 e = ivec2(floor(p));\n" \
@@ -375,14 +383,24 @@ static const char *vertex_source =
     "    fetch(e, 0, -1, lo, hi);\n" \
     "    centre_word = near_word = nb_word[12];\n" \
     /* Like the four beside it (every corner's F and H): no corner is cut. */ \
-    "    if (tsame(nb[12], nb[13]) && tsame(nb[12], nb[11]) && tsame(nb[12], nb[17]) && tsame(nb[12], nb[7]))\n" \
+    "    if (tsame(nbc(12), nbc(13)) && tsame(nbc(12), nbc(11)) && tsame(nbc(12), nbc(17)) && tsame(nbc(12), nbc(7)))\n" \
     "        return vec4(expand(centre_word), 0.0);\n" \
-    "    for (int y = -2; y <= 2; y++) {\n" \
-    "        for (int x = -2; x <= 2; x++) {\n" \
-    "            if (((x == -2 || x == 2) && (y == -2 || y == 2)) || abs(x) + abs(y) <= 1) continue;\n" \
-    "            fetch(e, x, y, lo, hi);\n" \
-    "        }\n" \
-    "    }\n" \
+    "    fetch(e, -1, -2, lo, hi);\n" \
+    "    fetch(e, 0, -2, lo, hi);\n" \
+    "    fetch(e, 1, -2, lo, hi);\n" \
+    "    fetch(e, -2, -1, lo, hi);\n" \
+    "    fetch(e, -1, -1, lo, hi);\n" \
+    "    fetch(e, 1, -1, lo, hi);\n" \
+    "    fetch(e, 2, -1, lo, hi);\n" \
+    "    fetch(e, -2, 0, lo, hi);\n" \
+    "    fetch(e, 2, 0, lo, hi);\n" \
+    "    fetch(e, -2, 1, lo, hi);\n" \
+    "    fetch(e, -1, 1, lo, hi);\n" \
+    "    fetch(e, 1, 1, lo, hi);\n" \
+    "    fetch(e, 2, 1, lo, hi);\n" \
+    "    fetch(e, -1, 2, lo, hi);\n" \
+    "    fetch(e, 0, 2, lo, hi);\n" \
+    "    fetch(e, 1, 2, lo, hi);\n" \
     "    vec2 best = tcorner(1, 1, q, w), k = tcorner(-1, 1, vec2(1.0 - q.x, q.y), w);\n" \
     "    if (k.y > best.y) best = k;\n" \
     "    k = tcorner(1, -1, vec2(q.x, 1.0 - q.y), w);\n" \
@@ -600,7 +618,8 @@ static const char *fragment_source =
  * samplers) or low (sampler2D) stated high, and without "noperspective",
  * which GLSL ES does not have. Every vertex's w is 1.0 (vertex_source), so
  * the perspective-correct interpolation ES does instead is the same
- * interpolation, up to rounding. NULL when out of memory. */
+ * interpolation, up to rounding. NULL when the first line is another (what
+ * is changed holds for GLSL 1.30 alone) or out of memory. */
 static char *es_source(const char *source)
 {
     static const char header[] = "#version 300 es\n"
@@ -609,11 +628,19 @@ static char *es_source(const char *source)
                                  "precision highp sampler2D;\n"
                                  "precision highp usampler2D;\n"
                                  "precision highp usampler2DArray;\n";
-    const char *body = strchr(source, '\n'), *from;
+    static const char desktop[] = "#version 130\n";
+    const char *body = source + sizeof(desktop) - 2, *from; /* at the first line's end */
     char *out, *to;
-    if (!body) return NULL;
+    if (strncmp(source, desktop, sizeof(desktop) - 1)) {
+        fprintf(stderr, "memories-pc: OpenGL picture: a shader for OpenGL ES that is not GLSL 1.30 (\"%.*s\")\n",
+                (int)strcspn(source, "\n"), source);
+        return NULL;
+    }
     out = malloc(sizeof(header) + strlen(body));
-    if (!out) return NULL;
+    if (!out) {
+        fprintf(stderr, "memories-pc: OpenGL picture: no memory for a shader\n");
+        return NULL;
+    }
     memcpy(out, header, sizeof(header) - 1);
     to = out + sizeof(header) - 1;
     for (from = body + 1; *from;) {
@@ -880,6 +907,17 @@ static int make_picture(int wanted)
     return 1;
 }
 
+static void delete_names(void); /* every name the pass holds (below) */
+static void forget_names(void);
+
+/* A start that failed half way: what it made deleted, nothing held. */
+static int refuse(void)
+{
+    delete_names();
+    forget_names();
+    return 0;
+}
+
 int GlPicture_Init(void)
 {
     const char *version = (const char *)glGetString(GL_VERSION), *choice = getenv("MEMORIES_GL_PICTURE");
@@ -898,16 +936,28 @@ int GlPicture_Init(void)
                 version ? version : "none");
         return 0;
     }
-    if (!load_functions() || !make_program(Settings_Get(SET_XBR) != 0)) return 0;
+    if (!load_functions()) return 0;
+    /* On ES the context is SDL's renderer's: without a vertex array of the
+     * pass's own, unbind_attributes would turn off the attributes SDL's
+     * draws use in the one there is (the menu and overlays would vanish). */
+    if (es && (!glGenVertexArrays_ || !glBindVertexArray_ || !glDeleteVertexArrays_)) {
+        fprintf(stderr, "memories-pc: OpenGL picture: no glGenVertexArrays, which OpenGL ES 3 has\n");
+        return 0;
+    }
+    if (!make_program(Settings_Get(SET_XBR) != 0)) return refuse();
     vram_texture = make_texture(GL_R16UI, SOFT_GPU_WIDTH, SOFT_GPU_HEIGHT, GL_RED_INTEGER, GL_UNSIGNED_SHORT);
     vram_scratch = make_texture(GL_R16UI, SOFT_GPU_WIDTH, SOFT_GPU_HEIGHT, GL_RED_INTEGER, GL_UNSIGNED_SHORT);
     vram_fbo = make_framebuffer(vram_texture);
     vram_scratch_fbo = make_framebuffer(vram_scratch);
-    if (!vram_fbo || !vram_scratch_fbo) return 0;
+    if (!vram_fbo || !vram_scratch_fbo) return refuse();
     gl_GenBuffers(1, &buffer);
     if (glGenVertexArrays_ && glBindVertexArray_) glGenVertexArrays_(1, &vertex_array);
+    if (es && !vertex_array) {
+        fprintf(stderr, "memories-pc: OpenGL picture: no vertex array\n");
+        return refuse();
+    }
     if (!arena) arena = malloc(ARENA_WORDS * sizeof(uint32_t)); /* kept from before a lost context */
-    if (!arena) return 0;
+    if (!arena) return refuse();
     glBindTexture(GL_TEXTURE_2D, 0);
     on = 1;
     SoftGpu_SetRecorder(&recorder); /* records the first resync */
@@ -2683,7 +2733,44 @@ int GlPicture_CopyInto(unsigned from, int x, int y, int w, int h, unsigned to)
     return ok;
 }
 
-void GlPicture_Lost(void)
+/* Every name the pass holds, deleted in the current context (its own). */
+static void delete_names(void)
+{
+    int i;
+    if (program) {
+        gl_UseProgram(0);
+        gl_DeleteProgram(program);
+    }
+    if (buffer) gl_DeleteBuffers(1, &buffer);
+    if (vertex_array && glDeleteVertexArrays_) glDeleteVertexArrays_(1, &vertex_array);
+    if (vram_fbo) gl_DeleteFramebuffers(1, &vram_fbo);
+    if (vram_scratch_fbo) gl_DeleteFramebuffers(1, &vram_scratch_fbo);
+    if (vram_texture) glDeleteTextures(1, &vram_texture);
+    if (vram_scratch) glDeleteTextures(1, &vram_scratch);
+    if (picture_fbo) gl_DeleteFramebuffers(1, &picture_fbo);
+    if (picture_scratch_fbo) gl_DeleteFramebuffers(1, &picture_scratch_fbo);
+    if (picture_texture) glDeleteTextures(1, &picture_texture);
+    if (picture_scratch) glDeleteTextures(1, &picture_scratch);
+    free_multisampled(&picture_ms_fbo, &picture_ms_buffer);
+    wide_free();
+    if (banks_texture) glDeleteTextures(1, &banks_texture);
+    if (entry_map_texture) glDeleteTextures(1, &entry_map_texture);
+    if (place_map_texture) glDeleteTextures(1, &place_map_texture);
+    for (i = 0; i < entry_texture_count; i++) {
+        if (entry_textures[i]) glDeleteTextures(1, &entry_textures[i]);
+    }
+    if (capture_texture) glDeleteTextures(1, &capture_texture);
+    if (glyphs_texture) glDeleteTextures(1, &glyphs_texture);
+    if (shown_fbo) gl_DeleteFramebuffers(1, &shown_fbo);
+    if (shown_texture) glDeleteTextures(1, &shown_texture);
+    if (copy_fbo) gl_DeleteFramebuffers(1, &copy_fbo);
+}
+
+/* Every name the pass holds forgotten (deleted or not), and what was made
+ * from them. The record (the arena) is kept: a recorder call already under
+ * way when the recorder is taken out may still reserve room in it, and a
+ * start after a lost context uses it again. */
+static void forget_names(void)
 {
     int bank;
     on = 0;
@@ -2717,8 +2804,12 @@ void GlPicture_Lost(void)
     want_resync = 1; /* VRAM whole into the new picture, at the next replay after Init */
 }
 
+void GlPicture_Lost(void) { forget_names(); } /* they went with the lost context */
+
 void GlPicture_Stop(void)
 {
     on = 0;
     SoftGpu_SetRecorder(NULL); /* the software GPU draws its own picture again, from VRAM */
+    delete_names(); /* the picture, its scratch copy and anti-aliasing: hundreds of MiB at 4x */
+    forget_names();
 }

@@ -58,6 +58,8 @@
 #define DUEL_SCREEN_TABLES_TYPED_POSITIONS
 #include "game/duel_screen_tables.h"
 #include "game/view_state.h"
+#include "game/main_services.h"
+#include "game/ordering_tables.h"
 #include "game/view_state_orbit.h"
 #include "game/graphics_frame.h"
 #include "game/graphics_frame_buffer.h"
@@ -107,9 +109,6 @@
 #endif
 
 extern u8 D_8009B1D5;          /* the side the view belongs to */
-extern void *G32 D_800E9D98[]; /* D_800E9D90[2]: func_800540B4's table */
-extern GsOT *G32 D_800E9D90[4]; /* the four ordering tables of the frame */
-extern void (*G32 D_800E9DB0[4])(void); /* the frame service callbacks */
 extern u32 D_800FE240;         /* GsSetWorkBase */
 
 /* One monster's private RAM. 96 sectors of model data, then the module
@@ -514,8 +513,8 @@ static int load_monster(Monster *monster, int card, int position)
     }
     D_80010000 = payload_base;
 
-    slot->field_DE8 = (s32)(monster->arena + ARENA_DATA_A);
-    slot->field_DEC = (s32)(monster->arena + ARENA_DATA_B);
+    slot->field_DE8 = (s32)(uintptr_t)(monster->arena + ARENA_DATA_A);   /* the arena is below 4 GB (map_fixed) */
+    slot->field_DEC = (s32)(uintptr_t)(monster->arena + ARENA_DATA_B);
     /* The quiet load leaves the slot's command words at -1, so no module
      * runs; the record's own are kept for the attack's effects. */
     memcpy(monster->commands, record + META_SECTOR * SECTOR + META_COMMANDS, sizeof(monster->commands));
@@ -656,7 +655,8 @@ static u8 *scratch;
 
 /* Sorting a monster into the game's own model ordering table is all the
  * drawing there is: the frame it belongs to has not been sent to the GPU yet.
- * D_800E9D98[0] is the table func_800540B4 uses for slots 0 and 1, which the
+ * D_800E9D90[2] is the table func_800540B4 uses for slots 0 and 1 (its own
+ * name for it is D_800E9D98[0], the same word), which the
  * battle presentation draws its duellists into.
  *
  * The field's cards and a model measure depth differently in that table: a
@@ -721,7 +721,7 @@ static void effect_run(void);
 static void sort_monster(Monster *monster, GsOT *into, int at)
 {
     const u32 *from = (const u32 *)(uintptr_t)D_800FE240;
-    GsOT *live = (GsOT *)D_800E9D98[0];
+    GsOT *live = D_800E9D90[2];
     GsOT *table = (GsOT *)(scratch + TABLE_AT);
     u32 *tags = (u32 *)scratch, *entry, *last = NULL, first = LINK_END, end;
 #ifdef MEMORIES_TRANSLATED
@@ -739,12 +739,12 @@ static void sort_monster(Monster *monster, GsOT *into, int at)
     table->point = 0;
     GsClearOt(0, 0, table);
     end = tags[0] & LINK_MASK; /* what entry 0 leads to: the table's tail */
-    D_800E9D98[0] = table;
+    D_800E9D90[2] = table;
     func_800540B4(0);
     if (monster == effect_monster) {
         effect_run();
     }
-    D_800E9D98[0] = live;
+    D_800E9D90[2] = live;
     if (D_800FE240 - (u32)(uintptr_t)from > monster->packet_bytes) {
         monster->packet_bytes = D_800FE240 - (u32)(uintptr_t)from;
     }
@@ -794,7 +794,7 @@ static int packet_height(const u32 *from, const u32 *to);
 static int sort_aside(Monster *monster)
 {
     GsOT *table = (GsOT *)(scratch + TABLE_AT);
-    void *live = D_800E9D98[0];
+    GsOT *live = D_800E9D90[2];
     u32 base = D_800FE240;
     int height;
     table->length = 14;
@@ -803,13 +803,13 @@ static int sort_aside(Monster *monster)
     table->point = 0;
     GsClearOt(0, 0, table);
     GsSetWorkBase((PACKET *)(scratch + PACKETS_AT));
-    D_800E9D98[0] = table;
+    D_800E9D90[2] = table;
     func_800540B4(0);
     height = packet_height((const u32 *)(scratch + PACKETS_AT), (const u32 *)(uintptr_t)D_800FE240);
     if (D_800FE240 - (u32)(uintptr_t)(scratch + PACKETS_AT) > monster->packet_bytes) {
         monster->packet_bytes = D_800FE240 - (u32)(uintptr_t)(scratch + PACKETS_AT);
     }
-    D_800E9D98[0] = live;
+    D_800E9D90[2] = live;
     D_800FE240 = base;
     return height;
 }
@@ -988,7 +988,7 @@ static void draw_monster(Monster *monster, int x, int z, int yaw, int share, int
     place_flat(slot, turned ? x + body_x : x - body_x, -body_y - lifted,
                turned ? z + body_z : z - body_z, yaw, monster->scale * share / MODEL_FIXED_ONE, height);
     monster->fade = fade;
-    sort_monster(monster, (GsOT *)D_800E9D98[0], at);
+    sort_monster(monster, D_800E9D90[2], at);
     monster->fade = 0;
     if (!monster->stepped) {
         func_800556E8(0);
@@ -2526,7 +2526,7 @@ static void draw_fighter(int side, Monster *monster, int x, int z, int share, in
     monster->fade = fade;
     {
         const u32 *start = (const u32 *)(uintptr_t)D_800FE240;
-        sort_monster(monster, (GsOT *)D_800E9D98[0], -1);
+        sort_monster(monster, D_800E9D90[2], -1);
         if (fight_alone() && packet_height(start, (const u32 *)(uintptr_t)D_800FE240) > 0) {
             attack.head[side][0] = (bounds.left + bounds.right) / 2;
             attack.head[side][1] = bounds.top;
@@ -2875,7 +2875,7 @@ static void draw_frame(void)
             standing[count].summon = side * MONSTER_ZONES + zone;
             standing[count].at = -1;
             if (overhead && (card->flags & DUEL_CARD_FLAG_SPRITE) && card->object) {
-                int at = (int)((DisplayObject *)card->object)->field_14 - (int)((GsOT *)D_800E9D98[0])->offset -
+                int at = (int)((DisplayObject *)card->object)->field_14 - (int)(D_800E9D90[2])->offset -
                          BOARD_DEPTH_STEPS;
                 standing[count].at = at < 0 ? 0 : at;
             }
