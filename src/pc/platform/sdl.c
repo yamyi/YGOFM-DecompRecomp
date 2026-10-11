@@ -2441,6 +2441,7 @@ int Platform_Open(const char *title)
         Monitor_Fact("gpu", "no OpenGL: SDL renderer %s", SDL_GetRendererName(renderer));
         LOG(LOG_WINDOW, "SDL fallback renderer %s, video %s", SDL_GetRendererName(renderer), SDL_GetCurrentVideoDriver());
     }
+    Menu_SetPresentPass(use_gl); /* present_pass.c: the desktop presenter's alone */
     Menu_Init();
 #ifdef SDL_PLATFORM_ANDROID
     /* One window, always the whole screen, no update check (android.c):

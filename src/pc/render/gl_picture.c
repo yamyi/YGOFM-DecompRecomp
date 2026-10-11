@@ -329,12 +329,18 @@ static const char *vertex_source =
  * is on (TEXTURE_XBR, make_program): its 25-texel neighbourhood made the
  * NVIDIA program of every primitive 51 registers and a local array where 8
  * do without it, and an older GPU (a GTX 550 Ti) ran a battle's effects at
- * 4x at half speed although xBR was off. */
+ * 4x at half speed although xBR was off. The neighbourhood is kept as its
+ * words alone, each color made where it is read (nbc), and the outer 16
+ * are fetched one by one rather than in a loop: on a phone (Adreno 660) an
+ * array of the 25 colors, filled in a loop, made the Free Duel screen at
+ * Internal 4x take 120 ms a frame (7.5 frames a second, 60 with xBR off;
+ * 44 like this, 60 at 2x), and that array filled one by one gave black
+ * corners where the driver read some of its texels as transparent. */
 #define TEXTURE_XBR_SOURCE \
     "uint centre_word, near_word;\n" \
     "uint nb_word[25];\n" \
-    "vec4 nb[25];\n" \
     "int nbi(int x, int y) { return (y + 2) * 5 + x + 2; }\n" \
+    "vec4 nbc(int i) { uint w = nb_word[i]; return w == 0u ? vec4(0.0) : vec4(expand(w) / 255.0, 1.0); }\n" \
     "float tdist(vec4 a, vec4 b) {\n" \
     "    if (a.a != b.a) return 1.0;\n" \
     "    vec3 k = a.rgb - b.rgb;\n" \
@@ -345,9 +351,9 @@ static const char *vertex_source =
     "bool tsame(vec4 a, vec4 b) { return tdist(a, b) < 0.06; }\n" \
     "float tcover(float f, float slope, float w) { return clamp(f / (slope * w) + 0.5, 0.0, 1.0); }\n" \
     "vec2 tcorner(int dx, int dy, vec2 q, float w) {\n" \
-    "    vec4 E = nb[12], B = nb[nbi(0, -dy)], C = nb[nbi(dx, -dy)], D = nb[nbi(-dx, 0)], F = nb[nbi(dx, 0)];\n" \
-    "    vec4 G = nb[nbi(-dx, dy)], H = nb[nbi(0, dy)], I = nb[nbi(dx, dy)], F4 = nb[nbi(2 * dx, 0)];\n" \
-    "    vec4 I4 = nb[nbi(2 * dx, dy)], H5 = nb[nbi(0, 2 * dy)], I5 = nb[nbi(dx, 2 * dy)];\n" \
+    "    vec4 E = nbc(12), B = nbc(nbi(0, -dy)), C = nbc(nbi(dx, -dy)), D = nbc(nbi(-dx, 0)), F = nbc(nbi(dx, 0));\n" \
+    "    vec4 G = nbc(nbi(-dx, dy)), H = nbc(nbi(0, dy)), I = nbc(nbi(dx, dy)), F4 = nbc(nbi(2 * dx, 0));\n" \
+    "    vec4 I4 = nbc(nbi(2 * dx, dy)), H5 = nbc(nbi(0, 2 * dy)), I5 = nbc(nbi(dx, 2 * dy));\n" \
     "    bool may = !tsame(E, F) && !tsame(E, H) &&\n" \
     "               (!tsame(F, B) && !tsame(H, D) || tsame(E, I) && !tsame(F, I4) && !tsame(H, I5) ||\n" \
     "                tsame(E, G) || tsame(E, C));\n" \
@@ -365,7 +371,6 @@ static const char *vertex_source =
     "    ivec2 t = clamp(e + ivec2(x, y), lo, hi);\n" \
     "    uint word = texel_word(t.x, t.y);\n" \
     "    nb_word[nbi(x, y)] = word;\n" \
-    "    nb[nbi(x, y)] = word == 0u ? vec4(0.0) : vec4(expand(word) / 255.0, 1.0);\n" \
     "}\n" \
     "vec4 texture_xbr(vec2 p, vec2 half_step, float w) {\n" \
     "    ivec2 e = ivec2(floor(p));\n" \
@@ -378,14 +383,24 @@ static const char *vertex_source =
     "    fetch(e, 0, -1, lo, hi);\n" \
     "    centre_word = near_word = nb_word[12];\n" \
     /* Like the four beside it (every corner's F and H): no corner is cut. */ \
-    "    if (tsame(nb[12], nb[13]) && tsame(nb[12], nb[11]) && tsame(nb[12], nb[17]) && tsame(nb[12], nb[7]))\n" \
+    "    if (tsame(nbc(12), nbc(13)) && tsame(nbc(12), nbc(11)) && tsame(nbc(12), nbc(17)) && tsame(nbc(12), nbc(7)))\n" \
     "        return vec4(expand(centre_word), 0.0);\n" \
-    "    for (int y = -2; y <= 2; y++) {\n" \
-    "        for (int x = -2; x <= 2; x++) {\n" \
-    "            if (((x == -2 || x == 2) && (y == -2 || y == 2)) || abs(x) + abs(y) <= 1) continue;\n" \
-    "            fetch(e, x, y, lo, hi);\n" \
-    "        }\n" \
-    "    }\n" \
+    "    fetch(e, -1, -2, lo, hi);\n" \
+    "    fetch(e, 0, -2, lo, hi);\n" \
+    "    fetch(e, 1, -2, lo, hi);\n" \
+    "    fetch(e, -2, -1, lo, hi);\n" \
+    "    fetch(e, -1, -1, lo, hi);\n" \
+    "    fetch(e, 1, -1, lo, hi);\n" \
+    "    fetch(e, 2, -1, lo, hi);\n" \
+    "    fetch(e, -2, 0, lo, hi);\n" \
+    "    fetch(e, 2, 0, lo, hi);\n" \
+    "    fetch(e, -2, 1, lo, hi);\n" \
+    "    fetch(e, -1, 1, lo, hi);\n" \
+    "    fetch(e, 1, 1, lo, hi);\n" \
+    "    fetch(e, 2, 1, lo, hi);\n" \
+    "    fetch(e, -1, 2, lo, hi);\n" \
+    "    fetch(e, 0, 2, lo, hi);\n" \
+    "    fetch(e, 1, 2, lo, hi);\n" \
     "    vec2 best = tcorner(1, 1, q, w), k = tcorner(-1, 1, vec2(1.0 - q.x, q.y), w);\n" \
     "    if (k.y > best.y) best = k;\n" \
     "    k = tcorner(1, -1, vec2(q.x, 1.0 - q.y), w);\n" \

@@ -147,7 +147,7 @@ static Menu menus[MENU_COUNT] = {
               {"Anti-aliasing", 0, ITEM_SUBMENU, 0, -1, SUB_ANTIALIAS},
               {"Filtering", 0, ITEM_SUBMENU, MENU_ITEM_FILTER, -1, SUB_FILTER, ITEM_GROUP_BREAK},
               {"VSync", 0, ITEM_CHECK, MENU_ITEM_VSYNC, SET_VSYNC},
-              {"Color", 0, ITEM_SUBMENU, 0, -1, SUB_COLOR, ITEM_GROUP_BREAK},
+              {"Color", 0, ITEM_SUBMENU, MENU_ITEM_COLOR, -1, SUB_COLOR, ITEM_GROUP_BREAK},
               {"Effects", 0, ITEM_SUBMENU, 0, -1, SUB_EFFECTS},
               {"Precise geometry", 0, ITEM_SUBMENU, MENU_ITEM_PGXP, -1, SUB_PGXP, ITEM_GROUP_BREAK}}, VIDEO_ITEMS},
     {"Audio", {{"Master", 0, ITEM_SLIDER, SLIDER_MASTER, SET_MASTER_VOLUME},
@@ -259,9 +259,9 @@ static Menu submenus[SUB_COUNT] = {
                {"Saturation", 0, ITEM_SLIDER, 0, SET_SATURATION},
                {"Gamma", 0, ITEM_SLIDER, 0, SET_GAMMA},
                {"Reset", 0, ITEM_ACTION, ACT_RESET_COLOR, -1, 0, ITEM_GROUP_BREAK}}, 5},
-    {"Effects", {{"CRT scanlines", 0, ITEM_CHECK, 0, SET_CRT},
-                 {"Reduce flashes", 0, ITEM_CHECK, 0, SET_FLASH},
-                 {"xBR pixel smoothing", 0, ITEM_CHECK, 0, SET_XBR}}, 3},
+    {"Effects", {{"CRT scanlines", 0, ITEM_CHECK, MENU_ITEM_CRT, SET_CRT},
+                 {"Reduce flashes", 0, ITEM_CHECK, MENU_ITEM_FLASH, SET_FLASH},
+                 {"xBR pixel smoothing", 0, ITEM_CHECK, MENU_ITEM_XBR, SET_XBR}}, 3},
     /* The others go by way of the title and the game's debug menu, as the
      * control channel's `jump` does (title_jump.h); a duel needs a deck. */
     {"Jump to", {{"Title Screen", 0, ITEM_ACTION, MENU_ITEM_TITLE, -1, 0, ITEM_DISABLED},
@@ -942,7 +942,42 @@ void Menu_SetPlatformItems(int windows, int window_modes, int update_check)
     }
 }
 
-static int hd_picture;
+static int hd_picture, present_pass = 1;
+
+/* An item's reason beside it, and dimmed while it has one. Only a row
+ * dimmed here is enabled again (these rows have no shortcut of their own):
+ * a backend may dim one for good (x11.c, Sharp bilinear). */
+static void set_reason(int id, const char *why)
+{
+    int menu, item, had = 0;
+    for (menu = 0; menu < MENU_COUNT + SUB_COUNT; menu++) {
+        Menu *m = menu < MENU_COUNT ? &menus[menu] : &submenus[menu - MENU_COUNT];
+        for (item = 0; item < m->count; item++) {
+            if (m->items[item].id != id) continue;
+            had |= m->items[item].shortcut != NULL;
+            m->items[item].shortcut = why;
+        }
+    }
+    if (why || had) Menu_SetItemEnabled(id, !why);
+}
+
+/* The desktop presenter's effects (present_pass.c) are not run on the
+ * OpenGL ES path (Android, sdl.c's es_picture) or by the SDL fallback.
+ * xBR is also the OpenGL picture pass's, on the textures, at Internal 2x
+ * and up (gl_picture.c). */
+static void update_effect_items(int console, const char *no_picture)
+{
+#ifdef __ANDROID__
+    const char *why = present_pass ? NULL : "not on Android yet";
+#else
+    const char *why = present_pass ? NULL : "needs desktop OpenGL";
+#endif
+    set_reason(MENU_ITEM_COLOR, why);
+    set_reason(MENU_ITEM_CRT, why);
+    set_reason(MENU_ITEM_FLASH, why);
+    set_reason(MENU_ITEM_FILTER_SHARP, why);
+    set_reason(MENU_ITEM_XBR, present_pass ? NULL : !hd_picture ? no_picture : console ? "needs Internal 2x" : NULL);
+}
 
 /* HD text takes effect in the OpenGL pass at Internal 2x and up; the
  * opponent's name also at 1x, where the software GPU draws it. */
@@ -971,11 +1006,22 @@ static void update_hd_items(void)
             }
         }
     }
+#ifdef __ANDROID__
+    update_effect_items(console, "needs OpenGL ES 3");
+#else
+    update_effect_items(console, "needs OpenGL 3");
+#endif
 }
 
 void Menu_SetHdPicture(int on)
 {
     hd_picture = !!on;
+    update_hd_items();
+}
+
+void Menu_SetPresentPass(int on)
+{
+    present_pass = !!on;
     update_hd_items();
 }
 
