@@ -3360,8 +3360,10 @@ phones too ("Android arm64").
 
 ### Build, install, run
 
-Needs the Android SDK with the NDK (r29 tested), a platform (android-35) and
-build-tools (35), a JDK (17 or later: `javac`, `keytool`), cmake and ninja.
+Needs the Android SDK with the NDK (r29 tested), a platform (android-35;
+`package_android.py` stops below android-34, as the manifest's
+`configChanges` names `grammaticalGender`) and build-tools (35), a JDK (17
+or later: `javac`, `keytool`), cmake and ninja.
 Nothing else: no Gradle, no Android Studio.
 
 ```sh
@@ -3708,6 +3710,28 @@ untouched: with a mouse every path is the old one, pixel for pixel.
   and the picture comes back. Rotation is landscape only. Back asks "Quit
   the game?" (a second Back keeps playing); Quit ends the process, and the
   next launch starts afresh.
+- **Configuration changes:** the activity takes every change the manifest
+  can name itself (`CONFIG_CHANGES` in `package_android.py`: density, font
+  scale and weight, colour mode, grammatical gender, touchscreen, SIM
+  country and network, besides the orientation, size, locale, keyboard and
+  UI mode ones), so the system does not destroy and re-create it. A
+  re-created activity ends the game (SDL's `onDestroy` sends a quit; the
+  game, at its fixed addresses, cannot start over in the same process), and
+  the way it ended aborted ("FORTIFY: pthread_mutex_lock called on a
+  destroyed mutex" in `hwuiTask0/1`): Display size in the system settings
+  (`adb shell wm density 300`) closed the running game that way. A density
+  change keeps the window's pixels, so SDL sends no resize and its content
+  scale stays the starting one: `Android_Density` (`android.c`, the
+  activity's `getDisplayMetrics().densityDpi` through JNI, read again at
+  most once a second from `sdl.c`'s pump, on the thread's own stack) gives
+  the sizes instead, and a change lays the menu, its touch targets and the
+  touch controls out again (the touch controls are 13% of the screen's
+  short side within 48 to 80 dp, so on a 1080-pixel-high screen they change
+  only where that range moves past 140 pixels: below 279 dpi or above
+  468). What the manifest cannot name (an overlay that changes the
+  app's resources, as `cmd overlay enable
+  com.android.internal.display.cutout.emulation.corner` does) still
+  re-creates the activity, and the game ends as on Quit.
 - **Save states:** `libgame.so` sits at `0x08000000` with load bias 0 on
   every launch; F5 on the Options screen, the app force-stopped and started
   again, F7 at the title brings the Options screen back, live.

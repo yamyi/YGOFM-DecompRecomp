@@ -21,6 +21,10 @@
  *   end of the credits) asks a small activity in a process of its own
  *   (Restart.java) to end this process and launch the game again.
  * - No update check yet, and no desktop OpenGL (platform.h).
+ * - The display's density as it is now (Android_Density, platform.h): the
+ *   activity takes a density change itself (Display size in the system
+ *   settings) and SDL's content scale keeps the starting one, so sdl.c
+ *   reads it here, through JNI, to lay out again.
  * - SDL_main itself is the loader's (android_loader.c, libmain.so), which
  *   loads this game, libgame.so, at the address it was linked at and calls
  *   Memories_AndroidMain.
@@ -41,6 +45,7 @@
 #include <dirent.h>
 #include <dlfcn.h>
 #include <errno.h>
+#include <jni.h>
 #include <sys/statvfs.h>
 #include <fcntl.h>
 #include <linux/ashmem.h>
@@ -95,6 +100,65 @@ void bzero(void *at, size_t size)
 int Platform_HasDesktopGL(void)
 {
     return 0; /* GLES only: sdl.c's GL renderer is desktop GL */
+}
+
+/* --- the display's density, as it is now (platform.h) ---------------- */
+
+static int density_dpi;          /* the last read; 0 before the first */
+static Uint64 density_read_at;   /* SDL_GetTicks of that read */
+
+/* The activity's Resources.getDisplayMetrics().densityDpi, which Android
+ * updates before it tells the activity of a change it takes itself; 0 when
+ * it could not be read. */
+static int read_density_dpi(void)
+{
+    JNIEnv *env = (JNIEnv *)SDL_GetAndroidJNIEnv();
+    jobject activity, resources = NULL, metrics = NULL;
+    jclass type;
+    jmethodID method;
+    jfieldID field;
+    int dpi = 0;
+    if (!env || !(activity = (jobject)SDL_GetAndroidActivity())) return 0;
+    if ((type = (*env)->GetObjectClass(env, activity)) != NULL &&
+        (method = (*env)->GetMethodID(env, type, "getResources", "()Landroid/content/res/Resources;")) != NULL)
+        resources = (*env)->CallObjectMethod(env, activity, method);
+    if (type) (*env)->DeleteLocalRef(env, type);
+    if (resources && !(*env)->ExceptionCheck(env) && (type = (*env)->GetObjectClass(env, resources)) != NULL) {
+        if ((method = (*env)->GetMethodID(env, type, "getDisplayMetrics", "()Landroid/util/DisplayMetrics;")) != NULL)
+            metrics = (*env)->CallObjectMethod(env, resources, method);
+        (*env)->DeleteLocalRef(env, type);
+    }
+    if (metrics && !(*env)->ExceptionCheck(env) && (type = (*env)->GetObjectClass(env, metrics)) != NULL) {
+        if ((field = (*env)->GetFieldID(env, type, "densityDpi", "I")) != NULL)
+            dpi = (int)(*env)->GetIntField(env, metrics, field);
+        (*env)->DeleteLocalRef(env, type);
+    }
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        dpi = 0;
+    }
+    if (metrics) (*env)->DeleteLocalRef(env, metrics);
+    if (resources) (*env)->DeleteLocalRef(env, resources);
+    (*env)->DeleteLocalRef(env, activity);
+    return dpi > 0 ? dpi : 0;
+}
+
+float Android_Density(void)
+{
+    return density_dpi > 0 ? (float)density_dpi / 160.0f : 0.0f;
+}
+
+int Android_DensityChanged(void)
+{
+    Uint64 now = SDL_GetTicks();
+    int dpi, before = density_dpi;
+    if (density_read_at && now - density_read_at < 1000) return 0;
+    density_read_at = now ? now : 1;
+    if (!(dpi = read_density_dpi()) || dpi == density_dpi) return 0;
+    density_dpi = dpi;
+    if (!before) return 0; /* the first read: what SDL started with */
+    fprintf(stderr, "memories-pc: the display's density is now %d dpi (was %d): laying out again\n", dpi, before);
+    return 1;
 }
 
 /* --- the disc image, through the system's file picker ----------------- */
