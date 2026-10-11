@@ -76,6 +76,14 @@ def install():
         assets_layout.setContentsMargins(0, 0, 0, 0)
         tabs.addTab(assets_tab, "Assets")
         _build_template_framework(self, assets_tab, controls, assets_layout)
+        build_deck_tab = QWidget(tabs)
+        build_deck_tab.setObjectName("buildDeckTab")
+        build_deck_layout = QVBoxLayout(build_deck_tab)
+        build_deck_layout.setContentsMargins(0, 0, 0, 0)
+        # Grouped with the other game-screen tabs, ahead of the catch-all
+        # Assets catalogue (texture replacement only -- see docstring below).
+        tabs.insertTab(tabs.indexOf(assets_tab), build_deck_tab, "Build Deck")
+        _build_build_deck_tab(self, build_deck_tab, controls, build_deck_layout)
         controls.update(shell=shell, tabs=tabs, assets_tab=assets_tab)
         _apply_reference_skin(shell, tabs, assets_tab)
         _wire_ui_tabs(self, shell, controls)
@@ -1712,9 +1720,17 @@ def _board_refresh(editor, force=False):
     from PySide6.QtWidgets import QTreeWidgetItem
     c = editor.workspace_controls["Assets"]
     field = c["board_field"]
-    if field.count() == 0:
+    # The .ui form ships the combo pre-populated with plain-text items (no
+    # itemData), so "already has rows" is not "already has the right rows":
+    # that left every item's data None forever, and currentData() with it.
+    if field.count() != len(board_art.TERRAINS) or any(field.itemData(i) not in board_art.TERRAINS for i in range(field.count())):
+        field.blockSignals(True)
+        kept = field.currentData() if field.currentData() in board_art.TERRAINS else None
+        field.clear()
         for terrain in board_art.TERRAINS:
             field.addItem(board_art.TERRAIN_LABELS[terrain], terrain)
+        field.setCurrentIndex(field.findData(kept) if kept else 0)
+        field.blockSignals(False)
     terrain = _board_terrain(c)
     tree, selected = c["board_tree"], c.get("board_selected", "floor")
     if selected != "floor" and selected not in board_art.BY_KEY:
@@ -1752,6 +1768,7 @@ def _board_refresh(editor, force=False):
 
 
 _BOARD_SIZE = (480, 360)
+_BOARD_DRAG_SIZE = (160, 120)   # a third the size while the camera moves -- ui_board.py's DRAG_SCALE
 
 
 def _board_camera(c):
@@ -1759,27 +1776,30 @@ def _board_camera(c):
     return tuple(camera) if isinstance(camera, (tuple, list)) and len(camera) == 5 else board_model.CAMERA
 
 
-def _board_display(editor, picture):
+def _board_display(editor, picture, full_size=True):
     """The cached 3D render redrawn with the current part(s) outlined, no
     re-render needed (a part picked, or a selection made elsewhere)."""
     c = editor.workspace_controls.get("Assets", {})
     shown = board_model.outline(picture, _board_outline_keys(c), 2)
     _png_preview(c["board_preview"], shown, "Game board unavailable")
-    if c.get("duel_preview") is not None:
+    # A low-resolution drag frame is not worth also recompositing the Duel
+    # HUD preview over; that waits for the next full-size picture.
+    if full_size and c.get("duel_preview") is not None:
         c["board_render_image"] = picture.image
         _draw_duel(editor)
 
 
-def _queue_board_render(editor, terrain, force=False):
+def _queue_board_render(editor, terrain, force=False, size=None):
     """Render board geometry off the GUI thread; disc decoding can be slow."""
     c = editor.workspace_controls.get("Assets", {})
+    size = size or _BOARD_SIZE
     version = board_art.state(editor.project).version
     camera = _board_camera(c)
-    key = (terrain, version, camera)
+    key = (terrain, version, camera, size)
     if not force and c.get("board_render_key") == key:
         # Nothing moved: just the outline may have (a different part chosen).
         if c.get("board_picture") is not None:
-            _board_display(editor, c["board_picture"])
+            _board_display(editor, c["board_picture"], size == _BOARD_SIZE)
         return
     c["board_render_key"] = key
     if c.get("board_picture") is None:
@@ -1790,14 +1810,14 @@ def _queue_board_render(editor, terrain, force=False):
             if board_model.available(editor.project):
                 model = board_model.board(board_art.disc(editor.project), terrain)
                 pieces = board_model.pieces_of(editor.project, terrain)
-                result["picture"] = board_model.render(model, pieces, camera, _BOARD_SIZE)
+                result["picture"] = board_model.render(model, pieces, camera, size)
         except Exception as problem:  # a damaged game image should not break Assets
             result["error"] = str(problem)
     worker = threading.Thread(target=render, daemon=True)
     worker.start()
     def finish():
         if worker.is_alive():
-            QTimer.singleShot(30, finish); return
+            QTimer.singleShot(15 if size != _BOARD_SIZE else 30, finish); return
         controls = editor.workspace_controls.get("Assets", {})
         if controls.get("board_render_key") != key or controls.get("board_preview") is None:
             return
@@ -1806,23 +1826,26 @@ def _queue_board_render(editor, terrain, force=False):
             # Rendering happened on the worker above, so selecting the Duel
             # tab never stalls the editor as the old synchronous view did.
             controls["board_picture"] = result["picture"]
-            _board_display(editor, result["picture"])
+            _board_display(editor, result["picture"], size == _BOARD_SIZE)
         else:
             controls["board_picture"] = None
             _canvas(controls["board_preview"], "DUEL BOARD", ["Game board unavailable", result["error"] or "Load game files to render the board."])
     QTimer.singleShot(0, finish)
 
 
-def _board_request_render(editor):
-    """Coalesce a flurry of drag/wheel moves into one render at a time,
-    instead of ui_board.py's adaptive low-resolution-while-dragging picture."""
+def _board_request_render(editor, full_size=False):
+    """Coalesce a flurry of drag/wheel moves into one render at a time: a
+    small, fast picture while the camera is actively moving (ui_board.py's
+    DRAG_SCALE), the real size once it settles (_board_release)."""
     c = editor.workspace_controls.get("Assets", {})
     if c.get("board_render_pending"):
         return
     c["board_render_pending"] = True
     def fire():
         c["board_render_pending"] = False
-        _queue_board_render(editor, _board_terrain(c))
+        dragging = not full_size and isinstance(c.get("board_drag"), dict)
+        _queue_board_render(editor, _board_terrain(c), force=full_size,
+                            size=_BOARD_DRAG_SIZE if dragging else _BOARD_SIZE)
     QTimer.singleShot(16, fire)
 
 
@@ -1860,7 +1883,8 @@ def _board_motion(editor, label, event):
 def _board_release(editor, label, event):
     c = editor.workspace_controls.get("Assets", {})
     if event.button() == Qt.MouseButton.MiddleButton:
-        c.pop("board_drag", None)
+        was_dragging = c.pop("board_drag", None) is not None
+        if was_dragging: _board_request_render(editor, full_size=True)
     elif event.button() == Qt.MouseButton.LeftButton:
         point = c.pop("board_click", None)
         if point is not None: _board_pick(editor, point)
@@ -2781,3 +2805,297 @@ def _revert_template(self):
         _remember_asset_removal(self.project, name)
     self.project.other.pop("assets", None)
     self._mark_dirty(); _refresh_template(self)
+
+
+# --- the Build Deck tab: a texture-only view of the catalogue's build_deck/*
+# entries. The game only reads positions and sizes for the duel HUD (ui_rules,
+# ui_config.c); the Build Deck, Library and Password screens have no such
+# per-element config on the C side, so this reuses the Assets catalogue's
+# replace/export/revert machinery (same asset dicts, same preview rendering)
+# with its own namespaced state -- not the generic multi-category browser --
+# since build_deck/* has no subcategories to browse.
+
+def _build_deck_catalog():
+    return [asset for asset in _catalog() if asset["name"].startswith("build_deck/")]
+
+
+def _build_build_deck_tab(self, page, controls, layout):
+    _clear(layout)
+    source = QFile(str(UI_DIR / "build_deck_assets_tab.ui"))
+    if not source.open(QIODevice.OpenModeFlag.ReadOnly):
+        raise RuntimeError(f"Could not open Build Deck assets form: {source.errorString()}")
+    loader = QUiLoader(); form = loader.load(source, page); source.close()
+    if form is None:
+        raise RuntimeError(f"Could not load Build Deck assets form: {loader.errorString()}")
+    layout.addWidget(form)
+
+    def widget(kind, name):
+        value = form.findChild(kind, name)
+        if value is None: raise RuntimeError(f"Build Deck assets form is missing {name!r}")
+        return value
+
+    bd = controls.setdefault("build_deck", {})
+    bd.clear()
+    bd.update(
+        form=form, catalog=_build_deck_catalog(), category="__all__", selected=None, filter_mode="all", preview_scale=2,
+        table=widget(QTableWidget, "buildDeckTable"), search=widget(QLineEdit, "buildDeckSearchEdit"),
+        all=widget(QPushButton, "buildDeckAllButton"), modified=widget(QPushButton, "buildDeckModifiedButton"),
+        retail=widget(QPushButton, "buildDeckRetailButton"),
+        name=widget(QLabel, "buildDeckSelectedName"), description=widget(QLabel, "buildDeckSelectedUse"),
+        retail_preview=widget(QLabel, "buildDeckRetailPreview"), replacement_preview=widget(QLabel, "buildDeckReplacementPreview"),
+        path=widget(QLabel, "buildDeckPathValue"), size=widget(QLabel, "buildDeckSizeValue"), uses=widget(QLabel, "buildDeckUsesValue"),
+        replacement_info=widget(QLabel, "buildDeckStatusNote"), footer=widget(QLabel, "buildDeckFooterLabel"),
+        import_=widget(QPushButton, "buildDeckReplaceButton"), export=widget(QPushButton, "buildDeckExportButton"),
+        remove=widget(QPushButton, "buildDeckRevertButton"), remove_all=widget(QPushButton, "buildDeckRevertAllButton"),
+    )
+    table = bd["table"]
+    table.setColumnCount(3)
+    table.horizontalHeader().setStretchLastSection(False)
+    table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+    table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+    table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+    bd["remove"].setEnabled(False)
+
+    bd["import_"].clicked.connect(lambda: _import_build_deck(self))
+    bd["export"].clicked.connect(lambda: _export_build_deck(self))
+    bd["remove"].clicked.connect(lambda: _remove_build_deck(self))
+    bd["remove_all"].clicked.connect(lambda: _revert_build_deck_all(self))
+    for scale, name in ((1, "buildDeckPreview1xButton"), (2, "buildDeckPreview2xButton"), (4, "buildDeckPreview4xButton")):
+        widget(QPushButton, name).clicked.connect(lambda _checked=False, value=scale: _set_build_deck_scale(self, value))
+    for mode, button in (("all", bd["all"]), ("modified", bd["modified"]), ("retail", bd["retail"])):
+        button.clicked.connect(lambda _checked=False, value=mode: _set_build_deck_filter(self, value))
+    bd["search"].textChanged.connect(lambda value: _filter_build_deck(self, value))
+    table.itemSelectionChanged.connect(lambda: _select_build_deck_row(self))
+    _refresh_build_deck(self)
+
+
+def _build_deck_values(self):
+    c = self.workspace_controls.get("Assets", {}); bd = c.get("build_deck", {})
+    mode = bd.get("filter_mode", "all"); wanted = bd.get("search", "").strip().casefold() if isinstance(bd.get("search"), str) else ""
+    values = []
+    for asset in bd.get("catalog", []):
+        entry = _entry_for(self, asset)
+        if mode == "modified" and not entry: continue
+        if mode == "retail" and entry: continue
+        if wanted and wanted not in asset["name"].rsplit("/", 1)[-1].replace("_", " ").casefold(): continue
+        values.append((asset, entry))
+    return sorted(values, key=lambda value: value[0]["name"].casefold())
+
+
+def _filter_build_deck(self, text):
+    c = self.workspace_controls["Assets"]; bd = c["build_deck"]
+    bd["search"] = text
+    _refresh_build_deck(self)
+
+
+def _refresh_build_deck(self):
+    c = self.workspace_controls.get("Assets", {}); bd = c.get("build_deck", {})
+    table = bd.get("table")
+    if table is None: return
+    previous = bd.get("selected")
+    table.blockSignals(True); table.setRowCount(0)
+    values = _build_deck_values(self)
+    for row, (asset, entry) in enumerate(values):
+        _path, origin, _manifest_entry = _entry_origin(self, asset)
+        table.insertRow(row)
+        name = asset["name"].rsplit("/", 1)[-1].replace("_", " ")
+        method = "Texture pack" if origin == "pack" else "Named asset"
+        for column, value in enumerate((name, method, "Modified" if entry else "Retail")):
+            item = QTableWidgetItem(value)
+            if column == 0: item.setData(Qt.ItemDataRole.UserRole, asset)
+            if column == 2: item.setForeground(QColor("#6bdd9a" if entry else "#aebfd6"))
+            table.setItem(row, column, item)
+        if previous and previous.get("name") == asset["name"]: table.selectRow(row)
+    table.blockSignals(False)
+    if table.currentRow() < 0 and table.rowCount(): table.selectRow(0)
+    if table.rowCount(): _select_build_deck_row(self)
+    else: _select_build_deck(self, None)
+    modified = sum(1 for asset in bd.get("catalog", []) if _entry_for(self, asset))
+    bd["footer"].setText(f"{modified} modified asset{'s' if modified != 1 else ''}")
+
+
+def _select_build_deck_row(self):
+    bd = self.workspace_controls["Assets"]["build_deck"]; table = bd["table"]
+    item = table.item(table.currentRow(), 0) if table.currentRow() >= 0 else None
+    _select_build_deck(self, item.data(Qt.ItemDataRole.UserRole) if item else None)
+
+
+def _set_build_deck_filter(self, mode):
+    bd = self.workspace_controls["Assets"]["build_deck"]
+    bd["filter_mode"] = mode
+    for key in ("all", "modified", "retail"): bd[key].setChecked(key == mode)
+    _refresh_build_deck(self)
+
+
+def _set_build_deck_scale(self, scale):
+    bd = self.workspace_controls["Assets"]["build_deck"]
+    bd["preview_scale"] = scale
+    for value, name in ((1, "buildDeckPreview1xButton"), (2, "buildDeckPreview2xButton"), (4, "buildDeckPreview4xButton")):
+        bd["form"].findChild(QPushButton, name).setChecked(value == scale)
+    _select_build_deck(self, bd.get("selected"))
+
+
+def _select_build_deck(self, asset):
+    bd = self.workspace_controls["Assets"]["build_deck"]; bd["selected"] = asset
+    if asset is None:
+        bd["name"].setText("No texture selected")
+        bd["description"].setText("Choose a texture from the list.")
+        _template_preview(bd["retail_preview"], None, "Retail preview", 1)
+        _template_preview(bd["replacement_preview"], None, "Replacement preview", 1)
+        bd["remove"].setEnabled(False); return
+    entry, origin, _manifest_entry = _entry_origin(self, asset)
+    cache = bd.setdefault("preview_image_cache", {}); pending = bd.setdefault("preview_image_loading", set())
+    retail_cache = bd.setdefault("retail_preview_cache", {}); retail_pending = bd.setdefault("retail_preview_loading", set())
+    retail_key = asset["name"]; retail_loading = retail_key not in retail_cache; retail = retail_cache.get(retail_key)
+    loading = entry is not None and entry not in cache
+    replacement = cache.get(entry) if entry is not None else None
+    crop = _legacy_crop(self, asset) if origin == "pack" else None
+    if replacement is not None and crop is not None:
+        native_width, native_height = _native_size(asset)
+        source_width, source_height = _native_size(_manifest_entry)
+        source_width_px = replacement.width() if isinstance(replacement, QImage) else replacement.width
+        source_height_px = replacement.height() if isinstance(replacement, QImage) else replacement.height
+        scale_x = source_width_px / source_width; scale_y = source_height_px / source_height
+        left, top = round(crop[0] * scale_x), round(crop[1] * scale_y)
+        width, height = max(1, round(native_width * scale_x)), max(1, round(native_height * scale_y))
+        replacement = (replacement.copy(left, top, width, height) if isinstance(replacement, QImage) else
+                       pngio.crop(replacement, left, top, width, height))
+    scale = bd.get("preview_scale", 2)
+    bd["name"].setText(asset["name"].rsplit("/", 1)[-1])
+    description = asset.get("what") or "Named UI texture."
+    if origin == "pack": description += " Loaded from this mod's texture pack" + (" atlas." if crop else ".")
+    bd["description"].setText(description)
+    bd["path"].setText(entry or f"assets/{asset['name']}.png")
+    bd["size"].setText(f"{asset.get('width', asset['words'] * (16 // asset['bpp']))} × {asset['rows']}")
+    bd["uses"].setText(f"{asset['regions']} region{'s' if asset['regions'] != 1 else ''}")
+    detail = "1×" if scale == 1 else f"up to {scale}×"
+    bd["replacement_info"].setText(
+        f"{replacement.width() if isinstance(replacement, QImage) else replacement.width} × "
+        f"{replacement.height() if isinstance(replacement, QImage) else replacement.height} PNG · {detail} detail"
+        if replacement else "Loading replacement…" if loading else "No replacement")
+    bd["remove"].setEnabled(entry is not None)
+    _template_preview(bd["retail_preview"], retail, "Loading retail preview…" if retail_loading else "Retail preview unavailable", 1, asset)
+    _template_preview(bd["replacement_preview"], replacement, "Loading replacement…" if loading else "No replacement", scale, asset)
+    if loading and entry not in pending: _load_build_deck_preview_image(self, entry, asset)
+    if retail_loading and retail_key not in retail_pending: _load_build_deck_retail_preview_image(self, asset)
+
+
+def _load_build_deck_preview_image(self, entry, asset):
+    bd = self.workspace_controls.get("Assets", {}).get("build_deck", {})
+    pending = bd.setdefault("preview_image_loading", set())
+    if entry in pending: return
+    pending.add(entry); result = {}
+
+    def read():
+        try:
+            if entry in self.project.files: result["image"] = QImage.fromData(self.project.files[entry])
+            else:
+                source = Path(self.project.source_dir) / entry if self.project.source_dir else None
+                result["image"] = QImage(str(source)) if source else QImage()
+            if result["image"].isNull(): result["image"] = None
+        except (OSError, ValueError): result["image"] = None
+
+    thread = threading.Thread(target=read, name="fm-editor-build-deck-preview", daemon=True); thread.start()
+
+    def complete():
+        if thread.is_alive(): QTimer.singleShot(15, complete); return
+        current = self.workspace_controls.get("Assets", {}).get("build_deck", {})
+        cache = current.setdefault("preview_image_cache", {})
+        current.setdefault("preview_image_loading", set()).discard(entry)
+        cache[entry] = result.get("image")
+        if len(cache) > 16: cache.pop(next(iter(cache)))
+        selected = current.get("selected")
+        if selected and selected.get("name") == asset.get("name"): _select_build_deck(self, selected)
+
+    QTimer.singleShot(0, complete)
+
+
+def _load_build_deck_retail_preview_image(self, asset):
+    bd = self.workspace_controls.get("Assets", {}).get("build_deck", {})
+    key = asset["name"]; pending = bd.setdefault("retail_preview_loading", set())
+    if key in pending: return
+    pending.add(key); result = {}
+
+    def read():
+        try: result["image"] = self._asset_retail_image(asset)
+        except (IndexError, KeyError, OSError, TypeError, ValueError, pngio.PngError): result["image"] = None
+
+    thread = threading.Thread(target=read, name="fm-editor-build-deck-retail", daemon=True); thread.start()
+
+    def complete():
+        if thread.is_alive(): QTimer.singleShot(15, complete); return
+        current = self.workspace_controls.get("Assets", {}).get("build_deck", {})
+        cache = current.setdefault("retail_preview_cache", {})
+        current.setdefault("retail_preview_loading", set()).discard(key)
+        cache[key] = result.get("image")
+        if len(cache) > 32: cache.pop(next(iter(cache)))
+        selected = current.get("selected")
+        if selected and selected.get("name") == asset.get("name"): _select_build_deck(self, selected)
+
+    QTimer.singleShot(0, complete)
+
+
+def _import_build_deck(self):
+    bd = self.workspace_controls["Assets"]["build_deck"]; asset = bd.get("selected")
+    if asset is None: return
+    path, _ = QFileDialog.getOpenFileName(self, "Replace Build Deck texture", "", "PNG images (*.png)")
+    if not path: return
+    try: image = pngio.read(path)
+    except (OSError, ValueError, pngio.PngError) as problem:
+        QMessageBox.critical(self, "Could not import texture", str(problem)); return
+    _path, origin, manifest_entry = _entry_origin(self, asset)
+    if origin == "pack" and manifest_entry is not None:
+        relative = f"{art.pack_dir(self.project).rstrip('/')}/{manifest_entry['file']}"
+    else:
+        folder = self.project.other.get("assets")
+        if not isinstance(folder, str) or not folder: folder = "assets"; self.project.other["assets"] = folder
+        relative = f"{folder.rstrip('/')}/{asset['name']}.png"
+    self.project.files[relative] = pngio.encode(image)
+    self.project.deleted_files.discard(relative)
+    bd.get("preview_image_cache", {}).pop(relative, None)
+    self._mark_dirty(); _refresh_build_deck(self)
+
+
+def _export_build_deck(self):
+    asset = self.workspace_controls["Assets"]["build_deck"].get("selected")
+    if asset is None: return
+    image = _named_image(self, _entry_for(self, asset)) or self._asset_retail_image(asset)
+    if image is None:
+        QMessageBox.warning(self, "Export texture", "The retail texture cannot be decoded."); return
+    path, _ = QFileDialog.getSaveFileName(self, "Export texture", asset["name"].rsplit("/", 1)[-1] + ".png", "PNG images (*.png)")
+    if path: pngio.write(path, image)
+
+
+def _remove_build_deck(self):
+    bd = self.workspace_controls["Assets"]["build_deck"]; asset = bd.get("selected")
+    path, origin, manifest_entry = _entry_origin(self, asset)
+    if path is None: return
+    _remember_asset_removal(self.project, path)
+    bd.get("preview_image_cache", {}).pop(path, None)
+    if origin == "pack" and manifest_entry is not None:
+        st = art.state(self.project)
+        st.entries = [entry for entry in st.entries or [] if entry is not manifest_entry]
+        st.changed = True
+        self.workspace_controls["Assets"].pop("legacy_pack_index", None)
+        self._mark_dirty(); _refresh_build_deck(self); return
+    folder = self.project.other.get("assets")
+    if not _asset_paths(self.project, folder): self.project.other.pop("assets", None)
+    self._mark_dirty(); _refresh_build_deck(self)
+
+
+def _revert_build_deck_all(self):
+    """Only the build_deck/* entries -- not every named asset in the mod."""
+    bd = self.workspace_controls["Assets"]["build_deck"]
+    for asset in bd.get("catalog", []):
+        path, origin, manifest_entry = _entry_origin(self, asset)
+        if path is None: continue
+        _remember_asset_removal(self.project, path)
+        if origin == "pack" and manifest_entry is not None:
+            st = art.state(self.project)
+            st.entries = [entry for entry in st.entries or [] if entry is not manifest_entry]
+            st.changed = True
+    bd.get("preview_image_cache", {}).clear()
+    self.workspace_controls["Assets"].pop("legacy_pack_index", None)
+    folder = self.project.other.get("assets")
+    if not _asset_paths(self.project, folder): self.project.other.pop("assets", None)
+    self._mark_dirty(); _refresh_build_deck(self)
