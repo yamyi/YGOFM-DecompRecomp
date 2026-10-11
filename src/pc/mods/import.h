@@ -49,6 +49,14 @@ ModsImportMod *Mods_ImportMod(ModsImport *import, int index);
 /* 1 when every mod is in place in `mods`, else 0 with the reason in `why`
  * and the mods folder as it was. */
 int Mods_ImportInstall(ModsImport *import, const char *mods, char *why, size_t why_size);
+/* The bytes its mods take unpacked (what Mods_ImportInstall writes). */
+unsigned long long Mods_ImportBytes(const ModsImport *import);
+/* For Mods_ImportInstall on a thread of its own (the HD pack's download,
+ * hd_pack.h): it adds each file's size to *done as it is written, and a
+ * nonzero *cancel stops it before the next file (0, "Cancelled.", the mods
+ * folder as it was). Both are read and written with atomic operations;
+ * NULL for neither. */
+void Mods_ImportWatch(ModsImport *import, unsigned *done, const int *cancel);
 void Mods_ImportClose(ModsImport *import);
 /* Whether `mods`/`folder` is taken (a folder or a file is there); its
  * path in `path` either way. */

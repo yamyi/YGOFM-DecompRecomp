@@ -29,6 +29,7 @@ enum {
     MODS_UI_SEARCH = 1, MODS_UI_FILTER, MODS_UI_PROFILE, MODS_UI_SAVE, MODS_UI_LOAD, MODS_UI_TOGGLE, MODS_UI_BACK,
     MODS_UI_DEFAULTS, MODS_UI_CLOSE, MODS_UI_APPLY, MODS_UI_FOLDER, MODS_UI_ROW_SELECTED, MODS_UI_ROW_FIRST,
     MODS_UI_CHECK_SELECTED, MODS_UI_CHECK_FIRST, /* a row's [x], which switches its mod on or off */
+    MODS_UI_HD,         /* HD pack... (where the platform can download it, hd_pack.h) */
     MODS_UI_TAB = 20,   /* + 0 About, 1 Settings, 2 Compatibility */
     MODS_UI_ORDER = 30, /* + 0 -, 1 + */
     MODS_UI_OPTION = 100

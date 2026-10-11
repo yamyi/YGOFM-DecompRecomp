@@ -3599,6 +3599,28 @@ untouched: with a mouse every path is the old one, pixel for pixel.
   unpacked. `MEMORIES_IMPORT_ZIP=<file>` in `environment.txt` takes that file
   instead of the picker. The picker puts the app in the background; coming
   back is as above (the panel repainted for a second).
+- **HD pack...** In the Mods panel's top bar, left of Save: downloads the
+  latest release's HD pack (`yfm-redecomp-hd-mod-<tag>.zip`) from GitHub and
+  installs it through the importer, off, as an import ([Mod
+  manager](mods-window.md): the question first, the checks, the errors).
+  `Platform_HdNet` (android.c) is the network: `HdDownload.java`, called
+  through JNI only on the job's own threads (`hd_pack.c`), which SDL
+  attaches to the VM; `HdDownload` comes through the activity's class
+  loader, since `FindClass` on a thread native code attached sees only the
+  system's classes, and every JNI call is checked before the next (a
+  pending exception would end the app when the thread detaches). The
+  question to GitHub's API is one `HttpURLConnection` GET; the pack goes
+  through the system's `DownloadManager`, since on API 35 the app's own
+  sockets were destroyed three seconds after Home ("Destroyed live tcp
+  sockets for uids=...", and the app frozen) and an in-process download
+  ended with every switch away; the system's goes on, shows its
+  notification while it runs and waits for the network. The game thread
+  makes no JNI call for it. The manifest asks for
+  `android.permission.INTERNET`, which Android grants at install without a
+  prompt; nothing is contacted until the button is tapped.
+  `MEMORIES_HD_TEST_SHA256=<hex>` in `environment.txt` (a development build
+  only) makes a download need that SHA-256, to see the damaged-download
+  path.
 - **Apply & restart.** A change that needs a restart (a load order, a mod
   or setting that says so) restarts the app for real: `Platform_RestartGame`
   in `android.c` starts `Restart.java`'s activity (`org.yfmredecomp.game.Restart`,

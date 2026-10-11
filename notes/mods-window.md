@@ -145,9 +145,102 @@ when the mod needs one).
   `pc_mod_import` checks the reader and the installer on `.zip` files it
   writes; `pc_mods_window` drives the panel's import with a fake picker.
 
+**HD pack...** (Android; `HdPack_SetNet` in `src/pc/mods/hd_pack.h`, which
+only `sdl.c` under `SDL_PLATFORM_ANDROID` calls, so no desktop has the
+button) is in the top bar, left of Save (the footer is Import's and the
+message's). It downloads the HD pack of the latest release
+(`yfm-redecomp-hd-mod-<tag>.zip` on GitHub) and installs it as Import mod...
+installs a `.zip`. Nothing is contacted until it is tapped.
+
+- **Asking first**: a tap asks GitHub's API for `/releases/latest` (drafts
+  and pre-releases are never "latest", so a preview's pack is not offered)
+  and takes its asset `yfm-redecomp-hd-mod-<tag>.zip` (else the first
+  `yfm-redecomp-hd-mod-*.zip`), its size and its `digest` (an asset without
+  one is refused: the download could not be checked; one over the
+  importer's 512 MB unpacked is refused before anything is downloaded, since
+  pictures barely compress: "The HD pack of <tag> is too large: more than
+  512 MB once unpacked."). Then:
+  - the same release installed (its tag in the mod folder's `.hd-release`,
+    since the pack's `mod.json` says `"version": "1.0"` in every release):
+    "The HD pack is already installed (v0.2.0)." and nothing is downloaded;
+  - a newer one installed: "The installed HD pack (...) is newer than the
+    latest release (...)";
+  - the pack in use (on this launch): "...cannot be replaced now. Turn it
+    off, Apply & restart, then tap HD pack... again.";
+  - less free space than about 2.25 times the `.zip` plus 32 MiB (the
+    `.zip` and its files are on the disk at once, and the files may be a
+    quarter bigger than the `.zip`): "Not enough free space for the HD pack:
+    it needs about N MB, and M MB are free.";
+  - else the question, with Download and Cancel: "Download the HD pack
+    (v0.2.0)? 111 MB; Wi-Fi recommended. Needs ~284 MB free." (decimal
+    megabytes, as the phone's storage settings count them; the importer's
+    own room check counts MiB; "Update the HD pack from v0.1.2 to
+    v0.2.0? ..." over an older one, "... over the installed one?" over a
+    copy of unknown release).
+- **Downloading**: by the system's download manager (Android's
+  `DownloadManager`, with its notification while it runs), into
+  `downloads/` in the app's files folder (beside `mods/`, on the same file
+  system) as `<asset>.part`. It goes on while the app is in the background
+  (Android 15 closes an app's own connections a few seconds after it leaves
+  the screen) and waits when there is no network. The message shows the
+  share ("Downloading the HD pack (v0.2.0): 45% of 111 MB.", or "Waiting for
+  the network to go on ..." / "Waiting for Wi-Fi ..."), and the button reads
+  Stop. Once done, the file is renamed to the `.zip` (before the download
+  manager forgets the download, which would remove it) and then checked:
+  its size and SHA-256 must match the API's. Then the `.zip` is read by the
+  importer (it must hold one mod, `forbidden-memories-hd`), placed as
+  Import places a mod (a copy there of the same id is replaced) and
+  unpacked ("Unpacking ...: N%"), then the tag is written to
+  `.hd-release`. "HD pack installed (v0.2.0). Tick it and apply to use it."
+  The pack is listed **off**, selected, as any import
+  (`mod.forbidden-memories-hd=0` saved): on a desktop the pack's own
+  `"enabled": true` turns it on because unpacking it into the game's folder
+  is the only step and the next launch is its apply; here the panel
+  installs it while the game runs, and the switch-on (and the restart it
+  asks for) stays the player's, one tick away.
+- **Errors**, in plain words, with nothing left behind (the `.part`, the
+  `.zip` and the importer's hidden folder are removed, the system's download
+  forgotten): "No internet connection. Connect to Wi-Fi or mobile data and
+  try again.", "GitHub did not answer in time.", "GitHub is limiting
+  requests from this network right now. Try again later." (HTTP 403 or 429),
+  "Not enough free space for the HD pack." (the download manager's 1006),
+  "The download from GitHub failed. Try again.", "The download was
+  cancelled outside the game." (from the system's notification or
+  Downloads), "The download was damaged. Try again." (size or SHA-256 not as
+  the API says), "That download is not the HD pack", "This phone's download
+  manager is turned off ...", the importer's own refusals. Stop says "The HD
+  pack's download was stopped. Nothing was installed."; a Stop that comes
+  after the last piece (while the file is checked, in the frames between the
+  download's end and the unpacking's start, or with the importer's last
+  file) still installs nothing: `HdPack_Install` refuses once a Stop came.
+- **Threads**: each step (the question to GitHub, the download, the
+  unpacking, the clean-up) runs on a thread of its own (`hd_pack.c`); the
+  network is `HdDownload.java` (`HttpURLConnection` for the API,
+  `DownloadManager` for the pack) called through JNI on that thread, never
+  on the game's, which makes no JNI call for it and reads the step's atomic
+  counters each tick. Import mod..., Apply and HD pack... wait for each
+  other, and the window's own question (Discard your changes?) keeps the
+  message line until it is answered. Closing the panel lets a download go
+  on; the step after it runs when the panel opens again. What a job the app
+  ended in left (the system's download, which a killed app's goes on
+  without it, and the files in `downloads/`) is removed when the panel
+  opens, on a thread; the importer's hidden folder is left alone while a
+  job is under way.
+- **Testing**: `MEMORIES_HD_TEST_SHA256=<hex>` (in `environment.txt`, honoured
+  only by a development build, one without a release version) makes a
+  download need that SHA-256 instead of the release's, to see the damaged
+  path. `pc_mods_window` drives HD pack... with a fake network (no internet,
+  403, no pack, the question and Cancel, a damaged download, the download
+  manager's failures (1004, 1006, 403, cancelled outside), waiting for the
+  network, Stop halfway and during the check, the window's own question
+  during a job, a `.zip` that is not the pack, the whole way with the file
+  saved under a name of the system's, already installed, newer installed,
+  Update, in use, the clean-up at panel open); `pc_mod_import` checks the
+  importer's progress and cancel (`Mods_ImportWatch`).
+
 Implementation: `src/pc/platform/mods_window.c`, `src/pc/mods/manager.c`
 (`src/pc/mods/overlap.c` for the overlaps, `src/pc/mods/import.c` for Import
-mod...), and
+mod..., `src/pc/mods/hd_pack.c` for HD pack...), and
 window ownership in `sdl.c` / `x11.c`. `pc_mods_window` exercises real settings
 and manifests with a fake renderer/restart. `tools/pc/test_mods_context.sh`
 checks actual SDL/OpenGL context ownership during secondary-window operations.

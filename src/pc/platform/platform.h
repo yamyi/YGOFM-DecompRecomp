@@ -26,6 +26,11 @@ void Platform_OpenMods(void);
 int Platform_PickModZip(char *why, size_t why_size);
 int Platform_PickedModZip(char *why, size_t why_size);
 int Platform_FetchModZip(char *path, size_t size, char *why, size_t why_size);
+/* Android only (android.c; sdl.c hands it to HdPack_SetNet there): the
+ * network for the Mods panel's HD pack... (src/pc/mods/hd_pack.h), Java's
+ * HttpURLConnection on the download's own thread. */
+struct HdNet;
+const struct HdNet *Platform_HdNet(void);
 void Platform_OpenControls(void);
 /* Show a folder in the system's file manager; 0 on success. */
 int Platform_OpenFolder(const char *path);
