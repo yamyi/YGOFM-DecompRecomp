@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from . import fixed_decks, packs as packmath, starter_pools, validate
 from .gamedata import DUELIST_NAMES, POOL_LABELS, POOL_TOTAL, POOLS, TYPE_EQUIP
-from .model import fusion_pairs
 
 
 def plural(n: int, one: str, many: str = None) -> str:
@@ -19,6 +18,7 @@ def where_used(project, cid) -> list:
     `target` naming the place rather than how to go there: a frontend turns
     one into the move its own pages take (open_target below for the Tk
     window). A target of None is a place neither window edits."""
+    from .tabs import fusion_pairs  # deferred: tabs.py pulls in every Tk tab module
     p = project
     lines = []
 
