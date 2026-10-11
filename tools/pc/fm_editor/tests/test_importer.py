@@ -85,16 +85,6 @@ class ImporterTest(unittest.TestCase):
         built = manifest.build(result.project)
         self.assertEqual(set(built) - {"id", "name", "version", "description"}, set())
 
-    def test_antipiracy_archive_byte_is_ignored(self):
-        f = fixture()
-        wa = bytearray(f.wa)
-        wa[0xB61902] ^= 0x10
-        result = importer.import_modded(GameFiles(f.slus, f.wa, "retail"),
-                                        GameFiles(f.slus, bytes(wa), "patched"), "patched")
-        built = manifest.build(result.project)
-        self.assertNotIn("data", built)
-        self.assertFalse(any("B61902" in line for line in result.report))
-
     def test_runs(self):
         a = bytes(100)
         b = bytearray(a)

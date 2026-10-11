@@ -16,41 +16,9 @@
 from __future__ import annotations
 
 import argparse
-import subprocess
 import sys
 
-from . import disc, gamedata, importer, manifest, settings, validate
-
-
-QT_PROBE = "from PySide6.QtWidgets import QApplication; app = QApplication([]); app.quit()"
-
-
-def qt_opens(timeout=3.0) -> bool:
-    """Whether importing and constructing Qt is safe on this desktop.
-
-    A broken platform plugin can abort the interpreter, so probe it in a
-    short-lived child process once. Frozen builds already carry Qt and must
-    never relaunch themselves as the probe.
-    """
-    if getattr(sys, "frozen", False):
-        return True
-    try:
-        import PySide6  # noqa: F401
-    except ImportError:
-        return False
-    if settings.load().get("qt_opens") is True:
-        return True
-    try:
-        result = subprocess.run([sys.executable, "-c", QT_PROBE], timeout=timeout,
-                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    except subprocess.TimeoutExpired:
-        return True
-    except OSError:
-        return True
-    if result.returncode != 0:
-        return False
-    settings.save("qt_opens", True)
-    return True
+from . import disc, gamedata, importer, manifest, validate
 
 
 def load_retail(game):
@@ -121,7 +89,6 @@ def build_parser():
     parser.add_argument("--version", action="store_true", help="show the editor build and supported mod API")
     parser.add_argument("--game", help="the game: a folder with SLUS_014.11 and DATA/WA_MRG.MRG, or the .bin")
     parser.add_argument("--mod", help="a mod folder to open")
-    parser.add_argument("--classic", action="store_true", help="open the legacy Tk editor")
     commands = parser.add_subparsers(dest="command")
     check = commands.add_parser("check", help="validate a mod folder against the retail tables")
     check.add_argument("mod")
@@ -153,19 +120,5 @@ def main(argv=None) -> int:
         return command_check(arguments)
     if arguments.command == "import":
         return command_import(arguments)
-    if not arguments.classic and qt_opens():
-        try:
-            from .pyside_app import main as window
-            return window(arguments.game, arguments.mod)
-        except (ImportError, RuntimeError) as problem:
-            if not getattr(sys, "frozen", False):
-                print(f"The modern Qt editor could not start: {problem}. Falling back to the classic editor.",
-                      file=sys.stderr)
-    elif not arguments.classic:
-        print("The modern Qt editor could not start. Install it with: python -m pip install PySide6", file=sys.stderr)
-    try:
-        from .app import main as window
-    except ImportError:
-        print("No editor window can open: install PySide6 or tkinter.", file=sys.stderr)
-        return 1
+    from .app import main as window
     return window(arguments.game, arguments.mod)

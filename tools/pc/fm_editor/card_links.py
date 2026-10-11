@@ -12,8 +12,8 @@ import sys
 import tkinter as tk
 from tkinter import ttk
 
-from . import fixed_decks, packs as packmath, starter_pools, validate
-from .gamedata import DUELIST_NAMES, POOL_LABELS, POOL_TOTAL, POOLS, TYPE_EQUIP
+from . import fixed_decks, packs as packmath, roster, starter_pools, validate
+from .gamedata import POOL_LABELS, POOL_TOTAL, POOLS, TYPE_EQUIP
 from .widgets import px, scrolled_tree
 
 
@@ -170,18 +170,18 @@ def uses(app, cid) -> list:
         if ritual not in p.cards:
             continue
         recipe = list(p.rituals.get(ritual) or ())
-        tributes = recipe[:3] + [req.get("card") for req in p.ritual_requirements.get(ritual, [])]
+        tributes = recipe[:-1] + [req.get("card") for req in p.ritual_requirements.get(ritual, [])]
         go = lambda r=ritual: app.open_card(app.rituals, r)     # noqa: E731
         if ritual == cid:
             add("Rituals", "Its ritual", go)
         if cid in tributes:
             add("Rituals", f"Tribute for {p.card_label(ritual)}", go)
-        if len(recipe) > 3 and recipe[3] == cid:
+        if recipe and recipe[-1] == cid:
             add("Rituals", f"Summoned by {p.card_label(ritual)}", go)
     for d, pools in enumerate(p.pools):
-        name = DUELIST_NAMES[d] if d < len(DUELIST_NAMES) else str(d)
-        if name == "Unused":    # duelist 0: no duel deals or drops its pools
+        if d == 0:      # "Unused": no duel deals or drops its pools
             continue
+        name = roster.shown_name(p, d)
         deck = fixed_decks.deck_of(p, d)
         for pool in POOLS:
             if pool == "deck" and deck is not None:
@@ -194,6 +194,21 @@ def uses(app, cid) -> list:
             if weight:
                 add("Duelists", f"{name}: {POOL_LABELS[pool]}, {weight * 100 / POOL_TOTAL:.2f}%",
                     lambda d=d, pool=pool: app.open_pool(d, pool, cid))
+    for e in roster.copies(p):          # the duelists the mod adds
+        deck = fixed_decks.deck_of(p, e)
+        for pool in POOLS:
+            if pool == "deck" and deck is not None:
+                copies = deck.cards.get(cid, 0)
+                if copies:
+                    add("Duelists", f"{roster.shown_name(p, e)} (added): fixed deck, "
+                                    f"{plural(copies, 'copy', 'copies')}",
+                        lambda key=e.key: app.open_pool(key, "deck", cid))
+                continue
+            weight = e.pools[pool].get(cid, 0)
+            if weight:
+                add("Duelists", f"{roster.shown_name(p, e)} (added): {POOL_LABELS[pool]}, "
+                                f"{weight * 100 / POOL_TOTAL:.2f}%",
+                    lambda key=e.key, pool=pool: app.open_pool(key, pool, cid))
     for i, deck in enumerate(p.starter):
         copies = deck.cards.get(cid, 0)
         if copies:
@@ -212,11 +227,12 @@ def uses(app, cid) -> list:
         if isinstance(unlock, dict) and "card" in unlock and resolve(unlock["card"]) == cid:
             add("Packs", entry.get("name", packmath.pack_id(entry)) + ": unlocked by owning it",
                 lambda i=i: app.open_pack(i))
-    # No tab edits "starter_pools" (kept as written in mod.json): listed, no link.
+    # The Starter decks tab's Weighted pools page.
     for i, pool in enumerate(starter_pools.state(p)):
         weight = pool.cards.get(cid, 0)
         if weight:
-            add("Starter pools", f"{pool.name or f'pool {i + 1}'}: weight {weight} (mod.json only)", None)
+            add("Starter pools", f"{pool.name or f'pool {i + 1}'}: weight {weight}",
+                lambda i=i: app.open_starter_pool(i, cid))
     return lines
 
 

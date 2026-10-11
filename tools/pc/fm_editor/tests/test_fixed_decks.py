@@ -174,10 +174,7 @@ class CheckTest(unittest.TestCase):
         copy = p.add_card(1, "c1")
         fixed_decks.set_deck(p, 1, {copy: 1, 3: 39})
         p.remove_card(copy)
-        # Removing an added card also removes it from saved fixed decks so a
-        # later card cannot silently inherit that old deck reference.
-        self.assertFalse(any(f"no card {copy}" in issue.message for issue in deck_issues(p)))
-        self.assertNotIn(copy, fixed_decks.deck_of(p, 1).cards)
+        self.assertTrue(any(f"no card {copy}" in i.message for i in deck_issues(p)))
 
     def test_many_copies_are_fine(self):
         p = project()

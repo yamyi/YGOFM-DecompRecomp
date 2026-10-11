@@ -158,16 +158,19 @@ class MapModel:
 
     def world(self, v):
         m, t = self.matrix, self.translation
-        return tuple(sum(m[i][j] * v[j] for j in range(3)) * SCALE + t[i] for i in range(3))
+        return tuple(sum(m[i][j] * v[j] for j in range(3)) * self.scale + t[i] for i in range(3))
 
     def shades(self):
-        """The light each normal gets, turned with the model."""
-        m = self.matrix
-        out = []
-        for n in self.normals:
-            turned = [sum(m[i][j] * n[j] for j in range(3)) / 4096 for i in range(3)]
-            out.append(AMBIENT + DIFFUSE * max(0.0, sum(turned[i] * LIGHT[i] for i in range(3))))
-        return out
+        """The light each normal gets, turned with the model (worked out
+        once: the model does not change once read)."""
+        if getattr(self, "_shades", None) is None:
+            m = self.matrix
+            out = []
+            for n in self.normals:
+                turned = [sum(m[i][j] * n[j] for j in range(3)) / 4096 for i in range(3)]
+                out.append(AMBIENT + DIFFUSE * max(0.0, sum(turned[i] * LIGHT[i] for i in range(3))))
+            self._shades = out
+        return self._shades
 
     def points(self):
         """Each vertex in the world (world()), worked out once."""

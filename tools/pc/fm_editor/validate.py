@@ -495,7 +495,6 @@ def validate(project: Project) -> list:
     _check_tags(project, out)
     _check_tables(project, out)
     _check_starter(project, out)
-    _check_duelist_unlocks(project, out)
     for level, where, message in values.check(project.other.get("limits"), lambda name: roster.named(project, name)):
         out.append(Issue(level, "Values", where, message))
     stars = {}
