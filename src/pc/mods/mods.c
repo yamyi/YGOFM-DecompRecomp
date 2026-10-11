@@ -339,11 +339,9 @@ static void *host_map_fixed(const MemoriesModHost *host, uintptr_t address, size
 {
     void *wanted = (void *)address, *got;
     if (!owner(host) || !address || address % 0x10000u || !size || address + size < address) return NULL;
-#ifdef _WIN32
-    /* VirtualAlloc refuses an address that is already reserved. */
-    got = VirtualAlloc(wanted, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-    return got == wanted ? got : NULL;
-#else
+    /* On Windows compat/mman.h's VirtualAlloc, which refuses an address
+     * that is already taken; the 64-bit game holds the mod arenas' range
+     * from the start (image.c), and the mmap there gives it back first. */
     got = mmap(wanted, size, PROT_READ | PROT_WRITE, MAP_FIXED_NOREPLACE | MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (got == MAP_FAILED) return NULL;
     if (got != wanted) {   /* a kernel older than MAP_FIXED_NOREPLACE takes it as a hint */
@@ -351,7 +349,6 @@ static void *host_map_fixed(const MemoriesModHost *host, uintptr_t address, size
         return NULL;
     }
     return got;
-#endif
 }
 
 static int (*card_resolver)(const char *);
@@ -1185,6 +1182,20 @@ static void *load_object(Mod *mod, const char *path)
 #endif
 }
 
+#if !defined(MEMORIES_NO_CODE_MODS) && !(defined(__APPLE__) && defined(__aarch64__) && defined(MEMORIES_TRANSLATED))
+/* Whether the mod's object for this game is there to load. */
+static int library_present(const Mod *mod)
+{
+    char path[PATH_MAX_];
+    FILE *file;
+    if (snprintf(path, sizeof(path), "%s/%s", mod->directory, mod->library) >= (int)sizeof(path)) return 0;
+    file = fopen(path, "rb");
+    if (!file) return 0;
+    fclose(file);
+    return 1;
+}
+#endif
+
 static int load_library(Mod *mod)
 {
     char path[PATH_MAX_];
@@ -1224,7 +1235,7 @@ static int load_library(Mod *mod)
  * notes/modding.md and mod-api-3.md). Anything else is most likely a typo
  * that would leave the mod doing nothing, so it is a warning, not an error. */
 static const char *const manifest_keys[] = {
-    "id", "name", "version", "author", "description", "library", "enabled", "restart", "legacy_setting",
+    "id", "name", "version", "author", "description", "library", "libraries", "enabled", "restart", "legacy_setting",
     "data", "textures", "assets", "cards", "audio", "min_api", "game", "requires", "after", "conflicts", "priority",
     "settings", "fusions", "equips", "rituals", "drops", "decks", "duelists", "text", "font",
     "chest_overflow", "terrain_bonus", "trap_thresholds", "equip_bonus_default", "passwords", "starter",
@@ -1281,6 +1292,15 @@ static void check_keys(Mod *mod, const JsonValue *root)
     }
 }
 
+/* A code mod: a "library", or a "libraries" object with any entry (one
+ * without this game's target still looks for <id>.<target>.o). */
+static int has_code(const JsonValue *root)
+{
+    const char *library = Json_String(Json_Member(root, "library"), NULL);
+    const JsonValue *libraries = Json_Member(root, "libraries");
+    return (library && *library) || (Json_TypeOf(libraries) == JSON_OBJECT && Json_Count(libraries));
+}
+
 /* mod.json, read into the record. Returns 0 when it is not a mod at all. */
 static int read_manifest(Mod *mod, const char *directory, const char *origin)
 {
@@ -1313,25 +1333,46 @@ static int read_manifest(Mod *mod, const char *directory, const char *origin)
         note(mod, "id must be 1-63 letters, digits, hyphens or underscores");
     } else copy_text(mod->id, sizeof(mod->id), text);
     copy_text(mod->name, sizeof(mod->name), Json_String(Json_Member(root, "name"), mod->id));
-    text = Json_String(Json_Member(root, "library"), NULL);
-    if (text && *text) {
-        if (!Paths_Contained(text)) {
-            mod->broken = 1;
-            note(mod, "\"library\": %s is outside the mod", text);
-        } else if (strchr(text, '.')) {
+    /* The object for this game's target (object_loader.h): "libraries"
+     * names it outright, else it comes from "library", as it is written (or
+     * with ".o") for the 32-bit games, whose one object serves Linux and
+     * Windows, and as <library>.<target>.o for the others (its ".o" taken
+     * off first). A mod with "libraries" and no "library" is a code mod
+     * too: without this target's entry it looks for <id>.<target>.o. */
+    {
+        const JsonValue *libraries = Json_Member(root, "libraries");
+        const char *named = Json_String(Json_Member(libraries, OBJECT_LOADER_TARGET), NULL);
+        text = Json_String(Json_Member(root, "library"), NULL);
+        if (named && *named) text = named;
+        else if ((!text || !*text) && has_code(root)) text = mod->id;
+        if (text && *text) {
+            if (!Paths_Contained(text)) {
+                mod->broken = 1;
+                note(mod, "\"library\": %s is outside the mod", text);
+            } else if (named && *named) {
+                copy_text(mod->library, sizeof(mod->library), text);
 #if defined(__APPLE__) && defined(__aarch64__) && defined(MEMORIES_TRANSLATED)
-            size_t length = strlen(text);
-            if (length >= 2 && !strcmp(text + length - 2, ".o"))
-                snprintf(mod->library, sizeof(mod->library), "%.*s.dylib", (int)(length - 2), text);
-            else
-#endif
-            copy_text(mod->library, sizeof(mod->library), text);
-        } else {
-#if defined(__APPLE__) && defined(__aarch64__) && defined(MEMORIES_TRANSLATED)
-            snprintf(mod->library, sizeof(mod->library), "%s.dylib", text);
+            } else if (strchr(text, '.')) {
+                /* The macOS game links a dylib (build_mod.py --target macos):
+                 * "x.o" means x.dylib; a name with another extension is kept. */
+                size_t length = strlen(text);
+                if (length >= 2 && !strcmp(text + length - 2, ".o"))
+                    snprintf(mod->library, sizeof(mod->library), "%.*s.dylib", (int)(length - 2), text);
+                else
+                    copy_text(mod->library, sizeof(mod->library), text);
+            } else {
+                snprintf(mod->library, sizeof(mod->library), "%s.dylib", text);
 #else
-            snprintf(mod->library, sizeof(mod->library), "%s.o", text);   /* one object for every system */
+            } else if (strcmp(OBJECT_LOADER_TARGET, "i386")) {
+                size_t stem = strlen(text);
+                if (stem > 2 && !strcmp(text + stem - 2, ".o")) stem -= 2;
+                snprintf(mod->library, sizeof(mod->library), "%.*s.%s.o", (int)stem, text, OBJECT_LOADER_TARGET);
+            } else if (strchr(text, '.')) {
+                copy_text(mod->library, sizeof(mod->library), text);
+            } else {
+                snprintf(mod->library, sizeof(mod->library), "%s.o", text);   /* one object for both 32-bit systems */
 #endif
+            }
         }
     }
     mod->restart = Json_Bool(Json_Member(root, "restart"), 0);
@@ -1684,16 +1725,30 @@ static void activate_once(int index, int on)
             }
         }
 #ifdef MEMORIES_NO_CODE_MODS
-        /* The 64-bit game (build_game32.py --target windows-x64): a mod's
-         * code is a 32-bit x86 object, which this game cannot link or call.
-         * The mod stays off with the reason beside it, and its choice and
-         * the other mods' Apply are left alone: it is not a broken mod. */
+        /* The arm64 game (build_game32.py --target android-arm64-v8a) does
+         * not link code mods yet. The mod stays off with the reason beside
+         * it, and its choice and the other mods' Apply are left alone: it is
+         * not a broken mod. */
         if (!mod->broken && mod->library[0]) {
-            note(mod, "needs a 64-bit build of this mod: its code was built for the 32-bit game, which is the one "
-                      "to play it with");
+            note(mod, "is a code mod, which this game does not load yet");
             drop_overrides(index);
             return;
         }
+#else
+        /* A 64-bit game loads the mod's object for its own target
+         * (<library>.x86_64-windows.o). A mod made before there was one has
+         * only the 32-bit object: it stays off with the reason beside it, as
+         * above, and is not a broken mod. The macOS game, which has no 32-bit
+         * one to send the player to, reports a missing dylib as broken. */
+#if !(defined(__APPLE__) && defined(__aarch64__) && defined(MEMORIES_TRANSLATED))
+        if (strcmp(OBJECT_LOADER_TARGET, "i386") && !mod->broken && mod->library[0] && !mod->object.image &&
+            !mod->object.native_handle && !library_present(mod)) {
+            note(mod, "needs a 64-bit build of this mod (%s): the one it has is for the 32-bit game, which is the one "
+                      "to play it with", mod->library);
+            drop_overrides(index);
+            return;
+        }
+#endif
 #endif
         /* A mod that cannot load keeps the player's choice and its reason:
          * the window shows both, and removing it still works. */
@@ -2008,6 +2063,7 @@ const char *Mods_Directory(int index) { return at(index) ? mods[index].directory
 const char *Mods_Origin(int index) { return at(index) ? mods[index].origin : ""; }
 int Mods_Active(int index) { return at(index) && mods[index].active; }
 int Mods_Failed(int index) { return at(index) && (mods[index].broken || mods[index].failed); }
+int Mods_HasCode(int index) { return at(index) && has_code(Mods_Manifest(index)); }
 
 unsigned Mods_CodeHash(int index) { return at(index) ? mods[index].code_hash : 0; }
 

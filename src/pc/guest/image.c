@@ -342,6 +342,34 @@ void Memories_ReleaseLowPlaceholder(void *address, size_t length)
     }
 }
 
+/* Code mods' images (src/pc/mods/object_loader.c): the 64-bit game's mods
+ * go right after its own image, below 4 GB with bit 30 set, so that a mod's
+ * function fits a 4-byte guest slot and passes the branch thunks' fast path
+ * as the game's own do, and its calls reach the game with 32-bit offsets.
+ * Held from Memories_GuestMap with the other fixed regions; each image takes
+ * its piece back as compat/mman.h's mmap maps it. */
+#define MOD_CODE_SIZE 0x08000000u
+static uintptr_t mod_code_start, mod_code_end;
+
+int Memories_ModCodeRange(uintptr_t *start, uintptr_t *end)
+{
+    if (!mod_code_end) return 0;
+    *start = mod_code_start;
+    *end = mod_code_end;
+    return 1;
+}
+
+static void reserve_mod_code(uintptr_t base)
+{
+    const IMAGE_DOS_HEADER *dos = (const IMAGE_DOS_HEADER *)base;
+    const IMAGE_NT_HEADERS *nt = (const IMAGE_NT_HEADERS *)(base + (uintptr_t)dos->e_lfanew);
+    uintptr_t start = (base + nt->OptionalHeader.SizeOfImage + 0xffffu) & ~(uintptr_t)0xffffu;
+    if (start + MOD_CODE_SIZE > 0x80000000u) return;   /* not where the game was linked: no range */
+    mod_code_start = start;
+    mod_code_end = start + MOD_CODE_SIZE;
+    reserve_free(mod_code_start, mod_code_end);
+}
+
 static void fill_low_heap(void)
 {
     static const size_t sizes[] = {0x10000, 16, 32, 48, 64, 96, 128, 192, 256, 384, 512, 768, 1024, 2048, 4096,
@@ -676,12 +704,13 @@ int Memories_GuestMap(void)
         }
     }
     if (!result) {
-        /* The fixed regions mapped later (mod arenas, the text arena, the
-         * low memory region, the interpreter's stack, the game stack) are
-         * held from here: in a 64-bit process the window's GL driver and
-         * audio load below 4 GB too, and took the game stack's range before
-         * it was mapped. Each takes its range back as compat/mman.h's mmap
-         * maps it. */
+        /* The fixed regions mapped later (mod code, mod arenas, the text
+         * arena, the low memory region, the interpreter's stack, the game
+         * stack) are held from here: in a 64-bit process the window's GL
+         * driver and audio load below 4 GB too, and took the game stack's
+         * range before it was mapped. Each takes its range back as
+         * compat/mman.h's mmap maps it. */
+        reserve_mod_code((uintptr_t)GetModuleHandleW(NULL));
         reserve_free(0x90000000u, 0x91000000u);
         reserve_free(0x9C000000u, 0x9D000000u);
         reserve_free(MEMORIES_LOW_MEMORY_BASE, MEMORIES_LOW_MEMORY_BASE + MEMORIES_LOW_MEMORY_SIZE);

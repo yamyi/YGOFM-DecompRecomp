@@ -2807,8 +2807,8 @@ box naming the folder to put it in. Crash and hang reports, minidumps and
 menu frame dumps go to `reports/` in the user directory when the game is not
 run from a checkout (`Crash_ReportDir`; `tmp/pc` in one).
 
-The 64-bit Windows archive has the data mods only and no mod SDK ("64-bit
-Windows" below). Where its compiler is missing (x86_64-w64-mingw32-clang 21
+The 64-bit Windows archive carries each code mod's x86_64-windows object
+in place of the 32-bit one, and the same mod SDK ("Mod SDK M1" below). Where its compiler is missing (x86_64-w64-mingw32-clang 21
 or later), `package.py` with no arguments skips it with a message and packs
 the other two; `package.py windows-x64` stops instead.
 
@@ -3190,29 +3190,17 @@ drifted.
   `saves/slotNN.sav`, are the game's data; that the other width loads them
   is expected but not yet checked.) The width check comes before the mods check, so
   the mods refusal ("uses different mods...") is only ever between two
-  states of one width, whose code mods are the same (none on 64-bit).
-- **Mods.** The 64-bit build carries the data mods (`build_mods(code=False)`
-  copies them and leaves the code mods out), and the game is built with
-  `MEMORIES_NO_CODE_MODS`. The data mod loader is the 32-bit one, and what
+  states of one width, whose code mods are the same.
+- **Mods.** At X3 the 64-bit build carried the data mods only
+  (`build_mods(code=False)`, `MEMORIES_NO_CODE_MODS`; code mods came with
+  M1 below). The data mod loader is the 32-bit one, and what
   was run on 64-bit draws as there: cards and a texture pack (the gate
   replay below), a booster pack (state-load-rng's test mod), and the
   baseline release's data examples load without a note (`check_mod_abi`
   below). Fusions and the other tables, guardian stars, duelists, limits,
   audio, translations and disc patches load the same way but have no
   64-bit frame check yet; star and duelist names come from the low memory
-  region (X2), which no mod has exercised there. A mod with a `library` (3d-monsters,
-  hand-camera, ai-hard-mode, yamyi-mods, the gameplay-rules example) is a
-  32-bit object: none ships with the 64-bit game, and one the player
-  installs is not loaded: the Mods window shows "needs a 64-bit build of
-  this mod" beside it. It is not a broken mod, so
-  the other mods' Apply goes on, and it is not in a state's mod set. What
-  stays off with it: `object_loader.c` maps an object wherever the system
-  puts it and its relocations are i386 (`ObjectLoader_Load` refuses too),
-  `mod_libc.c` lends 32-bit helpers and the heap's `malloc` (which may be
-  above 4 GB), and `hooks.c` writes an i386 `jmp *[abs32]` (inert off
-  i386 already). No mod SDK goes beside the 64-bit game: it builds 32-bit
-  objects. `check_mod_abi.py --run --build <64-bit build>` plays a
-  baseline release's mods there and requires that note for each code mod.
+  region (X2), which no mod has exercised there.
   A replay recorded on 32-bit with two data mods on (the card-pack example
   with its two cards in the deck, and a texture pack of the screens'
   sheets with every color turned, made from the disc at play time) plays
@@ -3227,21 +3215,65 @@ drifted.
   reports.
 - **Package.** `python tools/pc/package.py windows-x64` makes
   `dist/yfm-redecomp-<version>-windows-x64.zip` (its folder
-  `yfm-redecomp-<version>-x64`, with the data mods and a README that says
-  so) beside the 32-bit
-  `-windows.zip` (the default now packs all three); `smoke.py` skips the
-  cases that turn on a code mod for it, and `test_package.py` checks the
-  x86-64 executable and that there is no SDK. The release workflow
+  `yfm-redecomp-<version>-x64`) beside the 32-bit `-windows.zip` (the
+  default now packs all three); since M1 below it carries the code mods'
+  x86_64-windows objects and the SDK, and `test_package.py` checks the
+  x86-64 executable and that each archive's mods have their own target's
+  objects. The release workflow
   (pc-release.yml) does not build it yet: its Windows job's later steps
   (the FM Editor, VirusTotal) key on the runner being Windows, so a second
   Windows entry would need them keyed on the system, and the 64-bit
   libraries (`tmp/pc/win64-deps`) a cache of their own.
 
-Still off in the 64-bit build: code mods, whose 64-bit SDK is a later
-milestone, after arm64, covering both 64-bit targets (the loader for
-x86-64 and AArch64 objects, the mod C library, function hooks); the
-interrupt clock (the cooperative one is the default anyway); a state from
-the other width.
+**Mod SDK M1 (2026-10-05): code mods on 64-bit Windows.** A code mod is an
+object per target (`notes/modding.md`, "Code mods"): `build_mod.py` builds
+`<library>.o` (i386, unchanged), `<library>.x86_64-windows.o` and
+`<library>.aarch64.o`, and this game loads the second.
+
+- **Loader.** `object_loader.c` reads ELF64 x86-64 relocatables (RELA;
+  64, PC32, PLT32, 32, 32S, PC64 and GOTPCREL(X)), with a veneer
+  (`jmp *[rip]`) for a call to a host function out of reach, the C
+  runtime's DLL far above 4 GB, and a GOT entry per symbol. An object must
+  carry `.memories.abi` naming `x86_64-windows`: x86-64 objects of the
+  Windows and the Linux ABI look alike. The i386 path and its hash are as
+  they were.
+- **Where mods go.** Below 4 GB with bit 30 set, so that a mod's function
+  fits a 4-byte guest slot and takes the branch thunks' fast path, as the
+  game's own: `image.c` holds 128 MiB from the first 64 KiB after the
+  executable's image (`Memories_ModCodeRange`; 0x42390000 in the build
+  of 2026-10-05), and each image takes its piece through `compat/mman.h`'s `mmap`.
+- **Hooks** are the same 6 + 2 bytes: `jmp *[rip+disp32]` to the slot in
+  the image (every game unit already had the padding). `mod_libc.c` lends
+  `___chkstk_ms` and `__x86_indirect_thunk_r11` there; the mods' rand seed
+  is a `uint32_t` (the `mod-rng` chunk's 4 bytes).
+- **map_fixed** goes through `compat/mman.h`'s `mmap`: the plain
+  `VirtualAlloc` over the range `Memories_GuestMap` holds for the mod arenas
+  (0x90000000) failed, so 3D Monsters had no arenas there.
+- **The shipped mods** had declared `D_800E9D90`, `D_800E9D98` and
+  `D_800E9DB0` themselves without `G32` (3D Monsters, Hand Camera, Yamyi
+  Mods): built for x86-64 they would have read 8-byte entries out of
+  4-byte tables. They include the game's headers now, and
+  `src/pc/mods/prelude64.h`, force-included into every 64-bit unit, makes
+  such a declaration a compile error.
+- **Gate.** One replay per shipped mod, each alone, recorded on 32-bit
+  (`tests/pc/replays/mod-3d-monsters`, `-3d-monsters-card-art`,
+  `-hand-camera`, `-ai-hard-mode`, `-yamyi-mods`), plays frame for frame
+  on this build, also with `MEMORIES_X64_HIGH_HEAP=1`; no float
+  difference between the i386 mods' x87 code and the x86-64 build's SSE
+  showed. The Yamyi Mods drop panel is drawn by the host over the picture,
+  which the frame hashes do not cover.
+- **Crashes.** A fault in a mod's code is named in the report as on
+  32-bit (`crasher:crasher_fault_here+0x0`, a scratch mod faulting in its
+  frame hook, with the game's callers below it). Mod code has no unwind
+  tables, so above a mod function that keeps a frame of its own the
+  callers may be lost: M3.
+- **Not yet:** a host pointer a mod stores into a guest slot is cut to 32
+  bits without a warning (`malloc` may be above 4 GB; the shipped mods pass
+  the replays with `MEMORIES_X64_HIGH_HEAP=1`): M3.
+
+Still off in the 64-bit build: the interrupt clock (the cooperative one is
+the default anyway); a state from the other width. The arm64 game loads no
+code mods yet (M2: the AArch64 relocations and hooks).
 
 ## Android
 

@@ -131,6 +131,9 @@ int Mods_InstallDirectory(char *out, size_t size);
 const char *Mods_Origin(int mod);
 int Mods_Active(int mod);
 int Mods_Failed(int mod);
+/* The mod has code to load (a "library" or "libraries"), whether or not
+ * this game can load it. */
+int Mods_HasCode(int mod);
 /* What the mods in `enabled` change in common, loading in the order `ranks`
  * gives (each mod's Load order, as the Mods window stages it), or the saved
  * order when `ranks` is NULL, with the settings `values` gives (values[mod]
