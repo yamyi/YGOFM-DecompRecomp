@@ -146,6 +146,9 @@ static void reset_renderer(void);
  * whether the pass is then made not to start again. */
 static long test_reset_at = -2;
 static int test_reset_fails;
+/* MEMORIES_TEST_GL_COPY_FAIL=<frame> (es_take_frame): the frame whose copy
+ * into es_shown fails, as when SDL cannot make that texture. */
+static long test_copy_fail_at = -2;
 /* Menu changes from events are coalesced: a pointer sweeping the bar
  * reports hundreds of motions a second, and each used to repaint and
  * present a frame. Now they mark the menu dirty and it is repainted once,
@@ -1430,14 +1433,30 @@ static int es_copy_shown(void)
 /* OpenGL ES, before the pass's frame is shown: into es_shown. Where it
  * cannot be (SDL's texture cannot be made or drawn into) the pass is given
  * up, so the software GPU draws the picture again, and the caller shows
- * another picture this time (0). */
+ * another picture this time (0). Given up for good: a device reset starts
+ * again only a pass that was on (reset_renderer). */
 static int es_take_frame(void)
 {
-    es_shown_last = es_copy_shown();
+    if (test_copy_fail_at == -2) {
+        const char *at = getenv("MEMORIES_TEST_GL_COPY_FAIL");
+        test_copy_fail_at = at && *at ? strtol(at, NULL, 10) : -1;
+    }
+    if (test_copy_fail_at >= 0 && current_frame >= (unsigned long)test_copy_fail_at) {
+        test_copy_fail_at = -1;
+        fprintf(stderr, "memories-pc: MEMORIES_TEST_GL_COPY_FAIL: frame %u's copy fails\n", current_frame);
+        es_shown_last = 0;
+    } else {
+        es_shown_last = es_copy_shown();
+    }
     if (!es_shown_last) {
         fprintf(stderr, "memories-pc: the OpenGL picture cannot be shown; the software GPU draws it\n");
         es_picture = 0;
+        es_enter(); /* its names are deleted in the renderer's context */
         GlPicture_Stop();
+        es_leave();
+        if (es_shown) SDL_DestroyTexture(es_shown); /* nothing copies into it now */
+        es_shown = NULL;
+        es_shown_w = es_shown_h = 0;
         Menu_SetHdPicture(0);
     }
     return es_shown_last;
@@ -2165,8 +2184,8 @@ static void create_window(const char *title)
     }
 }
 
-/* The renderer's context is OpenGL ES 3: the pass in it. */
-static void es_open(void)
+/* The renderer's context is OpenGL ES 3: the pass in it, when start_pass. */
+static void es_open(int start_pass)
 {
     es_context = SDL_GL_GetCurrentContext();
     es_bind_framebuffer = (PFNGLBINDFRAMEBUFFERPROC)SDL_GL_GetProcAddress("glBindFramebuffer");
@@ -2180,21 +2199,21 @@ static void es_open(void)
                  SDL_GetRendererName(renderer));
     LOG(LOG_WINDOW, "OpenGL ES renderer %s, version %s, video %s", glGetString(GL_RENDERER), glGetString(GL_VERSION),
         SDL_GetCurrentVideoDriver());
-    es_picture = GlPicture_Init();
+    es_picture = start_pass ? GlPicture_Init() : 0;
     es_leave();
 }
 
 /* The SDL renderer. On the OpenGL ES path SDL's opengles2 in the ES 3.0
  * context create_window asked for, with the pass in it; where that cannot be
  * had, or off that path, the renderer SDL picks, which shows the software
- * GPU's picture. */
-static void open_renderer(void)
+ * GPU's picture. start_pass 0: the pass is not started (reset_renderer). */
+static void open_renderer(int start_pass)
 {
     renderer = NULL;
     if (window && es_wanted) {
         renderer = SDL_CreateRenderer(window, "opengles2");
         if (renderer) {
-            es_open();
+            es_open(start_pass);
         } else {
             fprintf(stderr, "memories-pc: no OpenGL ES 3 renderer (%s); the software GPU draws the picture\n",
                     SDL_GetError());
@@ -2209,11 +2228,16 @@ static void open_renderer(void)
  * (its own context is the lost one), so it is made again, its textures with
  * it, and the pass in the new context, whose first replay draws the
  * picture again from VRAM; where the pass does not start again, the
- * software GPU draws the picture. MEMORIES_TEST_GL_RESET=<frame> sends the
+ * software GPU draws the picture. A pass that was off (given up by
+ * es_take_frame or an earlier reset) stays off: this runs inside a present
+ * (pump, from begin_present) that may hold the software GPU's picture, and
+ * GlPicture_Init's SoftGpu_SetRecorder would free it under the copy.
+ * MEMORIES_TEST_GL_RESET=<frame> sends the
  * event at that frame, with nothing lost, to try this anywhere;
  * <frame>fail also keeps the pass from starting again. */
 static void reset_renderer(void)
 {
+    int was_on = es_picture;
     fprintf(stderr, "memories-pc: the renderer's device was reset (%s); making it again\n",
             SDL_GetRendererName(renderer));
     GlPicture_Lost();
@@ -2225,13 +2249,17 @@ static void reset_renderer(void)
     picture_w = picture_h = 0;
     if (es_wanted) ask_for_es3();
     if (test_reset_fails) SDL_setenv_unsafe("MEMORIES_GL_PICTURE", "0", 1); /* the pass does not start again */
-    open_renderer();
+    open_renderer(was_on);
     if (!renderer) {
         fprintf(stderr, "memories-pc: SDL: %s\n", SDL_GetError());
         quit = 1;
         return;
     }
-    if (!es_picture) GlPicture_Stop(); /* not started again: the software GPU draws the picture */
+    if (!es_picture) { /* off, or not started again: the software GPU draws the picture */
+        es_enter();
+        GlPicture_Stop();
+        es_leave();
+    }
     Menu_SetHdPicture(es_picture);
     swap_interval = -1; /* set again on the new renderer */
     menu_dirty = 1;
@@ -2387,7 +2415,7 @@ int Platform_Open(const char *title)
         SDL_SetWindowPosition(window, x == -1 ? SDL_WINDOWPOS_CENTERED : x,
                               y == -1 ? SDL_WINDOWPOS_CENTERED : y);
     }
-    open_renderer();
+    open_renderer(1);
     restore_signals(&previous);
     if (!use_gl && !renderer) {
         fprintf(stderr, "memories-pc: SDL: %s\n", SDL_GetError());

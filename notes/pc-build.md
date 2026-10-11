@@ -1782,15 +1782,31 @@ GLSL ES 3.20", then "OpenGL picture pass on").
 the background; SDL then makes a new one and sends
 `SDL_EVENT_RENDER_DEVICE_RESET`. SDL's GLES2 renderer cannot go on (its
 context is the lost one), so `reset_renderer` forgets the pass's GL names
-(`GlPicture_Lost`, nothing deleted), destroys and makes the renderer again,
+(`GlPicture_Lost`, nothing deleted: they went with the lost context), destroys and makes the renderer again,
 starts the pass in the new context and lets the next frame make the
 textures again; the pass's first replay draws the picture again from VRAM
 (as a resync does). Where the pass does not start again, or its frame
 cannot be copied into the renderer's texture, `GlPicture_Stop` takes its
 recorder out of the software GPU, which draws the scaled picture again
-from VRAM, as on a device without ES 3. `MEMORIES_TEST_GL_RESET=<frame>`
-sends that event at a frame, with nothing lost, to try the path anywhere;
-`<frame>fail` also keeps the pass from starting again.
+from VRAM, as on a device without ES 3, and deletes every GL name the
+pass holds (at 4x with anti-aliasing the picture and its copies are
+hundreds of MiB); a `GlPicture_Init` that fails half way deletes what it
+made. A pass given up stays off for the session: a reset starts the pass
+again only when it was on. The reset is handled inside a present (the
+pump in `begin_present`), which may be copying the software GPU's
+picture, and the recorder's return (`SoftGpu_SetRecorder`) frees that
+picture (before 2026-10-09 a failed copy followed by a reset read the
+freed picture there and crashed).
+`MEMORIES_TEST_GL_RESET=<frame>` sends that event at a frame, with nothing
+lost, to try the path anywhere; `<frame>fail` also keeps the pass from
+starting again. `MEMORIES_TEST_GL_COPY_FAIL=<frame>` makes that frame's
+copy fail, as when SDL cannot make its texture.
+
+On ES the pass needs a vertex array of its own (`glGenVertexArrays`, core
+in ES 3.0): SDL's renderer draws with the one there is, and the pass's
+attribute changes would turn off SDL's. Without it the pass does not
+start. `es_source` converts GLSL 1.30 alone and refuses a shader whose
+first line is not `#version 130`.
 
 **On a desktop: `MEMORIES_GLES=1`** takes the same path in a desktop
 window, to test it where frame dumps and the desktop renderer can be
