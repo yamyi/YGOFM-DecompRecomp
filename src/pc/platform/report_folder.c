@@ -40,6 +40,9 @@ static int file_info(const char *folder, ReportFile *file)
 #ifdef _WIN32
     file->sec = (long long)info.st_mtime;
     file->nsec = 0;
+#elif defined(__APPLE__) /* no st_mtim: a developer's macOS test build */
+    file->sec = (long long)info.st_mtimespec.tv_sec;
+    file->nsec = (long long)info.st_mtimespec.tv_nsec;
 #else
     file->sec = (long long)info.st_mtim.tv_sec;
     file->nsec = (long long)info.st_mtim.tv_nsec;
