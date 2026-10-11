@@ -458,7 +458,7 @@ static void test_hd_pack(void)
     static const ZipItem other[] = {{"mods/other/mod.json", "{\"id\": \"not-hd\"}", 0, 0, 0, 0, 0, 0}};
     char marker[64], path[2048];
     const char *said;
-    int count, x, y, hd, picked = picks;
+    int count, x, y, hd = -1, picked = picks;
     long size;
     test_hd_pack_asset();
     snprintf(fake_zip, sizeof(fake_zip), "%s/served.zip", root);
