@@ -71,6 +71,10 @@ static const SettingInfo info[SET_COUNT] = {
      * offered to share or save at the next launch (android_report.c); the
      * offer's "Don't ask again" sets 0. Nothing reads it elsewhere. */
     [SET_CRASH_REPORT_OFFER] = {"offer_crash_reports", NULL, "MEMORIES_OFFER_CRASH_REPORTS", NULL, 1, 0, 1},
+    /* Android, Video > Screen rotation: 0 the picture turns over with the
+     * phone whether auto-rotate is on or not, 1 it follows the system's
+     * auto-rotate (android.c, Android_ApplyScreenRotation). */
+    [SET_SCREEN_ROTATION] = {"screen_rotation", NULL, "MEMORIES_SCREEN_ROTATION", NULL, 0, 0, 1},
     [SET_MASTER_VOLUME] = {"master_volume", "volume", "MEMORIES_MASTER_VOLUME", "MEMORIES_VOLUME", 100, 0, 100},
     [SET_MUSIC_VOLUME] = {"music_volume", NULL, "MEMORIES_MUSIC_VOLUME", NULL, 100, 0, 100},
     [SET_SFX_VOLUME] = {"sfx_volume", NULL, "MEMORIES_SFX_VOLUME", NULL, 100, 0, 100},

@@ -1272,6 +1272,9 @@ static void apply_display_settings(void)
 {
     int fullscreen = Settings_Get(SET_FULLSCREEN), pw, ph;
     display_picture_size(&pw, &ph);
+#ifdef SDL_PLATFORM_ANDROID
+    Android_ApplyScreenRotation(Settings_Get(SET_SCREEN_ROTATION));
+#endif
     if (fullscreen == 2) {
         SDL_DisplayID display = SDL_GetDisplayForWindow(window);
         const SDL_DisplayMode *current = SDL_GetCurrentDisplayMode(display);

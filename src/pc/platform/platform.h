@@ -74,6 +74,12 @@ int Platform_HasWindowModes(void);
  * the device has one, with gl_picture.c drawing in it (sdl.c, es_wanted),
  * else showing the software GPU's picture. */
 int Platform_HasDesktopGL(void);
+#ifdef __ANDROID__
+/* Android (android.c): the activity's orientation, Video > Screen rotation
+ * (SET_SCREEN_ROTATION): 0 either landscape by the sensor, 1 only as the
+ * system's auto-rotate allows. sdl.c applies it with the display settings. */
+void Android_ApplyScreenRotation(int follow_system);
+#endif
 /* The fixed-address guest memory could not be mapped (image.c says where on
  * standard error): 1 with a message for the player in `why` where the
  * platform can say what it means, 0 where it has nothing to add (the
