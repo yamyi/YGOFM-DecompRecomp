@@ -1708,7 +1708,7 @@ the player's settings file as `mod.<id>.<key>`, and read from
 `MEMORIES_MOD_<ID>_<KEY>` first when that is set; a key is letters, digits,
 `_` and `-`, and `order` is the manager's), `disc_file_start`/
 `disc_read`, `pad`, and from mod API 2 `now_us` (a clock) and `map_fixed`
-(memory at an address the mod chooses, as 3D Monsters' model arenas need). API 4 adds `hook`/`unhook`/`symbol`, below; API 5 adds `duelist_id`, which resolves an added duelist's identity to the id it has this run as `card_id` does for a card. API 7 adds `card_notes` and `card_tag`, a card's [notes](more-cards.md#notes-on-a-card) and the `<tag: value>` tags in them. API 8 adds `limit`, the numbers the game caps and its other values as the mods' `limits` set them ([Gameplay tables](gameplay-tables.md#values-atk-def-lp-starchips-and-more)): `host->limit(host, "attack")` is 9999 without such a mod, `host->limit(host, "deck_copies")` 3. API 9 adds `menu_item`, the name of an item of the title's menus, and the event `MEMORIES_EVENT_MENU` ([The title's menus](#the-titles-menus)). API 10 adds the event `MEMORIES_EVENT_MONSTER`: a monster summoned, flipped, at its owner's draw, in a battle, destroyed or destroying the monster it battled, for every monster, with `handled` to skip a card's own `monster_effects` ([Monster effects](more-cards.md#monster-effects)). API 11 adds no entry or event; it marks the mod.json features a game of API 10 leaves out ([Which game a mod needs](#which-game-a-mod-needs)).
+(memory at an address the mod chooses, as 3D Monsters' model arenas need). API 4 adds `hook`/`unhook`/`symbol`, below; API 5 adds `duelist_id`, which resolves an added duelist's identity to the id it has this run as `card_id` does for a card. API 7 adds `card_notes` and `card_tag`, a card's [notes](more-cards.md#notes-on-a-card) and the `<tag: value>` tags in them. API 8 adds `limit`, the numbers the game caps and its other values as the mods' `limits` set them ([Gameplay tables](gameplay-tables.md#values-atk-def-lp-starchips-and-more)): `host->limit(host, "attack")` is 9999 without such a mod, `host->limit(host, "deck_copies")` 3. API 9 adds `menu_item`, the name of an item of the title's menus, and the event `MEMORIES_EVENT_MENU` ([The title's menus](#the-titles-menus)). API 10 adds the event `MEMORIES_EVENT_MONSTER`: a monster summoned, flipped, at its owner's draw, in a battle, destroyed or destroying the monster it battled, for every monster, with `handled` to skip a card's own `monster_effects` ([Monster effects](more-cards.md#monster-effects)). API 11 adds no entry or event; it marks the mod.json features a game of API 10 leaves out ([Which game a mod needs](#which-game-a-mod-needs)). API 12 adds `sound_add`, `sound_play` and `sound_free`, sounds of the mod's own: `sound_add` copies signed 16-bit PCM at any rate and channel count and returns a handle, and `sound_play(host, sound, volume, pan)` plays it once on the channels the audio replacement mixes the game's replaced sound effects on ([Audio](#audio-songs-voices-and-sounds-from-files)), under the player's sound-effect volume, restarting it if it is still playing, as a game sound effect takes its own voice again. Both work only while the mod is applied, not from `MemoriesModInit`: the host frees a mod's sounds when it is turned off, so a mod adds them when it needs them, or in `applied(1)`. 3D Monsters plays its fighters' arena sounds this way (`fight_sounds.c`).
 A mod that uses an entry newer than API 1 should refuse to start when
 `host->api` is older.
 
@@ -1946,7 +1946,7 @@ the reason beside any that failed to load.
 The first two were part of the executable until they became mods; they are the worked
 examples of a code mod that reaches deep into the game. 3D Monsters' knobs
 are its declared settings `style`, `scale`, `pixels`, `lift`, `pitch`, `depth`,
-`battle`, `battle_pixels`, `battle_dim`, `glow`, `glow_r`, `glow_g`, `glow_b`,
+`battle`, `battle_pixels`, `battle_dim`, `attack`, `attack_speed`, `glow`, `glow_r`, `glow_g`, `glow_b`,
 `glow_reach` and `glow_period`, in
 the Mods window (`MEMORIES_MOD_3D_MONSTERS_SCALE=5000` for one run; they were
 `MEMORIES_MODS_SCALE` and so on before it became one object for both systems).
@@ -1956,12 +1956,20 @@ fit and place their own cutout or model by the same target height, lift,
 field-pitch threshold and depth offset, so one setting means the same thing
 either way, and `field_art.c` simply reads the settings `field_models.c`
 already declares rather than repeating them. Everything else belongs to one
-style alone: `scale`, `battle`, `battle_pixels` and `battle_dim` are 3D
+style alone: `scale`, `battle`, `battle_pixels`, `battle_dim`, `attack`, `attack_speed` and `effects` are 3D
 models only (down to their own labels saying so in the manifest); `glow` and
 the rest are Card art only, the same way. One more, `test`, is read but not
 declared, so the window does not show it: `MEMORIES_MOD_3D_MONSTERS_TEST=<card>` stands a
 different monster in every zone from that card on, for measuring the cache
-and the arenas.
+and the arenas. `attack_test` (1-4, forcing the attack's destroyed, guarded,
+counter or tie case), `attack_drift` (the percent of a monster's shift the
+attack keeps), and, for the attack on the field, `fight_zoom` (the percent of
+the camera's distance it comes in to), `fight_turn` (the percent of the way to
+a side-on view it swings) and `fight_reach` (the percent of the arena's gap
+the attacker strikes from) are read the same way. `attack` is a choice (off,
+the attack cards, the field, both); the 1 it stored as a bool is the cards.
+On the field alone ends the battle on the field, with no attack cards
+(notes/pc-build.md, "On the field alone").
 
 **A mod with a "style"-like choice setting** (more than one whole presentation,
 picked by one setting, the way 3D Monsters' two styles are): a setting or a
