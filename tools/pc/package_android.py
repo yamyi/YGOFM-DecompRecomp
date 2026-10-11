@@ -30,6 +30,11 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 PACKAGE = "org.yfmredecomp.game"
 LABEL = "YFM Re-Decomp"
 KEYSTORE = os.path.join(ROOT, "tmp", "pc", "android-deps", "debug.keystore")
+# The port's own Java, beside SDL's, one class per file in this folder (all
+# in PACKAGE): Restart (Platform_RestartGame), HdDownload (the HD pack) and
+# ReportProvider, which hands the crash report to the app the player shares
+# it with (android_report.c).
+JAVA = os.path.join(ROOT, "src", "pc", "platform", "android")
 DEBUG_DN = "CN=Android Debug, O=Android, C=US"
 # The alias of the release key when MEMORIES_ANDROID_KEY_ALIAS is unset.
 RELEASE_ALIAS = "yfm"
@@ -104,6 +109,9 @@ MANIFEST = f"""<?xml version="1.0" encoding="utf-8"?>
             android:process=":restart" android:excludeFromRecents="true" android:noHistory="true"
             android:configChanges="layoutDirection|locale|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <provider android:name="org.yfmredecomp.game.ReportProvider"
+            android:authorities="{PACKAGE}.reports"
+            android:exported="false" android:grantUriPermissions="true" />
     </application>
 </manifest>
 """
@@ -365,6 +373,19 @@ def program_files(build, folders):
     return assets
 
 
+def check_report_authority():
+    """The crash report's content:// authority is spelled in three places:
+    the manifest here, ReportProvider.java and android_report.c (the URI
+    Share hands out). A rename that missed one would only show as a share
+    with nothing attached, so the build stops instead."""
+    authority = f"{PACKAGE}.reports"
+    for path in (os.path.join(JAVA, "ReportProvider.java"),
+                 os.path.join(ROOT, "src", "pc", "platform", "android_report.c")):
+        with open(path, encoding="utf-8") as source:
+            if f'"{authority}"' not in source.read():
+                sys.exit(f"{path} does not name the provider's authority {authority!r} (the manifest's)")
+
+
 def package(build, abi, library, game, assets):
     apk_path = os.path.join(build, f"memories-{abi}.apk")
     if os.path.exists(apk_path):
@@ -383,10 +404,12 @@ def package(build, abi, library, game, assets):
     os.makedirs(os.path.join(work, "classes"))
     os.makedirs(os.path.join(work, "dex"))
     # SDL's Java shell, from the SDL release libSDL3.so was built from, and
-    # the game's own: the activity that restarts it (Restart.java) and the
-    # HD pack's download (HdDownload.java).
+    # the game's own (JAVA): the activity that restarts it (Restart.java), the
+    # HD pack's download (HdDownload.java) and the crash report's
+    # ReportProvider.
     sources = sorted(glob.glob(os.path.join(build_android_deps.OUT, "java", "**", "*.java"), recursive=True))
-    sources += sorted(glob.glob(os.path.join(ROOT, "src", "pc", "platform", "android", "*.java")))
+    sources += sorted(glob.glob(os.path.join(JAVA, "*.java")))
+    check_report_authority()
     javac = shutil.which("javac") or sys.exit("javac is not on PATH (a JDK, 17 or later)")
     run([javac, "--release", "11", "-nowarn", "-encoding", "UTF-8", "-classpath", android_jar,
          "-d", os.path.join(work, "classes"), *sources])

@@ -20,6 +20,8 @@
  *   (Platform_RestartGame: Apply & restart in Mods, Game > Language, the
  *   end of the credits) asks a small activity in a process of its own
  *   (Restart.java) to end this process and launch the game again.
+ *   The game's own handler still writes crash reports, and the next
+ *   launch offers to share or save one (android_report.c).
  * - No update check yet, and no desktop OpenGL (platform.h).
  * - The display's density as it is now (Android_Density, platform.h): the
  *   activity takes a density change itself (Display size in the system

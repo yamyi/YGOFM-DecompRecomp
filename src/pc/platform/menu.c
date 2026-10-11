@@ -111,6 +111,11 @@ typedef struct {
 typedef struct { const char *label; Item items[20]; int count; int x, w; } Menu;
 
 enum { MENU_FILE, MENU_VIDEO, MENU_AUDIO, MENU_GAME, MENU_VIEW, MENU_DEBUG, MENU_HELP, MENU_COUNT };
+#ifdef __ANDROID__
+#define HELP_ITEMS 7 /* with Offer crash reports at start */
+#else
+#define HELP_ITEMS 6
+#endif
 enum { SUB_SCALE, SUB_MENU_SIZE, SUB_SPEED, SUB_FPS, SUB_CHEATS, SUB_TRACE, SUB_SCALING, SUB_ASPECT, SUB_RESOLUTION, SUB_COLOR, SUB_EFFECTS, SUB_JUMP, SUB_ANTIALIAS, SUB_FILTER, SUB_RANK, SUB_LANGUAGE, SUB_PGXP, SUB_TOUCH, SUB_COUNT };
 static Menu menus[MENU_COUNT] = {
     {"File", {{"Save state", "F5", ITEM_ACTION, ACT_SAVE_STATE, -1},
@@ -175,13 +180,18 @@ static Menu menus[MENU_COUNT] = {
                {"Dump VRAM (PPM)", 0, ITEM_ACTION, ACT_DUMP_VRAM, -1},
                {"Trace", 0, ITEM_SUBMENU, 0, -1, SUB_TRACE, ITEM_GROUP_BREAK}}, 8},
     /* Update checks against the project's GitHub releases (update_check.h).
-     * The last row's label is this build's version, set by Menu_Init. */
+     * On Android, whether the last crash's report is offered at start
+     * (android_report.c), the way back from its "Don't ask again". The last
+     * row's label is this build's version, set by Menu_Init. */
     {"Help", {{"Check for updates at start", 0, ITEM_CHECK, 0, SET_UPDATE_CHECK},
               {"Include pre-releases", 0, ITEM_CHECK, 0, SET_UPDATE_PRERELEASES},
               {"Check for updates now", 0, ITEM_ACTION, ACT_CHECK_UPDATES, -1, 0, ITEM_GROUP_BREAK},
               {"Releases page", 0, ITEM_ACTION, ACT_RELEASES, -1},
               {"System info for bug reports...", 0, ITEM_ACTION, ACT_SYSTEM_INFO, -1, 0, ITEM_GROUP_BREAK},
-              {"Version", 0, ITEM_ACTION, ACT_VERSION, -1, 0, ITEM_GROUP_BREAK | ITEM_DISABLED}}, 6},
+#ifdef __ANDROID__
+              {"Offer crash reports at start", 0, ITEM_CHECK, 0, SET_CRASH_REPORT_OFFER},
+#endif
+              {"Version", 0, ITEM_ACTION, ACT_VERSION, -1, 0, ITEM_GROUP_BREAK | ITEM_DISABLED}}, HELP_ITEMS},
 };
 static Menu submenus[SUB_COUNT] = {
     {"Window scale", {{"1x", 0, ITEM_RADIO, MENU_ITEM_SCALE_1, SET_SCALE, 1},

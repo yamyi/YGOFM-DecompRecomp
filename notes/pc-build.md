@@ -3391,7 +3391,7 @@ adb install -r tmp/pc/android-x86/memories-x86.apk
   port's `main` returns, the process ends with it. If the range cannot be
   had, the game loads where the system puts it and keeps save states for
   that launch only. `tools/pc/package_android.py` then compiles SDL's Java
-  with `javac` against the SDK's `android.jar`, dexes it with `d8`, links
+  and the port's own (`src/pc/platform/android/*.java`) with `javac` against the SDK's `android.jar`, dexes it with `d8`, links
   the manifest with `aapt2`, adds `lib/<abi>/libmain.so`, `libgame.so` and
   `libSDL3.so` and the build's `buildid`, `commit` and symbol table as
   assets (`assets/build/`), and aligns and signs the APK (`zipalign`,
@@ -3454,6 +3454,69 @@ On an image without root, a debuggable build's `run-as` can copy it into
 the program directory's `game/` (`files/program/game/` in the internal
 files folder), which `game_files.c` searches first.
 Screenshots of the device, never the host: `adb exec-out screencap -p`.
+
+### Crash reports on Android
+
+A crash writes its report as on Linux (`crash.c`, in the process: there is
+no monitor), `crash-<pid>.txt` (or `hang-<pid>.txt` where a freeze
+watchdog runs, which it does not on Android by default) in
+`reports/` of the external files folder, which no file manager opens since
+Android 11. So the next launch offers it (`android_report.c`, from the end
+of `sdl.c`'s `Platform_Open`) in the game's own notice: **Share** (the
+system's share sheet, the report attached: Discord, a chat app, e-mail),
+**Save to Downloads** (MediaStore, Android 10 and later: before that,
+writing there needs a storage permission the app does not ask for, so the
+button is not offered and only Share is), **Don't ask again** and **Not
+now** (nothing: it is offered again next launch; Back presses it, the
+last button). Share, Save and Don't ask again retire every
+report in the folder at that moment (`report_folder.c`): `crash-<pid>.txt`
+becomes `crash-<pid>.txt.sent`, which is no longer offered; the newest ten
+retired ones are kept and older ones removed; a report with the running
+game's pid is left, unless it is the one offered (a pid used again). No
+time is compared: a report is offered until
+it is retired, even one written while the clock was behind (only the
+newest report is offered at a time; the others go with it). If a report
+cannot be renamed, the player is told it may be offered again (after Don't
+ask again: if the offer is turned back on). Share
+counts once the share sheet opens, whether or not an app is then picked.
+"Report saved" names the file as Downloads has it (MediaStore adds
+" (1)" when the name is taken). Don't ask again also sets
+**Help > Offer crash reports at start** (`offer_crash_reports`,
+`MEMORIES_OFFER_CRASH_REPORTS`: 1, the default, offers; 0 does not) to 0:
+that Help row, on Android only, is the way back, since `settings.txt` is
+in the folder the player cannot reach. Turned back on, it offers the
+newest report not retired: one written while it was off, or one still there
+when it was turned off in the menu (retired ones stay retired). The folder
+logic has a host test, `pc_report_folder`. Headless, scripted and
+agent-driven runs (`MEMORIES_HEADLESS`, `MEMORIES_INPUT`,
+`MEMORIES_SDL_SCRIPT`, `MEMORIES_CONTROL`) are never asked. The desktops
+have none of it.
+
+What goes out, `yfm-redecomp-crash-<date>-<time>.txt`: the app's version
+(or "development build"), the build id and commit, the device's maker and
+model, the Android version and API level, the memory free now, then the
+game's report with the player's own paths taken out: the user folder
+becomes `<app folder>` (the "user dir" fact, log lines naming a file in
+it), a `content://` URI (the disc image the player picked, whose URI names
+their folders and file) becomes `content://<removed>`, and "started" loses
+its time zone. The report's own facts stay (settings, mods, GPU, CPU, the
+start time without its zone). Nothing of the saves, the settings file or
+the disc. The authority `org.yfmredecomp.game.reports` is spelled in the
+manifest, `ReportProvider.java` and `android_report.c`;
+`package_android.py` stops if one differs.
+
+Share hands the file to the chosen app through a Java class of the port's
+own, `org.yfmredecomp.game.ReportProvider`
+(`src/pc/platform/android/ReportProvider.java`, compiled with SDL's by
+`package_android.py`): a read-only content provider, not exported, that
+serves the one copy in the cache folder's `shared/` to the app the share's
+Intent grants it to (`FLAG_GRANT_READ_URI_PERMISSION`), with its name and
+size. The Java calls (MediaStore, the Intent) are made through JNI on the
+thread's own stack (`Memories_OnHostStack`).
+
+To try it: `MEMORIES_CRASH_TEST=segv@600` in `environment.txt` (above),
+launch, let it crash, remove the line, launch again; `adb shell ls
+/sdcard/Download` after Save.
 
 ### How it differs (and what is shared)
 
