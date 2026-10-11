@@ -181,9 +181,9 @@ if ANDROID:
         # bionic lacks below the API level (memfd_create, iconv).
         "-Isrc/pc/compat/android", "-include", ANDROID_COMPAT]
     if A64:
-        # G32 as on windows-x64; code mods are not linked here yet (build_mod.py
-        # builds their aarch64 objects; src/pc/mods/mods.c refuses them).
-        NATIVE_CFLAGS = X64_FLAGS + NATIVE_CFLAGS + ["-DMEMORIES_NO_CODE_MODS"]
+        # G32 as on windows-x64; code mods are aarch64 objects of their own
+        # (build_mod.py --target aarch64; src/pc/mods/object_loader.c).
+        NATIVE_CFLAGS = X64_FLAGS + NATIVE_CFLAGS
         # No fused multiply-add: AArch64 has it and clang contracts a*b+c
         # into it by default, x86 (no -mfma) does not, so float code (LIBPRESS's
         # IDCT holds 83 of them) rounded differently from the other builds: the
@@ -191,9 +191,9 @@ if ANDROID:
         CFLAGS = CFLAGS + ["-ffp-contract=off"]
         NATIVE_CFLAGS = NATIVE_CFLAGS + ["-ffp-contract=off"]
 if A64:
-    # No patchable function entries: game functions are hooked on i386
-    # only (src/pc/mods/hooks.c).
-    CFLAGS = [f for f in CFLAGS if not f.startswith("-fpatchable-function-entry")]
+    # Room for a mod's hook as AArch64 has it (src/pc/mods/hooks.c): three
+    # nop words before each game function's entry and one at it.
+    CFLAGS = [("-fpatchable-function-entry=4,3" if f.startswith("-fpatchable-function-entry") else f) for f in CFLAGS]
 # Floating point in SSE registers, as clang does for the Windows build: GCC's
 # 32-bit default is the x87 with its 80-bit intermediates, which rounded the
 # MDEC's IDCT (libpress.c) a step apart from Windows and so broke replays
@@ -725,10 +725,9 @@ def build_mods(build, release=False, code=True, target="i386"):
     pack tools under sdk/tools, the example mods under sdk/examples/mods and
     the modding notes under sdk/notes.
 
-    With code=False (the arm64 game, which links no code mods yet) only the
-    data mods go beside it: shipping a code mod would put one refusal per
-    code mod in every player's Mods window (one the player installs is still
-    refused by name). No SDK goes beside it either."""
+    With code=False (a build that links no code mods) only the data mods go
+    beside it: shipping a code mod would put one refusal per code mod in
+    every player's Mods window. No SDK goes beside it either."""
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import build_mod
     out_root = f"{build}/mods"
@@ -1350,10 +1349,14 @@ def main():
                else ["-lm", *fonts, "-lX11", "-lXext", "-lasound", *system]), *build_linux_sysroot.endfiles()])
     if ANDROID:
         link_android_loader(options.build, output)
-    # Code mods: an object per target (build_mod.py). The arm64 game takes
-    # the data mods and refuses the others by name (MEMORIES_NO_CODE_MODS,
-    # src/pc/mods/mods.c) until its loader comes (milestone M2).
-    build_mods(options.build, options.release, code=not A64, target="x86_64-windows" if X64 else "i386")
+    # Code mods: an object per target (build_mod.py), the one for this game
+    # beside it (and in the APK's assets).
+    # The aarch64 objects need clang with lld: the NDK's has both, where a
+    # CI runner's /usr/bin/clang comes without ld.lld (build_mod.py then
+    # falls back to gcc and stops).
+    if A64 and not os.environ.get("MEMORIES_MOD_CC"):
+        os.environ["MEMORIES_MOD_CC"] = CC
+    build_mods(options.build, options.release, target="x86_64-windows" if X64 else "aarch64" if A64 else "i386")
     copy_languages(options.build, options.release)
     # Save states are carried between builds with these tables
     # (src/pc/guest/state.c): every function in the executable, because the

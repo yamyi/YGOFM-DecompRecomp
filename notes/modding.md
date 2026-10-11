@@ -1656,7 +1656,7 @@ by `build_mod.py`:
 |---|---|---|
 | `i386` | `<library>.o` | the 32-bit Linux and Windows games |
 | `x86_64-windows` | `<library>.x86_64-windows.o` | the 64-bit Windows game (`-windows-x64.zip`) |
-| `aarch64` | `<library>.aarch64.o` | the arm64 Android game, which does not load code mods yet |
+| `aarch64` | `<library>.aarch64.o` | the arm64 Android game |
 | `macos` | `<library>.dylib` | the macOS ARM64 game; built only with `--target macos` (see [Native macOS ARM64 code mods](#native-macos-arm64-code-mods)) |
 
 The `i386` object runs on both 32-bit games: both are 32-bit x86 code with
@@ -1666,7 +1666,9 @@ reads the file with its own loader
 the system's, so the container is the same too. The 64-bit Windows game
 reads its x86-64 object with the same loader (ELF64, the Windows x64
 calling convention); one that has only the 32-bit object stays off there
-with "needs a 64-bit build of this mod" in the Mods window. A mod ships
+with "needs a 64-bit build of this mod" in the Mods window; the arm64
+Android game reads its AArch64 object the same way, and one without it
+stays off with "needs an Android build of this mod". A mod ships
 whichever objects it has beside its `mod.json`; `"library": "card-tweaks"`
 (or `"card-tweaks.o"`) names all of them, and `"libraries": {"x86_64-windows":
 "other.o"}` names one target's file outright. Mod authors supporting every

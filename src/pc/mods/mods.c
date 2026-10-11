@@ -1228,6 +1228,9 @@ static int load_library(Mod *mod)
     }
     mod->initialized = 1;
     say("%s: loaded %s", mod->id, mod->library);
+    /* Always said (stderr, which an Android app sends to logcat): which code
+     * ran is the first thing to know about a report. */
+    fprintf(stderr, "memories-pc: mods: %s loaded its code (%s)\n", mod->id, mod->library);
     return 1;
 }
 
@@ -1725,10 +1728,10 @@ static void activate_once(int index, int on)
             }
         }
 #ifdef MEMORIES_NO_CODE_MODS
-        /* The arm64 game (build_game32.py --target android-arm64-v8a) does
-         * not link code mods yet. The mod stays off with the reason beside
-         * it, and its choice and the other mods' Apply are left alone: it is
-         * not a broken mod. */
+        /* A game built without code mods (none is now: the arm64 game links
+         * them since Mod SDK M2). The mod stays off with the reason beside it,
+         * and its choice and the other mods' Apply are left alone: it is not
+         * a broken mod. */
         if (!mod->broken && mod->library[0]) {
             note(mod, "is a code mod, which this game does not load yet");
             drop_overrides(index);
@@ -1739,12 +1742,18 @@ static void activate_once(int index, int on)
          * (<library>.x86_64-windows.o). A mod made before there was one has
          * only the 32-bit object: it stays off with the reason beside it, as
          * above, and is not a broken mod. The macOS game, which has no 32-bit
-         * one to send the player to, reports a missing dylib as broken. */
+         * one to send the player to, reports a missing dylib as broken. On a
+         * phone there is no other game to point to either: the note says only
+         * which object is missing. */
 #if !(defined(__APPLE__) && defined(__aarch64__) && defined(MEMORIES_TRANSLATED))
         if (strcmp(OBJECT_LOADER_TARGET, "i386") && !mod->broken && mod->library[0] && !mod->object.image &&
             !mod->object.native_handle && !library_present(mod)) {
+#ifdef __ANDROID__
+            note(mod, "needs an Android build of this mod: it has no %s", mod->library);
+#else
             note(mod, "needs a 64-bit build of this mod (%s): the one it has is for the 32-bit game, which is the one "
                       "to play it with", mod->library);
+#endif
             drop_overrides(index);
             return;
         }

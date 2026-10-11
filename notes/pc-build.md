@@ -3272,8 +3272,61 @@ object per target (`notes/modding.md`, "Code mods"): `build_mod.py` builds
   the replays with `MEMORIES_X64_HIGH_HEAP=1`): M3.
 
 Still off in the 64-bit build: the interrupt clock (the cooperative one is
-the default anyway); a state from the other width. The arm64 game loads no
-code mods yet (M2: the AArch64 relocations and hooks).
+the default anyway); a state from the other width.
+
+**Mod SDK M2 (2026-10-09): code mods on arm64 (Android).** The arm64 game
+loads each code mod's `<library>.aarch64.o`.
+
+- **Loader.** `object_loader.c` takes AArch64 RELA relocations (ABS64/32,
+  PREL64/32, ADR_PREL_LO21, ADR_PREL_PG_HI21(_NC), ADD_ABS_LO12_NC,
+  LDST8-128_ABS_LO12_NC, CALL26/JUMP26, CONDBR19, TSTBR14 and the GOT
+  pair), with a veneer (`ldr x16, 8; br x16`) for a branch to a host
+  function beyond 128 MB (bionic) and a cache flush once the code is in
+  place. clang's weak `__llvm_slsblr_thunk_xN` copies are bound to the
+  game's own; `mod_libc.c` lends them. Mod code goes in the 64 MiB after
+  the game's reservation (0xC4000000 with `libgame.so` at 0xC0000000:
+  below 4 GB, bit 30 set).
+- **Hooks.** Game units get `-fpatchable-function-entry=4,3`: the three
+  nops before an entry become `adrp x16, slot; ldr x16, [x16, :lo12:slot];
+  br x16`, the entry toggles between `nop` and `b .-12`, each write
+  followed by cache maintenance. Where the system refuses to make the text
+  writable (EACCES, an app's SELinux execmod), it is copied once into
+  anonymous memory moved over the same range (`mremap`) and patched there;
+  stderr (logcat) says which (`memories-pc: hooks: ...`). In that case the
+  range is no longer file-backed: a system tombstone names no `libgame.so`
+  for frames there.
+  `MEMORIES_TEST_ANON_TEXT=1`, read only by builds that are not releases
+  (`MEMORIES_TEST_HOOKS`), takes the first write in place as refused, so
+  the copy is tried where the write would be allowed;
+  `test_mods_lifecycle.py --target android-arm64` runs the hooks test on
+  the adb device both ways.
+- **Pages.** An AArch64 kernel may run 4, 16 or 64 KiB pages (Android 15
+  phones can run 16 KiB ones). The loader lays an aarch64 image out on the
+  system's page, 16 KiB at least, so the code's `mprotect` covers the code
+  alone and an image (and its hash in save states) is the same on 4 KiB
+  and 16 KiB phones; the hooks take the page for `mprotect` and the
+  anonymous copy from `sysconf(_SC_PAGESIZE)`. The x86 targets keep 4 KiB.
+  A game whose mod range could not be held loads no code mod (rather than
+  one somewhere it may not be reachable from a 4-byte slot), and a failed
+  anonymous copy is unmapped and not tried again.
+- **ptr32.** Every mod unit goes through `ptr32_stores.py`, as the game's
+  (NDK r29's clang still has the narrow-store bug; AI Hard Mode had one
+  such write).
+- **In the app.** Mods are turned on and off in the Mods panel (Game >
+  Mods drawn inside the window), which lands with the Android panels
+  change; until then Game > Mods is dimmed on Android and only the mods
+  on by default (`"enabled": true`) or set in `settings.txt` run. Each
+  code mod that starts says so on stderr (`memories-pc: mods: ID loaded
+  its code`).
+- **Gate (emulator `api35x64`, arm64 code through libndk_translation).**
+  The five per-mod replays play frame for frame through `device_run.py`,
+  with the text patched in place and in the anonymous copy, as do the
+  mods-off replays; in the app (the four code mods set on in
+  `settings.txt`), 3D models, the hand camera, the CPU's turns
+  with AI Hard Mode and Yamyi Mods on, and no SELinux denial but liblog's
+  `/dev/pmsg0` getattr (there with mods off too). The emulator checks
+  neither a real core's instruction cache nor a phone vendor's policy: the
+  phone check is the release gate.
 
 ## Android
 
@@ -3512,10 +3565,10 @@ Paused on 2026-09-29 until the 64-bit (relocatable guest) work is done.
   `/sdcard/Android/data/<package>`, so tests there need root (the M3
   `chcon` recipe above) or a debuggable build's `run-as`.
 - **Not started / half-done:**
-  - Applying mods in the app: Game > Mods is still dimmed, so only mods
-    whose manifest says `"enabled": true` are applied; not yet checked in a
-    game on Android (code mods that hook game functions write to
-    `libgame.so`'s text: watch for SELinux denials on the first apply).
+  - Applying mods in the app: code mods run (Mod SDK M2 above); turning
+    them on and off comes with the Mods panel (Game > Mods inside the
+    window, the Android panels change). Until then Game > Mods is dimmed
+    and only mods on by default or set in `settings.txt` apply.
   - A mod `.zip` through the system's file picker; Mods and Controls as
     panels inside the game window (the game's font, as the other overlays);
     the menu bar hiding in play: done on feat/android-arm64 (the mouse SDL
@@ -3760,8 +3813,10 @@ Java heap. Every native path translates a retail scratchpad address to the
 view at 0x9F800000 ("How it works" above), the words the interpreter hands
 to native code included, since the retail view is not mapped there
 (`Memories_ScratchpadRetailView` 0). `MEMORIES_TEST_HOLD_SCRATCHPAD` holds
-the page as ART does, in a test build (Linux or Android). Code mods, which
-could write a retail address of their own, are not loaded on arm64.
+the page as ART does, in a test build (Linux or Android). A code mod (loaded
+on arm64 since Mod SDK M2, above) is held to the same rule: one that wrote
+a retail scratchpad address of its own would reach that heap; the shipped
+ones write none.
 
 **SDL's calls into Java run on the thread's own stack.** SDL reaches Java
 (JNI) for events and joysticks (`Android_JNI_PollInputDevices`, every 3 s
