@@ -6,7 +6,8 @@ Called by build_game32.py --target android-<abi> after the link; it can also
 be run on its own: package_android.py <build dir> <abi>. Uses only the JDK
 (javac) and the Android SDK's own tools, no Gradle: SDL's Java shell
 (org.libsdl.app, from the same SDL release as libSDL3.so; build_android_deps.py)
-is compiled against the SDK's android.jar and dexed with d8, aapt2 links the
+and the game's restart activity (src/pc/platform/android/Restart.java, in a
+process of its own) are compiled against the SDK's android.jar and dexed with d8, aapt2 links the
 manifest, the native libraries go in lib/<abi>/, and the APK is aligned
 (zipalign) and signed (apksigner). The key is the release key named by the
 environment (signing_key(): MEMORIES_ANDROID_KEYSTORE and its passwords,
@@ -79,6 +80,10 @@ MANIFEST = f"""<?xml version="1.0" encoding="utf-8"?>
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity android:name="org.yfmredecomp.game.Restart" android:exported="false"
+            android:process=":restart" android:excludeFromRecents="true" android:noHistory="true"
+            android:configChanges="layoutDirection|locale|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
     </application>
 </manifest>
 """
@@ -352,8 +357,10 @@ def package(build, abi, library, game, assets):
     shutil.rmtree(work, ignore_errors=True)
     os.makedirs(os.path.join(work, "classes"))
     os.makedirs(os.path.join(work, "dex"))
-    # SDL's Java shell, from the SDL release libSDL3.so was built from.
+    # SDL's Java shell, from the SDL release libSDL3.so was built from, and
+    # the game's own: the activity that restarts it (Restart.java).
     sources = sorted(glob.glob(os.path.join(build_android_deps.OUT, "java", "**", "*.java"), recursive=True))
+    sources += sorted(glob.glob(os.path.join(ROOT, "src", "pc", "platform", "android", "*.java")))
     javac = shutil.which("javac") or sys.exit("javac is not on PATH (a JDK, 17 or later)")
     run([javac, "--release", "11", "-nowarn", "-encoding", "UTF-8", "-classpath", android_jar,
          "-d", os.path.join(work, "classes"), *sources])

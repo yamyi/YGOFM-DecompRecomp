@@ -7,6 +7,8 @@
 #include "pc/mods/overlap.h"
 static int restarts;
 int Menu_Scale(void) { return 1; }
+static int test_touch; /* Menu_TouchTarget: 0 with a mouse */
+int Menu_TouchTarget(void) { return test_touch; }
 int Menu_TextWidthScaled(const char *s, int scale) { return (int)strlen(s) * 7 * scale; }
 /* What a draw wrote, while `capture` is on: each string, its color and
  * the middle of its line (in the canvas it was drawn on). */
@@ -254,6 +256,26 @@ int main(void)
             assert(Mods_OverlapCount(Mods_Overlaps(both, NULL, staged)) == 5);
             assert(Mods_OverlapCount(Mods_Overlaps(both, NULL, NULL)) == 6); /* saved: its default, on */
         }
+    }
+    {
+        /* With a finger, every press ModsWindow_Grabs hands over as held
+         * is the list scrollbar's: none beside it opens the row's page. */
+        int x, y, grabbed = 0;
+        test_touch = 48;
+        ModsWindow_Init();
+        ModsWindow_Resize(600, 400); /* a phone: two pages */
+        draw(600, 400);
+        assert(ModsWindow_Locate(MODS_UI_ROW_FIRST, &x, &y) && !ModsWindow_Locate(MODS_UI_BACK, &x, &x));
+        for (x = 599; x >= 300; x--) {
+            if (!ModsWindow_Grabs(x, y))
+                continue;
+            grabbed++;
+            click(x, y);
+            input(MENU_EVENT_BUTTON_UP, x, y, MENU_KEY_OTHER, NULL);
+            assert(!ModsWindow_Locate(MODS_UI_BACK, &w, &h)); /* still the list */
+        }
+        assert(grabbed > 10);
+        test_touch = 0;
     }
     ModsWindow_Init();
     {

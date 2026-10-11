@@ -1,5 +1,15 @@
 /* Searchable mod library, details, staged settings and named profiles.
- * The same bounded layout drives painting and input on SDL and X11. */
+ * The same bounded layout drives painting and input on SDL and X11, in a
+ * window of its own or as a panel inside the game's window (panel.h).
+ *
+ * With a finger (Menu_TouchTarget: a panel on a phone or tablet) the rows
+ * and buttons are at least a finger's target tall, the unit stays the
+ * menu's (the screen's density), the window's title and keyboard hints give
+ * their room to the list, and the counts move to the footer's message line.
+ * Where the list and the details do not fit side by side (a phone) they are
+ * two pages: the list, and the selected mod's details with a Back button.
+ * A drag scrolls what it starts on (ModsWindow_Drag); a slider or a
+ * scrollbar is held at once instead (ModsWindow_Grabs). */
 #include "mods_window.h"
 #include "../../types.h"
 #include "pc/mods/json.h"
@@ -28,9 +38,15 @@ typedef struct {
 } Rect;
 typedef struct {
     Rect search, filter, list, list_bar, detail, toggle, tabs[3], view, bar, apply, close, profile, save, load,
-        order[2], defaults, folder;
+        order[2], defaults, folder, back;
+    int name_y, meta_y; /* the middles of the details' name and metadata lines */
+    int lift;           /* with a finger: how far a long message raises the footer's top */
 } Layout;
 static int width, height, unit, selected, scroll, detail_scroll, tab, filter, focus, pending;
+/* touch: the finger's target in pixels (0 with a mouse). compact: touch, and
+ * too small for the list beside the details, so `page` shows one of them
+ * (0 the list, 1 the details). drag_rest: a drag's pixels short of a row. */
+static int touch, compact, page, drag_rest;
 static int wanted[MODS_MAX], ranks[MODS_MAX], *values[MODS_MAX], counts[MODS_MAX];
 static int slider_drag = -1, bar_drag, bar_grab; /* bar_drag: 1 the list's scrollbar, 2 the details' */
 static char query[96], profile[65] = "Default", status[512];
@@ -39,6 +55,9 @@ static const char *pad_names[] = {"Select", "L3", "R3", "Start", "Up",       "Ri
                                   "L2",     "R2", "L1", "R1",    "Triangle", "Circle", "Cross", "Square"};
 #define BAR (10 * unit)
 #define LINE (22 * unit)
+/* The list's row pitch, and the settings' - value + buttons. */
+#define PITCH (touch ? max(58 * unit, touch + 2 * unit) : 58 * unit)
+#define CONTROL (touch ? max(28 * unit, touch) : 28 * unit)
 static int width_text(const char *s) { return Menu_TextWidthScaled(s, unit); }
 static Rect rect(int x, int y, int w, int h)
 {
@@ -57,8 +76,99 @@ static int status_extra(void)
         return 0;
     return min(max(wrap(NULL, 0, 0, width - 40 * unit, status, 0) / LINE, 1), 6) - 1;
 }
+static int filter_width(void)
+{
+    int widest = 0;
+    for (int i = 0; i < 4; i++)
+        widest = max(widest, width_text(filters[i]));
+    return widest + 24 * unit;
+}
+static Rect none(void) { return rect(0, 0, 0, 0); }
+static int defaults_width(void) { return max(150 * unit, width_text("Restore defaults") + 24 * unit); }
+/* On a phone's page the settings' count and Restore defaults scroll with
+ * the settings, as their first row, rather than taking a row of the view. */
+static int toolbar_in_body(void) { return touch && compact && tab == 1 && selected >= 0 && counts[selected]; }
+static int options_top(void) { return -detail_scroll + (toolbar_in_body() ? touch + 8 * unit : 0); }
+/* With a finger: one row at the top (search and filter; the profile, Save
+ * and Load), one at the bottom (the message, Close and Apply), the list and
+ * the details between, side by side or one page at a time. */
+static void layout_touch(Layout *l)
+{
+    int p = 12 * unit, g = 8 * unit, t = touch, footer = height - p - t, left = compact ? width : width * 36 / 100;
+    int top = p + t + g, save_w = max(64 * unit, width_text("Save") + 24 * unit), right, x, view_top;
+    int defaults_w = defaults_width();
+    memset(l, 0, sizeof(*l));
+    l->apply = rect(width - p - 150 * unit, footer, 150 * unit, t);
+    l->close = rect(l->apply.x - g - 94 * unit, footer, 94 * unit, t);
+    /* The footer's slot for the mods' files, left of Close (footer_left()
+     * gives the message the room up to it). Empty: an app has no folder
+     * window to open (Platform_OpenFolder fails on Android). Importing a
+     * mod's .zip through the system's file picker is to go here. */
+    l->folder = none();
+    {   /* A message of two to four lines beside the buttons (a refusal, a
+         * mod that cannot run here) raises the footer's top instead of
+         * being cut: the list and the details end above it. */
+        int room = (l->folder.w ? l->folder.x : l->close.x) - 20 * unit;
+        int lines = *status ? min(4, max(1, wrap(NULL, 0, 0, room, status, 0) / LINE)) : 1;
+        l->lift = max(0, lines * LINE + 6 * unit - t);
+        footer -= l->lift; /* where the list and the details end; the buttons are placed */
+    }
+    if (!compact || page == 0) {
+        int fw = filter_width();
+        x = width - p - 2 * save_w - g;
+        l->save = rect(x, p, save_w, t);
+        l->load = rect(x + save_w + g, p, save_w, t);
+        if (compact) { /* across the whole width: search, filter, profile, Save, Load */
+            l->profile = rect(x - g - 120 * unit, p, 120 * unit, t);
+            l->filter = rect(l->profile.x - g - fw, p, fw, t);
+            l->search = rect(p, p, l->filter.x - g - p, t);
+            l->list = rect(p, top, width - 2 * p, footer - g - top);
+        } else {
+            l->filter = rect(left - fw, p, fw, t);
+            l->search = rect(p, p, l->filter.x - g - p, t);
+            l->profile = rect(left + 16 * unit, p, max(80 * unit, x - g - left - 16 * unit), t);
+            l->list = rect(p, top, left - p, footer - g - top);
+        }
+        l->list_bar = rect(l->list.x + l->list.w - BAR - 3 * unit, l->list.y + 4 * unit, BAR, l->list.h - 8 * unit);
+    }
+    if (compact && page == 0)
+        return;
+    l->detail = compact ? rect(p, p, width - 2 * p, footer - g - p)
+                        : rect(left + 16 * unit, top, width - left - 16 * unit - p, footer - g - top);
+    right = l->detail.x + l->detail.w - g;
+    {
+        int y = l->detail.y + g;
+        l->back = compact ? rect(l->detail.x + g, y, t, t) : none();
+        l->toggle = rect(right - 120 * unit, y, 120 * unit, t);
+        l->order[1] = rect(l->toggle.x - g - t, y, t, t);
+        l->order[0] = rect(l->order[1].x - 40 * unit - t, y, t, t);
+        l->name_y = y + t / 2 - 10 * unit;
+        l->meta_y = y + t / 2 + 11 * unit;
+        for (int i = 0; i < 3; i++)
+            l->tabs[i] = rect(l->detail.x + i * l->detail.w / 3, y + t + g,
+                              (i + 1) * l->detail.w / 3 - i * l->detail.w / 3, t);
+        view_top = y + 2 * (t + g);
+    }
+    l->defaults = rect(right - defaults_w, view_top, defaults_w, t);
+    if (tab == 1 && selected >= 0 && counts[selected] && !compact)
+        view_top += t + g;
+    l->view = rect(l->detail.x + 16 * unit, view_top, l->detail.w - 22 * unit,
+                   max(0, l->detail.y + l->detail.h - 8 * unit - view_top));
+    l->bar = rect(l->view.x + l->view.w - BAR, l->view.y, BAR, l->view.h);
+    if (compact) { /* in the scrolled settings, where the view shows it */
+        int top = l->view.y - detail_scroll, bottom = min(top + t, l->view.y + l->view.h);
+        top = max(top, l->view.y);
+        l->defaults = bottom > top ? rect(l->view.x + l->view.w - BAR - 12 * unit - defaults_w, top, defaults_w,
+                                          bottom - top)
+                                   : none();
+    }
+}
 static void layout(Layout *l)
 {
+    if (touch) {
+        layout_touch(l);
+        return;
+    }
     int p = 20 * unit, gap = 16 * unit, left = width * 36 / 100, footer = height - 72 * unit - status_extra() * LINE,
         top = 142 * unit, right, view_top;
     l->search = rect(p, 64 * unit, left - p, 32 * unit);
@@ -87,6 +197,9 @@ static void layout(Layout *l)
     l->apply = rect(width - p - 150 * unit, height - 48 * unit, 150 * unit, 30 * unit);
     l->close = rect(width - p - 252 * unit, height - 48 * unit, 94 * unit, 30 * unit);
     l->folder = rect(width - p - 418 * unit, height - 48 * unit, 158 * unit, 30 * unit);
+    l->back = rect(0, 0, 0, 0);
+    l->name_y = l->detail.y + 24 * unit;
+    l->meta_y = l->detail.y + 57 * unit;
 }
 static const char *str(const JsonValue *v, const char *key, const char *fallback)
 {
@@ -131,7 +244,7 @@ static int rows(void)
 {
     Layout l;
     layout(&l);
-    return max(1, l.list.h / (58 * unit));
+    return max(1, l.list.h / PITCH);
 }
 static int shown_count(void)
 {
@@ -156,6 +269,8 @@ static int changed(void)
 void ModsWindow_Init(void)
 {
     unit = Menu_Scale();
+    touch = Menu_TouchTarget();
+    compact = page = drag_rest = 0;
     width = 920 * unit;
     height = 640 * unit;
     slider_drag = -1;
@@ -186,6 +301,18 @@ void ModsWindow_Init(void)
 }
 void ModsWindow_Resize(int w, int h)
 {
+    touch = Menu_TouchTarget();
+    if (touch) {
+        /* The whole screen: the menu's unit (the density) unless even a
+         * phone's page cannot hold it; side by side from a tablet's size. */
+        width = max(320, w);
+        height = max(240, h);
+        unit = Menu_Scale();
+        while (unit > 1 && (width < 560 * unit || height < 330 * unit))
+            unit--;
+        compact = width < 760 * unit || height < 600 * unit;
+        return;
+    }
     width = max(480, w);
     height = max(360, h);
     unit = Menu_Scale();
@@ -325,16 +452,16 @@ static void option(MenuCanvas *c, int index, int w, int y, OptionBox *o)
     const char *about = str(spec, "description", "");
     char value[160];
     int box = value_width(index, w), bottom;
-    o->plus = rect(w - 28 * unit, y, 28 * unit, 28 * unit);
-    o->value = rect(o->plus.x - 4 * unit - box, y, box, 28 * unit);
-    o->minus = rect(o->value.x - 32 * unit, y, 28 * unit, 28 * unit);
+    o->plus = rect(w - CONTROL, y, CONTROL, CONTROL);
+    o->value = rect(o->plus.x - 4 * unit - box, y, box, CONTROL);
+    o->minus = rect(o->value.x - 4 * unit - CONTROL, y, CONTROL, CONTROL);
     bottom = wrap(c, 0, y + 3 * unit, o->minus.x - 16 * unit, str(spec, "label", str(spec, "key", "Setting")), TEXT);
-    bottom = max(y + 28 * unit, bottom);
+    bottom = max(y + CONTROL, bottom);
     if (*about)
         bottom = wrap(c, 0, bottom + 4 * unit, w, about, DIM);
     if (Json_Bool(Json_Member(spec, "restart"), 0))
         bottom = wrap(c, 0, bottom + (*about ? 0 : 4 * unit), w, "Requires a restart", WARN);
-    o->slider = rect(0, bottom + 2 * unit, w, is_int(index) ? 22 * unit : 0);
+    o->slider = rect(0, bottom + 2 * unit, w, !is_int(index) ? 0 : touch ? max(22 * unit, touch * 2 / 3) : 22 * unit);
     o->height = o->slider.y + o->slider.h + 14 * unit - y;
     if (!c)
         return;
@@ -456,6 +583,14 @@ static int body(MenuCanvas *c, int w, int y)
     } else if (tab == 1) {
         if (!counts[selected])
             return wrap(c, 0, y, w, "This mod does not declare configurable settings.", DIM);
+        if (toolbar_in_body()) {
+            if (c) {
+                snprintf(line, sizeof(line), "%d setting%s", counts[selected], counts[selected] == 1 ? "" : "s");
+                text(c, 0, y + touch / 2, w - defaults_width() - 12 * unit, line, DIM);
+                button(c, rect(w - defaults_width(), y, defaults_width(), touch), "Restore defaults", 0);
+            }
+            y += touch + 8 * unit;
+        }
         for (int j = 0; j < counts[selected]; j++) {
             OptionBox o;
             option(c, j, w, y + 10 * unit, &o);
@@ -509,13 +644,11 @@ static void scrollbar(MenuCanvas *c, Rect track, int total, int shown, int at, i
     fill(c, track, BG);
     fill(c, thumb(track, total, shown, at), held ? BLUE : 0x5d6b80u);
 }
-void ModsWindow_Draw(MenuCanvas *c)
+/* What the window counts: shown in its title row, or with a finger in the
+ * footer's message line while there is no message. */
+static void counts_line(char *line, size_t size, int room)
 {
-    Layout l;
-    char line[512];
-    int enabled = 0, list_bar, extra, overlap_count = 0, overlap_warnings = 0;
-    layout(&l);
-    fill(c, rect(0, 0, c->width, c->height), BG);
+    int enabled = 0, overlap_count = 0, overlap_warnings = 0;
     for (int i = 0; i < Mods_Count(); i++)
         enabled += !!wanted[i];
     if (enabled > 1) {
@@ -524,89 +657,165 @@ void ModsWindow_Draw(MenuCanvas *c)
         for (int i = 0; i < overlap_count; i++)
             overlap_warnings += Mods_OverlapSeverity(found, i) == MODS_OVERLAP_WARNING;
     }
-    text(c, 20 * unit, 29 * unit, width - 40 * unit, "Mod library", TEXT);
     if (overlap_count)
-        snprintf(line, sizeof(line), "%d installed  /  %d enabled  /  %d overlap%s, %d warning%s%s", Mods_Count(),
+        snprintf(line, size, "%d installed  /  %d enabled  /  %d overlap%s, %d warning%s%s", Mods_Count(),
                  enabled, overlap_count, overlap_count == 1 ? "" : "s", overlap_warnings,
                  overlap_warnings == 1 ? "" : "s", changed() ? "  /  Unsaved changes" : "");
-    if (overlap_count && width_text(line) > width / 2 - 20 * unit) /* a small window: the tab has the warnings */
-        snprintf(line, sizeof(line), "%d installed  /  %d enabled  /  %d overlap%s%s", Mods_Count(), enabled,
+    if (overlap_count && width_text(line) > room) /* a small window: the tab has the warnings */
+        snprintf(line, size, "%d installed  /  %d enabled  /  %d overlap%s%s", Mods_Count(), enabled,
                  overlap_count, overlap_count == 1 ? "" : "s", changed() ? "  /  Unsaved" : "");
     else if (!overlap_count)
-        snprintf(line, sizeof(line), "%d installed  /  %d enabled%s", Mods_Count(), enabled,
+        snprintf(line, size, "%d installed  /  %d enabled%s", Mods_Count(), enabled,
                  changed() ? "  /  Unsaved changes" : "");
-    text(c, width / 2, 29 * unit, width / 2 - 20 * unit, line, DIM);
-    fill(c, l.search, focus == 1 ? EDGE : PANEL);
-    text(c, l.search.x + 10 * unit, l.search.y + 16 * unit, l.search.w - 20 * unit,
+}
+/* The search, filter and profile fields with Save and Load. */
+static void draw_fields(MenuCanvas *c, const Layout *l)
+{
+    fill(c, l->search, focus == 1 ? EDGE : PANEL);
+    text(c, l->search.x + 10 * unit, l->search.y + l->search.h / 2, l->search.w - 20 * unit,
          *query ? query : "Search mods, IDs or authors...", *query ? TEXT : DIM);
-    button(c, l.filter, filters[filter], 0);
-    fill(c, l.profile, focus == 2 ? EDGE : PANEL);
-    text(c, l.profile.x + 10 * unit, l.profile.y + 16 * unit, l.profile.w - 20 * unit, profile, TEXT);
-    button(c, l.save, "Save", 0);
-    button(c, l.load, "Load", 0);
-    text(c, l.profile.x, 118 * unit, width - l.profile.x - 20 * unit, "Named profile  /  Save uses applied settings",
-         DIM);
-    fill(c, l.list, PANEL);
-    fill(c, l.detail, PANEL);
-    list_bar = shown_count() > rows();
+    button(c, l->filter, filters[filter], 0);
+    fill(c, l->profile, focus == 2 ? EDGE : PANEL);
+    text(c, l->profile.x + 10 * unit, l->profile.y + l->profile.h / 2, l->profile.w - 20 * unit, profile, TEXT);
+    button(c, l->save, "Save", 0);
+    button(c, l->load, "Load", 0);
+}
+static void draw_list(MenuCanvas *c, const Layout *l)
+{
+    char line[512];
+    int list_bar = shown_count() > rows(), lift = (PITCH - 58 * unit) / 2;
+    fill(c, l->list, PANEL);
     for (int r = 0; r < rows(); r++) {
-        int mod = shown(scroll + r), w = l.list.w - 54 * unit - (list_bar ? BAR + 6 * unit : 0);
-        Rect row = rect(l.list.x, l.list.y + r * 58 * unit, l.list.w, 56 * unit);
+        int mod = shown(scroll + r), w = l->list.w - 54 * unit - (list_bar ? BAR + 6 * unit : 0);
+        Rect row = rect(l->list.x, l->list.y + r * PITCH, l->list.w, PITCH - 2 * unit);
         if (mod < 0)
             break;
         if (mod == selected)
             fill(c, row, 0x293e60u);
-        text(c, row.x + 12 * unit, row.y + 18 * unit, 24 * unit, wanted[mod] ? "[x]" : "[ ]",
+        text(c, row.x + 12 * unit, row.y + lift + 18 * unit, 24 * unit, wanted[mod] ? "[x]" : "[ ]",
              wanted[mod] ? GREEN : DIM);
-        text(c, row.x + 44 * unit, row.y + 18 * unit, w, Mods_Name(mod), TEXT);
+        text(c, row.x + 44 * unit, row.y + lift + 18 * unit, w, Mods_Name(mod), TEXT);
         snprintf(line, sizeof(line), "%s%s%s",
                  Mods_Failed(mod)      ? "Error"
                  : Mods_Status(mod)[0] ? "Warning"
                  : Mods_Active(mod)    ? "Active"
                                        : "Inactive",
                  wanted[mod] != Mods_Active(mod) ? " / pending" : "", Mods_RequiresRestart(mod) ? " / restart" : "");
-        text(c, row.x + 44 * unit, row.y + 39 * unit, w, line, Mods_Failed(mod) ? RED : DIM);
+        text(c, row.x + 44 * unit, row.y + lift + 39 * unit, w, line, Mods_Failed(mod) ? RED : DIM);
     }
     if (!shown_count())
-        text(c, l.list.x + 16 * unit, l.list.y + 32 * unit, l.list.w - 32 * unit, "No matching mods", DIM);
-    scrollbar(c, l.list_bar, shown_count(), rows(), scroll, bar_drag == 1);
+        text(c, l->list.x + 16 * unit, l->list.y + 32 * unit, l->list.w - 32 * unit, "No matching mods", DIM);
+    scrollbar(c, l->list_bar, shown_count(), rows(), scroll, bar_drag == 1);
+}
+static void draw_details(MenuCanvas *c, const Layout *l)
+{
+    char line[512];
+    fill(c, l->detail, PANEL);
     if (selected >= 0) {
-        int name_x = l.detail.x + 16 * unit, total = body_height(&l), order_x;
-        text(c, name_x, l.detail.y + 24 * unit, l.toggle.x - 12 * unit - name_x, Mods_Name(selected), TEXT);
-        button(c, l.toggle, wanted[selected] ? "Enabled" : "Disabled", wanted[selected]);
-        order_x = l.order[0].x - 10 * unit - width_text("Load order");
+        int name_x = l->back.w ? l->back.x + l->back.w + 8 * unit : l->detail.x + 16 * unit, total = body_height(l);
+        int order_x = l->order[0].x - 10 * unit - width_text("Load order"), label = 1;
+        /* With a finger the name shares its row with the load order: the
+         * label goes where the name would have too little room. */
+        if (touch && order_x - name_x < 140 * unit) {
+            order_x = l->order[0].x;
+            label = 0;
+        }
+        if (l->back.w)
+            button(c, l->back, "Back", 0);
+        text(c, name_x, l->name_y, (touch ? order_x : l->toggle.x) - 12 * unit - name_x, Mods_Name(selected), TEXT);
+        button(c, l->toggle, wanted[selected] ? "Enabled" : "Disabled", wanted[selected]);
         snprintf(line, sizeof(line), "%s  /  %s  /  %s", Mods_Metadata(selected, "version"),
                  Mods_Metadata(selected, "author"), Mods_Origin(selected));
-        text(c, name_x, l.detail.y + 57 * unit, order_x - 12 * unit - name_x, line, DIM);
-        text(c, order_x, l.detail.y + 57 * unit, width_text("Load order") + unit, "Load order", DIM);
-        button(c, l.order[0], "-", 0);
+        text(c, name_x, l->meta_y, order_x - 12 * unit - name_x, line, DIM);
+        if (label)
+            text(c, order_x, touch ? l->order[0].y + l->order[0].h / 2 : l->meta_y, width_text("Load order") + unit,
+                 "Load order", DIM);
+        button(c, l->order[0], "-", 0);
         snprintf(line, sizeof(line), "%d", ranks[selected]);
-        centred(c, rect(l.order[0].x + l.order[0].w, l.order[0].y, l.order[1].x - l.order[0].x - l.order[0].w,
-                        l.order[0].h),
+        centred(c, rect(l->order[0].x + l->order[0].w, l->order[0].y, l->order[1].x - l->order[0].x - l->order[0].w,
+                        l->order[0].h),
                 line, TEXT);
-        button(c, l.order[1], "+", 0);
-        button(c, l.tabs[0], "About", tab == 0);
-        button(c, l.tabs[1], "Settings", tab == 1);
-        button(c, l.tabs[2], "Compatibility", tab == 2);
-        if (tab == 1 && counts[selected]) {
+        button(c, l->order[1], "+", 0);
+        button(c, l->tabs[0], "About", tab == 0);
+        button(c, l->tabs[1], "Settings", tab == 1);
+        button(c, l->tabs[2], "Compatibility", tab == 2);
+        if (tab == 1 && counts[selected] && !toolbar_in_body()) {
             snprintf(line, sizeof(line), "%d setting%s", counts[selected], counts[selected] == 1 ? "" : "s");
-            text(c, l.view.x, l.defaults.y + l.defaults.h / 2, l.defaults.x - l.view.x - 12 * unit, line, DIM);
-            button(c, l.defaults, "Restore defaults", 0);
-            fill(c, rect(l.view.x, l.view.y - 7 * unit, l.view.w, 1), EDGE);
+            text(c, l->view.x, l->defaults.y + l->defaults.h / 2, l->defaults.x - l->view.x - 12 * unit, line, DIM);
+            button(c, l->defaults, "Restore defaults", 0);
+            fill(c, rect(l->view.x, l->view.y - 7 * unit, l->view.w, 1), EDGE);
         }
-        detail_scroll = min(detail_scroll, max(0, total - l.view.h));
-        if (l.view.h > 0 && l.view.x + l.view.w <= c->width && l.view.y + l.view.h <= c->height) {
+        detail_scroll = min(detail_scroll, max(0, total - l->view.h));
+        if (l->view.h > 0 && l->view.x + l->view.w <= c->width && l->view.y + l->view.h <= c->height) {
             /* A canvas over just the viewport clips the scrolled contents. */
             MenuCanvas view = *c;
-            view.pixels = c->pixels + (size_t)l.view.y * c->stride + l.view.x;
-            view.width = body_width(&l);
-            view.height = l.view.h;
+            view.pixels = c->pixels + (size_t)l->view.y * c->stride + l->view.x;
+            view.width = body_width(l);
+            view.height = l->view.h;
             body(&view, view.width, -detail_scroll);
         }
-        scrollbar(c, l.bar, total, l.view.h, detail_scroll, bar_drag == 2);
+        scrollbar(c, l->bar, total, l->view.h, detail_scroll, bar_drag == 2);
     } else
-        text(c, l.detail.x + 20 * unit, l.detail.y + 30 * unit, l.detail.w - 40 * unit,
+        text(c, l->detail.x + 20 * unit, l->detail.y + 30 * unit, l->detail.w - 40 * unit,
              "Select a mod to view its details", DIM);
+}
+static const char *apply_label(void)
+{
+    return pending == 2 ? "Discard changes" : pending == 1 ? "Apply & restart" : "Apply changes";
+}
+/* With a finger: the fields and the list, the details (side by side or the
+ * page shown), and the footer: the message (or the counts) beside Close and
+ * Apply, up to four lines in the footer's band (layout_touch raises it). */
+/* Where the footer's buttons start: the files slot when it has a button,
+ * else Close. */
+static int footer_left(const Layout *l) { return l->folder.w ? l->folder.x : l->close.x; }
+static void draw_touch(MenuCanvas *c, const Layout *l)
+{
+    char line[512];
+    int footer = l->apply.y - l->lift, room = footer_left(l) - 8 * unit - 12 * unit;
+    if (!compact || page == 0) {
+        draw_fields(c, l);
+        draw_list(c, l);
+    }
+    if (!compact || page == 1)
+        draw_details(c, l);
+    fill(c, rect(0, footer - 4 * unit, width, 1), EDGE);
+    if (*status)
+        snprintf(line, sizeof(line), "%s", status);
+    else
+        counts_line(line, sizeof(line), room);
+    if (l->apply.y + l->apply.h <= c->height) {
+        /* A band from the line above the buttons to the bottom clips it. */
+        MenuCanvas band = *c;
+        int top = footer - 3 * unit, lines = min(4, max(1, wrap(NULL, 0, 0, room, line, 0) / LINE));
+        band.pixels = c->pixels + (size_t)top * c->stride;
+        band.height = c->height - top;
+        /* centred between the line above and the buttons' bottom */
+        wrap(&band, 12 * unit, footer - top + (l->lift + l->apply.h) / 2 - lines * LINE / 2, room, line,
+             pending ? WARN : *status ? TEXT : DIM);
+    }
+    button(c, l->close, pending ? "Cancel" : "Close", 0);
+    button(c, l->apply, apply_label(), changed() || pending);
+}
+void ModsWindow_Draw(MenuCanvas *c)
+{
+    Layout l;
+    char line[512];
+    int extra;
+    layout(&l);
+    fill(c, rect(0, 0, c->width, c->height), BG);
+    if (touch) {
+        draw_touch(c, &l);
+        return;
+    }
+    text(c, 20 * unit, 29 * unit, width - 40 * unit, "Mod library", TEXT);
+    counts_line(line, sizeof(line), width / 2 - 20 * unit);
+    text(c, width / 2, 29 * unit, width / 2 - 20 * unit, line, DIM);
+    draw_fields(c, &l);
+    text(c, l.profile.x, 118 * unit, width - l.profile.x - 20 * unit, "Named profile  /  Save uses applied settings",
+         DIM);
+    draw_list(c, &l);
+    draw_details(c, &l);
     extra = status_extra() * LINE;
     fill(c, rect(0, height - 72 * unit - extra, width, 1), EDGE);
     if (extra) /* the last line where a one-line status goes */
@@ -618,11 +827,7 @@ void ModsWindow_Draw(MenuCanvas *c)
          "Arrow keys: select / toggle   Tab: search   Mouse wheel: scroll", DIM);
     button(c, l.folder, "Open mods folder", 0);
     button(c, l.close, pending ? "Cancel" : "Close", 0);
-    button(c, l.apply,
-           pending == 2   ? "Discard changes"
-           : pending == 1 ? "Apply & restart"
-                          : "Apply changes",
-           changed() || pending);
+    button(c, l.apply, apply_label(), changed() || pending);
 }
 static int needs_restart(void)
 {
@@ -786,24 +991,36 @@ static void bar_move(const Layout *l, int y)
     else if (bar_drag == 2)
         detail_scroll = thumb_to(l->bar, body_height(l), l->view.h, y - bar_grab);
 }
+/* Whether a press at x, y lands on scrollbar `which` (1 the list's, 2 the
+ * details'), with a margin beside it: wider for a finger. One test for
+ * bar_press and ModsWindow_Grabs, so a press the panel hands over as held
+ * is one the bar takes. */
+static int bar_hit(const Layout *l, int which, int x, int y)
+{
+    Rect track = which == 1 ? l->list_bar : l->bar;
+    int total = which == 1 ? shown_count() : body_height(l), shown = which == 1 ? rows() : l->view.h,
+        margin = (touch ? 8 : 3) * unit;
+    return total > shown && inside(rect(track.x - margin, track.y, track.w + 2 * margin, track.h), x, y);
+}
 /* Pressing a scrollbar grabs its thumb, or centres the thumb on the pointer. */
 static int bar_press(const Layout *l, int which, int x, int y)
 {
     Rect track = which == 1 ? l->list_bar : l->bar, t;
     int total = which == 1 ? shown_count() : body_height(l), shown = which == 1 ? rows() : l->view.h,
-        at = which == 1 ? scroll : detail_scroll;
-    if (total <= shown || !inside(rect(track.x - 3 * unit, track.y, track.w + 6 * unit, track.h), x, y))
+        at = which == 1 ? scroll : detail_scroll, margin = (touch ? 8 : 3) * unit;
+    if (!bar_hit(l, which, x, y))
         return 0;
     t = thumb(track, total, shown, at);
     bar_drag = which;
-    bar_grab = inside(rect(track.x - 3 * unit, t.y, track.w + 6 * unit, t.h), x, y) ? y - t.y : t.h / 2;
+    bar_grab = inside(rect(track.x - margin, t.y, track.w + 2 * margin, t.h), x, y) ? y - t.y : t.h / 2;
     bar_move(l, y);
     return 1;
 }
-/* A press on the settings list: the - value + buttons or an int's slider. */
-static void option_press(const Layout *l, int x, int y)
+/* A press on the settings list: the - value + buttons or an int's slider.
+ * With `act` 0 it only says whether the press would hold a slider. */
+static int option_press(const Layout *l, int x, int y, int act)
 {
-    int w = body_width(l), top = -detail_scroll;
+    int w = body_width(l), top = options_top();
     x -= l->view.x;
     y -= l->view.y;
     for (int j = 0; j < counts[selected]; j++) {
@@ -812,17 +1029,110 @@ static void option_press(const Layout *l, int x, int y)
         top += 10 * unit + o.height;
         if (y >= top)
             continue;
-        if (inside(o.minus, x, y))
-            adjust(j, -1);
-        else if (inside(o.plus, x, y) || inside(o.value, x, y))
-            adjust(j, 1);
-        else if (o.slider.h &&
-                 inside(rect(o.slider.x, o.slider.y - 4 * unit, o.slider.w, o.slider.h + 8 * unit), x, y)) {
-            slider_drag = j;
-            slider_value(j, x + l->view.x);
+        if (inside(o.minus, x, y)) {
+            if (act)
+                adjust(j, -1);
+        } else if (inside(o.plus, x, y) || inside(o.value, x, y)) {
+            if (act)
+                adjust(j, 1);
+        } else if (o.slider.h &&
+                   inside(rect(o.slider.x, o.slider.y - 4 * unit, o.slider.w, o.slider.h + 8 * unit), x, y)) {
+            if (act) {
+                slider_drag = j;
+                slider_value(j, x + l->view.x);
+            }
+            return 1;
         }
-        return;
+        return 0;
     }
+    return 0;
+}
+int ModsWindow_TextFocus(void) { return focus; }
+int ModsWindow_Locate(int id, int *x, int *y)
+{
+    Layout l;
+    Rect r = none();
+    layout(&l);
+    switch (id) {
+    case MODS_UI_SEARCH: r = l.search; break;
+    case MODS_UI_FILTER: r = l.filter; break;
+    case MODS_UI_PROFILE: r = l.profile; break;
+    case MODS_UI_SAVE: r = l.save; break;
+    case MODS_UI_LOAD: r = l.load; break;
+    case MODS_UI_TOGGLE: r = selected >= 0 ? l.toggle : none(); break;
+    case MODS_UI_BACK: r = l.back; break;
+    case MODS_UI_DEFAULTS: r = tab == 1 && selected >= 0 && counts[selected] ? l.defaults : none(); break;
+    case MODS_UI_CLOSE: r = l.close; break;
+    case MODS_UI_APPLY: r = l.apply; break;
+    case MODS_UI_FOLDER: r = l.folder; break;
+    case MODS_UI_TAB: case MODS_UI_TAB + 1: case MODS_UI_TAB + 2: r = selected >= 0 ? l.tabs[id - MODS_UI_TAB] : none(); break;
+    case MODS_UI_ORDER: case MODS_UI_ORDER + 1: r = selected >= 0 ? l.order[id - MODS_UI_ORDER] : none(); break;
+    case MODS_UI_ROW_SELECTED: case MODS_UI_ROW_FIRST: case MODS_UI_CHECK_SELECTED: case MODS_UI_CHECK_FIRST:
+        for (int row = 0; row < rows() && l.list.w; row++) {
+            int mod = shown(scroll + row), check = id == MODS_UI_CHECK_SELECTED || id == MODS_UI_CHECK_FIRST;
+            if (mod < 0 || ((id == MODS_UI_ROW_SELECTED || id == MODS_UI_CHECK_SELECTED) && mod != selected))
+                continue;
+            r = check ? rect(l.list.x, l.list.y + row * PITCH, touch ? max(40 * unit, touch) : 40 * unit, PITCH - 2 * unit)
+                      : rect(l.list.x + l.list.w / 2, l.list.y + row * PITCH, 1, PITCH - 2 * unit);
+            break;
+        }
+        break;
+    default:
+        if (id >= MODS_UI_OPTION && selected >= 0 && tab == 1 && (id - MODS_UI_OPTION) / 4 < counts[selected]) {
+            int top = options_top(), option_id = (id - MODS_UI_OPTION) / 4, part = (id - MODS_UI_OPTION) % 4;
+            OptionBox o = {0};
+            for (int j = 0; j <= option_id; j++) {
+                option(NULL, j, body_width(&l), top + 10 * unit, &o);
+                if (j < option_id)
+                    top += 10 * unit + o.height;
+            }
+            r = part == 0 ? o.minus : part == 1 ? o.value : part == 2 ? o.plus : o.slider;
+            r.x += l.view.x;
+            r.y += l.view.y;
+            if (r.y < l.view.y || r.y + r.h > l.view.y + l.view.h)
+                r = none(); /* scrolled out of the view */
+        }
+    }
+    if (!r.w || !r.h)
+        return 0;
+    *x = r.x + r.w / 2;
+    *y = r.y + r.h / 2;
+    return 1;
+}
+/* A press here holds something that follows the finger (a slider, a
+ * scrollbar's thumb) rather than starting a drag that scrolls. */
+int ModsWindow_Grabs(int x, int y)
+{
+    Layout l;
+    layout(&l);
+    if (pending)
+        return 0;
+    if (bar_hit(&l, 1, x, y))
+        return 1;
+    if (selected < 0)
+        return 0;
+    if (bar_hit(&l, 2, x, y))
+        return 1;
+    return tab == 1 && counts[selected] && inside(l.view, x, y) && option_press(&l, x, y, 0);
+}
+/* A finger that went down at x, y moved `dy` pixels since the last call:
+ * the list moves a row per row's height, the details by the pixel. */
+void ModsWindow_Drag(int x, int y, int dy)
+{
+    Layout l;
+    layout(&l);
+    if (pending)
+        return;
+    if (inside(l.list, x, y)) {
+        int most = max(0, shown_count() - rows()), step;
+        drag_rest += dy;
+        step = drag_rest / PITCH;
+        drag_rest -= step * PITCH;
+        scroll = min(max(scroll - step, 0), most);
+        if ((scroll == 0 && drag_rest > 0) || (scroll == most && drag_rest < 0))
+            drag_rest = 0; /* at an end: no debt to pay back first */
+    } else if (selected >= 0 && inside(l.detail, x, y))
+        detail_scroll = min(max(0, detail_scroll - dy), detail_limit(&l));
 }
 int ModsWindow_Redraws(const MenuEvent *e)
 {
@@ -844,7 +1154,7 @@ int ModsWindow_Event(const MenuEvent *e)
     Layout l;
     layout(&l);
     if (e->type == MENU_EVENT_BUTTON_UP || e->type == MENU_EVENT_LEAVE)
-        slider_drag = -1, bar_drag = 0;
+        slider_drag = -1, bar_drag = 0, drag_rest = 0;
     if (e->type == MENU_EVENT_MOTION && bar_drag) {
         bar_move(&l, e->y);
         return 0;
@@ -865,6 +1175,10 @@ int ModsWindow_Event(const MenuEvent *e)
                 focus = 0;
                 return 0;
             }
+            if (compact && page) { /* the details page goes back to the list */
+                page = 0;
+                return 0;
+            }
             if (changed()) {
                 pending = 2;
                 snprintf(status, sizeof(status), "Discard your unsaved mod changes?");
@@ -874,6 +1188,10 @@ int ModsWindow_Event(const MenuEvent *e)
         }
         if (e->key == MENU_KEY_TAB) {
             focus = (focus + 1) % 3;
+            return 0;
+        }
+        if (focus && touch && e->key == MENU_KEY_ENTER) {
+            focus = 0; /* the on-screen keyboard's Enter: done typing */
             return 0;
         }
         if (focus) {
@@ -942,14 +1260,22 @@ int ModsWindow_Event(const MenuEvent *e)
             }
             if (bar_press(&l, 1, e->x, e->y) || (selected >= 0 && bar_press(&l, 2, e->x, e->y)))
                 return 0;
-            if (inside(l.list, e->x, e->y) && (e->y - l.list.y) / (58 * unit) < rows()) {
-                int mod = shown(scroll + (e->y - l.list.y) / (58 * unit));
+            if (inside(l.back, e->x, e->y)) {
+                page = 0;
+                return 0;
+            }
+            if (inside(l.list, e->x, e->y) && (e->y - l.list.y) / PITCH < rows()) {
+                int mod = shown(scroll + (e->y - l.list.y) / PITCH);
                 if (mod >= 0) {
                     selected = mod;
                     detail_scroll = 0;
-                    if (e->x < l.list.x + 40 * unit)
+                    if (e->x < l.list.x + (touch ? max(40 * unit, touch) : 40 * unit))
                         wanted[mod] = !wanted[mod];
+                    else if (compact)
+                        page = 1; /* a phone: the row opens the mod's page */
                 }
+                if (compact)
+                    return 0;
             }
             if (inside(l.save, e->x, e->y)) {
                 if (changed())
@@ -1001,7 +1327,7 @@ int ModsWindow_Event(const MenuEvent *e)
                         for (int j = 0; j < counts[selected]; j++)
                             values[selected][j] = num(Mods_Option(selected, j), "default", 0);
                     else if (inside(l.view, e->x, e->y))
-                        option_press(&l, e->x, e->y);
+                        option_press(&l, e->x, e->y, 1);
                 }
             }
         }

@@ -65,6 +65,9 @@ static struct {
  * where it is not, an access there takes the same register rebase as the
  * first 64 KiB, onto the port's view. Windows always maps it. */
 int Memories_ScratchpadRetailView;
+/* Memories_GuestMapError: the first step Memories_GuestMap failed at. */
+static char map_error[160];
+const char *Memories_GuestMapError(void) { return map_error; }
 
 static void report_low_access(uint32_t eip, uint32_t address)
 {
@@ -752,6 +755,10 @@ static int map_at(uint32_t address, size_t length, int fd, off_t offset)
         if (got != MAP_FAILED) munmap(got, length);
         fprintf(stderr, "cannot map guest memory at 0x%08x: %s\n", (unsigned)address,
                 got == MAP_FAILED ? strerror(error) : "the system mapped it elsewhere");
+        if (!map_error[0])
+            snprintf(map_error, sizeof(map_error), "the addresses from 0x%08X to 0x%08llX could not be had (%s)",
+                     (unsigned)address, (unsigned long long)address + length - 1,
+                     got == MAP_FAILED ? strerror(error) : "the system placed them elsewhere");
         say_occupants(address, (uint64_t)address + length);
         return -1;
     }
@@ -1050,7 +1057,10 @@ int Memories_GuestMap(void)
     if (fd < 0) fd = memories_ashmem_create("memories-ram", MEMORIES_GUEST_RAM_SIZE + 0x1000);
 #endif
     if (fd < 0) {
+        int error = errno;
         perror("guest RAM");
+        snprintf(map_error, sizeof(map_error), "the system gave no shared memory for the game's RAM (%s)",
+                 strerror(error));
         return -1;
     }
     result = map_at(MEMORIES_GUEST_RAM, MEMORIES_GUEST_RAM_SIZE, fd, 0) ||
@@ -1083,6 +1093,9 @@ int Memories_GuestMap(void)
     if ((uintptr_t)Memories_GuestMap >= 0x100000000ull) {
         fprintf(stderr, "memories-pc: the game's code is at %p, above 4 GB; the 64-bit game needs its link address\n",
                 (void *)(uintptr_t)Memories_GuestMap);
+        if (!map_error[0])
+            snprintf(map_error, sizeof(map_error), "the game's code was loaded at %p, above 4 GB, not where it was built for",
+                     (void *)(uintptr_t)Memories_GuestMap);
         result = -1;
     }
     if (!result) Memories_ReserveModCode();

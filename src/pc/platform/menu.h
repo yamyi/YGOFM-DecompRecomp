@@ -145,6 +145,9 @@ void Menu_Open(void);
  * (48 dp): the bar, the rows and a notice's buttons are at least that tall.
  * 0, the default, keeps the mouse's sizes. */
 void Menu_SetTouchTarget(int pixels);
+/* That height (0 with a mouse): the Mods and Controls panels drawn inside
+ * the window (panel.h) size their rows and buttons by it too. */
+int Menu_TouchTarget(void);
 /* The part of the window what is drawn over the picture keeps within (the
  * save slot and deck slot menus): across, between `left` and `right` (the
  * touch controls hold the sides while they show; the whole width when
@@ -164,7 +167,8 @@ void Menu_SetItemEnabled(int id, int enabled);
 /* What the platform lacks, dimmed once after Menu_Init: 0 for `windows`
  * dims Game > Controls... and Mods (second windows), for `window_modes`
  * Video > Window scale, Fullscreen and Borderless, for `update_check` Help's
- * update check rows. The SDL backend on Android passes all three 0. */
+ * update check rows. The SDL backend on Android passes 1, 0, 0: Mods and
+ * Controls open as panels inside the window there (panel.h). */
 void Menu_SetPlatformItems(int windows, int window_modes, int update_check);
 /* Whether the backend runs the OpenGL picture pass (gl_picture.h). Without
  * it, or at console resolution, the Video menu's HD items could show

@@ -14,4 +14,26 @@ int ModsWindow_Redraws(const MenuEvent *event);
 /* The window's close button: 1 to close now, 0 when unsaved changes need a
  * confirmation first (the window then asks). */
 int ModsWindow_RequestClose(void);
+/* For a panel inside the game's window, used with a finger (panel.h): the
+ * search or profile field takes typing (1 or 2; 0 none), so the platform
+ * shows its on-screen keyboard; a press at x, y holds a slider or a
+ * scrollbar; a finger that went down at x, y and moved dy pixels scrolls
+ * the list or the details under it. */
+int ModsWindow_TextFocus(void);
+/* Where a widget is, its centre in window pixels as the layout places it
+ * now (0 when it is not shown): for tests and scripted input, as
+ * ControlsWindow_Locate. ROW_SELECTED and ROW_FIRST are the selected
+ * mod's row and the first row the list shows; OPTION + setting * 4 + 0..3 the selected mod's setting's -, value,
+ * + and slider on the Settings tab. */
+enum {
+    MODS_UI_SEARCH = 1, MODS_UI_FILTER, MODS_UI_PROFILE, MODS_UI_SAVE, MODS_UI_LOAD, MODS_UI_TOGGLE, MODS_UI_BACK,
+    MODS_UI_DEFAULTS, MODS_UI_CLOSE, MODS_UI_APPLY, MODS_UI_FOLDER, MODS_UI_ROW_SELECTED, MODS_UI_ROW_FIRST,
+    MODS_UI_CHECK_SELECTED, MODS_UI_CHECK_FIRST, /* a row's [x], which switches its mod on or off */
+    MODS_UI_TAB = 20,   /* + 0 About, 1 Settings, 2 Compatibility */
+    MODS_UI_ORDER = 30, /* + 0 -, 1 + */
+    MODS_UI_OPTION = 100
+};
+int ModsWindow_Locate(int id, int *x, int *y);
+int ModsWindow_Grabs(int x, int y);
+void ModsWindow_Drag(int x, int y, int dy);
 #endif

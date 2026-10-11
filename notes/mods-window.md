@@ -62,6 +62,24 @@ not fit: drag its thumb, or press the track to jump there. The details scroll by
 pixels, so every tab (About, Settings, Compatibility) reaches its last line;
 integer sliders support dragging.
 
+**On a phone or tablet** (Android) the window is a panel inside the game's
+window (`panel.h`; [Android](pc-build.md#mods-and-controls-as-panels-inside-the-window)):
+the same code at the screen's density, every row and button at least 48 dp
+tall, no title or keyboard hints (the counts take the message line while
+there is no message), and, where the list and the details do not fit side
+by side, two pages: the list, and a mod's page (Back, load order, Enabled,
+the tabs) that a tap on its row opens; the [x] at a row's left switches the
+mod without opening it. A drag scrolls the list or the details; a slider
+follows the finger. Search and the profile name show the on-screen keyboard
+(its Enter ends the typing); Back is Escape. There is no Open mods folder
+(an app has no folder window to open; `Platform_OpenFolder` fails on
+Android): the player's mods go in `mods/` in the app's files folder
+(`Android/data/org.yfmredecomp.game/files`). Importing a mod's `.zip`
+through the system's file picker is not there yet; its button is to go in
+the footer left of Close (`layout_touch`'s `folder` slot, empty now, so the
+message line runs up to Close). Apply & restart starts the app
+again in a new process. The game is paused while the panel shows.
+
 Implementation: `src/pc/platform/mods_window.c`, `src/pc/mods/manager.c`
 (`src/pc/mods/overlap.c` for the overlaps), and
 window ownership in `sdl.c` / `x11.c`. `pc_mods_window` exercises real settings
@@ -69,4 +87,5 @@ and manifests with a fake renderer/restart. `tools/pc/test_mods_context.sh`
 checks actual SDL/OpenGL context ownership during secondary-window operations.
 `tools/pc/preview_mods.sh` renders the window with the real font and the
 repository's `mods/` to `tmp/pc/mods-*.ppm` for review (`PREVIEW_SCALE=2` for
-the doubled UI).
+the doubled UI); `tools/pc/preview_panels.sh` renders the window at both
+scales and, with `PREVIEW_TOUCH=1`, the panel on six phones and tablets.
