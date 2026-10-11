@@ -1326,8 +1326,11 @@ def main():
         # as in an executable. The libraries: SDL3's shared object (packaged
         # beside it), libpng and FreeType linked in, the system's zlib, GLES
         # (sdl.c's glGetString), the log and the NDK's native window.
+        # --wrap=exit: the game's exit() is android.c's __wrap_exit, which
+        # ends the process without the system libraries' static destructors
+        # (the activity's threads still use what they free).
         output = f"{options.build}/libgame.so"
-        run([CC, *ANDROID_FLAGS, "-shared", "-o", output, "-Wl,-Bsymbolic", "-Wl,--no-undefined",
+        run([CC, *ANDROID_FLAGS, "-shared", "-o", output, "-Wl,-Bsymbolic", "-Wl,--no-undefined", "-Wl,--wrap=exit",
              f"-Wl,--image-base=0x{ANDROID_GAME_BASE:08X}", "-Wl,-soname,libgame.so",
              "-Wl,-z,noexecstack", *[obj(s) for s in game + NATIVE],
              f"{options.build}/stubs.o", guest_branches, f"{options.build}/mod_exports.o", version,
