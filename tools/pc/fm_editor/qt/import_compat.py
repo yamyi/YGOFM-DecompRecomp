@@ -40,14 +40,15 @@ def install() -> None:
             before = importer._items(_tl.write_listing(gamedata._image(retail_slus)))
             after = importer._items(importer.modded_listing(modded_slus, modded_wa, report))
             label = re.compile(r"L[0-9A-Fa-f]{4}")
-            controls = re.compile(r"\{[^}]*\}")
-
             def same_text(now, old):
                 if now == old:
                     return True
+                # Relocated labels do not change rendered text. Every other
+                # control code is meaningful (colour, pause, layout, etc.)
+                # and must stay in the imported listing.
                 if label.sub("L", now) == label.sub("L", old):
                     return True
-                return controls.sub("", now).strip() == controls.sub("", old).strip()
+                return now.rstrip(" \t") == old.rstrip(" \t")
 
             def wanted(bank, key):
                 if not importer._card_item(bank, key):
@@ -269,17 +270,15 @@ def install() -> None:
             import re
 
             label = re.compile(r"L[0-9A-Fa-f]{4}")
-            controls = re.compile(r"\{[^}]*\}")
-
             def equivalent(current_value, retail_value):
                 if current_value == retail_value:
                     return True
+                # Only address relocation and trailing spaces are harmless.
+                # Formatting and other control codes change what the game
+                # renders, so retain those entries in text.txt.
                 if label.sub("L", current_value) == label.sub("L", retail_value):
                     return True
-                # This intentionally ignores formatting codes when deciding
-                # whether a stock line belongs in a partial text listing.
-                # Non-stock visible dialogue and names remain intact.
-                return controls.sub("", current_value).strip() == controls.sub("", retail_value).strip()
+                return current_value.rstrip(" \t") == retail_value.rstrip(" \t")
 
             kept, removed = {}, []
             for bank, items in current.items():
@@ -708,29 +707,18 @@ def install() -> None:
     ModernEditor._mark_dirty = mark_dirty
     ModernEditor.select_workspace = select_workspace
 
-    saved_with_progress = ModernEditor.save_mod
+    original_save_project = ModernEditor._save_project
 
-    def save_mod_with_progress(self, *args, **kwargs):
-        # Window.save_mod owns the file chooser and validation.  It reaches
-        # manifest.save_mod only after those interactions succeed, so wrapping
-        # that one call gives Save, Save As and Export the same progress bar
-        # without changing their normal prompts.
-        original_manifest_save = manifest.save_mod
+    def save_project_with_progress(self, folder):
+        # Recovery calls manifest.save_mod directly. Replacing that shared
+        # function re-entered this Qt dialog from its worker thread and lost
+        # recovery's copy_source=False argument.
+        name = Path(folder).name or str(folder)
+        return self._background_progress(
+            "Save mod", f"Saving {name}\nWriting mod.json, artwork, assets and text files…",
+            lambda: original_save_project(self, folder))
 
-        def write(project, folder):
-            name = Path(folder).name or str(folder)
-
-            return self._background_progress(
-                "Save mod", f"Saving {name}\nWriting mod.json, artwork, assets and text files…",
-                lambda: original_manifest_save(project, folder))
-
-        manifest.save_mod = write
-        try:
-            return saved_with_progress(self, *args, **kwargs)
-        finally:
-            manifest.save_mod = original_manifest_save
-
-    ModernEditor.save_mod = save_mod_with_progress
+    ModernEditor._save_project = save_project_with_progress
 
     # The Art workspace already uses ``preview_wa`` after a BIN import, but
     # several card-facing workspaces predate that split and still pass

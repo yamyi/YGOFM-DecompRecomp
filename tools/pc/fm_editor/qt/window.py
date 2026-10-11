@@ -9,7 +9,7 @@ from .assets import AssetsMixin
 from .cards import CardsMixin
 from .duelists import DuelistsMixin
 from .equips import EquipsMixin
-from .fusions import FusionsMixin
+from .fusions import FusionsMixin, FusionTableDelegate
 from .limits import LimitsMixin
 from .map import MapMixin
 from .modinfo import ModinfoMixin
@@ -347,42 +347,35 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
             self._build_map_tab(page, get, controls)
         elif name == "Fusions":
             fusion_pages = get(QTabWidget, "fusionPages")
-            header = get(QWidget, "fusionImageHeader")
-            sort_names = ("fusionSortCardAButton", "fusionSortCardBButton",
-                          "fusionSortResultButton", "fusionSortAtkButton",
-                          "fusionSortDefButton", "fusionSortStateButton")
-            sort_headers = [get(QPushButton, control_name) for control_name in sort_names]
-            header_layout = header.layout()
-            for column, button in enumerate(sort_headers):
-                button.setCursor(Qt.CursorShape.PointingHandCursor)
-                button.clicked.connect(
-                    lambda checked=False, col=column: self._sort_fusions(col))
-                button.setMinimumWidth(0)
-                button.setMaximumWidth(16777215)
-                button.setStyleSheet("text-align:center")
-            # Plus/arrow separators take 18 px immediately before the State column
-            # in the row delegate; reserve the same space in the header layout.
-            if not header.property("fusionStateGapAdded"):
-                header_layout.insertSpacing(5, 18)
-                header.setProperty("fusionStateGapAdded", True)
             controls.update(search=get(QLineEdit, "fusionSearchEdit"),
                             changed=get(QCheckBox, "fusionChangedCheck"),
                             count=get(QLabel, "fusionCountLabel"), table=get(QTableWidget, "fusionTable"),
                             image_list=get(QListWidget, "fusionImageList"),
                             stack=get(QStackedWidget, "fusionViewStack"),
                             grid=get(QPushButton, "fusionGridButton"),
-                            list=get(QPushButton, "fusionListButton"), header=header,
-                            sort_headers=sort_headers, sort=(0, True), pages=fusion_pages,
+                            list=get(QPushButton, "fusionListButton"), sort=(0, True), pages=fusion_pages,
                             search_materials=get(QRadioButton, "fusionSearchMaterialsRadio"),
                             search_results=get(QRadioButton, "fusionSearchResultsRadio"),
                             search_both=get(QRadioButton, "fusionSearchBothRadio"))
-            controls["search"].setMaximumWidth(360)
-            controls["search_materials"].toggled.connect(self._refresh_fusions)
-            controls["search_results"].toggled.connect(self._refresh_fusions)
-            controls["search_both"].toggled.connect(self._refresh_fusions)
             table = controls["table"]
             table.setColumnCount(6)
-            table.setHorizontalHeaderLabels(["Card A", "Card B", "Result", "ATK", "DEF", "State"])
+            table.setHorizontalHeaderLabels(["Card A", "Card B", "Fusion result", "ATK", "DEF", "State"])
+            table.setIconSize(QSize(46, 58))
+            table.verticalHeader().setDefaultSectionSize(66)
+            table.verticalHeader().setVisible(False)
+            header = table.horizontalHeader()
+            header.setSectionsClickable(True)
+            # Do not let the last column absorb all spare width.  The old
+            # Stretch/ResizeToContents mix squeezed ATK and DEF to a few
+            # pixels on some styles.  These are useful defaults and remain
+            # manually resizeable like the other editor tables.
+            header.setStretchLastSection(False)
+            header.setMinimumSectionSize(54)
+            header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+            for column, width in enumerate((285, 285, 350, 76, 76, 112)):
+                table.setColumnWidth(column, width)
+            table.setItemDelegate(FusionTableDelegate(self._fusion_card_pixmap, table))
+            header.sectionClicked.connect(self._sort_fusions)
             view_group = QButtonGroup(self)
             view_group.setExclusive(True)
             view_group.addButton(controls["grid"], 0)
@@ -418,14 +411,8 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
                 return False
             add_to_row(action_layout)
             remove_result.clicked.connect(self._remove_fusion_result)
-            controls["header_timer"] = QTimer(self)
-            controls["header_timer"].setSingleShot(True)
-            controls["header_timer"].timeout.connect(self._sync_fusion_header)
-            controls["image_list"].viewport().installEventFilter(self)
-            controls["image_list"].verticalScrollBar().rangeChanged.connect(
-                lambda *_: controls["header_timer"].start(0))
-            fusion_pages.currentChanged.connect(lambda *_: controls["header_timer"].start(0))
             self._build_bulk_fusions_page(get(QWidget, "genericFusionTab"), controls)
+            controls["search"].setMaximumWidth(360)
         elif name == "Equips":
             controls.update(equips=get(QTableWidget, "equipTable"),
                             monsters=get(QTableWidget, "equipMonsterTable"),
@@ -832,12 +819,6 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
             if getattr(self, "current", None):
                 self._render_preview()
         controls = getattr(self, "workspace_controls", {}).get("Fusions", {})
-        image_list = controls.get("image_list")
-        if image_list is not None and watched is image_list.viewport():
-            if event.type() in (QEvent.Type.Resize, QEvent.Type.Show):
-                timer = controls.get("header_timer")
-                if timer is not None:
-                    timer.start(0)
         if event.type() == QEvent.Type.MouseButtonDblClick and event.button() == Qt.MouseButton.LeftButton:
             for side in controls.get("bulk_filters", {}).values():
                 for key in ("types", "stars"):
@@ -1361,7 +1342,6 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
         controls = getattr(self, "workspace_controls", {}).get("Fusions")
         if controls:
             self._set_fusion_view(0 if controls["grid"].isChecked() else 1)
-            self._sync_fusion_header()
         if self.current: self._render_preview()
     def new_mod(self):
         if not self.confirm_discard(): return
@@ -1409,6 +1389,10 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
         self.statusBar().showMessage(f"Opened {folder}" + (f" · {len(messages)} note(s)" if messages else ""))
         if messages:
             self._report("Opened with notes", "\n".join(messages))
+    def _save_project(self, folder):
+        """The one normal-save write point; Qt may decorate it with progress."""
+        return manifest.save_mod(self.project, folder)
+
     def export_mod(self):
         """Save into a folder of the mod's own, made in the one chosen: the
         game reads each mod from a folder named after its id (App.save)."""
@@ -1419,7 +1403,9 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
         if self.current_workspace == "Mod info" and not self._apply_mod_info(): return
         if self.current_workspace == "Packs" and not self._commit_packs(): return
         folder = str(self.project.source_dir or "")
-        if choose or not folder:
+        # A recovered project starts in disposable recovery storage. Ordinary
+        # Save must ask for a real folder before that storage is cleared.
+        if choose or self._unsaved_start or not folder:
             if export and not KEY_RE.fullmatch(self.project.info.id or ""):
                 self.select_workspace("Mod info")
                 QMessageBox.critical(self, "Export mod", "The exported folder is named after the mod's id: give it "
@@ -1452,7 +1438,7 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
             # The mod as it was, before any of its files are replaced: five
             # of them are kept per folder (recovery.backup).
             recovery.backup(folder)
-            path = manifest.save_mod(self.project, folder)
+            path = self._save_project(folder)
         except (ValueError, OSError) as problem:
             QMessageBox.critical(self, "Could not save mod", str(problem)); return
         self.statusBar().showMessage(f"{'Exported' if export else 'Saved'} {path}. Enable it in the game under "

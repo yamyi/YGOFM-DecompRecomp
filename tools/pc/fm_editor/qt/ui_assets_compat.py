@@ -68,43 +68,6 @@ def install():
         documentation.clicked.connect(lambda: _show_asset_help(self))
         return _build_template_framework(self, page, controls, layout)
 
-        title = QWidget(); form = QFormLayout(title); form.setContentsMargins(18, 20, 18, 18)
-        controls["title_background"] = _line("#RRGGBB"); controls["title_intro"] = _line("Intro scene or video"); controls["title_song"] = _line("Song identifier")
-        form.addRow("Background tint", controls["title_background"]); form.addRow("Intro", controls["title_intro"]); form.addRow("Music", controls["title_song"])
-        form.addRow(QLabel("Additional title pictures use title.images. Add PNG files with Art, then set their entries in mod.json until the PR #297 runtime is merged.")); tabs.addTab(title, "Title screen")
-
-        menu = QWidget(); form = QFormLayout(menu); form.setContentsMargins(18, 20, 18, 18)
-        controls["menu_scale"] = _spin(25, 400, "%"); controls["menu_tint"] = _line("#RRGGBB")
-        form.addRow("All button size", controls["menu_scale"]); form.addRow("Background tint", controls["menu_tint"])
-        form.addRow(QLabel("Individual menu-button settings remain under menu.entries and menu.buttons.")); tabs.addTab(menu, "Menus")
-
-        duel = QWidget(); duel_layout = QVBoxLayout(duel); duel_layout.setContentsMargins(18, 16, 18, 16)
-        _heading(duel_layout, "Duel HUD", "Move, scale, tint, hide or replace each element. LP panels and FIELD are vertical-only because the game slides them sideways.")
-        pick = QHBoxLayout(); pick.addWidget(QLabel("Element")); controls["element"] = QComboBox()
-        for key, label in ELEMENTS: controls["element"].addItem(label, key)
-        pick.addWidget(controls["element"], 1); reset = QPushButton("Reset element"); pick.addWidget(reset); duel_layout.addLayout(pick)
-        grid = QFormLayout(); controls["x"] = _spin(-400, 400); controls["y"] = _spin(-300, 300); controls["scale"] = _spin(25, 400, "%")
-        controls["tint"] = _line("#RRGGBB"); controls["hide"] = QCheckBox("Hide this element"); controls["label"] = _line("LP label"); controls["digits"] = _line("Digits colour #RRGGBB"); controls["image"] = _line("ui/replacement.png"); controls["width"] = _spin(0, 320); controls["height"] = _spin(0, 240)
-        for label, key in (("X", "x"), ("Y", "y"), ("Scale", "scale"), ("Tint", "tint"), ("Label", "label"), ("Digits", "digits"), ("PNG", "image"), ("PNG width", "width"), ("PNG height", "height")): grid.addRow(label, controls[key])
-        grid.addRow("", controls["hide"]); duel_layout.addLayout(grid)
-        group = QGroupBox("Card-bar parts"); parts = QFormLayout(group); controls["part"] = QComboBox()
-        for key, label in PARTS: controls["part"].addItem(label, key)
-        controls["part_x"] = _spin(-400, 400); controls["part_y"] = _spin(-300, 300); controls["part_tint"] = _line("#RRGGBB"); controls["part_hide"] = QCheckBox("Hide part"); controls["part_spacing"] = _spin(-3, 2)
-        for label, key in (("Part", "part"), ("X", "part_x"), ("Y", "part_y"), ("Tint", "part_tint"), ("Name spacing", "part_spacing")): parts.addRow(label, controls[key])
-        parts.addRow("", controls["part_hide"]); duel_layout.addWidget(group); duel_layout.addStretch(1); tabs.addTab(duel, "Duel HUD")
-
-        board = QWidget(); board_layout = QVBoxLayout(board); board_layout.setContentsMargins(18, 16, 18, 16)
-        _heading(board_layout, "Duel board", "PR #297 adds live 3D board previews and per-field floor, wall, trim and tint editing.")
-        note = QLabel("Board replacements remain texture-pack entries. They are preserved in the mod and become interactive when the PR #297 game runtime is present."); note.setObjectName("muted"); note.setWordWrap(True); board_layout.addWidget(note); board_layout.addStretch(1); tabs.addTab(board, "Duel board")
-        actions = QHBoxLayout(); actions.addStretch(1); revert = QPushButton("Revert UI to retail"); apply = QPushButton("Apply UI changes"); apply.setObjectName("primary"); actions.addWidget(revert); actions.addWidget(apply); layout.addLayout(actions)
-
-        def changed(*_): _write(self); self._mark_dirty()
-        for key in ("title_background", "title_intro", "title_song", "menu_tint", "tint", "label", "digits", "image", "part_tint"): controls[key].editingFinished.connect(changed)
-        for key in ("menu_scale", "x", "y", "scale", "width", "height", "part_x", "part_y", "part_spacing"): controls[key].valueChanged.connect(changed)
-        for key in ("hide", "part_hide"): controls[key].toggled.connect(changed)
-        controls["element"].currentIndexChanged.connect(lambda *_: _load(self)); controls["part"].currentIndexChanged.connect(lambda *_: _load_part(self))
-        reset.clicked.connect(lambda: _reset(self)); revert.clicked.connect(lambda: _revert(self)); apply.clicked.connect(self.save_mod); _load(self)
-
     def duel(self): return _object(_object(self.project.other, "ui"), "duel")
 
     def _load(self):
@@ -868,6 +831,28 @@ def _load_retail_preview_image(self, asset):
     QTimer.singleShot(0, complete)
 
 
+def _asset_paths(project, folder):
+    """All saved and pending named assets, minus queued removals."""
+    if not isinstance(folder, str) or not folder:
+        return set()
+    prefix = folder.rstrip("/") + "/"
+    removed = getattr(project, "deleted_files", set())
+    paths = {name for name in project.files if name.startswith(prefix) and name not in removed}
+    source = Path(project.source_dir) if project.source_dir else None
+    if source:
+        base = source / folder
+        if base.is_dir():
+            for item in base.rglob("*"):
+                if item.is_file() and not item.is_symlink():
+                    paths.add(item.relative_to(source).as_posix())
+    return paths - removed
+
+
+def _remember_asset_removal(project, path):
+    project.files.pop(path, None)
+    project.deleted_files.add(path)
+
+
 def _import_template(self):
     c = self.workspace_controls["Assets"]; asset = c.get("selected")
     if asset is None: return
@@ -888,6 +873,7 @@ def _import_template(self):
             folder = "assets"; self.project.other["assets"] = folder
         relative = f"{folder.rstrip('/')}/{asset['name']}.png"
     self.project.files[relative] = pngio.encode(image)
+    self.project.deleted_files.discard(relative)
     c.get("preview_image_cache", {}).pop(relative, None)
     self._mark_dirty(); _refresh_template(self)
 
@@ -906,7 +892,7 @@ def _remove_template(self):
     c = self.workspace_controls["Assets"]; asset = c.get("selected")
     path, origin, manifest_entry = _entry_origin(self, asset)
     if path is None: return
-    self.project.files.pop(path, None)
+    _remember_asset_removal(self.project, path)
     c.get("preview_image_cache", {}).pop(path, None)
     if origin == "pack" and manifest_entry is not None:
         st = art.state(self.project)
@@ -918,14 +904,14 @@ def _remove_template(self):
         c.pop("legacy_pack_index", None)
         self._mark_dirty(); _refresh_template(self); return
     folder = self.project.other.get("assets")
-    if isinstance(folder, str) and not any(name.startswith(folder.rstrip("/") + "/") for name in self.project.files):
+    if not _asset_paths(self.project, folder):
         self.project.other.pop("assets", None)
     self._mark_dirty(); _refresh_template(self)
 
 
 def _revert_template(self):
+    folder = self.project.other.get("assets")
+    for name in _asset_paths(self.project, folder):
+        _remember_asset_removal(self.project, name)
     self.project.other.pop("assets", None)
-    for name in list(self.project.files):
-        if name.startswith("assets/"):
-            self.project.files.pop(name)
     self._mark_dirty(); _refresh_template(self)

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from .common import *      # noqa: F401,F403
 from .common import (_qimage, _line_count, _pairs_text, _parse_pairs, _whole,
-                     _card_image)      # noqa: F401
+                     _card_image, _card_plate, _card_detail_sprite)      # noqa: F401
 
 
 class PacksMixin:
@@ -13,58 +13,77 @@ class PacksMixin:
         loader=QUiLoader();page=loader.load(source,parent);source.close()
         if page is None:raise RuntimeError(f"Could not load Packs form {ui_path}: {loader.errorString()}")
         wrapper=QVBoxLayout(parent);wrapper.setContentsMargins(0,0,0,0);wrapper.addWidget(page)
+        simulation_layout = page.findChild(QVBoxLayout, "packSimulationTabLayout")
+        if simulation_layout is not None:
+            # QUiLoader does not read layout-alignment properties reliably;
+            # without this, it spreads the title, hint, and controls through
+            # the whole empty tab.
+            simulation_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         c={"page":page};self.workspace_forms["Packs"]=page;self.workspace_controls["Packs"]=c
         def get(cls,key):
             item=page.findChild(cls,key)
             if item is None:raise RuntimeError(f"Packs form is missing {key!r}")
             return item
-        specs={"list":(QListWidget,"packsList"),"name":(QLineEdit,"packNameEdit"),"description":(QPlainTextEdit,"packDescriptionEdit"),"price":(QSpinBox,"packPriceSpin"),"count":(QSpinBox,"packCountSpin"),"stock":(QSpinBox,"packStockSpin"),"infinite":(QCheckBox,"packInfiniteStockCheck"),"identity":(QLabel,"packIdentityValue"),"problem":(QLabel,"packValidationLabel"),"image":(QLabel,"packImagePreview"),"image_scale":(QComboBox,"packImageScaleCombo"),"image_style":(QComboBox,"packImageStyleCombo"),"contents":(QTableWidget,"packContentsTable"),"total":(QLabel,"packTotalWeightLabel"),"tier":(QComboBox,"packTierCombo"),"weight":(QSpinBox,"packWeightSpin"),"count_label":(QLabel,"packDescriptionCount"),"list_title":(QLabel,"packListTitle"),"status":(QLabel,"packsStatusLabel"),"sim_count":(QSpinBox,"packSimulationCountSpin"),"sim_results":(QTableWidget,"packSimulationResultsTable")}
+        specs={"list":(QTableWidget,"packsList"),"search":(QLineEdit,"packSearchEdit"),"tabs":(QTabWidget,"packMainTabs"),"shop_tab":(QWidget,"packShopRulesTab"),"title":(QLabel,"packSettingsTitle"),"name":(QLineEdit,"packNameEdit"),"description":(QPlainTextEdit,"packDescriptionEdit"),"price":(QSpinBox,"packPriceSpin"),"count":(QSpinBox,"packCountSpin"),"stock":(QSpinBox,"packStockSpin"),"infinite":(QCheckBox,"packInfiniteStockCheck"),"identity":(QLabel,"packIdentityValue"),"problem":(QLabel,"packValidationLabel"),"image":(QLabel,"packImagePreview"),"image_scale":(QComboBox,"packImageScaleCombo"),"image_style":(QComboBox,"packImageStyleCombo"),"contents":(QTableWidget,"packContentsTable"),"contents_count":(QLabel,"packContentsCountLabel"),"total":(QLabel,"packTotalWeightLabel"),"tier":(QComboBox,"packTierCombo"),"weight":(QSpinBox,"packWeightSpin"),"count_label":(QLabel,"packDescriptionCount"),"list_title":(QLabel,"packListTitle"),"status":(QLabel,"packsStatusLabel"),"sim_count":(QSpinBox,"packSimulationCountSpin"),"sim_results":(QTableWidget,"packSimulationResultsTable"),"analytics_entries":(QLabel,"packAnalyticsEntriesValue"),"analytics_unique":(QLabel,"packAnalyticsUniqueValue"),"analytics_tiers":(QLabel,"packAnalyticsTiersValue"),"analytics_weight":(QLabel,"packAnalyticsWeightValue"),"analytics_draw":(QLabel,"packAnalyticsDrawValue"),"analytics_chance":(QLabel,"packAnalyticsChanceValue"),"shop_password":(QComboBox,"shopPasswordCombo"),"shop_rng":(QComboBox,"shopRngCombo"),"shop_music":(QLineEdit,"shopMusicEdit"),"shop_nothing_left":(QComboBox,"shopNothingLeftCombo"),"shop_table":(QTableWidget,"shopTable"),"shop_status":(QLabel,"shopSettingsStatusLabel")}
         for k,(cls,n) in specs.items():c[k]=get(cls,n)
         # The advanced forms are a window of their own: five forms do not fit
         # the settings column, and the page keeps the shape of the template.
         c["advanced_tabs"]=QTabWidget()
         self._build_pack_advanced(c["advanced_tabs"],c)
+        c["advanced_tabs"].setObjectName("packAdvancedTabs")
+        c["tabs"].addTab(c["advanced_tabs"], "Advanced")
         c["pack_index"]=-1;c["simulation"]=None
-        t=c["contents"];t.setColumnCount(6);t.setHorizontalHeaderLabels(["#","Card","Tier","Weight","Chance",""]);t.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows);t.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection);t.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers);t.verticalHeader().setVisible(False);t.horizontalHeader().setSectionResizeMode(1,QHeaderView.ResizeMode.Stretch)
-        for col,width in ((0,34),(2,112),(3,80),(4,68),(5,36)):
-            t.horizontalHeader().setSectionResizeMode(col,QHeaderView.ResizeMode.Fixed);t.setColumnWidth(col,width)
+        listing=c["list"];listing.setColumnCount(5);listing.setHorizontalHeaderLabels(["Pack", "Price", "Cards", "Stock", "Status"]);listing.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows);listing.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection);listing.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers);listing.verticalHeader().setVisible(False);listing.verticalHeader().setDefaultSectionSize(82);listing.setIconSize(QSize(52,74));listing.horizontalHeader().setStretchLastSection(False);listing.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        for col,width in ((0,180),(1,62),(2,48),(3,62),(4,78)):listing.setColumnWidth(col,width)
+        sort_keeps_filter(listing, lambda: self._filter_packs(c["search"].text()))
+        t=c["contents"];t.setColumnCount(7);t.setHorizontalHeaderLabels(["#","Card","Type","Attribute","Tier","Weight","Chance"]);t.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows);t.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection);t.setEditTriggers(QAbstractItemView.EditTrigger.DoubleClicked|QAbstractItemView.EditTrigger.EditKeyPressed);t.verticalHeader().setVisible(False)
+        # Keep each header handle available.  The former fixed/stretch mix
+        # prevented the user from making room for long card names or tiers.
+        header=t.horizontalHeader();header.setStretchLastSection(False)
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        for col,width in ((0,42),(1,270),(2,125),(3,125),(4,135),(5,92),(6,86)):
+            t.setColumnWidth(col,width)
         # A row carries the card's own picture, and its tier and weight as
         # boxes of its own: tall enough for both.
         t.verticalHeader().setDefaultSectionSize(44)
         t.setIconSize(QSize(30,42))
         t.horizontalHeader().setMinimumSectionSize(32)
-        t.setColumnWidth(1,160)
+        t.itemChanged.connect(self._edit_pack_content_cell)
         side=art.SIZES["art"]
         c["image_scale"].addItems([f"{n}× ({side[0]*n}×{side[1]*n})" for n in (1,2,4)])
         # "image_style": the picture as a card's art, or the whole picture in
         # the card's place (packs.IMAGE_STYLES, pack_shop.c fit_picture).
         c["image_style"].addItems(["Card art", f"Full picture ({packmath.CARD_VIEW[0]}×{packmath.CARD_VIEW[1]})"])
+        c["shop_password"].addItems(packmath.SHOP_PASSWORD)
+        c["shop_rng"].addItems(("game", "save"))
+        c["shop_nothing_left"].addItems(packmath.NOTHING_LEFT)
+        shops = c["shop_table"]
+        shops.setColumnCount(11)
+        shops.setHorizontalHeaderLabels(("ID", "Name", "Where", "Beat", "Wins", "Story", "Card", "Copies", "Star chips", "Packs opened", "Opened packs"))
+        shops.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        shops.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        shops.verticalHeader().setVisible(False)
+        shops.horizontalHeader().setStretchLastSection(False)
+        shops.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        for column, width in enumerate((130, 170, 90, 130, 72, 78, 130, 72, 105, 112, 180)):
+            shops.setColumnWidth(column, width)
         c["pack_art"]={}
         c["filling"]=False
         c["description"].textChanged.connect(self._count_pack_description)
         # The list follows the name as it is typed: there is no Apply button
         # to make it catch up, and the pack being renamed is the one shown.
         c["name"].textChanged.connect(self._rename_pack_row)
-        c["list"].currentRowChanged.connect(self._select_pack);t.itemSelectionChanged.connect(self._select_pack_content)
-        actions=(("addPackButton",self._add_pack),("duplicatePackButton",self._duplicate_pack),("removePackButton",self._remove_pack),("movePackUpButton",lambda:self._move_pack(-1)),("movePackDownButton",lambda:self._move_pack(1)),("addPackCardButton",self._add_pack_card),("addFilteredPackCardsButton",self._add_filtered_pack_cards),("removePackCardsButton",self._remove_pack_cards),("setPackWeightButton",self._set_pack_weight),("setPackTierButton",self._set_pack_tier),("addPackTierButton",self._add_pack_tier),("importPackImageButton",self._import_pack_image),("exportPackImageButton",self._export_pack_image),("revertPackImageButton",self._revert_pack_image),("toggleAdvancedPackButton",self._toggle_pack_advanced),("openShopSettingsButton",self._edit_pack_shop),("simulatePackButton",self._simulate_pack),("viewPackResultsButton",self._show_pack_results))
+        c["list"].currentCellChanged.connect(self._select_pack);c["search"].textChanged.connect(self._filter_packs);t.itemSelectionChanged.connect(self._select_pack_content)
+        actions=(("addPackButton",self._add_pack),("duplicatePackButton",self._duplicate_pack),("removePackButton",self._remove_pack),("movePackUpButton",lambda:self._move_pack(-1)),("movePackDownButton",lambda:self._move_pack(1)),("addPackCardButton",self._add_pack_card),("addFilteredPackCardsButton",self._add_filtered_pack_cards),("removePackCardsButton",self._remove_pack_cards),("setPackWeightButton",self._set_pack_weight),("setPackTierButton",self._set_pack_tier),("addPackTierButton",self._add_pack_tier),("importPackImageButton",self._import_pack_image),("exportPackImageButton",self._export_pack_image),("revertPackImageButton",self._revert_pack_image),("toggleAdvancedPackButton",self._toggle_pack_advanced),("applyShopSettingsButton",self._apply_shop_settings),("addShopButton",self._add_shop),("removeShopButton",self._remove_selected_shops),("simulatePackButton",self._simulate_pack),("viewPackResultsButton",self._show_pack_results))
         for name,fn in actions:get(QPushButton,name).clicked.connect(fn)
         c["image_scale"].currentIndexChanged.connect(lambda *_:self._refresh_pack_image())
         c["image_style"].currentIndexChanged.connect(self._pack_style_chosen)
         c["simulation_timer"]=QTimer(self);c["simulation_timer"].setSingleShot(True);c["simulation_timer"].timeout.connect(self._pack_simulation_step)
         c["sim_results"].hide()
         get(QToolButton,"packContentsHelpButton").clicked.connect(self._explain_pack_weights)
-        # Keep the actions in two deliberate rows.  A flow layout made the
-        # two-row Tier/Weight control wrap as one unit, so narrow panels
-        # could grow to three rows and cover nearly all of the card table.
-        host=get(QWidget,"contentsActionsHost")
-        actions=QVBoxLayout(host);actions.setContentsMargins(0,0,0,0);actions.setSpacing(6)
-        first=QHBoxLayout();first.setSpacing(8)
-        for name in ("addPackCardButton","addFilteredPackCardsButton","addPackTierButton"):
-            first.addWidget(get(QPushButton,name))
-        first.addStretch(1);first.addWidget(get(QPushButton,"removePackCardsButton"))
-        actions.addLayout(first)
-        second=QHBoxLayout();second.setContentsMargins(0,0,0,0);second.addWidget(get(QWidget,"packSetControls"));second.addStretch(1)
-        actions.addLayout(second)
+        # The Contents action rows live in packs_page.ui.  Keeping that
+        # hierarchy declarative avoids installing a second layout onto the
+        # host that QUiLoader has already laid out.
         self._style_packs_page(page, get, c)
         self._refresh_packs()
     def _style_packs_page(self, page, get, c):
@@ -75,21 +94,28 @@ class PacksMixin:
         for index in range(page_layout.count()):
             page_layout.setStretch(index, 1 if page_layout.itemAt(index).widget() is panels else 0)
         panels.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        # A visible gutter keeps the three independent editing panels from
-        # reading as one large box, even with the theme's transparent handle.
-        panels.setHandleWidth(12)
+        # A visible gutter keeps the library distinct from the full-width
+        # tabbed editor, even with the theme's transparent handle.
+        panels.setChildrenCollapsible(False)
+        panels.setOpaqueResize(True)
+        panels.setHandleWidth(10)
         for label in ("pageTitleLabel", "pageSummaryLabel", "packsStatusLabel"):
             get(QLabel, label).setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
         get(QLabel, "pageTitleLabel").setStyleSheet("font-size:20px;font-weight:650;color:#f3f7fc")
-        for title in ("packListTitle", "packSettingsTitle", "packContentsTitle",
+        for title in ("packListTitle", "packSettingsTitle", "packContentsWorkspaceTitle",
                       "shopSettingsTitle", "simulationTitle"):
             get(QLabel, title).setStyleSheet("font-size:16px;font-weight:650;color:#f3f7fc")
         for muted in ("pageSummaryLabel", "packsStatusLabel", "packIdentityValue", "packTotalWeightLabel",
                       "shopSettingsHint", "simulationHint", "packPriceHint"):
             get(QLabel, muted).setStyleSheet("color:#9aacc4")
         get(QLabel, "packValidationLabel").setStyleSheet("color:#ff7777")
-        for panel in ("packListPanel", "packSettingsPanel", "packContentsPanel",
-                      "shopSettingsPanel", "simulationPanel"):
+        for name in ("packAnalyticsEntriesValue", "packAnalyticsUniqueValue", "packAnalyticsTiersValue",
+                     "packAnalyticsWeightValue", "packAnalyticsDrawValue", "packAnalyticsChanceValue"):
+            get(QLabel, name).setStyleSheet("font-size:16px;font-weight:650;color:#f3f7fc")
+            get(QFrame, f"{name}Card").setStyleSheet(
+                "QFrame { background:#162335; border:1px solid #2a3d55; border-radius:6px; }")
+            get(QLabel, f"{name}Title").setStyleSheet("color:#9aacc4")
+        for panel in ("packListPanel", "packSettingsPanel"):
             get(QFrame, panel).setStyleSheet(
                 f"QFrame#{panel} {{ background:#101b2b; border:1px solid #26374c; border-radius:10px; }}")
         get(QLabel, "packImagePreview").setStyleSheet(
@@ -97,7 +123,7 @@ class PacksMixin:
         # A pack reads as a card of its own: the cover, then the name over
         # its numbers.
         c["list"].setIconSize(QSize(52, 74))
-        c["list"].setSpacing(4)
+        c["list"].verticalHeader().setDefaultSectionSize(82)
         for muted in ("packDescriptionCount",):
             get(QLabel, muted).setStyleSheet("color:#9aacc4")
         help_button = get(QToolButton, "packContentsHelpButton")
@@ -113,18 +139,12 @@ class PacksMixin:
         # As needed, not off: off clipped the form's right-hand side away with
         # no way to reach it when the panel was narrow.
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        # The cover controls need a real settings column, while the contents
-        # table gets the remaining room instead of squeezing its action bar.
-        # The three together must fit the splitter at the window's own
-        # minimum width (1280 less the sidebar), or the right-hand panel is
-        # drawn over the one beside it. Each is still wider than what is in
-        # it needs (minimumSizeHint: 214, 312, 439).
-        get(QFrame, "packListPanel").setMinimumWidth(240)
-        get(QFrame, "packSettingsPanel").setMinimumWidth(340)
-        get(QFrame, "packContentsPanel").setMinimumWidth(450)
-        for index, stretch in enumerate((3, 4, 7)):
-            panels.setStretchFactor(index, stretch)
-        panels.setSizes([300, 410, 760])
+        # The editor intentionally takes all remaining space after the
+        # fixed-width library.  The single splitter remains draggable.
+        get(QFrame, "packListPanel").setMinimumWidth(435)
+        get(QFrame, "packSettingsPanel").setMinimumWidth(560)
+        panels.setStretchFactor(0, 0);panels.setStretchFactor(1, 1)
+        panels.setSizes([450, 910])
         # The actions under the contents wrap (FlowLayout): on one line they
         # were wider than the window, and the panel beside them was drawn over.
         for key, width in (("tier", 130), ("weight", 110)):
@@ -134,15 +154,46 @@ class PacksMixin:
                      "addPackTierButton", "setPackWeightButton", "removePackCardsButton"):
             button = get(QPushButton, name)
             button.setMinimumWidth(0)
-            button.setStyleSheet("padding:7px 9px")
-        # The four beside "Add pack" are their glyph and nothing else.
+            button.setStyleSheet("padding:6px 5px")
+        # The library footer uses compact order controls; its text actions
+        # keep their readable natural width.
         for name in ("duplicatePackButton", "removePackButton", "movePackUpButton", "movePackDownButton"):
             square = get(QPushButton, name)
-            square.setFixedWidth(38)
-            square.setStyleSheet("padding:7px 0")
+            square.setMinimumWidth(0)
+            square.setStyleSheet("padding:7px 8px")
         get(QPushButton, "addPackButton").setMinimumWidth(0)
         get(QPushButton, "toggleAdvancedPackButton").setStyleSheet(
             "padding:5px 9px;color:#9aacc4;background:transparent;border:1px solid #2a3d55")
+        get(QPushButton, "applyShopSettingsButton").setStyleSheet(
+            "background:#216cf1;border-color:#216cf1;color:white;font-weight:600;padding:7px 12px")
+        get(QLabel, "shopListHintLabel").setStyleSheet("color:#9aacc4")
+        get(QLabel, "shopSettingsStatusLabel").setStyleSheet("color:#ff7777")
+    def _filter_packs(self, text):
+        """Filter the library without rebuilding it or losing the selected pack."""
+        listing = self.workspace_controls.get("Packs", {}).get("list")
+        if listing is None:
+            return
+        wanted = text.casefold().strip()
+        for row in range(listing.rowCount()):
+            item = listing.item(row, 0)
+            listing.setRowHidden(row, bool(wanted) and (item is None or wanted not in item.text().casefold()))
+
+    @staticmethod
+    def _pack_library_row(listing, pack_index):
+        for row in range(listing.rowCount()):
+            item = listing.item(row, 0)
+            if item is not None and item.data(Qt.ItemDataRole.UserRole) == pack_index:
+                return row
+        return -1
+
+    def _select_pack_library_row(self, pack_index):
+        listing = self.workspace_controls["Packs"]["list"]
+        row = self._pack_library_row(listing, pack_index)
+        if row >= 0:
+            held = listing.blockSignals(True)
+            listing.setCurrentCell(row, 0)
+            listing.selectRow(row)
+            listing.blockSignals(held)
     def _pack_entry(self):
         c=self.workspace_controls.get("Packs",{});i=c.get("pack_index",-1)
         return self.project.packs[i] if 0<=i<len(self.project.packs) and isinstance(self.project.packs[i],dict) else None
@@ -158,28 +209,40 @@ class PacksMixin:
     def _refresh_packs(self):
         c=self.workspace_controls.get("Packs")
         if not c:return
-        listing=c["list"];listing.blockSignals(True);listing.clear();taken=set()
+        listing=c["list"];listing.blockSignals(True);held_sort=sort_paused(listing);listing.setRowCount(0);taken=set()
         c["list_title"].setText(f"Pack list ({len(self.project.packs)})")
         for i,e in enumerate(self.project.packs):
             pack,notes=packmath.read_pack(e,validate.pack_resolver(self.project),self.project.info.id,i,taken)
             if pack:taken.add(pack.id)
             stock="∞" if pack and pack.stock<0 else str(pack.stock) if pack else "—"
-            listing.addItem(f"{i+1}   {e.get('name','Pack')}\n      {pack.price if pack else '—'}      "
-                            f"{pack.count if pack else '—'} cards      Stock: {stock}")
-            listing.item(i).setData(Qt.ItemDataRole.UserRole,i)
+            row=listing.rowCount();listing.insertRow(row)
+            status="Invalid" if not pack else "Warnings" if notes else "Ready"
+            values=(f"{i+1:02d}  {e.get('name','Pack')}", pack.price if pack else "—",
+                    pack.count if pack else "—", stock, status)
+            for column,value in enumerate(values):
+                cell=TableItem(str(value));cell.setData(Qt.ItemDataRole.UserRole,i)
+                if column==0:
+                    cell.setToolTip(f"{packmath.pack_id(e)} — {e.get('name', 'Pack')}")
+                listing.setItem(row,column,cell)
             image_data=self._pack_image_bytes(e)
             if image_data:
                 thumb=QImage.fromData(image_data)
-                if not thumb.isNull():listing.item(i).setIcon(QIcon(QPixmap.fromImage(thumb).scaled(QSize(52,74),Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation)))
-            if not pack:listing.item(i).setForeground(QColor("#ff7777"))
-            elif notes:listing.item(i).setForeground(QColor("#f2c04c"))
+                if not thumb.isNull():listing.item(row,0).setIcon(QIcon(QPixmap.fromImage(thumb).scaled(QSize(52,74),Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation)))
+            tone=QColor("#ff7777") if not pack else QColor("#f2c04c") if notes else None
+            if tone is not None:
+                for column in range(listing.columnCount()):listing.item(row,column).setForeground(tone)
         c["pack_index"]=min(max(0,c.get("pack_index",0)),len(self.project.packs)-1) if self.project.packs else -1
-        listing.setCurrentRow(c["pack_index"]);listing.blockSignals(False)
+        sort_resumed(listing,held_sort)
+        row=self._pack_library_row(listing,c["pack_index"])
+        if row>=0:listing.setCurrentCell(row,0);listing.selectRow(row)
+        listing.blockSignals(False)
+        self._filter_packs(c["search"].text())
         external=self.project.packs_file is not None
         # Before the form is filled: what it has to say about the picture is
         # the later word, and must not be wiped by this line.
         self._set_packs_status(f'"packs" points to {self.project.packs_file}; that external file is read-only here.' if external else "")
         self._fill_pack()
+        self._fill_shop_settings()
         for name in ("addPackButton","duplicatePackButton","removePackButton","movePackUpButton","movePackDownButton","addPackCardButton","addFilteredPackCardsButton","removePackCardsButton","setPackWeightButton","setPackTierButton","addPackTierButton","importPackImageButton"):
             b=c["page"].findChild(QPushButton,name)
             if b:b.setEnabled(not external)
@@ -191,16 +254,20 @@ class PacksMixin:
         try:self._fill_pack_form(c,e,t)
         finally:c["filling"]=False
     def _fill_pack_form(self,c,e,t):
+        held_sort=sort_paused(t)
         t.setRowCount(0)
         if not e:
-            c["name"].clear();c["description"].clear();c["price"].setValue(packmath.DEFAULT_PRICE);c["count"].setValue(packmath.DEFAULT_COUNT);c["stock"].setValue(0);c["infinite"].setChecked(True);c["identity"].setText("No pack: Add pack makes one");c["problem"].clear();c["total"].setText("Total weight: 0");c["image"].setPixmap(QPixmap());c["image"].setText("No image")
-            self._fill_pack_advanced(None,None);c["adv_baseline"]=self._pack_advanced_state();return
+            c["title"].setText("No pack selected")
+            self._set_pack_analytics(c)
+            c["name"].clear();c["description"].clear();c["price"].setValue(packmath.DEFAULT_PRICE);c["count"].setValue(packmath.DEFAULT_COUNT);c["stock"].setValue(0);c["infinite"].setChecked(True);c["identity"].setText("No pack: Add pack makes one");c["problem"].clear();c["contents_count"].setText("0 cards");c["total"].setText("Total weight: 0");c["image"].setPixmap(QPixmap());c["image"].setText("No image")
+            self._fill_pack_advanced(None,None);c["adv_baseline"]=self._pack_advanced_state();sort_resumed(t,held_sort);return
+        c["title"].setText(str(e.get("name", "Pack")).strip() or "Unnamed pack")
         c["name"].setText(str(e.get("name","")));c["description"].setPlainText(str(e.get("description","")))
         style=e.get("image_style")
         c["image_style"].setCurrentIndex(1 if style=="full" else 0)
         price=e.get("price",packmath.DEFAULT_PRICE);price=e.get("cost",{}).get("starchips",price) if isinstance(e.get("cost"),dict) else price;c["price"].setValue(price if isinstance(price,int) else packmath.DEFAULT_PRICE);c["count"].setValue(e.get("count",packmath.default_count(e)))
         stock=e.get("stock",-1);c["infinite"].setChecked(stock in (-1,None));c["stock"].setValue(0 if stock in (-1,None) else stock);c["identity"].setText(f"{self.project.info.id}:{packmath.pack_id(e)}")
-        pack,notes=self._pack_read();c["problem"].setText(next((m for level,m in notes if level=="error"),notes[0][1] if notes else ""));chances=packmath.card_chances(pack) if pack else {};resolve=validate.pack_resolver(self.project);total=0
+        pack,notes=self._pack_read();c["problem"].setText(next((m for level,m in notes if level=="error"),notes[0][1] if notes else ""));chances=packmath.card_chances(pack) if pack else {};resolve=validate.pack_resolver(self.project);total=0;unique_ids=set();chance_values=[]
         tiers=packmath.tiers_of(e)
         held=c["tier"].currentText()
         c["tier"].clear()
@@ -210,8 +277,14 @@ class PacksMixin:
         for ti,(tier_name,tier) in enumerate(tiers):
             pool=packmath.pool_items(tier.get("cards",[]));total+=sum(w for _,w in pool)
             for k,(ref,weight) in enumerate(pool):
-                cid=resolve(ref);card=self.project.cards.get(cid);chance=chances.get((ti,cid),0) if pack and cid>0 else 0;r=t.rowCount();t.insertRow(r)
-                for col,val in enumerate((r+1,card.name if card else str(ref),"","",f"{chance*100:.2f}%")):
+                cid=resolve(ref);card=self.project.cards.get(cid);chance=chances.get((ti,cid),0) if pack and cid>0 else 0
+                if cid > 0: unique_ids.add(cid)
+                if chance > 0: chance_values.append(chance)
+                r=t.rowCount();t.insertRow(r)
+                type_name=TYPE_NAMES[card.type] if card and 0<=card.type<len(TYPE_NAMES) else "Unknown"
+                attribute_name=ATTRIBUTE_NAMES[card.attribute] if card and 0<=card.attribute<len(ATTRIBUTE_NAMES) else "—"
+                for col,val in enumerate((r+1,card.name if card else str(ref),type_name,attribute_name,
+                                          tier_name,weight,f"{chance*100:.2f}%")):
                     cell=TableItem(str(val))
                     if col==0:cell.setData(Qt.ItemDataRole.UserRole,(ti,k,cid))
                     if col==1:
@@ -219,30 +292,45 @@ class PacksMixin:
                         picture=self._pack_card_icon(cid) if card else None
                         if picture is not None:cell.setIcon(picture)
                         if not card:self._tint_state(cell,"removed")
+                    elif col==2 and card:
+                        cell.setIcon(type_icon(self,card.type));cell.setToolTip(type_name)
+                    elif col==3 and card:
+                        cell.setIcon(attribute_icon(self,card.attribute));cell.setToolTip(attribute_name)
+                    if col not in (4,5):
+                        cell.setFlags(cell.flags() & ~Qt.ItemFlag.ItemIsEditable)
                     t.setItem(r,col,cell)
-                # The tier and the weight are the row's own boxes, as a pack
-                # is read column by column rather than card by card.
-                t.setCellWidget(r,2,self._pack_row_tier_box([name for name,_ in tiers],ti,r))
-                t.setCellWidget(r,3,self._pack_row_spin(weight,0,packmath.WEIGHT_TOTAL_MAX,
-                                                        lambda value,row=r:self._set_pack_row_weight(row,value)))
-                t.setCellWidget(r,5,self._pack_row_remove(r))
         c["total"].setText(f"Total weight: {total:,}")
+        c["contents_count"].setText(f"{t.rowCount():,} card{'s' if t.rowCount() != 1 else ''}")
+        self._set_pack_analytics(c, entries=t.rowCount(), unique=len(unique_ids), tiers=len(tiers),
+                                 total=total, draw_count=c["count"].value(), chances=chance_values)
         self._fill_pack_advanced(e,pack)
         c["adv_baseline"]=self._pack_advanced_state()
         self._refresh_pack_image()
+        sort_resumed(t,held_sort)
+    @staticmethod
+    def _set_pack_analytics(c, entries=0, unique=0, tiers=0, total=0, draw_count=0, chances=()):
+        """Show live pack-pool facts alongside the editable overview fields."""
+        c["analytics_entries"].setText(f"{entries:,}")
+        c["analytics_unique"].setText(f"{unique:,}")
+        c["analytics_tiers"].setText(f"{tiers:,}")
+        c["analytics_weight"].setText(f"{total:,}")
+        c["analytics_draw"].setText(f"{draw_count:,}")
+        values = tuple(chances)
+        c["analytics_chance"].setText(
+            f"{min(values) * 100:.2f}% – {max(values) * 100:.2f}%" if values else "—")
+
     def _rename_pack_row(self, text):
         """The chosen row's first line, as the name is typed. The rest of the
         row (its price, cards and stock) waits for the pack to be stored."""
         c = self.workspace_controls.get("Packs")
         if not c or c.get("filling"):
             return
-        row = c["pack_index"]
-        item = c["list"].item(row) if 0 <= row < c["list"].count() else None
+        row = self._pack_library_row(c["list"], c["pack_index"])
+        item = c["list"].item(row, 0) if row >= 0 else None
         if item is None:
             return
-        lines = item.text().split("\n")
-        lines[0] = f"{row + 1}   {text.strip() or '(unnamed)'}"
-        item.setText("\n".join(lines))
+        item.setText(f"{c['pack_index'] + 1:02d}  {text.strip() or '(unnamed)'}")
+        c["title"].setText(text.strip() or "Unnamed pack")
 
     def _pack_image_bytes(self, entry):
         """A pack's own picture: the mod's files, or the folder it was opened
@@ -308,7 +396,7 @@ class PacksMixin:
                                                               blue * alpha // 255, 255))
                 drawn = _qimage(width, height, bytes(rgba))
             else:
-                drawn=self._pack_picture(picture,name,zoom)
+                drawn=self._pack_card_view(picture,name,zoom)
         except (OSError,ValueError,pngio.PngError):drawn=None
         if own and picture is not None:
             self._set_packs_status(
@@ -348,9 +436,61 @@ class PacksMixin:
         if cache["serif"] is None:
             return None
         return packmath.name_plate_inks(name, cache["serif"])
-    def _pack_picture(self, picture, name, zoom):
-        """The picture over the card's gold with the name plate under it, as
-        the big card shows a pack (PacksTab.card_picture)."""
+    def _pack_card_view(self, picture, name, zoom):
+        """The Password screen's complete front-of-card pack presentation.
+
+        ``pack_shop.c`` chooses the first Magic card as a support card for a
+        pack which has an image.  The frame and ``[Normal Magic Card]`` label
+        stay visible, while the pack PNG replaces its art and its generated
+        name replaces the title plate.  The old Qt page rendered only a
+        102×112 swatch, which could never match the card seen in-game.
+        """
+        wa = self.preview_wa or self.files.wa
+        support = next((cid for cid, card in sorted(self.project.cards.items())
+                        if card.type == gamedata.TYPE_MAGIC), 0)
+        if not support:
+            return self._pack_picture_strip(picture, name, zoom)
+
+        # _card_image fills the reusable, detail-free frame cache.  Start
+        # from that frame so the support card's own art and name cannot leak
+        # through the pack's art or pack name.
+        _card_image(self.project, wa, support, self.frame_cache)
+        card = self.project.cards[support]
+        frame_key = (card.shown_frame(), id(wa), id(getattr(self.project, "retail", self.project)),
+                     1, "non-monster")
+        frame = self.frame_cache.get(frame_key)
+        if frame is None:
+            return self._pack_picture_strip(picture, name, zoom)
+
+        width, height = packmath.CARD_VIEW[0] * zoom, packmath.CARD_VIEW[1] * zoom
+        out = QImage(width, height, QImage.Format.Format_ARGB32_Premultiplied)
+        out.fill(QColor(0, 0, 0, 0))
+        painter = QPainter(out)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+        painter.drawImage(QRect(0, 0, width, height), frame)
+        if picture is not None:
+            shaped = pngio.resample(picture, art.SIZES["art"][0] * zoom, art.SIZES["art"][1] * zoom,
+                                    pngio.middle(picture, *art.SIZES["art"]))
+            painter.drawImage(QRect(19 * zoom, 50 * zoom, 102 * zoom, 96 * zoom),
+                              _qimage(shaped.width, shaped.height, shaped.rgba))
+        inks = self._pack_plate_inks(name)
+        if inks is not None:
+            plate = _card_plate(inks, zoom)
+            painter.drawImage(QRect(12 * zoom, 14 * zoom, 96 * zoom, 14 * zoom),
+                              _qimage(plate.width, plate.height, plate.rgba))
+        # A pack is always presented as a normal Magic card, without the
+        # support card's ATK/DEF or stars.  This is the same sprite layer the
+        # full card compositor uses for non-monsters.
+        type_label = _card_detail_sprite(self.project, wa, self.frame_cache, "label", 0, zoom)
+        if type_label is not None:
+            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Darken)
+            painter.drawImage(QRect(72 * zoom, 31 * zoom, 56 * zoom, 16 * zoom), type_label)
+            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+        painter.end()
+        return out
+
+    def _pack_picture_strip(self, picture, name, zoom):
+        """Fallback when a malformed game has no Magic support card."""
         width, height = art.SIZES["art"][0] * zoom, (art.SIZES["art"][1] + 2 + 14) * zoom
         out = bytearray(bytes(art.GOLD) + b"\xff") * (width * height)
         if picture is not None:
@@ -1056,7 +1196,9 @@ class PacksMixin:
                     box.setIcon(attribute_icon(self, n))
                 elif key == "types":
                     box.setIcon(type_icon(self, n))
-                if key in ("attributes", "types"):
+                elif key == "stars":
+                    box.setIcon(guardian_star_icon(self, n + 1))
+                if key in ("attributes", "types", "stars"):
                     box.setIconSize(QSize(16, 16))
                 grid.addWidget(box, row + n // columns, n % columns)
                 made.append(box)
@@ -1161,6 +1303,32 @@ class PacksMixin:
                     icon = None
             cache[key] = icon
         return cache[key]
+    def _edit_pack_content_cell(self, item):
+        """Apply edits made in the sortable Tier and Weight columns.
+
+        The rows use normal items rather than embedded widgets, because Qt
+        leaves a cell widget behind when a table is sorted.  The row's stable
+        key stays on the number cell and travels with it during sorting.
+        """
+        c=self.workspace_controls.get("Packs",{})
+        if c.get("filling") or item.column() not in (4,5):
+            return
+        key=self._pack_row_key(item.row())
+        if key is None:
+            return
+        if item.column()==4:
+            names=[name for name,_ in packmath.tiers_of(self._pack_entry())]
+            if item.text().strip() not in names:
+                c["problem"].setText("Tier must name one of this pack's tiers.")
+                self._fill_pack()
+                return
+            self._set_pack_row_tier(item.row(),names.index(item.text().strip()))
+            return
+        try:
+            value=_whole(item.text(),"Weight",0,packmath.WEIGHT_TOTAL_MAX)
+        except ValueError as problem:
+            c["problem"].setText(str(problem));self._fill_pack();return
+        self._set_pack_row_weight(item.row(),value)
     def _pack_row_spin(self, value, low, high, changed):
         box = QSpinBox()
         box.setRange(low, high)
@@ -1284,11 +1452,14 @@ class PacksMixin:
         if packmath.minimize(new)!=packmath.minimize(e):e.clear();e.update(packmath.minimize(new));self._mark_dirty()
         c["adv_baseline"]=self._pack_advanced_state()
         c["problem"].clear();return True
-    def _select_pack(self,row):
+    def _select_pack(self,row,*_):
         if row<0:return
         c=self.workspace_controls["Packs"]
-        if not self._commit_packs():c["list"].setCurrentRow(c["pack_index"]);return
-        c["pack_index"]=row;self._fill_pack()
+        item=c["list"].item(row,0)
+        index=item.data(Qt.ItemDataRole.UserRole) if item is not None else None
+        if not isinstance(index,int):return
+        if not self._commit_packs():self._select_pack_library_row(c["pack_index"]);return
+        c["pack_index"]=index;self._fill_pack()
     def _apply_pack(self):
         if self._commit_packs():self._refresh_packs();self._set_packs_status("Changes applied to this mod.")
     def _add_pack(self):
@@ -1377,139 +1548,181 @@ class PacksMixin:
         for name,items in pools.items():packmath.set_tier_pool(e,name,items)
         self._mark_dirty();self._refresh_packs()
     def _toggle_pack_advanced(self):
-        """The five forms behind the plain fields, in a window of their own."""
+        """Open the Advanced tab, whose sub-tabs hold the five full forms."""
         c = self.workspace_controls["Packs"]
-        dialog = c.get("advanced_dialog")
-        if dialog is None:
-            dialog = QDialog(self)
-            dialog.setWindowTitle("Advanced pack settings")
-            dialog.resize(760, 520)
-            layout = QVBoxLayout(dialog)
-            layout.addWidget(c["advanced_tabs"])
-            # The same rule as a page's lists: every table is offered sorting,
-            # and the ones UNSORTED_TABLES names decline it. A tier's row and a
-            # slot's row are the order the game reads them in, so both decline.
-            for table in dialog.findChildren(QTableWidget):
-                allow_sorting(table)
-            line = QHBoxLayout()
-            apply_button = QPushButton("Apply")
-            apply_button.clicked.connect(self._apply_pack)
-            line.addWidget(apply_button)
-            kept = QLabel("Unknown keys of a pack stay as written.")
-            kept.setStyleSheet("color:#9aacc4")
-            line.addWidget(kept)
-            line.addStretch(1)
-            close = QPushButton("Close")
-            close.clicked.connect(dialog.hide)
-            line.addWidget(close)
-            layout.addLayout(line)
-            c["advanced_dialog"] = dialog
-        dialog.show()
-        dialog.raise_()
-    def _edit_pack_shop(self):
-        """The shop's own rules, the ones that are not a pack's
-        (PacksTab.shop_settings)."""
+        c["tabs"].setCurrentWidget(c["advanced_tabs"])
+    def _fill_shop_settings(self):
+        """Load the global pack-shop rules into the Shop Rules tab."""
+        c = self.workspace_controls["Packs"]
+        rules = copy.deepcopy(self.project.pack_shop) if isinstance(self.project.pack_shop, dict) else {}
+        c["shop_rules"] = rules
+        c["shop_filling"] = True
+        try:
+            c["shop_password"].setCurrentText(str(rules.get("password", "both")))
+            c["shop_rng"].setCurrentText(str(rules.get("rng", "game")))
+            c["shop_music"].setText(str(rules.get("music", packmath.DEFAULT_MUSIC)))
+            c["shop_nothing_left"].setCurrentText(str(rules.get("when_nothing_left", "refuse")))
+            table = c["shop_table"]
+            table.blockSignals(True)
+            table.setRowCount(0)
+            for entry in rules.get("shops", []) if isinstance(rules.get("shops"), list) else []:
+                if not isinstance(entry, dict):
+                    continue
+                shop = copy.deepcopy(entry)
+                unlock = shop.get("unlock") if isinstance(shop.get("unlock"), dict) else {}
+                row = table.rowCount()
+                table.insertRow(row)
+                values = (
+                    shop.get("id", ""), shop.get("name", ""), shop.get("where", "password"),
+                    unlock.get("beat", ""), unlock.get("wins", ""), unlock.get("story", ""),
+                    unlock.get("card", ""), unlock.get("copies", ""),
+                    unlock.get("starchips_spent", ""), unlock.get("packs_opened", ""),
+                    _pairs_text(unlock.get("opened")),
+                )
+                for column, value in enumerate(values):
+                    item = TableItem(str(value))
+                    if column == 0:
+                        # Keep values which are not represented by the form
+                        # (for example a future unlock condition) intact.
+                        item.setData(Qt.ItemDataRole.UserRole, shop)
+                    table.setItem(row, column, item)
+            table.blockSignals(False)
+            c["shop_status"].setStyleSheet("color:#ff7777")
+            c["shop_status"].clear()
+        finally:
+            c["shop_filling"] = False
+
+    @staticmethod
+    def _shop_cell_text(table, row, column):
+        item = table.item(row, column)
+        return item.text().strip() if item is not None else ""
+
+    def _add_shop(self):
+        """Append one editable shop row without having to write manifest JSON."""
+        c = self.workspace_controls["Packs"]
+        table = c["shop_table"]
+        if table.rowCount() >= packmath.SHOPS_MAX:
+            c["shop_status"].setStyleSheet("color:#ff7777")
+            c["shop_status"].setText(f"At most {packmath.SHOPS_MAX} shops can be used.")
+            return
+        row = table.rowCount()
+        table.insertRow(row)
+        for column, value in enumerate(("", "", "password", "", "", "", "", "", "", "", "")):
+            item = TableItem(value)
+            if column == 0:
+                item.setData(Qt.ItemDataRole.UserRole, {})
+            table.setItem(row, column, item)
+        table.setCurrentCell(row, 0)
+        table.editItem(table.item(row, 0))
+
+    def _remove_selected_shops(self):
+        c = self.workspace_controls["Packs"]
+        table = c["shop_table"]
+        rows = sorted({item.row() for item in table.selectedItems()}, reverse=True)
+        for row in rows:
+            table.removeRow(row)
+
+    def _shop_rules_from_fields(self):
+        """Read the structured Shop Rules form, retaining unknown shop data."""
+        c = self.workspace_controls["Packs"]
+        previous = c.get("shop_rules", {})
+        new = dict(previous) if isinstance(previous, dict) else {}
+        new["password"] = c["shop_password"].currentText()
+        new["rng"] = c["shop_rng"].currentText()
+        new["when_nothing_left"] = c["shop_nothing_left"].currentText()
+        try:
+            new["music"] = _whole(c["shop_music"].text(), "Music", 0, 0xFFFF, packmath.DEFAULT_MUSIC)
+        except ValueError as problem:
+            return None, str(problem)
+
+        table = c["shop_table"]
+        shops = []
+        for row in range(table.rowCount()):
+            sid = self._shop_cell_text(table, row, 0)
+            if not packmath.KEY_RE.match(sid):
+                return None, f"shop row {row + 1}: ID is 1-63 letters, digits, '_' or '-'"
+            source = table.item(row, 0)
+            held = source.data(Qt.ItemDataRole.UserRole) if source is not None else {}
+            shop = copy.deepcopy(held) if isinstance(held, dict) else {}
+            shop["id"] = sid
+            name = self._shop_cell_text(table, row, 1)
+            if name:
+                shop["name"] = name
+            else:
+                shop.pop("name", None)
+            where = self._shop_cell_text(table, row, 2)
+            if where:
+                shop["where"] = where
+            else:
+                shop.pop("where", None)
+
+            unlock = copy.deepcopy(shop.get("unlock")) if isinstance(shop.get("unlock"), dict) else {}
+            for key in ("beat", "wins", "story", "card", "copies", "starchips_spent", "packs_opened", "opened"):
+                unlock.pop(key, None)
+            beat = self._shop_cell_text(table, row, 3)
+            if beat:
+                unlock["beat"] = beat
+            for column, key, label, low, high in (
+                (4, "wins", "Wins", 0, 65535),
+                (5, "story", "Story", 0, 0xFFFF),
+                (7, "copies", "Copies", 0, 250),
+                (8, "starchips_spent", "Star chips", 0, 999999999),
+                (9, "packs_opened", "Packs opened", 0, 999999999),
+            ):
+                text = self._shop_cell_text(table, row, column)
+                if text:
+                    try:
+                        unlock[key] = _whole(text, label, low, high)
+                    except ValueError as problem:
+                        return None, f"shop row {row + 1}: {problem}"
+            card = self._shop_cell_text(table, row, 6)
+            if card:
+                cid = self.project.resolve(card)
+                unlock["card"] = self.project.ref(cid) if cid else card
+            opened = self._shop_cell_text(table, row, 10)
+            if opened:
+                try:
+                    pairs = _parse_pairs(opened, "Opened packs")
+                except ValueError as problem:
+                    return None, f"shop row {row + 1}: {problem}"
+                if len(pairs) > packmath.OPENED_MAX or any(number < 1 for number in pairs.values()):
+                    return None, f"shop row {row + 1}: Opened packs has up to {packmath.OPENED_MAX} pack=count values, each at least 1"
+                unlock["opened"] = pairs
+            if unlock:
+                shop["unlock"] = unlock
+            else:
+                shop.pop("unlock", None)
+            shops.append({"id": shop.pop("id"), **shop})
+        if len(shops) > packmath.SHOPS_MAX:
+            return None, f"at most {packmath.SHOPS_MAX} shops"
+        new["shops"] = shops
+        return packmath.minimize_rules(new), None
+
+    def _apply_shop_settings(self):
+        """Save the Shop Rules tab without opening a secondary dialog."""
         if not self._commit_packs():
             return
-        rules = copy.deepcopy(self.project.pack_shop) if isinstance(self.project.pack_shop, dict) else {}
-        fields, shown = {}, {}
-
-        def build(body):
-            def pick(key, values, default):
-                box = QComboBox()
-                box.addItems(list(values))
-                box.setCurrentText(str(rules.get(key, default)))
-                fields[key] = box
-                return box
-
-            def note(text, r):
-                label = QLabel(text)
-                label.setWordWrap(True)
-                label.setStyleSheet("color:#9aacc4")
-                body.addWidget(label, r, 0, 1, 2)
-
-            body.addWidget(QLabel("Password screen"), 0, 0)
-            body.addWidget(pick("password", packmath.SHOP_PASSWORD, "both"), 0, 1)
-            note("both: passwords and packs (triangle); packs_only: the screen opens on the packs; "
-                 "password_only: no triangle (a pack's own password still sells it)", 1)
-            body.addWidget(QLabel("Random numbers"), 2, 0)
-            body.addWidget(pick("rng", ("game", "save"), "game"), 2, 1)
-            note("save: a pack dealt from the save, so reloading it deals the same cards", 3)
-            body.addWidget(QLabel("Music"), 4, 0)
-            fields["music"] = QLineEdit(str(rules.get("music", packmath.DEFAULT_MUSIC)))
-            fields["music"].setMaximumWidth(110)
-            body.addWidget(fields["music"], 4, 1)
-            body.addWidget(QLabel("All owned"), 5, 0)
-            body.addWidget(pick("when_nothing_left", packmath.NOTHING_LEFT, "refuse"), 5, 1)
-            note("for a pack of Max copies that says nothing: refuse it (ALL OWNED) or sell it with empty "
-                 "slots when the player holds that many of every card", 6)
-            note("Shops: one a line, id | name | unlock as JSON (optional)", 7)
-            fields["shops"] = QPlainTextEdit()
-            fields["shops"].setMinimumHeight(110)
-            lines = []
-            for shop in rules.get("shops", []) if isinstance(rules.get("shops"), list) else []:
-                if isinstance(shop, dict):
-                    text = f"{shop.get('id', '')} | {shop.get('name', '')}"
-                    if "unlock" in shop:
-                        text += " | " + json.dumps(shop["unlock"], ensure_ascii=False)
-                    lines.append(text)
-            fields["shops"].setPlainText("\n".join(lines))
-            body.addWidget(fields["shops"], 8, 0, 1, 2)
-            note("Needs a restart of the game. Not yet in the game (the keys are kept for them): "
-                 + ", ".join(packmath.NOT_YET) + ". A shop's other keys (\"where\" and any the editor has "
-                 "no field for) stay as written.", 9)
-            shown.update({key: widget.currentText() for key, widget in fields.items()
-                          if isinstance(widget, QComboBox)})
-            shown["music"] = fields["music"].text()
-            shown["shops"] = fields["shops"].toPlainText()
-
-        def ok():
-            new = dict(rules)
-            # A field still showing what was written leaves the key as it was.
-            for key in ("password", "rng", "when_nothing_left"):
-                if fields[key].currentText() != shown[key]:
-                    new[key] = fields[key].currentText()
-            if fields["music"].text() != shown["music"]:
-                try:
-                    new["music"] = _whole(fields["music"].text(), "Music", 0, 0xFFFF, packmath.DEFAULT_MUSIC)
-                except ValueError as problem:
-                    return str(problem)
-            if fields["shops"].toPlainText() != shown["shops"]:
-                written = {}
-                for shop in rules.get("shops") if isinstance(rules.get("shops"), list) else []:
-                    if isinstance(shop, dict) and isinstance(shop.get("id"), str):
-                        written.setdefault(shop["id"], shop)
-                shops = []
-                for n, text in enumerate(fields["shops"].toPlainText().splitlines(), start=1):
-                    if not text.strip():
-                        continue
-                    parts = [part.strip() for part in text.split("|", 2)]
-                    if not packmath.KEY_RE.match(parts[0]):
-                        return f"shop line {n}: an id is 1-63 letters, digits, '_' or '-'"
-                    # The shop as written, its "where" and unknown keys kept.
-                    shop = copy.deepcopy(written.get(parts[0], {}))
-                    shop["id"] = parts[0]
-                    if len(parts) > 1 and parts[1]:
-                        shop["name"] = parts[1]
-                    else:
-                        shop.pop("name", None)      # the game names it by its id
-                    if len(parts) > 2 and parts[2]:
-                        try:
-                            shop["unlock"] = json.loads(parts[2])
-                        except json.JSONDecodeError as problem:
-                            return f"shop line {n}: the unlock is not JSON ({problem.msg})"
-                    else:
-                        shop.pop("unlock", None)
-                    shops.append({"id": shop.pop("id"), **shop})
-                if len({shop["id"] for shop in shops}) > packmath.SHOPS_MAX:
-                    return f"at most {packmath.SHOPS_MAX} shops"
-                new["shops"] = shops
-            self.project.pack_shop = packmath.minimize_rules(new)
+        c = self.workspace_controls["Packs"]
+        new, problem = self._shop_rules_from_fields()
+        if problem:
+            c["shop_status"].setStyleSheet("color:#ff7777")
+            c["shop_status"].setText(problem)
+            return
+        old = packmath.minimize_rules(c.get("shop_rules", {}))
+        if new != old:
+            self.project.pack_shop = new
             self._mark_dirty()
-            self._refresh_packs()
-            return None
+        self._fill_shop_settings()
+        c["shop_status"].setStyleSheet("color:#72d89b")
+        c["shop_status"].setText("Shop settings applied.")
 
-        self._pack_form_dialog("Shop settings", build, ok)
+    def _edit_pack_shop(self):
+        """Compatibility entry point: focus the in-page Shop Rules tab."""
+        c = self.workspace_controls["Packs"]
+        if self._commit_packs():
+            self._fill_shop_settings()
+            c["tabs"].setCurrentWidget(c["shop_tab"])
+
     def _simulate_pack(self):
         if not self._commit_packs():return
         pack,notes=self._pack_read()

@@ -1546,6 +1546,32 @@ def is_game_folder(folder: Path) -> bool:
             for p in folder.glob("*") if p.is_file())
 
 
+def output_path(folder: Path, relative) -> Path:
+    """A path the editor may write below ``folder`` only.
+
+    Mod manifests are user supplied. Resolve existing path components before
+    every write so ``..``, absolute names and a destination symlink cannot
+    escape the selected mod folder.
+    """
+    folder = Path(folder).resolve()
+    relative = Path(relative)
+    if relative.is_absolute() or ".." in relative.parts:
+        raise ValueError(f"mod file path must stay inside the mod folder: {relative}")
+    target = folder / relative
+    try:
+        target.resolve().relative_to(folder)
+    except ValueError:
+        raise ValueError(f"mod file path escapes the mod folder: {relative}") from None
+    return target
+
+
+def is_game_folder(folder: Path) -> bool:
+    folder = Path(folder)
+    return (folder / "SLUS_014.11").exists() or (folder / "DATA" / "WA_MRG.MRG").exists() or \
+        any(p.suffix.lower() in (".bin", ".cue") and p.stat().st_size > 100_000_000
+            for p in folder.glob("*") if p.is_file())
+
+
 def save_mod(project: Project, folder, manifest: dict = None, copy_source: bool = True) -> Path:
     """Write the mod folder: mod.json, and when it is a new place, the files
     of the folder the mod was opened from (art, text, textures...).
@@ -1565,17 +1591,27 @@ def save_mod(project: Project, folder, manifest: dict = None, copy_source: bool 
             subdirs[:] = [name for name in subdirs if (directory / name).resolve() != destination]
             for name in files:
                 item = directory / name
+                relative = item.relative_to(source)
                 # The roster's files it read are written afresh below, or
                 # are gone with the duelist they were for.
-                if item.is_file() and item.name != "mod.json" and \
-                        not roster.owned(project, item.relative_to(source).as_posix(), elsewhere):
-                    target = folder / item.relative_to(source)
+                if (item.is_file() and item.name != "mod.json"
+                        and relative.as_posix() not in getattr(project, "deleted_files", set())
+                        and not roster.owned(project, relative.as_posix(), elsewhere)):
+                    target = output_path(folder, relative)
                     target.parent.mkdir(parents=True, exist_ok=True)
+                    # Resolve again after mkdir: an existing parent could be
+                    # a symlink supplied by a malformed mod folder.
+                    output_path(folder, relative)
                     shutil.copy2(item, target)
     for name, blob in project.files.items():
-        target = folder / name
+        target = output_path(folder, name)
         target.parent.mkdir(parents=True, exist_ok=True)
+        output_path(folder, name)
         target.write_bytes(blob)
+    for name in getattr(project, "deleted_files", set()):
+        target = output_path(folder, name)
+        if target.is_file() or target.is_symlink():
+            target.unlink()
     art.write_mod(project, folder)     # the art's PNGs and texture pack, and "textures" in mod.json
     drops, decks = _pool_tables(project)
     roster.write(project, folder, decks, drops)

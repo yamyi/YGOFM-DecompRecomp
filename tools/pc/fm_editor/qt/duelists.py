@@ -204,7 +204,13 @@ class DuelistsMixin:
         self.duelist_slots=self._duelist_layout()
         if not hasattr(self,"duelist_selected_slot"):self.duelist_selected_slot=1
         page=c["page"].currentIndex();query=c["search"].text().strip().casefold()
-        grid.clearContents();grid.setRowCount(5);grid.setColumnCount(8)
+        # A page holds up to forty positions (five rows of eight).  The
+        # 128-slot format leaves Page 4 with positions 120–127 only, so do
+        # not render four extra rows of non-existent duelists there.
+        first_slot = page * 40
+        page_slots = max(0, min(40, 128 - first_slot))
+        page_rows = max(1, (page_slots + 7) // 8)
+        grid.clearContents();grid.setRowCount(page_rows);grid.setColumnCount(8)
         # Eight portrait tiles are always visible.  Fixed cells prevent Qt
         # from squeezing labels underneath neighbouring portraits when the
         # left pane is resized.
@@ -215,10 +221,15 @@ class DuelistsMixin:
         tile_width = max(70, grid.viewport().width() // 8)
         for column in range(8):
             grid.setColumnWidth(column, tile_width)
-        for row_index in range(5):
+        for row_index in range(page_rows):
             grid.setRowHeight(row_index, 96)
-        for cell in range(40):
-            slot=page*40+cell;row,col=divmod(cell,8);record=self.duelist_slots.get(slot)
+        # Keep the browser's height to its real rows.  This also brings the
+        # editor panel directly below the eight final slots on Page 4.
+        chrome = grid.frameWidth() * 2 + grid.horizontalScrollBar().sizeHint().height()
+        grid.setMinimumHeight(page_rows * 96 + chrome)
+        grid.setMaximumHeight(page_rows * 96 + chrome)
+        for cell in range(page_slots):
+            slot=first_slot+cell;row,col=divmod(cell,8);record=self.duelist_slots.get(slot)
             item=TableItem("");item.setData(Qt.ItemDataRole.UserRole,slot)
             if slot==0:item.setFlags(Qt.ItemFlag.NoItemFlags)
             grid.setItem(row,col,item)
@@ -258,10 +269,10 @@ class DuelistsMixin:
             tile_layout.addWidget(portrait,0,Qt.AlignmentFlag.AlignHCenter);tile_layout.addWidget(label)
             grid.setCellWidget(row,col,tile)
         current=getattr(self,"duelist_selected_slot",1)
-        cell=current-page*40
-        if not 0<=cell<40 or current==0:
+        cell=current-first_slot
+        if not 0<=cell<page_slots or current==0:
             cell=1 if page==0 else 0
-            self.duelist_selected_slot=page*40+cell
+            self.duelist_selected_slot=first_slot+cell
         grid.setCurrentCell(cell//8,cell%8)
         self._select_duelist(grid.currentRow(),grid.currentColumn(),refresh_grid=False)
     def _selected_duelist(self):

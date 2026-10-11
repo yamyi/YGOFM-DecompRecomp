@@ -55,6 +55,12 @@ def install():
             listing = controls.get("image_list")
             if listing is not None:
                 listing.viewport().update()
+            # The table uses the same lazy art cache through its delegate.
+            # Repaint it when this worker has finished so it replaces the
+            # short loading marker without rebuilding all fusion rows.
+            table = controls.get("table")
+            if table is not None:
+                table.viewport().update()
 
         QTimer.singleShot(0, collect)
         return None

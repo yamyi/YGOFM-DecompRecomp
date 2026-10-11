@@ -1,19 +1,46 @@
 {
-    "id": "my-mod",
-    "name": "My mod",
+    "id": "test-pack",
+    "name": "test-pack",
     "version": "1.0",
     "guardian_stars": {
-        "stars": [{"id": 7, "icon": "icons/star-7.png", "palette": "own"}]
+        "stars": [
+            {"id": 7, "icon": "icons/star-7.png", "palette": "own"},
+            {"id": 11, "name": "Earth", "icon": "icons/star-11.png"}
+        ]
     },
+    "min_api": 11,
+    "passwords": {
+        "test-pack:card-1:1": {"starchips": 999999},
+        "test-pack:card-2:1": {"starchips": 10}
+    },
+    "cards": [
+        {
+            "copy": 1,
+            "id": "card-1",
+            "name": "Elemental Hero Neos",
+            "attack": 2500,
+            "defense": 2000,
+            "type": "Warrior",
+            "password": "12345678",
+            "starchips": 999999
+        },
+        {
+            "copy": 1,
+            "id": "card-2",
+            "name": "Blue-eyes White Dragon II",
+            "password": "12314635",
+            "starchips": 10
+        }
+    ],
     "packs": [
         {
-            "name": "Pack 1",
+            "name": "Pack LOBEWD",
             "cards": {
                 "Blue-eyes White Dragon": 100,
                 "Baby Dragon": 100,
                 "Winged Dragon #1": 100,
                 "Blackland Fire Dragon": 100,
-                "Koumori Dragon": 100,
+                "Koumori Dragon": 95,
                 "Gaia the Dragon Champion": 100,
                 "Curse of Dragon": 100,
                 "Thousand Dragon": 100,
@@ -42,10 +69,12 @@
                 "Meteor Dragon": 100,
                 "Meteor B. Dragon": 100
             },
-            "image": "packs/pack-1.png"
+            "image": "packs/pack-1.png",
+            "id": "pack-1",
+            "image_style": "full"
         }
     ],
     "pack_shop": {
-        "password": "password_only"
+        "password": "packs_only"
     }
 }

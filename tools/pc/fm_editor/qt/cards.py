@@ -20,10 +20,10 @@ class CardsMixin:
             dialog = MonsterDialog(self)
             self.model_preview_dialog = dialog
         dialog.show_card(self.project, self.files, self.current)
-        dialog.canvas.yaw = self.model_preview.yaw
-        dialog.canvas.pitch = self.model_preview.pitch
-        dialog.canvas.zoom = self.model_preview.zoom
-        dialog.canvas.render()
+        # The large viewer is a separate inspection view.  Do not inherit an
+        # inline preview's drag or zoom state: a close-up there can otherwise
+        # open here looking cropped.  Reset also queues a fresh fitted frame.
+        dialog.canvas.reset()
         dialog.show()
         dialog.raise_()
         dialog.activateWindow()

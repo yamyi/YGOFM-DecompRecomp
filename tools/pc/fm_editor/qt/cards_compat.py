@@ -25,7 +25,7 @@ def install() -> None:
     from .cards import CardsMixin
     from .common import (_qimage, attribute_icon, decorate_attribute_items,
                          decorate_type_items, gamedata, guardian_stars, pngio)
-    from .. import card_view, card_text
+    from .. import card_view, card_text, manifest
     if getattr(CardsMixin, "_cards_compat_installed", False):
         return
     CardsMixin._cards_compat_installed = True
@@ -121,6 +121,41 @@ def install() -> None:
     original_store_equip_bonus = CardsMixin._store_equip_bonus
     original_show_equip_bonus = CardsMixin._show_equip_bonus
     original_text_icon = CardsMixin._text_icon
+    original_build_manifest_cards = manifest.build_cards
+    original_read_manifest_cards = manifest.read_cards
+
+    def build_manifest_cards(project):
+        """Write an added card's own Password-shop price in its card entry.
+
+        The current shared serializer only knows the retail password table.
+        Added cards are runtime cards, so their price belongs alongside their
+        ``copy`` record; keep this bridge in the Qt layer until the shared
+        serializer grows the same support.
+        """
+        rows = original_build_manifest_cards(project)
+        by_key = {entry.get("id"): entry for entry in rows if isinstance(entry, dict)}
+        for cid, added in project.added.items():
+            entry = by_key.get(added.key)
+            if entry is None:
+                continue
+            price = project.starchips.get(cid)
+            if price is None:
+                entry.pop("starchips", None)
+            else:
+                entry["starchips"] = price
+        return rows
+
+    def read_manifest_cards(project, entries, messages):
+        """Promote valid added-card ``starchips`` into the price model."""
+        original_read_manifest_cards(project, entries, messages)
+        for cid, added in project.added.items():
+            value = added.extra.get("starchips")
+            if type(value) is int and 0 <= value <= 999999:
+                project.set_starchips(cid, value)
+                added.extra.pop("starchips", None)
+
+    manifest.build_cards = build_manifest_cards
+    manifest.read_cards = read_manifest_cards
 
     def picture_icon(image):
         if image is None:
@@ -198,6 +233,116 @@ def install() -> None:
             # A partial or imported archive still leaves the text fields usable.
             return
 
+    def uses_card_effects(self, cid=None):
+        cid = self.current if cid is None else cid
+        card = self.project.cards.get(cid) if self.project and cid else None
+        return bool(card and card.type in (gamedata.TYPE_MAGIC, gamedata.TYPE_TRAP))
+
+    def card_effects_of(self, cid):
+        """A Magic/Trap card's own or inherited ``card_effects`` list."""
+        if not cid or cid not in self.project.cards:
+            return [], False
+        extra = (self.project.added[cid].extra if cid in self.project.added
+                 else self.project.card_extra.get(cid, {}))
+        if "card_effects" in extra:
+            rows = extra["card_effects"]
+            return (list(rows) if isinstance(rows, list) else []), False
+        if cid in self.project.added:
+            rows, _ = card_effects_of(self, self.project.base_of(cid))
+            return rows, True
+        return [], False
+
+    def set_card_effects(self, cid, rows, keep_empty=False):
+        if cid not in self.project.cards:
+            return
+        extra = (self.project.added[cid].extra if cid in self.project.added
+                 else self.project.card_extra.setdefault(cid, {}))
+        copied = [dict(row) for row in rows if isinstance(row, dict)]
+        if copied or keep_empty or cid in self.project.added:
+            extra["card_effects"] = copied
+        else:
+            extra.pop("card_effects", None)
+            if not extra:
+                self.project.card_extra.pop(cid, None)
+
+    def card_effects_mode_of(self, cid):
+        """Return the effective Magic/Trap effect mode and whether it is inherited.
+
+        ``add`` is the game's default: the data-defined entries run after the
+        card's retail effect.  An added card can inherit its base card's mode,
+        so preserve that distinction when deciding whether a local override is
+        required.
+        """
+        if not cid or cid not in self.project.cards:
+            return "add", False
+        extra = (self.project.added[cid].extra if cid in self.project.added
+                 else self.project.card_extra.get(cid, {}))
+        mode = extra.get("card_effects_mode")
+        if mode in ("add", "replace"):
+            return mode, False
+        if cid in self.project.added:
+            mode, _ = card_effects_mode_of(self, self.project.base_of(cid))
+            return mode, True
+        return "add", False
+
+    def set_card_effects_mode(self, mode):
+        """Store only the mode override that differs from the inherited value."""
+        if mode not in ("add", "replace") or not uses_card_effects(self):
+            return
+        cid = self.current
+        if not cid or cid not in self.project.cards:
+            return
+        inherited_mode = "add"
+        if cid in self.project.added:
+            inherited_mode, _ = card_effects_mode_of(self, self.project.base_of(cid))
+        extra = (self.project.added[cid].extra if cid in self.project.added
+                 else self.project.card_extra.setdefault(cid, {}))
+        if mode == inherited_mode:
+            extra.pop("card_effects_mode", None)
+            if cid not in self.project.added and not extra:
+                self.project.card_extra.pop(cid, None)
+        else:
+            extra["card_effects_mode"] = mode
+        self._mark_dirty()
+        refresh(self)
+
+    def normal_card_effect(self, effect):
+        """Normalise the Magic/Trap vocabulary accepted by CardEffects_Read."""
+        if not isinstance(effect, dict):
+            return None
+        action = effect.get("do")
+        if action not in effects.DO:
+            return None
+        if action == "magic":
+            card = effect.get("card")
+            card = self.project.resolve(card) if card is not None else 0
+            return {"do": action, "card": card} if card in effects.MAGIC else None
+        target = effect.get("target", "opponent" if action in ("damage", "destroy") else "own")
+        allowed = ("own", "opponent", "all") if action in effects.FILTERED else ("own", "opponent")
+        if target not in allowed:
+            return None
+        result = {"do": action, "target": target}
+        if action == "boost":
+            for key in ("attack", "defense"):
+                value = effect.get(key, 0)
+                if not isinstance(value, int) or isinstance(value, bool) or abs(value) > effects.BOOST_MAX:
+                    return None
+                if value:
+                    result[key] = value
+            if "attack" not in result and "defense" not in result:
+                return None
+        elif action == "destroy":
+            for key, names in (("type", effects.TYPE_NAMES[:gamedata.TYPE_MAGIC]),
+                               ("attribute", effects.ATTRIBUTE_NAMES)):
+                if effect.get(key) in names:
+                    result[key] = effect[key]
+        else:
+            amount = effect.get("amount")
+            if not isinstance(amount, int) or isinstance(amount, bool) or not 0 < amount <= effects.AMOUNT_MAX:
+                return None
+            result["amount"] = amount
+        return result
+
     def build_effects(self, widget):
         original_build_effects(self, widget)
         # The Designer form wires these to the older modal handlers. Replace
@@ -221,11 +366,28 @@ def install() -> None:
         self.effect_buttons["effectDown"].clicked.connect(lambda: move(self, 1))
         self.effects_table.cellDoubleClicked.connect(lambda *_: edit(self))
         self.effects_none = QCheckBox("None, even where another mod gives it some", self.effects_note.parentWidget())
-        self.effects_none.setToolTip('Writes "monster_effects": [] so this mod explicitly removes inherited effects.')
         layout = self.effects_note.parentWidget().layout()
         layout.insertWidget(layout.indexOf(self.effects_note) + 1, self.effects_none)
         self.effects_none.toggled.connect(
             lambda checked: set_effects(self, get_effects(self), keep_empty=checked))
+        mode_row = QFrame(self.effects_note.parentWidget())
+        mode_layout = QHBoxLayout(mode_row)
+        mode_layout.setContentsMargins(0, 0, 0, 0)
+        mode_layout.addWidget(QLabel("Effect behavior", mode_row))
+        self.card_effects_mode = QComboBox(mode_row)
+        self.card_effects_mode.addItem("Add after the card's original effect", "add")
+        self.card_effects_mode.addItem("Replace the card's original effect", "replace")
+        self.card_effects_mode.setToolTip(
+            "Choose whether these data-defined effects run after, or replace, the card's normal effect.")
+        mode_layout.addWidget(self.card_effects_mode, 1)
+        mode_row.hide()
+        self.card_effects_mode.currentIndexChanged.connect(
+            lambda *_: set_card_effects_mode(self, self.card_effects_mode.currentData()))
+        # Put the mode row in the tab before locating it for the inline
+        # editor.  Without this insertion ``indexOf(mode_row)`` is -1, which
+        # moves the editor to the top of the tab and leaves the selector
+        # parentless from the layout.
+        layout.insertWidget(layout.indexOf(self.effects_none) + 1, mode_row)
         # Keep editing on this tab. The older compatibility version opened a
         # modal dialog, which made adding a short effect needlessly slow.
         editor = QFrame(self.effects_note.parentWidget())
@@ -297,14 +459,22 @@ def install() -> None:
             box.blockSignals(blocked)
 
         def follows():
+            card_effect = uses_card_effects(self)
             selected_when = when.currentData()
-            hint.setText(effects.WHEN_HINTS[effects.WHEN.index(selected_when)])
-            refill(action, effects.actions(selected_when), effects.DO, effects.DO_LABELS,
+            hint.setText("Runs when this Magic or Trap card is played or springs."
+                         if card_effect else effects.WHEN_HINTS[effects.WHEN.index(selected_when)])
+            refill(action, effects.DO if card_effect else effects.actions(selected_when), effects.DO, effects.DO_LABELS,
                    action.currentData() or "boost")
             selected_action = action.currentData()
-            refill(target, effects.targets(selected_when, selected_action), effects.TARGET, effects.TARGET_LABELS,
-                   target.currentData() or effects.default_target(selected_when, selected_action))
-            shown = {"When", "Does"}
+            if card_effect:
+                targets = (("own", "opponent", "all") if selected_action in effects.FILTERED else
+                           (("own", "opponent") if selected_action != "magic" else ()))
+                refill(target, targets, effects.TARGET, effects.TARGET_LABELS,
+                       target.currentData() or ("opponent" if selected_action in ("damage", "destroy") else "own"))
+            else:
+                refill(target, effects.targets(selected_when, selected_action), effects.TARGET, effects.TARGET_LABELS,
+                       target.currentData() or effects.default_target(selected_when, selected_action))
+            shown = {"Does"} if card_effect else {"When", "Does"}
             if selected_action == "magic":
                 shown.add("Magic card")
             elif selected_action in effects.FILTERED:
@@ -318,7 +488,10 @@ def install() -> None:
                 control.setVisible(title in shown)
 
         def save_effect():
-            made = {"when": when.currentData(), "do": action.currentData()}
+            card_effect = uses_card_effects(self)
+            made = {"do": action.currentData()}
+            if not card_effect:
+                made["when"] = when.currentData()
             if made["do"] == "magic":
                 made["card"] = magic.currentData()
             elif made["do"] in effects.FILTERED:
@@ -330,7 +503,7 @@ def install() -> None:
                     if defense.value(): made["defense"] = defense.value()
             else:
                 made["amount"] = amount.value()
-            normal = effects.normalize(made, self.project.resolve)
+            normal = normal_card_effect(self, made) if card_effect else effects.normalize(made, self.project.resolve)
             if normal is None:
                 problem.setText("The game cannot use that effect. A boost needs ATK or DEF.")
                 return
@@ -359,18 +532,20 @@ def install() -> None:
                                       "magic": magic, "type": only_type, "attribute": only_attribute,
                                       "attack": attack, "defense": defense, "amount": amount,
                                       "problem": problem, "save": save, "follows": follows}
-        layout.insertWidget(layout.indexOf(self.effects_none) + 1, editor)
+        layout.insertWidget(layout.indexOf(mode_row) + 1, editor)
         self.effects_table.itemSelectionChanged.connect(lambda: select_effect_from_list(self))
 
     def begin_effect_edit(self, effect=None, index=None):
         """Show one editable effect directly beneath the list."""
         editor = self._inline_effect_editor
-        value = effects.normalize(effect, self.project.resolve) if effect else None
-        value = value or {"when": "summon", "do": "boost", "target": "self", "attack": 500}
+        card_effect = uses_card_effects(self)
+        value = (normal_card_effect(self, effect) if card_effect else effects.normalize(effect, self.project.resolve)) if effect else None
+        value = value or ({"do": "boost", "target": "own", "attack": 500}
+                          if card_effect else {"when": "summon", "do": "boost", "target": "self", "attack": 500})
         editor["frame"].setProperty("effect_index", index)
         editor["frame"].setProperty("card_id", self.current)
         editor["problem"].clear()
-        editor["when"].setCurrentIndex(max(0, editor["when"].findData(value["when"])))
+        editor["when"].setCurrentIndex(max(0, editor["when"].findData(value.get("when", "summon"))))
         editor["follows"]()
         editor["action"].setCurrentIndex(max(0, editor["action"].findData(value["do"])))
         editor["follows"]()
@@ -443,9 +618,9 @@ def install() -> None:
         card = self.project.cards.get(cid) if self.project else None
         effects_tab = getattr(self, "_effects_tab_index", -1)
         if effects_tab >= 0:
-            monster = card is not None and card.is_monster()
-            self.card_data_tabs.setTabVisible(effects_tab, monster)
-            if not monster and self.card_data_tabs.currentIndex() == effects_tab:
+            supports_effects = bool(card and (card.is_monster() or card.type in (gamedata.TYPE_MAGIC, gamedata.TYPE_TRAP)))
+            self.card_data_tabs.setTabVisible(effects_tab, supports_effects)
+            if not supports_effects and self.card_data_tabs.currentIndex() == effects_tab:
                 self.card_data_tabs.setCurrentIndex(0)
         if card is not None and not card.is_monster():
             self.attribute_box.setCurrentIndex(
@@ -455,6 +630,39 @@ def install() -> None:
         if hasattr(self, "name_colour"):
             colour = card_name_colour(self, cid)
             self.name_colour.setCurrentIndex(max(0, self.name_colour.findData(colour)))
+        # Added cards use a mod.json card entry rather than the disc's fixed
+        # password table, but the game still accepts their own password in the
+        # Password shop.  Make that explicit: the shared reference panel says
+        # “card view only”, which otherwise makes this editable field look
+        # unsupported.
+        added = bool(cid and cid in self.project.added)
+        password_label = self.cards_form.findChild(QLabel, "passwordLabel")
+        password_hint = self.cards_form.findChild(QLabel, "addedCardPasswordHint")
+        if password_label is not None:
+            password_label.setText("Password (added card)" if added else "Password")
+        if password_hint is not None:
+            password_hint.setVisible(added)
+        if hasattr(self, "fields"):
+            self.fields["password"].setToolTip(
+                "Up to 8 digits. Saved in this card’s mod entry and accepted in the Password shop."
+                if added else "Up to 8 digits, or blank for none")
+        starchips_label = self.cards_form.findChild(QLabel, "starchipsLabel")
+        if added:
+            price = self.project.starchip_cost(cid)
+            price_box = self.fields["starchips"]
+            price_box.setEnabled(True)
+            price_box.setSpecialValueText("free")
+            price_box.setValue(price if price is not None else 999999)
+            price_box.setToolTip(
+                "The added card's price in the Password shop. Apply changes, then Save to store it.")
+            if starchips_label is not None:
+                starchips_label.setText("Starchips (added card)")
+        elif starchips_label is not None:
+            starchips_label.setText("Starchips")
+        if added and hasattr(self, "base_card_info"):
+            copy = self.project.added[cid]
+            self.base_card_info.setText(
+                f"Copy of {self.project.card_label(copy.base)};\n identity {self.project.identity(cid)}")
         field_icons(self)
 
     def card_name_colour(self, cid):
@@ -538,6 +746,8 @@ def install() -> None:
         # repopulate them from the project.
         notes = self.card_notes.toPlainText() if hasattr(self, "card_notes") else ""
         name_colour = self.name_colour.currentData() if hasattr(self, "name_colour") else None
+        added_price = (self.fields["starchips"].value()
+                       if cid in getattr(self.project, "added", {}) else None)
         if not original_apply_card(self, quiet):
             return False
         if not cid or self.project is None:
@@ -546,7 +756,14 @@ def install() -> None:
         if notes_changed:
             self.project.set_notes(cid, notes)
         colour_changed = hasattr(self, "name_colour") and store_name_colour(self, cid, name_colour)
-        if notes_changed or colour_changed:
+        price_changed = False
+        if added_price is not None and self.project.starchips.get(cid) != added_price:
+            self.project.set_starchips(cid, added_price)
+            # Older shared readers leave the value as unknown card metadata;
+            # the Qt serializer owns the supported representation instead.
+            self.project.added[cid].extra.pop("starchips", None)
+            price_changed = True
+        if notes_changed or colour_changed or price_changed:
             self._mark_dirty()
             self.refresh_cards(select_id=cid)
             self.statusBar().showMessage(f"Updated {self.project.card_label(cid)}")
@@ -559,10 +776,16 @@ def install() -> None:
             return
         try:
             archive = getattr(self, "preview_wa", self.files.wa)
-            key = (id(self.files.slus), id(archive))
+            # Small synthetic archives used by the page tests predate the
+            # executable-backed card viewer.  They can still show the normal
+            # text preview; reserve the full rendering for a real SLUS.
+            slus = getattr(self.files, "slus", None)
+            if slus is None:
+                return
+            key = (id(slus), id(archive))
             cached = getattr(self, "_game_card_view", None)
             if cached is None or cached[0] != key:
-                cached = (key, card_view.CardView(self.files.slus, archive))
+                cached = (key, card_view.CardView(slus, archive))
                 self._game_card_view = cached
             names = guardian_stars.choices(self.project.other.get("guardian_stars"))
             star_names = {index: name for index, name in enumerate(names) if index and name}
@@ -618,14 +841,23 @@ def install() -> None:
         cid = self.current if cid is None else cid
         if not cid or cid not in self.project.cards:
             return []
-        return list(self.project.monster_effects_of(cid)[0])
+        return list(card_effects_of(self, cid)[0] if uses_card_effects(self, cid)
+                    else self.project.monster_effects_of(cid)[0])
 
     def set_effects(self, rows, keep_empty=False):
-        self.project.set_monster_effects(self.current, rows, keep_empty=keep_empty)
+        if uses_card_effects(self):
+            set_card_effects(self, self.current, rows, keep_empty=keep_empty)
+        else:
+            self.project.set_monster_effects(self.current, rows, keep_empty=keep_empty)
         self._mark_dirty()
         refresh(self)
 
     def words(self, effect):
+        if uses_card_effects(self):
+            normal = normal_card_effect(self, effect)
+            if normal is None:
+                return "?", "(not one the game takes) " + effects.describe_raw(effect)
+            return "On play / spring", effects.describe(normal, self.project.card_label)
         normal = effects.normalize(effect, self.project.resolve)
         if normal is None:
             return "?", "(not one the game takes) " + effects.describe_raw(effect)
@@ -640,22 +872,47 @@ def install() -> None:
             for column, value in enumerate((str(row + 1), when, does)):
                 table.setItem(row, column, QTableWidgetItem(value))
         card = self.project.cards.get(self.current) if self.current else None
+        card_effect = uses_card_effects(self)
+        title = self.cards_form.findChild(QLabel, "effectsTitle")
+        hint = self.cards_form.findChild(QLabel, "effectsHint")
+        if title is not None:
+            title.setText("Card effects" if card_effect else "Monster effects")
+        if hint is not None:
+            hint.setText("Configure effects that run when this Magic or Trap card resolves."
+                         if card_effect else "Configure effects that run while this monster is in a duel.")
+        key = "card_effects" if card_effect else "monster_effects"
         inherited = bool(self.current in self.project.added and self.current and
-                         "monster_effects" not in self.project.added[self.current].extra)
+                         key not in self.project.added[self.current].extra)
         retail = bool(self.current and self.current not in self.project.added)
         extra = self.project.card_extra.get(self.current, {}) if retail else {}
-        none = retail and extra.get("monster_effects") == []
+        none = retail and extra.get(key) == []
         if hasattr(self, "effects_none"):
             blocked = self.effects_none.blockSignals(True)
             self.effects_none.setChecked(none)
             self.effects_none.setVisible(retail and not rows)
-            self.effects_none.setEnabled(bool(card and card.is_monster()))
+            self.effects_none.setEnabled(bool(card and (card.is_monster() or card_effect)))
+            self.effects_none.setToolTip(f'Writes "{key}": [] so this mod explicitly removes inherited effects.')
             self.effects_none.blockSignals(blocked)
+        if hasattr(self, "card_effects_mode"):
+            mode_row = self.card_effects_mode.parentWidget()
+            blocked = self.card_effects_mode.blockSignals(True)
+            mode = card_effects_mode_of(self, self.current)[0] if card_effect else "add"
+            self.card_effects_mode.setCurrentIndex(max(0, self.card_effects_mode.findData(mode)))
+            self.card_effects_mode.blockSignals(blocked)
+            self.card_effects_mode.setVisible(card_effect)
+            if mode_row is not None:
+                mode_row.setVisible(card_effect)
         editor = getattr(self, "_inline_effect_editor", None)
         if editor is not None and self.current and editor["frame"].property("card_id") != self.current:
             begin_effect_edit(self)
-        if not card or not card.is_monster():
-            note = "Only a monster can have monster effects."
+        if not card:
+            note = "Select a card to edit its effects."
+        elif card_effect:
+            note = ("Its base's card effects: changing them gives this card a list of its own."
+                    if inherited and rows else
+                    "These effects run when this Magic or Trap card is played or springs.")
+        elif not card.is_monster():
+            note = "Only Monster, Magic, and Trap cards can have data-defined effects."
         elif inherited and rows:
             note = "Its base's effects: changing them gives this card a list of its own."
         else:
@@ -667,7 +924,7 @@ def install() -> None:
 
     def buttons(self):
         card = self.project.cards.get(self.current) if self.current else None
-        enabled = bool(card and card.is_monster())
+        enabled = bool(card and (card.is_monster() or uses_card_effects(self)))
         row, count = self.effects_table.currentRow(), self.effects_table.rowCount()
         chosen = 0 <= row < count
         for name, on in (("addEffect", enabled and count < effects.MAX_EFFECTS),
@@ -821,6 +1078,8 @@ def install() -> None:
             set_effects(self, rows); self.effects_table.selectRow(row + delta)
 
     CardsMixin._card_effects = get_effects
+    CardsMixin._card_effects_mode = card_effects_mode_of
+    CardsMixin._set_card_effects_mode = set_card_effects_mode
     CardsMixin._build_card_effects = build_effects
     CardsMixin._build_cards = build_cards
     CardsMixin.refresh_cards = refresh_cards

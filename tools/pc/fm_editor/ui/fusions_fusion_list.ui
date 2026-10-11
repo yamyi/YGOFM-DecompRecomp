@@ -94,7 +94,7 @@
              <item>
               <widget class="QPushButton" name="fusionListButton">
                <property name="text">
-                <string>☷  List</string>
+                <string>☷  Table</string>
                </property>
                <property name="checkable">
                 <bool>true</bool>
@@ -110,6 +110,7 @@
          </item>
          <item>
           <widget class="QWidget" name="fusionImageHeader">
+           <property name="visible"><bool>false</bool></property>
            <property name="maximumSize"><size><width>16777215</width><height>30</height></size></property>
            <layout class="QHBoxLayout" name="fusionImageHeaderLayout">
             <property name="spacing"><number>0</number></property>
@@ -132,6 +133,16 @@
             <number>0</number>
            </property>
            <widget class="QTableWidget" name="fusionTable">
+            <property name="selectionBehavior"><enum>QAbstractItemView::SelectionBehavior::SelectRows</enum></property>
+            <property name="editTriggers"><set>QAbstractItemView::EditTrigger::NoEditTriggers</set></property>
+            <property name="iconSize"><size><width>46</width><height>58</height></size></property>
+            <attribute name="horizontalHeaderMinimumSectionSize">
+             <number>54</number>
+            </attribute>
+            <attribute name="horizontalHeaderStretchLastSection">
+             <bool>false</bool>
+            </attribute>
+            <property name="verticalHeaderVisible"><bool>false</bool></property>
             <column>
              <property name="text">
               <string>Card A</string>
@@ -144,7 +155,7 @@
             </column>
             <column>
              <property name="text">
-              <string>Result</string>
+              <string>Fusion result</string>
              </property>
             </column>
             <column>

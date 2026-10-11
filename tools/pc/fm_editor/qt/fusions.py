@@ -6,54 +6,71 @@ from .common import (_qimage, _line_count, _pairs_text, _parse_pairs, _whole,
                      _card_image)      # noqa: F401
 
 
+class FusionTableDelegate(QStyledItemDelegate):
+    """Paint the three card columns with the same asynchronous art as Grid."""
+
+    def __init__(self, image_for_card, parent=None):
+        super().__init__(parent)
+        self.image_for_card = image_for_card
+
+    def paint(self, painter, option, index):
+        if index.column() > 2:
+            return super().paint(painter, option, index)
+
+        styled = QStyleOptionViewItem(option)
+        self.initStyleOption(styled, index)
+        label = styled.text
+        # Let Qt paint the row background and selection, but reserve painting
+        # of text and decoration for this delegate.  This avoids duplicate
+        # labels and means an image which arrives asynchronously is redrawn.
+        styled.text = ""
+        styled.icon = QIcon()
+        style = styled.widget.style() if styled.widget is not None else QApplication.style()
+        style.drawControl(QStyle.ControlElement.CE_ItemViewItem, styled, painter, styled.widget)
+
+        painter.save()
+        rect = option.rect
+        pixmap = self.image_for_card(index.data(int(Qt.ItemDataRole.UserRole) + 1))
+        if pixmap is not None and not pixmap.isNull():
+            target = QRect(rect.x() + 6, rect.y() + 4, 52, max(1, rect.height() - 8))
+            painter.drawPixmap(target, pixmap)
+        elif rect.height() >= 42:
+            painter.setPen(QColor("#7f91aa"))
+            painter.drawText(QRect(rect.x() + 6, rect.y(), 52, rect.height()),
+                             Qt.AlignmentFlag.AlignCenter, "…")
+        painter.setPen(QColor("#ffffff") if option.state & QStyle.StateFlag.State_Selected
+                       else QColor("#dce6f4"))
+        painter.drawText(QRect(rect.x() + 64, rect.y() + 3,
+                               max(1, rect.width() - 70), max(1, rect.height() - 6)),
+                         Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter |
+                         Qt.TextFlag.TextWordWrap, label)
+        painter.restore()
+
+
 class FusionsMixin:
+
     def _set_fusion_view(self, mode):
+        """Switch between visual cards and the normal editable table."""
         controls = self.workspace_controls.get("Fusions")
         if not controls:
             return
-        image_list = controls["image_list"]
-        controls["stack"].setCurrentWidget(image_list)
         grid = int(mode) == 0
-        image_list.setViewMode(QListView.ViewMode.IconMode if grid else QListView.ViewMode.ListMode)
-        image_list.setFlow(QListView.Flow.LeftToRight if grid else QListView.Flow.TopToBottom)
-        image_list.setWrapping(grid)
+        image_list = controls["image_list"]
+        controls["stack"].setCurrentWidget(image_list if grid else controls["table"])
+        if not grid:
+            return
+        image_list.setViewMode(QListView.ViewMode.IconMode)
+        image_list.setFlow(QListView.Flow.LeftToRight)
+        image_list.setWrapping(True)
         image_list.setResizeMode(QListView.ResizeMode.Adjust)
         image_list.setMovement(QListView.Movement.Static)
-        image_list.setSpacing(10 if grid else 4)
+        image_list.setSpacing(10)
         image_list.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
-        image_list.verticalScrollBar().setSingleStep(96 if grid else 52)
-        if grid:
-            width = max(420, (image_list.viewport().width() - 28) // 3)
-            image_list.setGridSize(QSize(width, 190))
-        else:
-            image_list.setGridSize(QSize())
-        controls["header"].setVisible(not grid)
+        image_list.verticalScrollBar().setSingleStep(96)
+        width = max(420, (image_list.viewport().width() - 28) // 3)
+        image_list.setGridSize(QSize(width, 190))
         image_list.doItemsLayout()
-        self._sync_fusion_header()
-    def _sync_fusion_header(self):
-        """Match the Designer header columns to the image-row delegate geometry."""
-        controls = self.workspace_controls.get("Fusions")
-        if not controls:
-            return
-        image_list = controls["image_list"]
-        header = controls["header"]
-        layout = header.layout()
-        if layout is None:
-            return
 
-        row_width = max(1, image_list.viewport().width())
-        # Reproduce FusionImageDelegate.paint()'s column widths exactly.
-        name_width = max(210, row_width - 478) // 3
-        widths = (80 + name_width, 80 + name_width, 52 + name_width, 70, 70, 84)
-
-        # The header sits outside the list viewport, so account for the frame and
-        # vertical scrollbar that reduce the actual row width.
-        viewport_inset = max(0, header.width() - row_width)
-        margins = layout.contentsMargins()
-        layout.setContentsMargins(12, margins.top(), 12 + viewport_inset,
-                                  margins.bottom())
-        for column, width in enumerate(widths):
-            controls["sort_headers"][column].setFixedWidth(width)
     def _refresh_fusions(self, *_):
         c = self.workspace_controls.get("Fusions")
         if not c: return
@@ -95,19 +112,34 @@ class FusionsMixin:
                      lambda row: row[5], lambda row: row[6], lambda row: row[4].casefold())
         rows.sort(key=sort_keys[sort_column], reverse=not ascending)
         self._update_fusion_sort_headers()
-        selected_pairs = [item.data(Qt.ItemDataRole.UserRole)
-                          for item in image_list.selectedItems()]
+        selected_pairs = {
+            item.data(Qt.ItemDataRole.UserRole) for item in image_list.selectedItems()
+        }
+        selected_pairs.update(
+            table.item(row, 0).data(Qt.ItemDataRole.UserRole)
+            for row in {item.row() for item in table.selectedItems()}
+            if table.item(row, 0) is not None)
+        table.blockSignals(True)
+        table.clearContents()
         total = len(rows)
         rows = rows[:3000]
         table.setRowCount(len(rows))
         image_list.clear()
         for i, (pair, a, b, result, status, atk, defense) in enumerate(rows):
+            outcome_id = outcomes[pair]
+            card_ids = (pair[0], pair[1], outcome_id)
             for col, value in enumerate((a, b, result, atk, defense, status)):
                 item = TableItem(str(value))
-                if col == 0: item.setData(Qt.ItemDataRole.UserRole, pair)
+                if col == 0:
+                    item.setData(Qt.ItemDataRole.UserRole, pair)
+                if col < 3:
+                    # Keep the source text on the item for sorting and for
+                    # accessibility.  FusionTableDelegate draws it with the
+                    # art renderer once its asynchronous decode completes.
+                    item.setData(int(Qt.ItemDataRole.UserRole) + 1, card_ids[col])
                 self._tint_state(item, status)
                 table.setItem(i, col, item)
-            outcome_id = outcomes[pair]
+            table.setRowHeight(i, 66)
             row_item = QListWidgetItem(f"{a} + {b} → {result} · {status}")
             self._tint_state(row_item, status)
             row_item.setData(Qt.ItemDataRole.UserRole, pair)
@@ -121,6 +153,8 @@ class FusionsMixin:
             image_list.addItem(row_item)
             if pair in selected_pairs:
                 row_item.setSelected(True)
+                table.selectRow(i)
+        table.blockSignals(False)
         c["count"].setText(f"{total:,} fusion rules" + (" (first 3,000 shown; search to narrow)" if total > 3000 else ""))
     def _sort_fusions(self, column):
         controls = self.workspace_controls.get("Fusions")
@@ -135,9 +169,12 @@ class FusionsMixin:
             return
         column, ascending = controls.get("sort", (0, True))
         titles = ("Card A", "Card B", "Fusion result", "ATK", "DEF", "State")
-        for index, button in enumerate(controls["sort_headers"]):
+        header = controls["table"].horizontalHeader()
+        for index, title in enumerate(titles):
             arrow = (" ↑" if ascending else " ↓") if index == column else ""
-            button.setText(titles[index] + arrow)
+            item = controls["table"].horizontalHeaderItem(index)
+            if item is not None:
+                item.setText(title + arrow)
     def _build_bulk_fusions_page(self, page, controls):
         """Bind the Generic Fusions Designer form to the fusion planner."""
         def get(cls, name):

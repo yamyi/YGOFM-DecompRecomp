@@ -1,7 +1,8 @@
-"""Fields workspace for the modern editor.
+"""Terrain-bonus workspace for the modern editor.
 
-The static layout lives in ``fields_page_compat.ui``.  This module only
-binds it to the terrain-bonus table that the port writes to ``mod.json``.
+The field-art and duel-texture machinery remains here for the dedicated
+field-art workspace, but it is deliberately not exposed by this page.  This
+workspace is only for the terrain-bonus table written to ``mod.json``.
 """
 from __future__ import annotations
 
@@ -163,10 +164,7 @@ def _effective_bonus(editor, field_id, field_name, type_id):
 
 def _field_changed(editor, field_name):
     table = _terrain_table(editor)
-    bonus_changed = isinstance(table, dict) and (bool(table.get("replace")) or bool(table.get(field_name)))
-    texture_changed = any(_texture_replacement(editor, texture) is not None
-                          for texture in _field_textures(field_name))
-    return bonus_changed or texture_changed
+    return isinstance(table, dict) and (bool(table.get("replace")) or bool(table.get(field_name)))
 
 
 def _render_preview(editor, field_id):
@@ -279,13 +277,40 @@ def _select_field(editor, field_id):
         return
     field_name = dict(FIELDS)[field_id]
     c["field_id"] = field_id
-    c["name"].setText(field_name)
-    c["info"].setText(f"Field ID {field_id} · in-duel arena textures")
-    c["state"].setText("State: Changed" if _field_changed(editor, field_name) else "State: Stock")
-    c["state"].setStyleSheet("color:#6bdd9a" if _field_changed(editor, field_name) else "color:#aebfd6")
-    _render_preview(editor, field_id)
-    _refresh_texture_controls(editor)
+    changed = _field_changed(editor, field_name)
+    c["field_summary"].setText(f"Selected field: <b>{field_name}</b>")
+    c["field_state"].setText("State: Changed" if changed else "State: Stock")
+    c["field_state"].setStyleSheet("color:#6bdd9a" if changed else "color:#aebfd6")
+    _refresh_field_table(editor)
     _refresh_bonus_table(editor)
+
+
+def _refresh_field_table(editor):
+    c = editor.workspace_controls.get("Fields", {})
+    table = c.get("fields")
+    if table is None:
+        return
+    selected = c.get("field_id", 1)
+    held = sort_paused(table)
+    previous = table.blockSignals(True)
+    table.setRowCount(len(FIELDS))
+    for row, (field_id, field_name) in enumerate(FIELDS):
+        changed = _field_changed(editor, field_name)
+        values = (str(field_id), field_name, "Changed" if changed else "Stock")
+        for column, value in enumerate(values):
+            item = QTableWidgetItem(value)
+            if column == 0:
+                item.setData(Qt.ItemDataRole.UserRole, field_id)
+            if column == 2:
+                item.setForeground(QColor("#6bdd9a") if changed else QColor("#aebfd6"))
+            table.setItem(row, column, item)
+    sort_resumed(table, held)
+    for row in range(table.rowCount()):
+        item = table.item(row, 0)
+        if item is not None and item.data(Qt.ItemDataRole.UserRole) == selected:
+            table.selectRow(row)
+            break
+    table.blockSignals(previous)
 
 
 def _refresh_bonus_table(editor):
@@ -296,7 +321,12 @@ def _refresh_bonus_table(editor):
     field_name = dict(FIELDS)[field_id]
     values = _terrain_values(editor, field_name)
     table = c["bonuses"]
-    selected = table.currentRow() if table.currentRow() >= 0 else 0
+    selected_types = set(c.get("type_ids", (c.get("type_id", 0),)))
+    for row in {item.row() for item in table.selectedItems()}:
+        current_type = table.item(row, 0)
+        if current_type is not None:
+            selected_types.add(current_type.data(Qt.ItemDataRole.UserRole))
+    held = sort_paused(table)
     table.blockSignals(True)
     table.setRowCount(20)
     for type_id, type_name in enumerate(TYPE_NAMES[:20]):
@@ -317,7 +347,15 @@ def _refresh_bonus_table(editor):
                                    QColor("#ff8998") if effective < 0 else QColor("#aebfd6"))
             table.setItem(type_id, column, item)
     table.blockSignals(False)
-    table.selectRow(min(selected, table.rowCount() - 1))
+    sort_resumed(table, held)
+    table.clearSelection()
+    for row in range(table.rowCount()):
+        item = table.item(row, 0)
+        if item is not None and item.data(Qt.ItemDataRole.UserRole) in selected_types:
+            for column in range(table.columnCount()):
+                cell = table.item(row, column)
+                if cell is not None:
+                    cell.setSelected(True)
     _select_bonus(editor)
 
 
@@ -327,9 +365,18 @@ def _select_bonus(editor):
     if row < 0 or not c.get("field_id"):
         return
     field_id, field_name = c["field_id"], dict(FIELDS)[c["field_id"]]
+    selected = {int(c["bonuses"].item(selected_row, 0).data(Qt.ItemDataRole.UserRole))
+                for selected_row in {item.row() for item in c["bonuses"].selectedItems()}
+                if c["bonuses"].item(selected_row, 0) is not None}
     type_id = int(c["bonuses"].item(row, 0).data(Qt.ItemDataRole.UserRole))
+    c["type_ids"] = selected or {type_id}
     c["type_id"] = type_id
-    c["type"].setText(TYPE_NAMES[type_id])
+    if len(c["type_ids"]) == 1:
+        c["type"].setText(TYPE_NAMES[type_id])
+        c["type_icon"].setPixmap(type_icon(editor, type_id).pixmap(QSize(52, 52)))
+    else:
+        c["type"].setText(f"{len(c['type_ids'])} types selected")
+        c["type_icon"].setPixmap(QPixmap())
     c["spin"].blockSignals(True)
     c["spin"].setValue(_effective_bonus(editor, field_id, field_name, type_id))
     c["spin"].blockSignals(False)
@@ -339,16 +386,18 @@ def _set_bonus(editor, value=None, retail=False, clear=False):
     c = editor.workspace_controls["Fields"]
     if not c.get("field_id") or c.get("type_id") is None:
         return
-    field_id, type_id = c["field_id"], c["type_id"]
-    field_name, type_name = dict(FIELDS)[field_id], TYPE_NAMES[type_id]
+    field_id = c["field_id"]
+    field_name = dict(FIELDS)[field_id]
     table = editor.project.other.setdefault("terrain_bonus", {})
     if not isinstance(table, dict):
         editor.project.other["terrain_bonus"] = table = {}
     values = table.setdefault(field_name, {})
-    if clear:
-        values.pop(type_name, None)
-    else:
-        values[type_name] = _retail_bonus(editor, field_id, type_id) if retail else int(value)
+    for type_id in c.get("type_ids", {c["type_id"]}):
+        type_name = TYPE_NAMES[type_id]
+        if clear:
+            values.pop(type_name, None)
+        else:
+            values[type_name] = _retail_bonus(editor, field_id, type_id) if retail else int(value)
     if not values:
         table.pop(field_name, None)
     if not table:
@@ -407,28 +456,26 @@ def _build_fields(editor, parent):
     layout.setContentsMargins(0, 0, 0, 0)
     form = _load_form(parent)
     layout.addWidget(form)
-    listing = _get(form, QListWidget, "fieldList")
-    listing.clear()
-    for field_id, name in FIELDS:
-        item = QListWidgetItem(f"{field_id}  {name}")
-        item.setData(Qt.ItemDataRole.UserRole, field_id)
-        listing.addItem(item)
+    fields = _get(form, QTableWidget, "fieldTable")
     c = {
-        "page": form, "form": form, "listing": listing,
-        "search": _get(form, QLineEdit, "fieldSearchEdit"),
-        "name": _get(form, QLabel, "selectedFieldName"),
-        "info": _get(form, QLabel, "selectedFieldInfo"),
-        "state": _get(form, QLabel, "fieldStateLabel"),
-        "preview": _get(form, QLabel, "fieldPreview"),
-        "textures": _get(form, QComboBox, "fieldTextureCombo"),
+        "page": form, "form": form, "fields": fields,
+        "field_summary": _get(form, QLabel, "selectedFieldSummaryLabel"),
+        "field_state": _get(form, QLabel, "fieldStateLabel"),
         "bonuses": _get(form, QTableWidget, "terrainBonusTable"),
         "type": _get(form, QLabel, "selectedMonsterTypeLabel"),
+        "type_icon": _get(form, QLabel, "selectedMonsterTypeIcon"),
         "spin": _get(form, QSpinBox, "terrainBonusSpinBox"),
         "replace": _get(form, QCheckBox, "replaceTerrainBonusesCheckBox"),
         "field_id": 1, "type_id": 0,
     }
     editor.workspace_forms["Fields"] = form
     editor.workspace_controls["Fields"] = c
+    fields.setColumnCount(3)
+    fields.setHorizontalHeaderLabels(["ID", "Field", "State"])
+    fields.verticalHeader().setVisible(False)
+    fields.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+    fields.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+    fields.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
     table = c["bonuses"]
     table.setColumnCount(4)
     table.setHorizontalHeaderLabels(["Monster type", "Retail", "Mod", "In-game"])
@@ -436,11 +483,9 @@ def _build_fields(editor, parent):
     table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
     for column in (1, 2, 3):
         table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
-    listing.currentItemChanged.connect(
-        lambda item, _previous: _select_field(editor, int(item.data(Qt.ItemDataRole.UserRole))) if item else None)
-    c["search"].textChanged.connect(
-        lambda text: [listing.item(row).setHidden(text.casefold().strip() not in listing.item(row).text().casefold())
-                      for row in range(listing.count())])
+    fields.itemSelectionChanged.connect(
+        lambda: _select_field(editor, int(fields.item(fields.currentRow(), 0).data(Qt.ItemDataRole.UserRole)))
+        if fields.currentRow() >= 0 and fields.item(fields.currentRow(), 0) is not None else None)
     table.itemSelectionChanged.connect(lambda: _select_bonus(editor))
     _get(form, QPushButton, "setTerrainBonusButton").clicked.connect(
         lambda: _set_bonus(editor, c["spin"].value()))
@@ -450,12 +495,8 @@ def _build_fields(editor, parent):
         lambda: _set_bonus(editor, clear=True))
     _get(form, QPushButton, "revertFieldButton").clicked.connect(lambda: _revert_field(editor))
     _get(form, QPushButton, "revertAllFieldsButton").clicked.connect(lambda: _revert_all(editor))
-    _get(form, QPushButton, "replaceFieldTextureButton").clicked.connect(lambda: _import_texture(editor))
-    _get(form, QPushButton, "exportFieldTextureButton").clicked.connect(lambda: _export_texture(editor))
-    _get(form, QPushButton, "revertFieldTextureButton").clicked.connect(lambda: _revert_texture(editor))
     _get(form, QPushButton, "applyFieldsButton").clicked.connect(lambda: _set_bonus(editor, c["spin"].value()))
     c["replace"].toggled.connect(lambda checked: _set_replace(editor, checked))
-    listing.setCurrentRow(0)
     _refresh_fields(editor)
 
 

@@ -15,7 +15,85 @@ def install() -> None:
     Installing it on the loaded model module lets ``card_uses`` import the
     same name without changing that shared file.
     """
-    from .. import model
+    from .. import model, gamedata
+
+    # Later editor additions are supplied only to the PySide process, before
+    # validation or manifest parsing imports their game-data names.
+    for name, value in (("RITUAL_TRIBUTE_MAX", 5),
+                        ("RITUAL_ORIGINS", ("field", "hand", "both")),
+                        ("TAGS_MAX", 32), ("TAG_LENGTH_MAX", 31),
+                        ("FRAME_COLOR_NAMES", ["Gold", "Green", "Pink", "Blue"]),
+                        ("FRAME_COLOUR_NAMES", ("Gold", "Green", "Pink", "Blue", "Purple", "Orange"))):
+        if not hasattr(gamedata, name):
+            setattr(gamedata, name, value)
+    if not hasattr(gamedata, "FRAME_NAME_ALIASES"):
+        aliases = {name.lower(): index for index, name in enumerate(gamedata.FRAME_NAMES)}
+        aliases.update({name.lower(): index for index, name in enumerate(gamedata.FRAME_COLOUR_NAMES)})
+        gamedata.FRAME_NAME_ALIASES = aliases
+
+    from . import duelist_data_compat
+    for name in duelist_data_compat.__all__:
+        if not hasattr(gamedata, name):
+            setattr(gamedata, name, getattr(duelist_data_compat, name))
+
+    # Newer validation supports ritual sources (field, hand, or both).  Keep
+    # this modern-only state on Qt projects instead of extending master's
+    # Project constructor.
+    if not getattr(model.Project, "_qt_ritual_origin_compatible", False):
+        original_project_init = model.Project.__init__
+
+        def project_init(self, *args, **kwargs):
+            original_project_init(self, *args, **kwargs)
+            if not hasattr(self, "ritual_from"):
+                self.ritual_from = {}
+
+        model.Project.__init__ = project_init
+        model.Project._qt_ritual_origin_compatible = True
+
+    # The classic branch keeps ritual rules in the retail three-card form.
+    # The native game and the newer editor schema allow one to five
+    # requirements and a source, so offer that richer API only to PySide.
+    # Keeping it here means updating master never changes the classic editor.
+    if not hasattr(model.Project, "ritual_recipe"):
+        def ritual_recipe(project, ritual):
+            owner = ritual
+            recipe = project.rituals.get(ritual)
+            if recipe is None and ritual in project.added:
+                owner = project.base_of(ritual)
+                recipe = project.rituals.get(owner)
+            if recipe is None:
+                return None
+            requirements = project.ritual_requirements.get(owner)
+            tributes = ([dict(row) for row in requirements] if requirements else
+                        [{"card": card} if card else {} for card in recipe[:-1]])
+            return tributes, recipe[-1], project.ritual_from.get(owner, "field")
+
+        def set_ritual(project, ritual, tributes, result, origin="field", objects=None):
+            requirements = [dict(row) for row in tributes]
+            project.rituals[ritual] = tuple(row.get("card", 0) for row in requirements) + (result,)
+            if all(set(row) == {"card"} for row in requirements):
+                project.ritual_requirements.pop(ritual, None)
+            else:
+                project.ritual_requirements[ritual] = requirements
+            if origin == "field":
+                project.ritual_from.pop(ritual, None)
+            else:
+                project.ritual_from[ritual] = origin
+
+        def remove_ritual(project, ritual):
+            project.ritual_requirements.pop(ritual, None)
+            project.ritual_from.pop(ritual, None)
+            project.rituals.pop(ritual, None)
+
+        original_revert_ritual = model.Project.revert_ritual
+        def revert_ritual(project, ritual):
+            original_revert_ritual(project, ritual)
+            project.ritual_from.pop(ritual, None)
+
+        model.Project.ritual_recipe = ritual_recipe
+        model.Project.set_ritual = set_ritual
+        model.Project.remove_ritual = remove_ritual
+        model.Project.revert_ritual = revert_ritual
 
     if not hasattr(model, "fusion_pairs"):
         def fusion_pairs(project):
@@ -64,6 +142,15 @@ def install() -> None:
 
         model.Project.monster_effects_of = monster_effects_of
         model.Project.set_monster_effects = set_monster_effects
+
+    # A newer validator calls this optional roster check.  Master has no
+    # added-duelist model, so the modern frontend has nothing additional to
+    # validate until its roster compatibility layer supplies one.
+    from .. import validate
+    if not hasattr(validate, "_check_duelist_unlocks"):
+        def _check_duelist_unlocks(_project, _out):
+            return None
+        validate._check_duelist_unlocks = _check_duelist_unlocks
 
     # The stock Guardian Star module describes star names and matchups. The
     # Qt page also shows the symbols stored in the disc's boot UI sheet.
@@ -116,7 +203,9 @@ def install() -> None:
     if not getattr(card_text.encode, "_qt_colours_compatible", False):
         original_encode = card_text.encode
 
-        def encode(text, colours=False):
+        def encode(text, colours=False, colors=None):
+            if colors is not None:
+                colours = colors
             if not colours:
                 return original_encode(text)
             out, column, index = [], 0, 0
@@ -169,3 +258,8 @@ def install() -> None:
             return picture
 
         card_text.render_description = render_description
+
+    # Recovery.Writer is a classic-editor worker API.  Install the Qt snapshot
+    # adapter only for this frontend.
+    from .recovery_compat import install as install_recovery_compat
+    install_recovery_compat()

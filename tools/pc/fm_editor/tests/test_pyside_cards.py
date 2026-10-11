@@ -1071,10 +1071,10 @@ class CardsTest(unittest.TestCase):
         from fm_editor import packs as packmath
         w = self.window
         c = self.packs_page()
-        self.assertEqual(c['list'].count(), 0)
+        self.assertEqual(c['list'].rowCount(), 0)
         w._add_pack()
         self.assertEqual(len(w.project.packs), 1)
-        self.assertEqual(c['list'].count(), 1)
+        self.assertEqual(c['list'].rowCount(), 1)
         c['name'].setText('Starter Pack')
         c['price'].setValue(5000)          # the spin must reach past Qt's default 99
         c['count'].setValue(9)
@@ -1110,7 +1110,7 @@ class CardsTest(unittest.TestCase):
         w._insert_pack_cards([1, 2, 3, 4, 5])
         self.assertEqual(c['contents'].rowCount(), 5)
         self.assertEqual(c['total'].text(), 'Total weight: 50')
-        self.assertEqual([c['contents'].item(r, 4).text() for r in range(5)], ['20.00%'] * 5)
+        self.assertEqual([c['contents'].item(r, 6).text() for r in range(5)], ['20.00%'] * 5)
         c['contents'].selectRow(0)
         c['weight'].setValue(90)
         w._set_pack_weight()
@@ -1938,40 +1938,35 @@ class CardsTest(unittest.TestCase):
         w._insert_pack_cards(list(ids))
         return c
 
-    def test_a_row_carries_its_own_weight_box(self):
-        from PySide6.QtWidgets import QSpinBox
+    def test_a_row_edits_its_own_weight_in_the_sortable_table(self):
         from fm_editor import packs as packmath
         w = self.window
         c = self.pack_with_cards()
-        box = c['contents'].cellWidget(0, 3)
-        self.assertIsInstance(box, QSpinBox)
-        self.assertEqual(box.value(), 10)
-        box.setValue(250)
+        weight = c['contents'].item(0, 5)
+        self.assertEqual(weight.text(), '10')
+        weight.setText('250')
         pool = dict(packmath.tier_pool(w.project.packs[0], 'cards'))
         self.assertEqual(pool[w.project.ref(1)], 250)
-        self.assertEqual(c['contents'].cellWidget(1, 3).value(), 10)   # only that one
+        self.assertEqual(c['contents'].item(1, 5).text(), '10')   # only that one
 
-    def test_a_row_carries_its_own_tier_box(self):
-        from PySide6.QtWidgets import QComboBox
+    def test_a_row_edits_its_own_tier_in_the_sortable_table(self):
         w = self.window
         c = self.pack_with_cards()
         self.add_tier('rare')
-        box = c['contents'].cellWidget(0, 2)
-        # The tier is named in the row, not numbered.
-        self.assertIsInstance(box, QComboBox)
-        self.assertEqual([box.itemText(i) for i in range(box.count())], ['cards', 'rare'])
-        self.assertEqual(box.currentText(), 'cards')
-        box.setCurrentText('rare')
+        tier = c['contents'].item(0, 4)
+        self.assertEqual(tier.text(), 'cards')
+        tier.setText('rare')
         tiers = w.project.packs[0]['tiers']
         self.assertEqual(len(tiers['rare']['cards']), 1)
         self.assertEqual(len(tiers['cards']['cards']), 2)
 
-    def test_a_row_is_taken_out_by_its_own_cross(self):
+    def test_a_row_is_taken_out_by_the_selected_rows_action(self):
         from fm_editor import packs as packmath
         w = self.window
         c = self.pack_with_cards()
         self.assertEqual(c['contents'].rowCount(), 3)
-        c['contents'].cellWidget(1, 5).click()
+        c['contents'].selectRow(1)
+        w._remove_pack_cards()
         self.assertEqual(c['contents'].rowCount(), 2)
         left = [ref for ref, _ in packmath.tier_pool(w.project.packs[0], 'cards')]
         self.assertEqual(left, [w.project.ref(1), w.project.ref(3)])
@@ -2095,65 +2090,39 @@ class CardsTest(unittest.TestCase):
 
     def test_the_shop_settings_form_writes_the_shop_s_own_rules(self):
         w = self.window
-        self.packs_page()
-        held = {}
-
-        def run(window, title, build, ok):
-            body = QGridLayout()
-            build(body)
-            held['said'] = ok()
-            held['body'] = body
-
-        with mock.patch.object(type(w), '_pack_form_dialog', run):
-            w._edit_pack_shop()
-        self.assertIsNone(held['said'])
+        c = self.packs_page()
+        w._edit_pack_shop()
+        self.assertIs(c['tabs'].currentWidget(), c['shop_tab'])
+        w._apply_shop_settings()
         # Nothing was touched, so nothing is written.
         self.assertIn(w.project.pack_shop, (None, {}))
 
     def test_the_shop_settings_form_reads_its_shops_back(self):
         w = self.window
-        self.packs_page()
+        c = self.packs_page()
         w.project.pack_shop = {'shops': [{'id': 'card_shop', 'name': 'Cards', 'where': 'town'}]}
-        seen = {}
-
-        def run(window, title, build, ok):
-            body = QGridLayout()
-            build(body)
-            seen['before'] = window.workspace_controls['Packs']
-            # The form's own widgets are the ones build() made; find the box.
-            for i in range(body.count()):
-                widget = body.itemAt(i).widget()
-                if isinstance(widget, QPlainTextEdit):
-                    seen['text'] = widget.toPlainText()
-                    widget.setPlainText('card_shop | Cards\npack_shop | Packs')
-            held = ok()
-            seen['said'] = held
-
-        with mock.patch.object(type(w), '_pack_form_dialog', run):
-            w._edit_pack_shop()
-        self.assertEqual(seen['text'], 'card_shop | Cards')
-        self.assertIsNone(seen['said'])
+        w._refresh_packs()
+        w._edit_pack_shop()
+        table = c['shop_table']
+        self.assertEqual(table.rowCount(), 1)
+        self.assertEqual(table.item(0, 0).text(), 'card_shop')
+        self.assertEqual(table.item(0, 1).text(), 'Cards')
+        self.assertEqual(table.item(0, 2).text(), 'town')
+        w._add_shop()
+        table.item(1, 0).setText('pack_shop')
+        table.item(1, 1).setText('Packs')
+        w._apply_shop_settings()
         shops = w.project.pack_shop['shops']
         self.assertEqual([shop['id'] for shop in shops], ['card_shop', 'pack_shop'])
         self.assertEqual(shops[0]['where'], 'town')      # a key the form has no field for
 
     def test_a_shop_line_the_game_could_not_read_is_refused(self):
         w = self.window
-        self.packs_page()
-        said = {}
-
-        def run(window, title, build, ok):
-            body = QGridLayout()
-            build(body)
-            for i in range(body.count()):
-                widget = body.itemAt(i).widget()
-                if isinstance(widget, QPlainTextEdit):
-                    widget.setPlainText('not a valid id!')
-            said['text'] = ok()
-
-        with mock.patch.object(type(w), '_pack_form_dialog', run):
-            w._edit_pack_shop()
-        self.assertIn('an id is', said['text'])
+        c = self.packs_page()
+        w._add_shop()
+        c['shop_table'].item(0, 0).setText('not a valid id!')
+        w._apply_shop_settings()
+        self.assertIn('ID is', c['shop_status'].text())
         self.assertIn(w.project.pack_shop, (None, {}))
 
     def test_add_filtered_picks_cards_by_what_they_are(self):
