@@ -92,6 +92,9 @@ static FrameImage *image_for(const char *path, int build)
         free(slot->indices);
         slot->indices = NULL;
     }
+    /* The PNG itself for above 1x (TexturePack_AddBankSprite), read with
+     * the rest of the build rather than when a tile is first drawn. */
+    if (slot->indices && slot->png_w > 0) TexturePack_BankImagePreload(path);
     return slot;
 }
 
@@ -142,7 +145,7 @@ int CardLayoutArt_FrameTile(int col, int row, int *tpage, int *clut, int *w, int
         sx1 = (col + 1) * FRAME_TILE_W * image->png_w / FRAME_W;
         sy = row * FRAME_TILE_H * image->png_h / FRAME_H;
         sy1 = (row + 1) * FRAME_TILE_H * image->png_h / FRAME_H;
-        TexturePack_AddBankSpriteCrop(FRAME_BANK, (tile % 8 * 2) * 64, tile / 8 * 256, 1, 0, 0,
+        TexturePack_AddBankSpriteCrop(FRAME_BANK, (tile % 8 * 2) * 64, tile / 8 * 256, 1, 0, FRAME_CLUT_Y, 0, 0,
                                       FRAME_TILE_W, FRAME_TILE_H, path, sx, sy, sx1 - sx, sy1 - sy);
     }
     return 1;
@@ -178,6 +181,7 @@ static void digits_build(const char *path)
         free(digits_indices);
         digits_indices = NULL;
     }
+    if (digits_indices && digits_png_w > 0) TexturePack_BankImagePreload(path);
 }
 
 int CardLayoutArt_DigitCell(int digit, int dim, int *tpage, int *u, int *v, int *clut, int *w, int *h)
@@ -215,7 +219,8 @@ int CardLayoutArt_DigitCell(int digit, int dim, int *tpage, int *u, int *v, int 
         sy = *v * digits_png_h / DIGITS_H;
         sy1 = (*v + *h) * digits_png_h / DIGITS_H;
         TexturePack_AddBankSpriteCrop(FRAME_BANK, (DIGITS_SLOT % 8 * 2) * 64, DIGITS_SLOT / 8 * 256, 1,
-                                      *u, *v, *w, *h, path, sx, sy, sx1 - sx, sy1 - sy);
+                                      DIGITS_SLOT % 8 * 128, DIGITS_SLOT / 8 * 256 + DIGITS_H, *u, *v, *w, *h, path,
+                                      sx, sy, sx1 - sx, sy1 - sy);
     }
     return 1;
 }

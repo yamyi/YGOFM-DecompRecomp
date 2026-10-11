@@ -58,20 +58,39 @@ int TexturePack_AddMade(const void *pixels, int words, int rows, int bpp, const 
 int TexturePack_AddMadeSeeThrough(const void *pixels, int words, int rows, int bpp, const void *clut,
                                   int clut_entries, const char *file, int x, int y, int w, int h);
 
-/* A picture placed directly in a software-GPU texture bank.  Its ordinary
- * indexed texels remain the 1x fallback; above 1x renderers sample this PNG
- * instead.  The rectangle is in page-local texels. */
-int TexturePack_AddBankSprite(int bank, int page_x, int page_y, int depth, int u, int v, int w, int h,
-                              const char *file);
+/* A picture placed directly in a software-GPU texture bank, for draws of
+ * that rectangle (page-local texels) at that depth through that palette
+ * (clut_x, clut_y in VRAM words; ignored at depth 2). Its indexed texels in
+ * the bank stay what is drawn at 1x and through any other palette (a fade's
+ * or an effect's); above 1x the renderers sample the PNG instead, from a
+ * level halved as often as still leaves a PNG texel to every pixel at the
+ * internal scale. The PNG is read here, once for all the sprites of a file. */
+int TexturePack_AddBankSprite(int bank, int page_x, int page_y, int depth, int clut_x, int clut_y, int u, int v,
+                              int w, int h, const char *file);
 /* As above, but sample `source_x`, `source_y`, `source_w`, `source_h` from
  * the PNG.  A zero width and height mean the entire PNG. */
-int TexturePack_AddBankSpriteCrop(int bank, int page_x, int page_y, int depth, int u, int v, int w, int h,
-                                  const char *file, int source_x, int source_y, int source_w, int source_h);
-int TexturePack_BankEntryFor(int bank, int page_x, int page_y, int depth, int u, int v);
-int TexturePack_BankEntryForRegion(int bank, int page_x, int page_y, int depth, int u0, int v0, int u1, int v1);
-int TexturePack_BankSample(int bank, int page_x, int page_y, int depth, int u, int v, uint32_t *rgb);
+int TexturePack_AddBankSpriteCrop(int bank, int page_x, int page_y, int depth, int clut_x, int clut_y, int u, int v,
+                                  int w, int h, const char *file, int source_x, int source_y, int source_w,
+                                  int source_h);
+/* Read `file` ahead of its sprites, where a hitch is expected anyway. */
+void TexturePack_BankImagePreload(const char *file);
+/* The sprite (a negative entry) a draw starts in, or overlaps, 0 none. */
+int TexturePack_BankEntryFor(int bank, int page_x, int page_y, int depth, int clut_x, int clut_y, int u, int v);
+int TexturePack_BankEntryForRegion(int bank, int page_x, int page_y, int depth, int clut_x, int clut_y, int u0,
+                                   int v0, int u1, int v1);
+/* As TextureDump_Sample, at `scale` pixels to a texel. */
+int TexturePack_BankSample(int bank, int page_x, int page_y, int depth, int clut_x, int clut_y, int u, int v,
+                           int scale, uint32_t *rgb);
 int TexturePack_BankEntryRect(int entry, int *u, int *v, int *w, int *h);
 int TexturePack_BankEntrySource(int entry, int *x, int *y, int *w, int *h);
+/* The sprite's PNG: its key (the same for every sprite of the file, never
+ * another file's), its levels (0 the PNG) and the one to draw at `scale`.
+ * The bank generation changes when an image goes; BankKeyLive says which. */
+unsigned TexturePack_BankEntryKey(int entry);
+int TexturePack_BankEntryLevel(int entry, int level, const unsigned char **rgba, int *width, int *height);
+int TexturePack_BankEntryLevelFor(int entry, int scale);
+int TexturePack_BankKeyLive(unsigned key);
+unsigned TexturePack_BankGeneration(void);
 enum { TEXTURE_BANK_OWNER_STARS = 1, TEXTURE_BANK_OWNER_LAYOUT_FRAME, TEXTURE_BANK_OWNER_LAYOUT_DIGITS,
        TEXTURE_BANK_OWNER_DUEL_UI };
 void TexturePack_BankSpritesUseOwner(unsigned owner);

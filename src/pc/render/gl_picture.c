@@ -256,10 +256,21 @@ static int bank_used[SOFT_GPU_BANKS];
 /* The texture pack (texture_pack.h): its maps as integer textures,
  * uploaded again when they change, and its images as textures, made as
  * primitives need them, dropped when the entries change. */
-static GLuint entry_map_texture, place_map_texture, *entry_textures, *bank_entry_textures;
-static int entry_texture_count, bank_entry_texture_count;
+static GLuint entry_map_texture, place_map_texture, *entry_textures;
+static int entry_texture_count;
 static unsigned pack_generation = ~0u, map_generation = ~0u;
-static GLint u_entry_map, u_place_map, u_pack, u_pack_entry, u_pack_size, u_bank_sprite, u_bank_source;
+static GLint u_entry_map, u_place_map, u_pack, u_pack_entry, u_pack_size, u_bank_sprite, u_bank_source, u_bank_level;
+/* Bank sprites' PNGs (TexturePack_AddBankSprite): one texture to a PNG,
+ * with its levels, by its key; apart from the pack's, so that a sprite
+ * placed or a PNG let go leaves those be. */
+typedef struct BankTexture {
+    unsigned key;
+    GLuint texture;
+    int levels;
+} BankTexture;
+static BankTexture *bank_textures;
+static int bank_texture_count;
+static unsigned bank_generation = ~0u;
 /* HD text (hd_text.h): whether it is on for this replay, and its atlas of
  * glyph pictures, 8-bit indices, as an integer texture on unit 6; and HD
  * numbers and labels, whose pictures are in the same atlas. */
@@ -416,6 +427,7 @@ static const char *fragment_source =
     "uniform ivec3 pack_size;\n"  /* image width, height, texels per word */
     "uniform ivec4 bank_sprite;\n" /* u, v, width, height; width 0 is a normal pack */
     "uniform ivec4 bank_source;\n" /* source x, y, width, height in the PNG */
+    "uniform int bank_level;\n"    /* the PNG's level sampled */
     "uniform sampler2D captured;\n" /* a capture's scaled picture (SoftGpu_Capture) */
     "uniform ivec4 capture;\n"      /* its rect in VRAM words, w 0 for none */
     "uniform ivec4 window;\n"
@@ -512,9 +524,9 @@ static const char *fragment_source =
     "            int per = pack_size.z;\n"
     "            int vx = (page.x + u / per) & 1023, vy = (page.y + v) & 511;\n"
     "            if (bank_sprite.z > 0 && u >= bank_sprite.x && u < bank_sprite.x + bank_sprite.z && v >= bank_sprite.y && v < bank_sprite.y + bank_sprite.w) {\n"
-    "                int px = bank_source.x + int(floor((float(u - bank_sprite.x) + fract(ub)) * float(bank_source.z) / float(bank_sprite.z)));\n"
-    "                int py = bank_source.y + int(floor((float(v - bank_sprite.y) + fract(vb)) * float(bank_source.w) / float(bank_sprite.w)));\n"
-    "                vec4 p = texelFetch(pack, ivec2(clamp(px, 0, pack_size.x - 1), clamp(py, 0, pack_size.y - 1)), 0);\n"
+    "                vec2 at = vec2(bank_source.xy) + (vec2(u - bank_sprite.x, v - bank_sprite.y) + fract(vec2(ub, vb))) * vec2(bank_source.zw) / vec2(bank_sprite.zw);\n"
+    "                ivec2 level = textureSize(pack, bank_level);\n"
+    "                vec4 p = texelFetch(pack, clamp(ivec2(floor(at * vec2(level) / vec2(pack_size.xy))), ivec2(0), level - 1), bank_level);\n"
     "                if (p.a < 8.0 / 255.0) discard;\n"
     "                cover = p.a; t = floor(p.rgb * 255.0 + 0.5); replaced = true;\n"
     "            } else if (int(texelFetch(entry_map, ivec2(vx, vy), 0).r) == pack_entry.x) {\n"
@@ -734,6 +746,7 @@ static int make_program(int xbr)
     u_pack_size = gl_GetUniformLocation(program, "pack_size");
     u_bank_sprite = gl_GetUniformLocation(program, "bank_sprite");
     u_bank_source = gl_GetUniformLocation(program, "bank_source");
+    u_bank_level = gl_GetUniformLocation(program, "bank_level");
     u_captured = gl_GetUniformLocation(program, "captured");
     u_capture = gl_GetUniformLocation(program, "capture");
     return 1;
@@ -1245,8 +1258,8 @@ static size_t polygon(const uint32_t *words, size_t count)
         if (v[i].v > piece[7]) piece[7] = v[i].v;
     }
     state.pack = textured ? (state.bank
-        ? TexturePack_BankEntryForRegion(state.bank, state.page_x, state.page_y, state.depth,
-                                          piece[4], piece[5], piece[6], piece[7])
+        ? (scale > 1 ? TexturePack_BankEntryForRegion(state.bank, state.page_x, state.page_y, state.depth, state.clut_x,
+                                                      state.clut_y, piece[4], piece[5], piece[6], piece[7]) : 0)
         : TexturePack_EntryFor(state.page_x, state.page_y, state.depth, state.clut_x, state.clut_y, v[0].u, v[0].v)) : 0;
     if (quad && textured && hd_hud && !state.pack && !state.bank) {
         /* A digit or the panel drawn as a quad (a clip-tested field card):
@@ -1375,7 +1388,8 @@ static size_t rectangle(const uint32_t *words, size_t count)
         h = (words[at] >> 16) & 0x1ff;
     }
     state.pack = textured ? (state.bank
-        ? TexturePack_BankEntryFor(state.bank, state.page_x, state.page_y, state.depth, base.u, base.v)
+        ? (scale > 1 ? TexturePack_BankEntryFor(state.bank, state.page_x, state.page_y, state.depth, state.clut_x,
+                                                state.clut_y, base.u, base.v) : 0)
         : TexturePack_EntryFor(state.page_x, state.page_y, state.depth, state.clut_x, state.clut_y, base.u, base.v)) : 0;
     if (w && h && textured && hd_hud && !state.pack && !state.bank) {
         /* HD numbers and labels (a texture pack's image comes first). */
@@ -1854,16 +1868,22 @@ static void sync_pack(void)
         for (i = 0; i < entry_texture_count; i++) {
             if (entry_textures[i]) glDeleteTextures(1, &entry_textures[i]);
         }
-        for (i = 0; i < bank_entry_texture_count; i++) {
-            if (bank_entry_textures[i]) glDeleteTextures(1, &bank_entry_textures[i]);
-        }
         free(entry_textures);
         entry_textures = NULL;
         entry_texture_count = 0;
-        free(bank_entry_textures);
-        bank_entry_textures = NULL;
-        bank_entry_texture_count = 0;
         map_generation = maps - 1; /* the maps with them */
+    }
+    if (TexturePack_BankGeneration() != bank_generation) {
+        int kept = 0;
+        bank_generation = TexturePack_BankGeneration();
+        for (i = 0; i < bank_texture_count; i++) {
+            if (!TexturePack_BankKeyLive(bank_textures[i].key)) {
+                glDeleteTextures(1, &bank_textures[i].texture);
+                continue;
+            }
+            bank_textures[kept++] = bank_textures[i];
+        }
+        bank_texture_count = kept;
     }
     if (!entry_map || !place_map) return;
     if (maps == map_generation) return;
@@ -1928,37 +1948,52 @@ static int bind_pack_entry(int entry)
     texture_width = fitted(width);
     texture_height = fitted(height);
     if (entry < 0) {
-        int u, v, w, h, sx, sy, sw, sh, index = -entry - 1;
-        GLuint *more;
-        unsigned char *smaller = NULL;
-        if (index >= bank_entry_texture_count) {
-            more = realloc(bank_entry_textures, (size_t)(index + 1) * sizeof(*more));
-            if (!more) return 0;
-            memset(more + bank_entry_texture_count, 0, (size_t)(index + 1 - bank_entry_texture_count) * sizeof(*more));
-            bank_entry_textures = more;
-            bank_entry_texture_count = index + 1;
-        }
+        unsigned key = TexturePack_BankEntryKey(entry);
+        int u, v, w, h, sx, sy, sw, sh, level, at = 0;
+        while (at < bank_texture_count && bank_textures[at].key != key) at++;
         gl_ActiveTexture(GL_TEXTURE5);
-        if (!bank_entry_textures[index]) {
-            if (texture_width != width || texture_height != height) {
-                smaller = shrunk(rgba, width, height, texture_width, texture_height);
-                if (!smaller) { gl_ActiveTexture(GL_TEXTURE0); return 0; }
+        if (at == bank_texture_count) {
+            BankTexture *more = realloc(bank_textures, (size_t)(bank_texture_count + 1) * sizeof(*more));
+            unsigned char *smaller = NULL;
+            int levels = 1, fits = texture_width == width && texture_height == height;
+            if (!more) { gl_ActiveTexture(GL_TEXTURE0); return 0; }
+            bank_textures = more;
+            if (!fits && !(smaller = shrunk(rgba, width, height, texture_width, texture_height))) {
+                gl_ActiveTexture(GL_TEXTURE0);
+                return 0;
             }
-            bank_entry_textures[index] = make_texture(GL_RGBA8, texture_width, texture_height, GL_RGBA, GL_UNSIGNED_BYTE);
-            glBindTexture(GL_TEXTURE_2D, bank_entry_textures[index]);
+            bank_textures[at].key = key;
+            bank_textures[at].texture = make_texture(GL_RGBA8, texture_width, texture_height, GL_RGBA, GL_UNSIGNED_BYTE);
             glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, texture_width, texture_height, GL_RGBA, GL_UNSIGNED_BYTE,
                             smaller ? smaller : rgba);
             free(smaller);
-        } else glBindTexture(GL_TEXTURE_2D, bank_entry_textures[index]);
+            /* Its smaller levels, for drawing it smaller than it is; one
+             * shrunk to fit the driver is drawn from that alone. */
+            if (fits) {
+                const unsigned char *pixels;
+                int level_w, level_h;
+                while (TexturePack_BankEntryLevel(entry, levels, &pixels, &level_w, &level_h)) {
+                    glTexImage2D(GL_TEXTURE_2D, levels++, GL_RGBA8, level_w, level_h, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                                 pixels);
+                }
+            }
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, levels - 1);
+            if (levels > 1) glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
+            bank_textures[at].levels = levels;
+            bank_texture_count++;
+        } else glBindTexture(GL_TEXTURE_2D, bank_textures[at].texture);
         gl_ActiveTexture(GL_TEXTURE0);
         if (!TexturePack_BankEntryRect(entry, &u, &v, &w, &h) ||
             !TexturePack_BankEntrySource(entry, &sx, &sy, &sw, &sh)) return 0;
+        level = TexturePack_BankEntryLevelFor(entry, scale);
+        if (level >= bank_textures[at].levels) level = bank_textures[at].levels - 1;
         sx = sx * texture_width / width;
         sy = sy * texture_height / height;
         sw = (sw * texture_width + width - 1) / width;
         sh = (sh * texture_height + height - 1) / height;
         gl_Uniform4i(u_bank_sprite, u, v, w, h);
         gl_Uniform4i(u_bank_source, sx, sy, sw, sh);
+        gl_Uniform1i(u_bank_level, level);
         gl_Uniform4i(u_pack_entry, 0, 0, 0, 0);
         gl_Uniform3i(u_pack_size, texture_width, texture_height, 1);
         return 1;
@@ -1993,6 +2028,7 @@ static int bind_pack_entry(int entry)
     gl_ActiveTexture(GL_TEXTURE0);
     gl_Uniform4i(u_bank_sprite, 0, 0, 0, 0);
     gl_Uniform4i(u_bank_source, 0, 0, 0, 0);
+    gl_Uniform1i(u_bank_level, 0);
     /* The maps name the head of the entry's readings; this entry's image. */
     gl_Uniform4i(u_pack_entry, TexturePack_EntryHead(entry), crop_left, crop_width, rows);
     gl_Uniform3i(u_pack_size, texture_width, texture_height, per);
@@ -2759,9 +2795,10 @@ void GlPicture_Lost(void)
     free(entry_textures);
     entry_textures = NULL;
     entry_texture_count = 0;
-    free(bank_entry_textures);
-    bank_entry_textures = NULL;
-    bank_entry_texture_count = 0;
+    free(bank_textures);
+    bank_textures = NULL;
+    bank_texture_count = 0;
+    bank_generation = ~0u;
     pack_generation = map_generation = ~0u;
     capture_texture = 0;
     capture_w = capture_h = 0;

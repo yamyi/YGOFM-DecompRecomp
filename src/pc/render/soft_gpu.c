@@ -674,8 +674,9 @@ static inline __attribute__((always_inline)) void plot(int x, int y, int r, int 
 static inline __attribute__((always_inline)) int picture_texel(int u, int v, uint32_t *rgb)
 {
     uint16_t word;
-    if (texture_bank && TextureDump_BankSample) {
-        int got = TextureDump_BankSample(texture_bank, gpu.page_x, gpu.page_y, gpu.depth, u, v, rgb);
+    if (texture_bank && scale > 1 && TextureDump_BankSample) { /* 1x: the bank's own texels */
+        int got = TextureDump_BankSample(texture_bank, gpu.page_x, gpu.page_y, gpu.depth, gpu.clut_x, gpu.clut_y,
+                                         u, v, scale, rgb);
         if (got == 1) {
             /* The PNG supplies color and coverage, but the bank texel still
              * controls PS1 semi-transparency. */

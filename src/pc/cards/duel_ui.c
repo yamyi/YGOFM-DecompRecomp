@@ -268,7 +268,6 @@ static const BankPicture *picture(int which, int w, int h, int hd)
         if (size->made && size->w == w * factor && size->h == h * factor) return size->ready ? size : NULL;
         if (!size->made && !picture) picture = size;
     }
-    if (!CardArt_ImageSize(image->file, &png_w, &png_h)) return NULL;
     if (!picture) {
         Mods_Note(image->mod, "ui: %s is drawn at more than %d sizes", image->file, SIZES);
         return NULL;
@@ -282,7 +281,8 @@ static const BankPicture *picture(int which, int w, int h, int hd)
         return NULL;
     }
     /* Above the console's resolution only when the PNG has the detail. */
-    if (hd && png_w <= w && png_h <= h) return NULL;
+    if (!CardArt_ImageSize(image->file, &png_w, &png_h)) png_w = png_h = 0;
+    if (hd && (!png_w || (png_w <= w && png_h <= h))) return NULL;
     if (cluts == CLUT_ROWS || !shelve(picture->w, picture->h, &picture->x, &picture->y)) {
         Mods_Note(image->mod, "ui: no room left for %s", image->file);
         return NULL;
@@ -362,10 +362,12 @@ static int draw_picture(int which, int x, int y, int w, int h, const Place *plac
         strip.v0 = strip.v1 = (u8)(bank_picture->y & (BAND - 1));
         strip.v2 = strip.v3 = (u8)((bank_picture->y & (BAND - 1)) + bank_picture->h > 255
                                        ? 255 : (bank_picture->y & (BAND - 1)) + bank_picture->h);
-        TexturePack_BankSpritesUseOwner(TEXTURE_BANK_OWNER_DUEL_UI);
-        TexturePack_AddBankSpriteCrop(BANK, page_x, page_y, 1, (word - page_x) * 2,
-                                      bank_picture->y & (BAND - 1), width, bank_picture->h, image->file,
-                                      source_x, 0, source_x1 - source_x, bank_picture->png_h);
+        if (bank_picture->png_w > 0 && bank_picture->png_h > 0) {
+            TexturePack_BankSpritesUseOwner(TEXTURE_BANK_OWNER_DUEL_UI);
+            TexturePack_AddBankSpriteCrop(BANK, page_x, page_y, 1, 0, bank_picture->clut_y, (word - page_x) * 2,
+                                          bank_picture->y & (BAND - 1), width, bank_picture->h, image->file,
+                                          source_x, 0, source_x1 - source_x, bank_picture->png_h);
+        }
         GsSortPoly(&strip, (GsOT *G32)ot, (u16)depth);
     }
     return 1;
