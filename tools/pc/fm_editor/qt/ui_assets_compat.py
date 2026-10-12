@@ -11,6 +11,7 @@ from .. import art, board_art, board_model, card_text, duel_screen, gamedata, pn
 import contextlib
 import json
 import re
+import sys
 import threading
 
 ELEMENTS = (("lp_opponent", "Opponent LP"), ("lp_player", "Player LP"),
@@ -2011,7 +2012,11 @@ def _board_revert_all(editor):
 
 
 def _catalog():
-    path = Path(__file__).resolve().parents[4] / "docs" / "asset-catalog.json"
+    # A frozen build has no "docs" sibling four levels up (that climbs
+    # above the extraction folder); build_exe.py bundles a copy next to
+    # this module instead, matching build_info.py's own frozen/source split.
+    path = (Path(__file__).with_name("asset-catalog.json") if getattr(sys, "frozen", False) else
+            Path(__file__).resolve().parents[4] / "docs" / "asset-catalog.json")
     try:
         values, named = json.loads(path.read_text()), {}
         for value in values:

@@ -76,9 +76,28 @@ def main() -> int:
     build = ["--noconfirm", "--clean", "--distpath", str(dist), "--workpath", str(work)]
     program = ["--name", "fm-editor", "--specpath", str(work), "--paths", str(HERE.parent),
                "--hidden-import", "text_listing", "--collect-submodules", "fm_editor",
+<<<<<<< HEAD
                "--add-data", f"{identity}{os.pathsep}fm_editor",
                # The Qt window loads these forms at run time.
                "--add-data", f"{HERE / 'ui'}{os.pathsep}fm_editor/ui"]
+=======
+               "--add-data", f"{identity}{os.pathsep}fm_editor"]
+    # Qt Designer forms: QUiLoader reads these from disk by path at
+    # runtime, so --collect-submodules (which only gathers .py modules)
+    # leaves them out and every page fails to build in a frozen build.
+    # "*.ui" also skips cards_page.ui.bak; assets_page_compat.ui is the
+    # superseded form original_assets_page_compat.ui replaced.
+    for folder, dest in ((HERE / "ui", "fm_editor/ui"), (HERE / "qt", "fm_editor/qt")):
+        for form in sorted(folder.glob("*.ui")):
+            if form.name == "assets_page_compat.ui":
+                continue
+            program += ["--add-data", f"{form}{os.pathsep}{dest}"]
+    # The Assets/Build Deck catalogue: _catalog() reads this beside the
+    # module in a frozen build (same split as build_info's build-info.json).
+    catalog = ROOT / "docs" / "asset-catalog.json"
+    if catalog.is_file():
+        program += ["--add-data", f"{catalog}{os.pathsep}fm_editor/qt"]
+>>>>>>> 5cae5599 (build_exe.py: bundle the Qt Designer forms and the asset catalog)
     if sys.platform == "win32":
         version_file = work / "version.txt"
         version_file.write_text(version_info(arguments.version), encoding="utf-8")
