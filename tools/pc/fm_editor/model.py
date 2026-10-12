@@ -228,6 +228,7 @@ class Project:
         self.pool_files = {}            # "decks"/"drops" -> the file the mod names in place of the table
         self.source_dir = None
         self.files = {}                 # path in the mod folder -> bytes to write with it (an import's)
+        self.deleted_files = set()      # path under source_dir save_mod must not carry forward (a revert's)
         self.text_cards = {}            # card id -> {field: value} its "text" file carries while unchanged
         # Passwords the mod sets, 8 digits or "" for none: a disc card's goes in
         # "passwords" (the Password screen's), an added card's is its entry's
@@ -396,18 +397,36 @@ class Project:
         # `added`, so any cleanup that names the card by a written ref
         # (rather than its id as a dict key) has to run before it is gone.
         from . import packs as packmath
+
+        def clean_pool(pool, key="cards"):
+            items = packmath.pool_items(pool.get(key, []))
+            if any(self.resolve(ref) == cid for ref, _ in items):
+                pool[key] = packmath.pool_value([(ref, weight) for ref, weight in items
+                                                  if self.resolve(ref) != cid])
+
         for entry in self.packs:
             if not isinstance(entry, dict):
                 continue
             pools = ([tier for tier in entry["tiers"].values() if isinstance(tier, dict)]
                      if isinstance(entry.get("tiers"), dict) else [entry])
             for pool in pools:
-                items = packmath.pool_items(pool.get("cards", []))
-                if any(self.resolve(ref) == cid for ref, _ in items):
-                    pool["cards"] = packmath.pool_value([(ref, weight) for ref, weight in items
-                                                          if self.resolve(ref) != cid])
+                clean_pool(pool)
+            if isinstance(entry.get("cost"), dict):
+                clean_pool(entry["cost"])
+            for slot in entry.get("slots") or []:
+                if not isinstance(slot, dict):
+                    continue
+                if "card" in slot and self.resolve(slot["card"]) == cid:
+                    # A fixed-card slot: "cards": [] keeps the slot count
+                    # (the port requires exactly pack.count of them) while
+                    # dealing nothing, rather than naming a gone card.
+                    slot.clear(); slot["cards"] = []
+                elif "cards" in slot:
+                    clean_pool(slot)
             if isinstance(entry.get("unlock"), dict) and self.resolve(entry["unlock"].get("card")) == cid:
                 entry.pop("unlock", None)
+            if self.resolve(entry.get("cover")) == cid:
+                entry.pop("cover", None)
         self.starchips.pop(cid, None)
         self.password_keys.pop(cid, None)
         del self.added[cid]

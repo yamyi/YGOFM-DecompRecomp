@@ -1581,6 +1581,7 @@ def save_mod(project: Project, folder, manifest: dict = None, copy_source: bool 
         raise ValueError(f"{folder} holds game files; the editor writes mod folders only")
     folder.mkdir(parents=True, exist_ok=True)
     source = project.source_dir
+    deleted = getattr(project, "deleted_files", set())
     if copy_source and source and Path(source).resolve() != folder.resolve() and Path(source).is_dir():
         destination = folder.resolve()
         elsewhere = roster.used_elsewhere(project)
@@ -1595,7 +1596,7 @@ def save_mod(project: Project, folder, manifest: dict = None, copy_source: bool 
                 # The roster's files it read are written afresh below, or
                 # are gone with the duelist they were for.
                 if (item.is_file() and item.name != "mod.json"
-                        and relative.as_posix() not in getattr(project, "deleted_files", set())
+                        and relative.as_posix() not in deleted
                         and not roster.owned(project, relative.as_posix(), elsewhere)):
                     target = output_path(folder, relative)
                     target.parent.mkdir(parents=True, exist_ok=True)
@@ -1604,11 +1605,15 @@ def save_mod(project: Project, folder, manifest: dict = None, copy_source: bool 
                     output_path(folder, relative)
                     shutil.copy2(item, target)
     for name, blob in project.files.items():
+        if not art.contained(name):
+            continue
         target = output_path(folder, name)
         target.parent.mkdir(parents=True, exist_ok=True)
         output_path(folder, name)
         target.write_bytes(blob)
-    for name in getattr(project, "deleted_files", set()):
+    for name in deleted:
+        if not art.contained(name):
+            continue
         target = output_path(folder, name)
         if target.is_file() or target.is_symlink():
             target.unlink()

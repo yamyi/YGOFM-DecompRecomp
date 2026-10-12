@@ -2135,7 +2135,7 @@ def _named_asset_path(self, asset):
     if not isinstance(folder, str) or not folder:
         return None
     relative = f"{folder.rstrip('/')}/{asset['name']}.png"
-    if relative in _deleted_files(self.project):
+    if relative in self.project.deleted_files:
         return None
     if relative in self.project.files:
         return relative
@@ -2167,6 +2167,18 @@ def _asset_shares_entry(self, asset, manifest_entry):
     true for siblings cropped from the same shared HD atlas."""
     return any(entry is manifest_entry and name != asset["name"]
                for name, (entry, _crop) in _legacy_pack_entries(self).items())
+
+
+def _file_still_used(project, filename, except_entry):
+    """Whether any OTHER manifest entry still names this PNG. Two distinct
+    texture-pack entries can share one backing file even when no catalogued
+    asset maps to the other one, so this checks the raw manifest rather than
+    only the entries a catalog asset currently resolves to."""
+    if not isinstance(filename, str):
+        return False
+    st = art.state(project)
+    return any(isinstance(entry, dict) and entry is not except_entry and entry.get("file") == filename
+               for entry in st.entries or [])
 
 
 def _atlas_region(manifest_entry, crop, canvas_width, canvas_height):
@@ -2757,21 +2769,12 @@ def _load_retail_preview_image(self, asset):
     QTimer.singleShot(0, complete)
 
 
-def _deleted_files(project) -> set:
-    """``project.deleted_files``: compat-only bookkeeping `Project` itself
-    never declares, so create it on first use rather than assume it."""
-    value = getattr(project, "deleted_files", None)
-    if not isinstance(value, set):
-        value = project.deleted_files = set()
-    return value
-
-
 def _asset_paths(project, folder):
     """All saved and pending named assets, minus queued removals."""
     if not isinstance(folder, str) or not folder:
         return set()
     prefix = folder.rstrip("/") + "/"
-    removed = _deleted_files(project)
+    removed = project.deleted_files
     paths = {name for name in project.files if name.startswith(prefix) and name not in removed}
     source = Path(project.source_dir) if project.source_dir else None
     if source:
@@ -2785,7 +2788,7 @@ def _asset_paths(project, folder):
 
 def _remember_asset_removal(project, path):
     project.files.pop(path, None)
-    _deleted_files(project).add(path)
+    project.deleted_files.add(path)
 
 
 def _import_template(self):
@@ -2823,7 +2826,7 @@ def _import_template(self):
             folder = "assets"; self.project.other["assets"] = folder
         relative = f"{folder.rstrip('/')}/{asset['name']}.png"
     self.project.files[relative] = pngio.encode(image)
-    _deleted_files(self.project).discard(relative)
+    self.project.deleted_files.discard(relative)
     c.get("preview_image_cache", {}).pop(relative, None)
     self._mark_dirty(); _refresh_template(self)
 
@@ -2867,12 +2870,13 @@ def _remove_template(self):
                 self.project.files[path] = pngio.encode(pngio.paste(base, patch, left, top))
                 c.get("preview_image_cache", {}).pop(path, None)
             self._mark_dirty(); _refresh_template(self); return
-        _remember_asset_removal(self.project, path)
         c.get("preview_image_cache", {}).pop(path, None)
         st = art.state(self.project)
         # Removing this first matching manifest entry restores the retail
-        # texture read.  Keep the old PNG on disk: it may be shared by an
-        # unrelated entry and is harmless when no manifest entry names it.
+        # texture read.  Only delete the backing PNG once no other manifest
+        # entry -- catalogued or not -- still names that same file.
+        if not _file_still_used(self.project, manifest_entry.get("file"), manifest_entry):
+            _remember_asset_removal(self.project, path)
         st.entries = [entry for entry in st.entries or [] if entry is not manifest_entry]
         st.changed = True
         c.pop("legacy_pack_index", None)
@@ -3151,7 +3155,7 @@ def _import_build_deck(self):
         if not isinstance(folder, str) or not folder: folder = "assets"; self.project.other["assets"] = folder
         relative = f"{folder.rstrip('/')}/{asset['name']}.png"
     self.project.files[relative] = pngio.encode(image)
-    _deleted_files(self.project).discard(relative)
+    self.project.deleted_files.discard(relative)
     bd.get("preview_image_cache", {}).pop(relative, None)
     self._mark_dirty(); _refresh_build_deck(self)
 
@@ -3192,9 +3196,10 @@ def _remove_build_deck(self):
                 self.project.files[path] = pngio.encode(pngio.paste(base, patch, left, top))
                 bd.get("preview_image_cache", {}).pop(path, None)
             self._mark_dirty(); _refresh_build_deck(self); return
-        _remember_asset_removal(self.project, path)
         bd.get("preview_image_cache", {}).pop(path, None)
         st = art.state(self.project)
+        if not _file_still_used(self.project, manifest_entry.get("file"), manifest_entry):
+            _remember_asset_removal(self.project, path)
         st.entries = [entry for entry in st.entries or [] if entry is not manifest_entry]
         st.changed = True
         self.workspace_controls["Assets"].pop("legacy_pack_index", None)
@@ -3224,8 +3229,9 @@ def _revert_build_deck_all(self):
                     patch = pngio.scale_to(retail, width, height)
                     self.project.files[path] = pngio.encode(pngio.paste(base, patch, left, top))
                 continue
-            _remember_asset_removal(self.project, path)
             st = art.state(self.project)
+            if not _file_still_used(self.project, manifest_entry.get("file"), manifest_entry):
+                _remember_asset_removal(self.project, path)
             st.entries = [entry for entry in st.entries or [] if entry is not manifest_entry]
             st.changed = True
             self.workspace_controls["Assets"].pop("legacy_pack_index", None)

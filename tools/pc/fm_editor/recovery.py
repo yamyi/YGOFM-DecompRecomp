@@ -241,8 +241,10 @@ def backup(folder, keep=5):
     last = max(group.glob("*/recovery.json"), key=lambda p: p.stat().st_mtime_ns, default=None)
     try:
         (destination / "mod").mkdir(parents=True)
+        # Not followlinks=True: a directory symlink inside the mod could
+        # send the backup outside it, or cycle forever.
         fill(folder, destination / "mod", last.parent / "mod" if last else None,
-             last.stat().st_mtime if last else 0.0, followlinks=True)
+             last.stat().st_mtime if last else 0.0)
         (destination / "recovery.json").write_text(json.dumps({
             "name": folder.name, "time": stamp(), "source": str(folder), "generation": "mod",
             "backup": True}), encoding="utf-8")
