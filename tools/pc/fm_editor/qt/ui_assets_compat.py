@@ -59,10 +59,11 @@ def install():
     def build(self, page, controls):
         """Build the supplied UI shell and retain the complete asset editor.
 
-        The four scene-oriented tabs come from ``ui_page_all_tabs_compat.ui``.
-        The catalogue editor remains a dedicated fifth tab, rather than being
-        replaced by a static mock-up.  This keeps the modern UI independent of
-        the classic editor while preserving every existing replacement workflow.
+        The scene-oriented tabs come from ``ui_page_all_tabs_compat.ui``.
+        The catalogue editor remains a visible tab after Build Deck, rather
+        than being replaced by a static mock-up.  This keeps the modern UI
+        independent of the classic editor while preserving every existing
+        replacement workflow.
         """
         layout = page.layout() or QVBoxLayout(page)
         _clear(layout)
@@ -80,8 +81,8 @@ def install():
         build_deck_tab.setObjectName("buildDeckTab")
         build_deck_layout = QVBoxLayout(build_deck_tab)
         build_deck_layout.setContentsMargins(0, 0, 0, 0)
-        # Grouped with the other game-screen tabs, ahead of the catch-all
-        # Assets catalogue (texture replacement only -- see docstring below).
+        # Keep Build Deck with the screen-specific editors and leave the
+        # catalogue visible directly after it.
         tabs.insertTab(tabs.indexOf(assets_tab), build_deck_tab, "Build Deck")
         _build_build_deck_tab(self, build_deck_tab, controls, build_deck_layout)
         controls.update(shell=shell, tabs=tabs, assets_tab=assets_tab)
@@ -153,7 +154,7 @@ def _apply_reference_skin(shell, tabs, assets_tab):
     title.setStyleSheet("font-size: 25px; font-weight: 700; color: #f3f8ff;")
     summary.setStyleSheet("color: #aabbd2; font-size: 13px;")
     index = tabs.indexOf(assets_tab)
-    tabs.tabBar().setTabVisible(index, False)
+    tabs.tabBar().setTabVisible(index, True)
     tabs.setDocumentMode(False)
     # The reference puts a generously sized asset inspector beside each live
     # preview.  Explicit stretch factors prevent Qt's preview minimum size from
@@ -589,7 +590,7 @@ def _wire_ui_tabs(editor, shell, controls):
         "board_part_preview": "boardPartPreview", "board_part_label": "boardSelectedPartLabel",
         "board_description": "boardSelectedPartDescription", "board_resolution": "boardPartResolutionLabel",
         "board_tint": "boardTintEdit", "board_all": "boardApplyAllFieldsCheck",
-        "board_search": "boardPartSearchEdit",
+        "board_search": "boardPartSearchEdit", "board_show_outlines": "boardShowOutlinesCheck",
     }.items():
         c[key] = _scene_widget(shell, name)
 
@@ -672,6 +673,7 @@ def _wire_ui_tabs(editor, shell, controls):
     c["board_tree"].currentItemChanged.connect(lambda item, _: _board_select(editor, item))
     c["board_search"].textChanged.connect(lambda _: _board_filter(editor))
     c["board_tint"].editingFinished.connect(lambda: _board_tint(editor))
+    c["board_show_outlines"].toggled.connect(lambda _: _board_redisplay(editor))
     _scene_widget(shell, "replaceBoardPartButton").clicked.connect(lambda: _board_replace(editor))
     _scene_widget(shell, "exportBoardPartButton").clicked.connect(lambda: _board_export(editor))
     _scene_widget(shell, "revertBoardPartButton").clicked.connect(lambda: _board_revert(editor))
@@ -1692,7 +1694,12 @@ def _duel_revert_element(editor):
     _commit_ui(editor)
 
 
-def _duel_revert_page(editor): editor.project.other.pop("ui", None); _commit_ui(editor)
+def _duel_revert_page(editor):
+    root = _ui_section(editor, "ui")
+    root.pop("duel", None)
+    if not root:
+        editor.project.other.pop("ui", None)
+    _commit_ui(editor)
 def _board_parts(c):
     key = c.get("board_selected", "floor")
     return list(board_art.FLOOR) if key == "floor" else [board_art.BY_KEY[key]] if key in board_art.BY_KEY else list(board_art.FLOOR)
@@ -1776,11 +1783,20 @@ def _board_camera(c):
     return tuple(camera) if isinstance(camera, (tuple, list)) and len(camera) == 5 else board_model.CAMERA
 
 
+def _board_redisplay(editor):
+    """Redraw the cached render after the outline toggle changes, with no
+    new 3D render needed."""
+    c = editor.workspace_controls.get("Assets", {})
+    if c.get("board_picture") is not None:
+        _board_display(editor, c["board_picture"])
+
+
 def _board_display(editor, picture, full_size=True):
     """The cached 3D render redrawn with the current part(s) outlined, no
     re-render needed (a part picked, or a selection made elsewhere)."""
     c = editor.workspace_controls.get("Assets", {})
-    shown = board_model.outline(picture, _board_outline_keys(c), 2)
+    show_outlines = c.get("board_show_outlines") is None or c["board_show_outlines"].isChecked()
+    shown = board_model.outline(picture, _board_outline_keys(c) if show_outlines else [], 2)
     _png_preview(c["board_preview"], shown, "Game board unavailable")
     # A low-resolution drag frame is not worth also recompositing the Duel
     # HUD preview over; that waits for the next full-size picture.
@@ -2119,6 +2135,8 @@ def _named_asset_path(self, asset):
     if not isinstance(folder, str) or not folder:
         return None
     relative = f"{folder.rstrip('/')}/{asset['name']}.png"
+    if relative in _deleted_files(self.project):
+        return None
     if relative in self.project.files:
         return relative
     source = self.project.source_dir
@@ -2142,6 +2160,24 @@ def _entry_origin(self, asset):
 def _legacy_crop(self, asset):
     match = _legacy_pack_entries(self).get(asset["name"])
     return match[1] if match is not None else None
+
+
+def _asset_shares_entry(self, asset, manifest_entry):
+    """Whether another catalogued asset still resolves to this pack entry --
+    true for siblings cropped from the same shared HD atlas."""
+    return any(entry is manifest_entry and name != asset["name"]
+               for name, (entry, _crop) in _legacy_pack_entries(self).items())
+
+
+def _atlas_region(manifest_entry, crop, canvas_width, canvas_height):
+    """Where ``crop`` (native pixels, from `_legacy_crop`) lands inside a PNG
+    backing ``manifest_entry`` at ``canvas_width`` x ``canvas_height`` -- the
+    write-side counterpart of the scaling `_select_template` does to show it."""
+    source_width, source_height = _native_size(manifest_entry)
+    scale_x, scale_y = canvas_width / source_width, canvas_height / source_height
+    left, top = round(crop[0] * scale_x), round(crop[1] * scale_y)
+    width, height = max(1, round(crop[2] * scale_x)), max(1, round(crop[3] * scale_y))
+    return left, top, width, height
 
 
 def _entry_for(self, asset):
@@ -2432,7 +2468,7 @@ def _build_template_framework(self, page, controls, layout):
     _asset_widget(form, QPushButton, "uiModGuideButton").clicked.connect(lambda: _show_asset_help(self))
     _asset_widget(form, QPushButton, "revertAllUiButton").clicked.connect(lambda: _revert_template(self))
     _asset_widget(form, QPushButton, "applyAssetsButton").clicked.connect(self.save_mod)
-    _asset_widget(form, QPushButton, "previewAssetsModButton").clicked.connect(lambda: _show_asset_help(self))
+    _asset_widget(form, QPushButton, "previewAssetsModButton").clicked.connect(self.preview_manifest)
     for scale, name in ((1, "preview1xButton"), (2, "preview2xButton"), (4, "preview4xButton")):
         button = _asset_widget(form, QPushButton, name)
         button.clicked.connect(lambda _checked=False, value=scale: _set_template_scale(self, value))
@@ -2721,12 +2757,21 @@ def _load_retail_preview_image(self, asset):
     QTimer.singleShot(0, complete)
 
 
+def _deleted_files(project) -> set:
+    """``project.deleted_files``: compat-only bookkeeping `Project` itself
+    never declares, so create it on first use rather than assume it."""
+    value = getattr(project, "deleted_files", None)
+    if not isinstance(value, set):
+        value = project.deleted_files = set()
+    return value
+
+
 def _asset_paths(project, folder):
     """All saved and pending named assets, minus queued removals."""
     if not isinstance(folder, str) or not folder:
         return set()
     prefix = folder.rstrip("/") + "/"
-    removed = getattr(project, "deleted_files", set())
+    removed = _deleted_files(project)
     paths = {name for name in project.files if name.startswith(prefix) and name not in removed}
     source = Path(project.source_dir) if project.source_dir else None
     if source:
@@ -2740,7 +2785,7 @@ def _asset_paths(project, folder):
 
 def _remember_asset_removal(project, path):
     project.files.pop(path, None)
-    project.deleted_files.add(path)
+    _deleted_files(project).add(path)
 
 
 def _import_template(self):
@@ -2757,13 +2802,28 @@ def _import_template(self):
         # points at this file, and Project.files is written before the pack
         # manifest on Save / Save As.
         relative = f"{art.pack_dir(self.project).rstrip('/')}/{manifest_entry['file']}"
+        crop = _legacy_crop(self, asset)
+        if crop is not None:
+            # This asset is only one region of a larger shared atlas PNG.
+            # Paste the replacement into its own corner instead of
+            # overwriting the whole file, which would wipe every other
+            # catalogued texture that file also backs.
+            base = _named_image(self, relative)
+            if base is None:
+                QMessageBox.critical(self, "Could not import UI asset",
+                                      "This mod's shared texture atlas could not be read; nothing was changed.")
+                return
+            left, top, width, height = _atlas_region(manifest_entry, crop, base.width, base.height)
+            if (image.width, image.height) != (width, height):
+                image = pngio.scale_to(image, width, height)
+            image = pngio.paste(base, image, left, top)
     else:
         folder = self.project.other.get("assets")
         if not isinstance(folder, str) or not folder:
             folder = "assets"; self.project.other["assets"] = folder
         relative = f"{folder.rstrip('/')}/{asset['name']}.png"
     self.project.files[relative] = pngio.encode(image)
-    self.project.deleted_files.discard(relative)
+    _deleted_files(self.project).discard(relative)
     c.get("preview_image_cache", {}).pop(relative, None)
     self._mark_dirty(); _refresh_template(self)
 
@@ -2771,20 +2831,44 @@ def _import_template(self):
 def _export_template(self):
     asset = self.workspace_controls["Assets"].get("selected")
     if asset is None: return
-    image = _named_image(self, _entry_for(self, asset)) or self._asset_retail_image(asset)
+    path, origin, manifest_entry = _entry_origin(self, asset)
+    image = _named_image(self, path)
+    if image is not None:
+        crop = _legacy_crop(self, asset) if origin == "pack" else None
+        if crop is not None:
+            # Only the selected catalog region of a larger shared atlas,
+            # not the whole backing PNG (the retail fallback below is
+            # already sized to the asset alone, so it needs no cropping).
+            left, top, width, height = _atlas_region(manifest_entry, crop, image.width, image.height)
+            image = pngio.crop(image, left, top, width, height)
+    else:
+        image = self._asset_retail_image(asset)
     if image is None:
         QMessageBox.warning(self, "Export UI asset", "The retail texture cannot be decoded."); return
-    path, _ = QFileDialog.getSaveFileName(self, "Export UI asset", asset["name"].rsplit("/", 1)[-1] + ".png", "PNG images (*.png)")
-    if path: pngio.write(path, image)
+    out, _ = QFileDialog.getSaveFileName(self, "Export UI asset", asset["name"].rsplit("/", 1)[-1] + ".png", "PNG images (*.png)")
+    if out: pngio.write(out, image)
 
 
 def _remove_template(self):
     c = self.workspace_controls["Assets"]; asset = c.get("selected")
     path, origin, manifest_entry = _entry_origin(self, asset)
     if path is None: return
-    _remember_asset_removal(self.project, path)
-    c.get("preview_image_cache", {}).pop(path, None)
     if origin == "pack" and manifest_entry is not None:
+        crop = _legacy_crop(self, asset)
+        if crop is not None and _asset_shares_entry(self, asset, manifest_entry):
+            # A shared HD atlas another catalogued asset still needs: patch
+            # this region back to its retail pixels instead of deleting the
+            # file or un-declaring the manifest entry out from under it.
+            base = _named_image(self, path)
+            retail = self._asset_retail_image(asset)
+            if base is not None and retail is not None:
+                left, top, width, height = _atlas_region(manifest_entry, crop, base.width, base.height)
+                patch = pngio.scale_to(retail, width, height)
+                self.project.files[path] = pngio.encode(pngio.paste(base, patch, left, top))
+                c.get("preview_image_cache", {}).pop(path, None)
+            self._mark_dirty(); _refresh_template(self); return
+        _remember_asset_removal(self.project, path)
+        c.get("preview_image_cache", {}).pop(path, None)
         st = art.state(self.project)
         # Removing this first matching manifest entry restores the retail
         # texture read.  Keep the old PNG on disk: it may be shared by an
@@ -2793,6 +2877,8 @@ def _remove_template(self):
         st.changed = True
         c.pop("legacy_pack_index", None)
         self._mark_dirty(); _refresh_template(self); return
+    _remember_asset_removal(self.project, path)
+    c.get("preview_image_cache", {}).pop(path, None)
     folder = self.project.other.get("assets")
     if not _asset_paths(self.project, folder):
         self.project.other.pop("assets", None)
@@ -3046,12 +3132,26 @@ def _import_build_deck(self):
     _path, origin, manifest_entry = _entry_origin(self, asset)
     if origin == "pack" and manifest_entry is not None:
         relative = f"{art.pack_dir(self.project).rstrip('/')}/{manifest_entry['file']}"
+        crop = _legacy_crop(self, asset)
+        if crop is not None:
+            # This texture is only one region of a larger shared atlas PNG;
+            # paste the replacement into its own corner rather than
+            # overwriting every other texture that file also backs.
+            base = _named_image(self, relative)
+            if base is None:
+                QMessageBox.critical(self, "Could not import texture",
+                                      "This mod's shared texture atlas could not be read; nothing was changed.")
+                return
+            left, top, width, height = _atlas_region(manifest_entry, crop, base.width, base.height)
+            if (image.width, image.height) != (width, height):
+                image = pngio.scale_to(image, width, height)
+            image = pngio.paste(base, image, left, top)
     else:
         folder = self.project.other.get("assets")
         if not isinstance(folder, str) or not folder: folder = "assets"; self.project.other["assets"] = folder
         relative = f"{folder.rstrip('/')}/{asset['name']}.png"
     self.project.files[relative] = pngio.encode(image)
-    self.project.deleted_files.discard(relative)
+    _deleted_files(self.project).discard(relative)
     bd.get("preview_image_cache", {}).pop(relative, None)
     self._mark_dirty(); _refresh_build_deck(self)
 
@@ -3059,25 +3159,48 @@ def _import_build_deck(self):
 def _export_build_deck(self):
     asset = self.workspace_controls["Assets"]["build_deck"].get("selected")
     if asset is None: return
-    image = _named_image(self, _entry_for(self, asset)) or self._asset_retail_image(asset)
+    path, origin, manifest_entry = _entry_origin(self, asset)
+    image = _named_image(self, path)
+    if image is not None:
+        crop = _legacy_crop(self, asset) if origin == "pack" else None
+        if crop is not None:
+            left, top, width, height = _atlas_region(manifest_entry, crop, image.width, image.height)
+            image = pngio.crop(image, left, top, width, height)
+    else:
+        image = self._asset_retail_image(asset)
     if image is None:
         QMessageBox.warning(self, "Export texture", "The retail texture cannot be decoded."); return
-    path, _ = QFileDialog.getSaveFileName(self, "Export texture", asset["name"].rsplit("/", 1)[-1] + ".png", "PNG images (*.png)")
-    if path: pngio.write(path, image)
+    out, _ = QFileDialog.getSaveFileName(self, "Export texture", asset["name"].rsplit("/", 1)[-1] + ".png", "PNG images (*.png)")
+    if out: pngio.write(out, image)
 
 
 def _remove_build_deck(self):
     bd = self.workspace_controls["Assets"]["build_deck"]; asset = bd.get("selected")
     path, origin, manifest_entry = _entry_origin(self, asset)
     if path is None: return
-    _remember_asset_removal(self.project, path)
-    bd.get("preview_image_cache", {}).pop(path, None)
     if origin == "pack" and manifest_entry is not None:
+        crop = _legacy_crop(self, asset)
+        if crop is not None and _asset_shares_entry(self, asset, manifest_entry):
+            # A shared HD atlas another catalogued texture still needs:
+            # patch this region back to retail instead of deleting the file
+            # or un-declaring the manifest entry out from under it.
+            base = _named_image(self, path)
+            retail = self._asset_retail_image(asset)
+            if base is not None and retail is not None:
+                left, top, width, height = _atlas_region(manifest_entry, crop, base.width, base.height)
+                patch = pngio.scale_to(retail, width, height)
+                self.project.files[path] = pngio.encode(pngio.paste(base, patch, left, top))
+                bd.get("preview_image_cache", {}).pop(path, None)
+            self._mark_dirty(); _refresh_build_deck(self); return
+        _remember_asset_removal(self.project, path)
+        bd.get("preview_image_cache", {}).pop(path, None)
         st = art.state(self.project)
         st.entries = [entry for entry in st.entries or [] if entry is not manifest_entry]
         st.changed = True
         self.workspace_controls["Assets"].pop("legacy_pack_index", None)
         self._mark_dirty(); _refresh_build_deck(self); return
+    _remember_asset_removal(self.project, path)
+    bd.get("preview_image_cache", {}).pop(path, None)
     folder = self.project.other.get("assets")
     if not _asset_paths(self.project, folder): self.project.other.pop("assets", None)
     self._mark_dirty(); _refresh_build_deck(self)
@@ -3089,11 +3212,25 @@ def _revert_build_deck_all(self):
     for asset in bd.get("catalog", []):
         path, origin, manifest_entry = _entry_origin(self, asset)
         if path is None: continue
-        _remember_asset_removal(self.project, path)
         if origin == "pack" and manifest_entry is not None:
+            crop = _legacy_crop(self, asset)
+            if crop is not None and _asset_shares_entry(self, asset, manifest_entry):
+                # Shared with an asset outside this tab's own catalog (not
+                # being reverted here): patch this region, leave the rest.
+                base = _named_image(self, path)
+                retail = self._asset_retail_image(asset)
+                if base is not None and retail is not None:
+                    left, top, width, height = _atlas_region(manifest_entry, crop, base.width, base.height)
+                    patch = pngio.scale_to(retail, width, height)
+                    self.project.files[path] = pngio.encode(pngio.paste(base, patch, left, top))
+                continue
+            _remember_asset_removal(self.project, path)
             st = art.state(self.project)
             st.entries = [entry for entry in st.entries or [] if entry is not manifest_entry]
             st.changed = True
+            self.workspace_controls["Assets"].pop("legacy_pack_index", None)
+        else:
+            _remember_asset_removal(self.project, path)
     bd.get("preview_image_cache", {}).clear()
     self.workspace_controls["Assets"].pop("legacy_pack_index", None)
     folder = self.project.other.get("assets")

@@ -392,6 +392,22 @@ class Project:
             for key in list(table):
                 if self.resolve(key) == cid:
                     del table[key]
+        # `resolve` only recognises an added card while it is still in
+        # `added`, so any cleanup that names the card by a written ref
+        # (rather than its id as a dict key) has to run before it is gone.
+        from . import packs as packmath
+        for entry in self.packs:
+            if not isinstance(entry, dict):
+                continue
+            pools = ([tier for tier in entry["tiers"].values() if isinstance(tier, dict)]
+                     if isinstance(entry.get("tiers"), dict) else [entry])
+            for pool in pools:
+                items = packmath.pool_items(pool.get("cards", []))
+                if any(self.resolve(ref) == cid for ref, _ in items):
+                    pool["cards"] = packmath.pool_value([(ref, weight) for ref, weight in items
+                                                          if self.resolve(ref) != cid])
+            if isinstance(entry.get("unlock"), dict) and self.resolve(entry["unlock"].get("card")) == cid:
+                entry.pop("unlock", None)
         self.starchips.pop(cid, None)
         self.password_keys.pop(cid, None)
         del self.added[cid]
@@ -414,6 +430,10 @@ class Project:
         self.equips.pop(cid, None)
         for monsters in self.equips.values():
             monsters.discard(cid)
+        for deck in self.starter:
+            deck.cards.pop(cid, None)
+        for deck in self.fixed.values():
+            deck.cards.pop(cid, None)
         if getattr(self, "starter_pool_state", None) is not None:
             # Out of the starter pools too: else the next card added, given
             # its number, would take its place there.

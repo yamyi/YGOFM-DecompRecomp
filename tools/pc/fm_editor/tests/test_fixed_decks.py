@@ -174,7 +174,10 @@ class CheckTest(unittest.TestCase):
         copy = p.add_card(1, "c1")
         fixed_decks.set_deck(p, 1, {copy: 1, 3: 39})
         p.remove_card(copy)
-        self.assertTrue(any(f"no card {copy}" in i.message for i in deck_issues(p)))
+        # Taken out of the deck along with the card itself, not left as a
+        # dangling reference: the deck is now short one card instead.
+        self.assertNotIn(copy, fixed_decks.deck_of(p, 1).cards)
+        self.assertTrue(any(i.level == "error" and "has 39" in i.message for i in deck_issues(p)))
 
     def test_many_copies_are_fine(self):
         p = project()

@@ -281,6 +281,25 @@ def crop(image: Image, left: int, top: int, width: int, height: int) -> Image:
     return Image(width, height, b"".join(rows))
 
 
+def paste(base: Image, overlay: Image, left: int, top: int) -> Image:
+    """``base`` with ``overlay`` written at (left, top), clipped to its
+    bounds: the write-side counterpart of `crop`, so one region of a shared
+    HD atlas can be replaced without disturbing the rest of the picture."""
+    src_left, src_top = max(0, -left), max(0, -top)
+    left, top = max(0, left), max(0, top)
+    width = min(overlay.width - src_left, base.width - left)
+    height = min(overlay.height - src_top, base.height - top)
+    if width <= 0 or height <= 0:
+        return base
+    out = bytearray(base.rgba)
+    stride, ov_stride = base.width * 4, overlay.width * 4
+    for y in range(height):
+        dst_at = (top + y) * stride + left * 4
+        src_at = (src_top + y) * ov_stride + src_left * 4
+        out[dst_at:dst_at + width * 4] = overlay.rgba[src_at:src_at + width * 4]
+    return Image(base.width, base.height, bytes(out))
+
+
 def middle(image: Image, width: int, height: int):
     """The rectangle (left, top, w, h) of the middle of the image at the
     shape width:height, as the port's resample takes it (art.c)."""
