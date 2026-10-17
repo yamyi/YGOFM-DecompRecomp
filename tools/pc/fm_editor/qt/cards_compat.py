@@ -653,8 +653,8 @@ def install() -> None:
         effects_tab = getattr(self, "_effects_tab_index", -1)
         if effects_tab < 0:
             return
-        self.card_data_tabs.setTabVisible(effects_tab, type_supports_effects(self))
         supports_effects = type_supports_effects(self)
+        self.card_data_tabs.setTabVisible(effects_tab, supports_effects)
         if not supports_effects and self.card_data_tabs.currentIndex() == effects_tab:
             self.card_data_tabs.setCurrentIndex(0)
 

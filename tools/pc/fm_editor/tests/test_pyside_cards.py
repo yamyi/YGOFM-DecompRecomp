@@ -244,9 +244,30 @@ class CardsTest(unittest.TestCase):
         self.assertTrue(w.effect_buttons['addEffect'].isEnabled())
         w._add_card_effect()
         form['save'].click()
-        self.assertEqual(w.project.monster_effects_of(601)[0],
-                         [{'when': 'summon', 'do': 'boost', 'target': 'self', 'attack': 500}])
+        expected_effects = [{'when': 'summon', 'do': 'boost', 'target': 'self', 'attack': 500}]
+        self.assertEqual(w.project.monster_effects_of(601)[0], expected_effects)
         self.assertNotIn('card_effects', w.project.card_extra.get(601, {}))
+        self.assertTrue(w.apply_card(quiet=True))
+        self.assertEqual(w.project.cards[601].type, 0)
+        self.assertEqual(w.project.monster_effects_of(601)[0], expected_effects)
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest.save_mod(w.project, Path(tmp) / 'mod')
+            reopened, _ = manifest.open_mod(w.retail, Path(tmp) / 'mod')
+        self.assertEqual(reopened.cards[601], w.project.cards[601])
+        self.assertEqual(reopened.monster_effects_of(601)[0], expected_effects)
+
+    def test_type_conversion_undo_and_redo(self):
+        w = self.window
+        original_type = w.project.cards[601].type
+        w.show_card(601)
+        w.fields['type'].setCurrentIndex(0)
+        self.assertTrue(w.apply_card(quiet=True))
+        w._flush_history()
+        self.assertEqual(w.project.cards[601].type, 0)
+        w.undo()
+        self.assertEqual(w.project.cards[601].type, original_type)
+        w.redo()
+        self.assertEqual(w.project.cards[601].type, 0)
 
     def test_type_conversion_keeps_effect_metadata_and_added_identity(self):
         """Type conversion clears game-only fields without discarding mod data."""
