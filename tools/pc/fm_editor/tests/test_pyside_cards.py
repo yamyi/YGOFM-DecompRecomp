@@ -2329,6 +2329,96 @@ class CardsTest(unittest.TestCase):
         self.assertEqual(w.project.starter[0].weight, 3)
         self.assertIn(f'/{DECK_SIZE}', c['decks'].item(0, 3).text())
 
+    def test_starter_creation_sources_and_retail_pool_cloning(self):
+        """Every classic starting source is available from Designer controls
+        and writes independent shared-model data."""
+        from PySide6.QtCore import QTimer
+        from PySide6.QtWidgets import QApplication, QComboBox, QPushButton
+        from fm_editor import fixed_decks, roster, starter_pools
+        w = self.window
+        c = self.starter_page()
+        form = w.workspace_forms['Starter decks']
+        for name in ('emptyStarterDeckButton', 'opponentStarterDeckButton',
+                     'retailStarterDeckButton', 'duplicateStarterDeckButton',
+                     'copyRetailStarterPoolsButton'):
+            self.assertIsNotNone(form.findChild(QPushButton, name), name)
+
+        # Empty and duplicated decks retain independent card dictionaries.
+        w._add_starter_deck()
+        w.project.starter[0].cards = {1: 3}
+        w._duplicate_starter_deck()
+        self.assertEqual(w.project.starter[1].cards, {1: 3})
+        self.assertIsNot(w.project.starter[1].cards, w.project.starter[0].cards)
+
+        # A retail deal uses the supplied seven rows and makes forty cards.
+        retail = [starter_pools.Pool(name=f'Pool {index}', draws=draws,
+                                     cards={card: 2048 for card in range(1, 41)})
+                  for index, draws in enumerate((16, 16, 4, 1, 1, 1, 1))]
+        w.starter_pools_retail = retail
+        w._add_starter_from_retail_pools()
+        self.assertEqual(w.project.starter[-1].total(), 40)
+        w._copy_retail_starter_pools()
+        copied = starter_pools.state(w.project)
+        self.assertEqual([(pool.name, pool.draws, pool.cards) for pool in copied],
+                         [(pool.name, pool.draws, pool.cards) for pool in retail])
+        self.assertIsNot(copied[0], retail[0])
+
+        def select_and_accept(subject):
+            def choose():
+                dialog = QApplication.activeModalWidget()
+                combo = dialog.findChild(QComboBox, 'starterOpponentCombo')
+                combo.setCurrentIndex(combo.findData(subject))
+                dialog.accept()
+            QTimer.singleShot(0, choose)
+            w._add_starter_from_opponent()
+
+        # Weighted, fixed and custom opponents all use their own effective deck.
+        select_and_accept(17)
+        self.assertEqual(w.project.starter[-1].cards,
+                         fixed_decks.most_likely(w.project.pools[17]['deck']))
+        fixed = {card: 3 for card in range(1, 14)}
+        fixed[14] = 1
+        fixed_decks.set_deck(w.project, 17, fixed)
+        select_and_accept(17)
+        self.assertEqual(w.project.starter[-1].cards, fixed)
+
+        # Persist valid retail, weighted and fixed sources. The earlier empty
+        # deck and its duplicate served their independent-copy assertion.
+        w.project.starter = w.project.starter[2:]
+        from fm_editor import manifest
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest.save_mod(w.project, Path(tmp))
+            reopened, messages = manifest.open_mod(w.retail, Path(tmp))
+        self.assertEqual(messages, [])
+        self.assertEqual([(deck.name, deck.weight, deck.cards) for deck in reopened.starter],
+                         [(deck.name, deck.weight, deck.cards) for deck in w.project.starter])
+        self.assertEqual([(pool.name, pool.draws, pool.cards) for pool in starter_pools.state(reopened)],
+                         [(pool.name, pool.draws, pool.cards) for pool in starter_pools.state(w.project)])
+
+        custom = roster.add_copy(w.project, 1, 'Starter source', slot=40)
+        custom.pools['deck'] = {3: 500, 4: 10}
+        select_and_accept(custom)
+        self.assertEqual(w.project.starter[-1].cards,
+                         fixed_decks.most_likely(custom.pools['deck']))
+
+    def test_starter_kept_rows_can_be_edited_or_removed(self):
+        """An unresolved card stays preserved until the user explicitly
+        changes its copies or removes its row."""
+        from PySide6.QtCore import Qt
+        from fm_editor.model import StarterDeck
+        w = self.window
+        c = self.starter_page()
+        w.project.starter.append(StarterDeck(name='Imported', kept={'Missing card': 2}))
+        w._refresh_starter_decks()
+        c['cards'].selectRow(0)
+        self.assertEqual(c['cards'].item(0, 0).data(Qt.ItemDataRole.UserRole), 'kept:Missing card')
+        c['copies'].setValue(3)
+        w._set_starter_copies()
+        self.assertEqual(w.project.starter[0].kept, {'Missing card': 3})
+        c['cards'].selectRow(0)
+        w._remove_starter_cards()
+        self.assertEqual(w.project.starter[0].kept, {})
+
     def test_a_mod_with_no_pools_of_its_own_says_so(self):
         """Nothing is weighted until the mod writes a pool: the tab says what
         a new game would do instead."""

@@ -78,9 +78,42 @@
        <item>
         <layout class="QHBoxLayout" name="starterDeckActions">
          <item>
-          <widget class="QPushButton" name="addDeckButton">
+          <widget class="QPushButton" name="emptyStarterDeckButton">
+           <property name="toolTip">
+            <string>Create an empty written starter deck.</string>
+           </property>
            <property name="text">
-            <string>Add deck</string>
+            <string>Empty deck</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="opponentStarterDeckButton">
+           <property name="toolTip">
+            <string>Copy an opponent's fixed deck, or the most likely forty cards from its weighted deck.</string>
+           </property>
+           <property name="text">
+            <string>From opponent…</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="retailStarterDeckButton">
+           <property name="toolTip">
+            <string>Deal one written deck from the retail starter pools.</string>
+           </property>
+           <property name="text">
+            <string>Deal retail pools</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="duplicateStarterDeckButton">
+           <property name="toolTip">
+            <string>Make an independent copy of the selected written starter deck.</string>
+           </property>
+           <property name="text">
+            <string>Duplicate</string>
            </property>
           </widget>
          </item>
@@ -212,7 +245,10 @@
  </widget>
  <tabstops>
   <tabstop>starterDeckTable</tabstop>
-  <tabstop>addDeckButton</tabstop>
+  <tabstop>emptyStarterDeckButton</tabstop>
+  <tabstop>opponentStarterDeckButton</tabstop>
+  <tabstop>retailStarterDeckButton</tabstop>
+  <tabstop>duplicateStarterDeckButton</tabstop>
   <tabstop>removeDeckButton</tabstop>
   <tabstop>starterNameEdit</tabstop>
   <tabstop>starterWeightSpin</tabstop>

@@ -60,6 +60,9 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
         self.preview_scale = 1
         self.current = None
         self.current_art_card = None
+        # An empty project has no selected written starter deck, even before
+        # that workspace is first opened.
+        self.starter_current = None
         self.current_workspace = "Cards"
         self.workspace_forms = {}
         self.workspace_controls = {}
@@ -552,7 +555,10 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
                             copies=get(QSpinBox, "starterCopiesSpin"))
             controls["decks"].itemSelectionChanged.connect(self._select_starter_deck)
             controls["cards"].itemSelectionChanged.connect(self._select_starter_card)
-            for key, callback in (("addDeckButton", self._add_starter_deck),
+            for key, callback in (("emptyStarterDeckButton", self._add_starter_deck),
+                                  ("opponentStarterDeckButton", self._add_starter_from_opponent),
+                                  ("retailStarterDeckButton", self._add_starter_from_retail_pools),
+                                  ("duplicateStarterDeckButton", self._duplicate_starter_deck),
                                   ("removeDeckButton", self._remove_starter_deck),
                                   ("applyDeckButton", self._apply_starter_details),
                                   ("addDeckCardButton", self._add_starter_card),

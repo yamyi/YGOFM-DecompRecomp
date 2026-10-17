@@ -103,6 +103,16 @@
           </widget>
          </item>
          <item>
+          <widget class="QPushButton" name="copyRetailStarterPoolsButton">
+           <property name="toolTip">
+            <string>Copy all seven retail starter pools into this mod so they can be edited.</string>
+           </property>
+           <property name="text">
+            <string>Copy retail pools</string>
+           </property>
+          </widget>
+         </item>
+         <item>
           <widget class="QPushButton" name="revertStarterPoolsButton">
            <property name="toolTip">
             <string>Remove the mod's weighted pools and use the retail starter rows</string>
@@ -362,6 +372,7 @@
  <tabstops>
   <tabstop>starterPoolTable</tabstop>
   <tabstop>addStarterPoolButton</tabstop>
+  <tabstop>copyRetailStarterPoolsButton</tabstop>
   <tabstop>revertStarterPoolsButton</tabstop>
   <tabstop>removeStarterPoolButton</tabstop>
   <tabstop>moveStarterPoolUpButton</tabstop>

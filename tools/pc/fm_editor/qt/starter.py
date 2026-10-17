@@ -4,6 +4,7 @@ from __future__ import annotations
 from .common import *      # noqa: F401,F403
 from .common import (_qimage, _line_count, _pairs_text, _parse_pairs, _whole,
                      _card_image)      # noqa: F401
+from .. import roster
 
 
 class StarterMixin:
@@ -30,6 +31,7 @@ class StarterMixin:
         controls["pool_draws"].valueChanged.connect(self._set_starter_pool_draws)
         controls["pool_name"].editingFinished.connect(self._set_starter_pool_name)
         for key, callback in (("addStarterPoolButton", self._add_starter_pool),
+                              ("copyRetailStarterPoolsButton", self._copy_retail_starter_pools),
                               ("revertStarterPoolsButton", self._revert_starter_pools),
                               ("removeStarterPoolButton", self._remove_starter_pool),
                               ("moveStarterPoolUpButton", lambda: self._move_starter_pool(-1)),
@@ -62,6 +64,17 @@ class StarterMixin:
         for name in ("starterPoolsSplit", "starterSplit"):
             get(QSplitter, name).setSizePolicy(QSizePolicy.Policy.Expanding,
                                                QSizePolicy.Policy.Expanding)
+    def _retail_starter_pools(self):
+        """The disc pools, cached solely for viewing or copying into a mod."""
+        stock = getattr(self, "starter_pools_retail", None)
+        if stock is None:
+            stock = starter_pools.retail(self.files.wa if self.files is not None else b"")
+            # Rows that cannot deal a deck are not valid disc starter rows.
+            if starter_pools.retail_drawn(stock) != starter_pools.DRAWS:
+                stock = []
+            self.starter_pools_retail = stock
+        return stock
+
     def _starter_pools(self):
         """The pools the tab shows: the mod's own, or the disc's where it
         offers none, so the page says what a new game would draw either way."""
@@ -69,14 +82,7 @@ class StarterMixin:
         if mine:
             self.starter_pools_stock = False
             return mine
-        stock = getattr(self, "starter_pools_retail", None)
-        if stock is None:
-            stock = starter_pools.retail(self.files.wa if self.files is not None else b"")
-            # Rows that would not deal a deck are no rows at all: an archive
-            # without them reads as seven empty ones.
-            if starter_pools.retail_drawn(stock) != starter_pools.DRAWS:
-                stock = []
-            self.starter_pools_retail = stock
+        stock = self._retail_starter_pools()
         self.starter_pools_stock = bool(stock)
         return stock
     def _starter_pool(self):
@@ -237,6 +243,29 @@ class StarterMixin:
         pools.append(starter_pools.Pool(draws=0))
         self.starter_pool_current = len(pools) - 1
         self._starter_pools_edited()
+    def _copy_retail_starter_pools(self):
+        """Make editable copies of all seven disc pools without changing the
+        retail reference used by comparison and validation."""
+        retail = self._retail_starter_pools()
+        if not retail:
+            QMessageBox.information(self, "Starter pools",
+                                    "The loaded game files do not contain readable retail starter pools.")
+            return
+        mine = starter_pools.state(self.project)
+        if mine:
+            answer = QMessageBox.question(
+                self, "Replace weighted pools",
+                "Replace this mod's weighted starter pools with copies of the retail pools?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+        self.project.starter_pool_state = [pool.copy() for pool in retail]
+        starter_pools.store(self.project)
+        self.starter_pool_current = 0
+        self._mark_dirty()
+        self._refresh_starter_pools()
+
     def _revert_starter_pools(self):
         if not starter_pools.state(self.project):
             return
@@ -371,9 +400,10 @@ class StarterMixin:
         for label,copies in deck.kept.items():rows.append(("",label,"",copies,"Kept as written"))
         held=sort_paused(table);table.setRowCount(len(rows))
         for i,row in enumerate(rows):
+            entry = row[0] if row[0] else f"kept:{row[1]}"
             for col,value in enumerate(row):
                 item=TableItem(str(value))
-                if col==0:item.setData(Qt.ItemDataRole.UserRole,row[0])
+                if col==0:item.setData(Qt.ItemDataRole.UserRole,entry)
                 elif col==2 and row[0]:
                     row_card=self.project.cards.get(row[0])
                     if row_card is not None:item.setIcon(type_icon(self,row_card.type))
@@ -381,11 +411,67 @@ class StarterMixin:
         sort_resumed(table,held)
     def _select_starter_card(self):
         c=self.workspace_controls["Starter decks"];row=c["cards"].currentRow()
-        if row>=0 and c["cards"].item(row,0).data(Qt.ItemDataRole.UserRole):
+        if row>=0 and c["cards"].item(row,0).data(Qt.ItemDataRole.UserRole) is not None:
             c["copies"].setValue(int(c["cards"].item(row,3).text()))
+
+    def _append_starter_deck(self, deck):
+        self.project.starter.append(deck)
+        self.starter_current=len(self.project.starter)-1
+        self._mark_dirty();self._refresh_starter_decks()
+
     def _add_starter_deck(self):
-        self.project.starter.append(StarterDeck(name=f"Deck {len(self.project.starter)+1}"))
-        self.starter_current=len(self.project.starter)-1;self._mark_dirty();self._refresh_starter_decks()
+        """Compatibility entry point for an explicitly empty starter deck."""
+        self._append_starter_deck(StarterDeck(name=f"Deck {len(self.project.starter)+1}"))
+
+    def _duplicate_starter_deck(self):
+        deck = self._current_starter()
+        if deck is None:
+            self.statusBar().showMessage("Select a written starter deck to duplicate.", 5000)
+            return
+        duplicate = deck.copy()
+        duplicate.name = f"{deck.name or 'Deck'} copy"
+        self._append_starter_deck(duplicate)
+
+    def _add_starter_from_retail_pools(self):
+        pools = self._retail_starter_pools()
+        if not pools:
+            QMessageBox.information(self, "Starter decks",
+                                    "The loaded game files do not contain readable retail starter pools.")
+            return
+        self._append_starter_deck(StarterDeck(name="A deal of the retail pools",
+                                              cards=starter_pools.deal(pools)))
+
+    def _load_starter_dialog(self, filename):
+        source = QFile(str(Path(__file__).resolve().parents[1] / "ui" / filename))
+        if not source.open(QIODevice.OpenModeFlag.ReadOnly):
+            raise RuntimeError(f"Could not open {filename}: {source.errorString()}")
+        dialog = QUiLoader().load(source, self)
+        source.close()
+        if not isinstance(dialog, QDialog):
+            raise RuntimeError(f"Could not load {filename}")
+        return dialog
+
+    def _add_starter_from_opponent(self):
+        dialog = self._load_starter_dialog("starter_opponent_dialog.ui")
+        choices = dialog.findChild(QComboBox, "starterOpponentCombo")
+        for label, subject in roster.opponents(self.project):
+            choices.addItem(label, subject)
+        if not choices.count():
+            dialog.deleteLater()
+            QMessageBox.information(self, "Starter decks", "No opponents are available to copy.")
+            return
+        dialog.findChild(QPushButton, "starterOpponentCancelButton").clicked.connect(dialog.reject)
+        dialog.findChild(QPushButton, "starterOpponentCreateButton").clicked.connect(dialog.accept)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            dialog.deleteLater()
+            return
+        subject = choices.currentData()
+        fixed = fixed_decks.deck_of(self.project, subject)
+        cards = dict(fixed.cards) if fixed is not None else fixed_decks.most_likely(
+            roster.pools_of(self.project, subject)["deck"])
+        name = f"{roster.shown_name(self.project, subject)}'s deck"
+        dialog.deleteLater()
+        self._append_starter_deck(StarterDeck(name=name, cards=cards))
     def _remove_starter_deck(self):
         deck=self._current_starter()
         if deck is None:return
@@ -413,9 +499,13 @@ class StarterMixin:
         table=self.workspace_controls["Starter decks"]["cards"]
         for row in sorted({x.row() for x in table.selectedItems()}):
             cid=table.item(row,0).data(Qt.ItemDataRole.UserRole)
-            if cid:
+            if isinstance(cid, int):
                 if copies:deck.cards[cid]=copies
                 else:deck.cards.pop(cid,None)
+            elif isinstance(cid, str) and cid.startswith("kept:"):
+                name = cid[5:]
+                if copies:deck.kept[name]=copies
+                else:deck.kept.pop(name,None)
         self._mark_dirty();self._fill_starter_cards();self._refresh_starter_decks()
     def _remove_starter_cards(self):
         deck=self._current_starter()
@@ -423,7 +513,10 @@ class StarterMixin:
         table=self.workspace_controls["Starter decks"]["cards"]
         for row in sorted({x.row() for x in table.selectedItems()}):
             cid=table.item(row,0).data(Qt.ItemDataRole.UserRole)
-            if cid:deck.cards.pop(cid,None)
+            if isinstance(cid, int):
+                deck.cards.pop(cid,None)
+            elif isinstance(cid, str) and cid.startswith("kept:"):
+                deck.kept.pop(cid[5:], None)
         self._mark_dirty();self._fill_starter_cards();self._refresh_starter_decks()
     def goto_starter_pool(self, index):
         """Starter decks: the Weighted pools tab, showing one pool."""

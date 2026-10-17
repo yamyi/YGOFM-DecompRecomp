@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>StarterOpponentDialog</class>
+ <widget class="QDialog" name="StarterOpponentDialog">
+  <property name="windowTitle"><string>Starter deck from opponent</string></property>
+  <property name="minimumSize"><size><width>480</width><height>180</height></size></property>
+  <layout class="QVBoxLayout" name="starterOpponentLayout">
+   <item>
+    <widget class="QLabel" name="starterOpponentDescription">
+     <property name="wordWrap"><bool>true</bool></property>
+     <property name="text"><string>Choose an opponent. A fixed deck is copied as written; otherwise the editor uses the most likely forty cards from that opponent's weighted deck.</string></property>
+    </widget>
+   </item>
+   <item>
+    <layout class="QFormLayout" name="starterOpponentForm">
+     <item row="0" column="0"><widget class="QLabel" name="starterOpponentLabel"><property name="text"><string>Opponent</string></property></widget></item>
+     <item row="0" column="1"><widget class="QComboBox" name="starterOpponentCombo"/></item>
+    </layout>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="starterOpponentActions">
+     <item><spacer name="starterOpponentSpacer"><property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property></spacer></item>
+     <item><widget class="QPushButton" name="starterOpponentCancelButton"><property name="text"><string>Cancel</string></property></widget></item>
+     <item><widget class="QPushButton" name="starterOpponentCreateButton"><property name="text"><string>Create deck</string></property></widget></item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources/><connections/>
+</ui>
