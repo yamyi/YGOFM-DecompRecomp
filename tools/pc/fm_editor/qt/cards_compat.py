@@ -365,90 +365,85 @@ def install() -> None:
         self.effect_buttons["effectUp"].clicked.connect(lambda: move(self, -1))
         self.effect_buttons["effectDown"].clicked.connect(lambda: move(self, 1))
         self.effects_table.cellDoubleClicked.connect(lambda *_: edit(self))
-        self.effects_none = QCheckBox("None, even where another mod gives it some", self.effects_note.parentWidget())
-        layout = self.effects_note.parentWidget().layout()
-        layout.insertWidget(layout.indexOf(self.effects_note) + 1, self.effects_none)
-        self.effects_none.toggled.connect(
-            lambda checked: set_effects(self, get_effects(self), keep_empty=checked))
-        mode_row = QFrame(self.effects_note.parentWidget())
-        mode_layout = QHBoxLayout(mode_row)
-        mode_layout.setContentsMargins(0, 0, 0, 0)
-        mode_layout.addWidget(QLabel("Effect behavior", mode_row))
-        self.card_effects_mode = QComboBox(mode_row)
-        self.card_effects_mode.addItem("Add after the card's original effect", "add")
-        self.card_effects_mode.addItem("Replace the card's original effect", "replace")
+
+        # The entire editor is declared in cards_page.ui.  This layer only
+        # fills its game choices and connects them to the current data model.
+        self.effects_none = widget(QCheckBox, "effectsNoneCheckBox")
+        mode_row = widget(QFrame, "cardEffectsModeFrame")
+        self.card_effects_mode = widget(QComboBox, "cardEffectsModeCombo")
+        if not self.card_effects_mode.count():
+            self.card_effects_mode.addItem("Add after the card's original effect", "add")
+            self.card_effects_mode.addItem("Replace the card's original effect", "replace")
         self.card_effects_mode.setToolTip(
             "Choose whether these data-defined effects run after, or replace, the card's normal effect.")
-        mode_layout.addWidget(self.card_effects_mode, 1)
         mode_row.hide()
+        self.effects_none.toggled.connect(
+            lambda checked: set_effects(self, get_effects(self), keep_empty=checked))
         self.card_effects_mode.currentIndexChanged.connect(
             lambda *_: set_card_effects_mode(self, self.card_effects_mode.currentData()))
-        # Put the mode row in the tab before locating it for the inline
-        # editor.  Without this insertion ``indexOf(mode_row)`` is -1, which
-        # moves the editor to the top of the tab and leaves the selector
-        # parentless from the layout.
-        layout.insertWidget(layout.indexOf(self.effects_none) + 1, mode_row)
-        # Keep editing on this tab. The older compatibility version opened a
-        # modal dialog, which made adding a short effect needlessly slow.
-        editor = QFrame(self.effects_note.parentWidget())
-        editor.setObjectName("inlineEffectEditor")
-        editor.setFrameShape(QFrame.Shape.StyledPanel)
-        grid = QGridLayout(editor)
-        fields, labels = {}, {}
 
-        def line(row, title, control):
-            caption = QLabel(title, editor)
-            grid.addWidget(caption, row, 0)
-            grid.addWidget(control, row, 1)
-            fields[title] = control
-            labels[title] = caption
-            return control
+        editor = widget(QFrame, "inlineEffectEditor")
+        fields = {
+            "When": widget(QComboBox, "inlineEffectWhenCombo"),
+            "Does": widget(QComboBox, "inlineEffectDoesCombo"),
+            "Whose": widget(QComboBox, "inlineEffectTargetCombo"),
+            "Magic card": widget(QComboBox, "inlineEffectMagicCombo"),
+            "Only type": widget(QComboBox, "inlineEffectTypeCombo"),
+            "Only attribute": widget(QComboBox, "inlineEffectAttributeCombo"),
+            "ATK": widget(QSpinBox, "inlineEffectAttackSpin"),
+            "DEF": widget(QSpinBox, "inlineEffectDefenseSpin"),
+            "LP": widget(QSpinBox, "inlineEffectAmountSpin"),
+            "For each": widget(QComboBox, "inlineEffectEachCombo"),
+            "Counting type": widget(QComboBox, "inlineEffectEachTypeCombo"),
+            "Counting attribute": widget(QComboBox, "inlineEffectEachAttributeCombo"),
+        }
+        labels = {
+            "When": widget(QLabel, "inlineEffectWhenLabel"),
+            "Does": widget(QLabel, "inlineEffectDoesLabel"),
+            "Whose": widget(QLabel, "inlineEffectTargetLabel"),
+            "Magic card": widget(QLabel, "inlineEffectMagicLabel"),
+            "Only type": widget(QLabel, "inlineEffectTypeLabel"),
+            "Only attribute": widget(QLabel, "inlineEffectAttributeLabel"),
+            "ATK": widget(QLabel, "inlineEffectAttackLabel"),
+            "DEF": widget(QLabel, "inlineEffectDefenseLabel"),
+            "LP": widget(QLabel, "inlineEffectAmountLabel"),
+            "For each": widget(QLabel, "inlineEffectEachLabel"),
+            "Counting type": widget(QLabel, "inlineEffectEachTypeLabel"),
+            "Counting attribute": widget(QLabel, "inlineEffectEachAttributeLabel"),
+        }
+        when, action, target = fields["When"], fields["Does"], fields["Whose"]
+        magic = fields["Magic card"]
+        only_type, only_attribute = fields["Only type"], fields["Only attribute"]
+        attack, defense, amount = fields["ATK"], fields["DEF"], fields["LP"]
+        each, each_type, each_attribute = (fields["For each"], fields["Counting type"],
+                                           fields["Counting attribute"])
+        hint = widget(QLabel, "inlineEffectHintLabel")
+        problem = widget(QLabel, "inlineEffectProblemLabel")
+        save = widget(QPushButton, "inlineEffectSaveButton")
+        cancel = widget(QPushButton, "inlineEffectCancelButton")
 
-        def choices(values, captions):
-            box = QComboBox(editor)
-            for value, caption in zip(values, captions):
-                box.addItem(caption, value)
-            return box
-
-        when = line(0, "When", choices(effects.WHEN, effects.WHEN_LABELS))
-        action = line(1, "Does", QComboBox(editor))
-        target = line(2, "Whose", QComboBox(editor))
-        magic = line(3, "Magic card", QComboBox(editor))
+        when.clear()
+        for value, caption in zip(effects.WHEN, effects.WHEN_LABELS):
+            when.addItem(caption, value)
+        magic.clear()
         for cid in effects.MAGIC:
             magic.addItem(self.project.card_label(cid), cid)
-        only_type = line(4, "Only type", QComboBox(editor))
-        only_type.addItem("Any", None)
-        for name in effects.TYPE_NAMES[:gamedata.TYPE_MAGIC]:
-            only_type.addItem(name, name)
-        decorate_type_items(self, only_type, effects.TYPE_NAMES[:gamedata.TYPE_MAGIC])
-        only_attribute = line(5, "Only attribute", QComboBox(editor))
-        only_attribute.addItem("Any", None)
-        for name in effects.ATTRIBUTE_NAMES:
-            only_attribute.addItem(name, name)
-        decorate_attribute_items(self, only_attribute, effects.ATTRIBUTE_NAMES)
-        attack = line(6, "ATK", QSpinBox(editor))
-        defense = line(7, "DEF", QSpinBox(editor))
-        amount = line(8, "LP", QSpinBox(editor))
-        for spin in (attack, defense):
-            spin.setRange(-effects.BOOST_MAX, effects.BOOST_MAX)
-            spin.setSingleStep(100)
-        amount.setRange(1, effects.AMOUNT_MAX)
-        amount.setSingleStep(100)
-        hint = QLabel(editor)
-        hint.setWordWrap(True)
-        hint.setStyleSheet("color:#9aacc4")
-        grid.addWidget(hint, 9, 0, 1, 2)
-        problem = QLabel(editor)
-        problem.setWordWrap(True)
-        problem.setStyleSheet("color:#f08080")
-        grid.addWidget(problem, 10, 0, 1, 2)
-        buttons_row = QHBoxLayout()
-        save = QPushButton("Add effect", editor)
-        cancel = QPushButton("Cancel", editor)
-        buttons_row.addWidget(save)
-        buttons_row.addWidget(cancel)
-        buttons_row.addStretch(1)
-        grid.addLayout(buttons_row, 11, 0, 1, 2)
+        for box in (only_type, each_type):
+            box.clear()
+            box.addItem("Any", None)
+            for name in effects.TYPE_NAMES[:gamedata.TYPE_MAGIC]:
+                box.addItem(name, name)
+            decorate_type_items(self, box, effects.TYPE_NAMES[:gamedata.TYPE_MAGIC])
+        for box in (only_attribute, each_attribute):
+            box.clear()
+            box.addItem("Any", None)
+            for name in effects.ATTRIBUTE_NAMES:
+                box.addItem(name, name)
+            decorate_attribute_items(self, box, effects.ATTRIBUTE_NAMES)
+        each.clear()
+        each.addItem(effects.NO_EACH, None)
+        for value, caption in zip(effects.EACH, effects.EACH_LABELS):
+            each.addItem(caption, value)
 
         def refill(box, values, all_values, captions, wanted):
             blocked = box.blockSignals(True)
@@ -483,6 +478,10 @@ def install() -> None:
                     shown.update(("ATK", "DEF"))
             else:
                 shown.add("LP")
+            if not card_effect and selected_action in effects.EACH_DO:
+                shown.add("For each")
+                if each.currentData() in effects.EACH:
+                    shown.update(("Counting type", "Counting attribute"))
             for title, control in fields.items():
                 labels[title].setVisible(title in shown)
                 control.setVisible(title in shown)
@@ -496,13 +495,24 @@ def install() -> None:
                 made["card"] = magic.currentData()
             elif made["do"] in effects.FILTERED:
                 made["target"] = target.currentData()
-                if only_type.currentData(): made["type"] = only_type.currentData()
-                if only_attribute.currentData(): made["attribute"] = only_attribute.currentData()
+                if only_type.currentData():
+                    made["type"] = only_type.currentData()
+                if only_attribute.currentData():
+                    made["attribute"] = only_attribute.currentData()
                 if made["do"] == "boost":
-                    if attack.value(): made["attack"] = attack.value()
-                    if defense.value(): made["defense"] = defense.value()
+                    if attack.value():
+                        made["attack"] = attack.value()
+                    if defense.value():
+                        made["defense"] = defense.value()
             else:
                 made["amount"] = amount.value()
+            if not card_effect and made["do"] in effects.EACH_DO and each.currentData() in effects.EACH:
+                multiplier = {"whose": each.currentData()}
+                if each_type.currentData():
+                    multiplier["type"] = each_type.currentData()
+                if each_attribute.currentData():
+                    multiplier["attribute"] = each_attribute.currentData()
+                made["for_each"] = multiplier
             normal = normal_card_effect(self, made) if card_effect else effects.normalize(made, self.project.resolve)
             if normal is None:
                 problem.setText("The game cannot use that effect. A boost needs ATK or DEF.")
@@ -525,14 +535,15 @@ def install() -> None:
 
         when.currentIndexChanged.connect(follows)
         action.currentIndexChanged.connect(follows)
+        each.currentIndexChanged.connect(follows)
         save.clicked.connect(save_effect)
         cancel.clicked.connect(cancel_edit)
         self._inline_effect_editor = {"frame": editor, "fields": fields, "labels": labels,
                                       "when": when, "action": action, "target": target,
                                       "magic": magic, "type": only_type, "attribute": only_attribute,
                                       "attack": attack, "defense": defense, "amount": amount,
+                                      "each": each, "each_type": each_type, "each_attribute": each_attribute,
                                       "problem": problem, "save": save, "follows": follows}
-        layout.insertWidget(layout.indexOf(mode_row) + 1, editor)
         self.effects_table.itemSelectionChanged.connect(lambda: select_effect_from_list(self))
 
     def begin_effect_edit(self, effect=None, index=None):
@@ -552,9 +563,15 @@ def install() -> None:
         for key in ("target", "magic", "type", "attribute"):
             wanted = value.get({"magic": "card"}.get(key, key))
             editor[key].setCurrentIndex(max(0, editor[key].findData(wanted)))
+        multiplier = value.get("for_each") if isinstance(value.get("for_each"), dict) else {}
+        editor["each"].setCurrentIndex(max(0, editor["each"].findData(multiplier.get("whose"))))
+        for key in ("each_type", "each_attribute"):
+            source = key.removeprefix("each_")
+            editor[key].setCurrentIndex(max(0, editor[key].findData(multiplier.get(source))))
         editor["attack"].setValue(value.get("attack", 0))
         editor["defense"].setValue(value.get("defense", 0))
         editor["amount"].setValue(value.get("amount", 500))
+        editor["follows"]()
         editor["save"].setText("Save effect" if index is not None else "Add effect")
         editor["frame"].show()
 

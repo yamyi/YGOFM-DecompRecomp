@@ -2477,40 +2477,85 @@ class CardsTest(unittest.TestCase):
         self.assertEqual(entry['notes'], 'kept from the mod.json')
 
     def test_effects_are_listed_edited_and_kept_on_the_card(self):
-        """The Effects tab writes a card's "effects", which ride with the rest
-        of what a mod wrote on it (manifest card_extra). The port has no key
-        for them yet, so the game reads none of it."""
-        from PySide6.QtWidgets import QDialog
+        """The inline Designer form writes current monster-effect data."""
         w = self.window
         w.show_card(1)
         self.assertEqual(w.effects_table.rowCount(), 0)
         self.assertFalse(w.effect_buttons['editEffect'].isEnabled())
-        with mock.patch.object(QDialog, 'exec', return_value=QDialog.DialogCode.Accepted):
-            w._add_card_effect()
-            w._add_card_effect()
-        self.assertEqual(w.effects_table.rowCount(), 2)
-        self.assertEqual(w.effects_table.item(0, 1).text(), 'On summon')
-        self.assertIn('Boost ATK/DEF', w.effects_table.item(0, 2).text())
-        self.assertEqual(w.project.card_extra[1]['effects'][0],
-                         {'when': 'summon', 'does': 'boost', 'whose': 'self', 'atk': 500, 'def': 0})
-        # They are the card's, and come back as they were written.
+        w._add_card_effect()
+        editor = w._inline_effect_editor
+        self.assertFalse(editor['frame'].isHidden())
+        self.assertEqual(editor['action'].currentData(), 'boost')
+        editor['save'].click()
+        self.assertEqual(w.effects_table.rowCount(), 1)
+        self.assertEqual(w.project.monster_effects_of(1),
+                         ([{'when': 'summon', 'do': 'boost', 'target': 'self', 'attack': 500}], False))
         entry = next(e for e in manifest.build(w.project)['cards'] if e.get('replace') == 1)
-        self.assertEqual(len(entry['effects']), 2)
+        self.assertEqual(entry['monster_effects'], w.project.monster_effects_of(1)[0])
         with tempfile.TemporaryDirectory() as tmp:
             manifest.save_mod(w.project, Path(tmp) / 'mod')
             again, notes = manifest.open_mod(w.retail, Path(tmp) / 'mod')
-            self.assertEqual(again.card_extra[1]['effects'], w.project.card_extra[1]['effects'])
+            self.assertEqual(again.monster_effects_of(1), w.project.monster_effects_of(1))
             self.assertEqual(notes, [])
         w.effects_table.selectRow(0)
-        w._move_card_effect(1)
-        self.assertEqual(w.effects_table.currentRow(), 1)
-        w.effects_table.selectRow(0)
+        w._move_card_effect(0)
         w._remove_card_effect()
-        w.effects_table.selectRow(0)
-        w._remove_card_effect()
-        # The last one taken away takes the key with it.
         self.assertNotIn(1, w.project.card_extra)
         self.assertEqual(w.effects_table.rowCount(), 0)
+
+    def test_monster_effect_for_each_round_trips_through_inline_editor(self):
+        """Editing a multiplier retains it; Designer controls can add or remove it."""
+        w = self.window
+        source = {
+            'when': 'summon', 'do': 'boost', 'target': 'self', 'attack': 500,
+            'for_each': {'whose': 'all', 'type': 'Dragon', 'attribute': 'Light'},
+        }
+        w.project.set_monster_effects(1, [source])
+        before = manifest.build(w.project)
+        w.show_card(1)
+        # Merely opening and applying a card does not rewrite an existing effect.
+        self.assertTrue(w.apply_card(quiet=True))
+        self.assertEqual(manifest.build(w.project), before)
+        self.assertIsNotNone(w.findChild(type(w._inline_effect_editor['each']), 'inlineEffectEachCombo'))
+
+        w.effects_table.selectRow(0)
+        editor = w._inline_effect_editor
+        self.assertEqual(editor['each'].currentData(), 'all')
+        self.assertEqual(editor['each_type'].currentData(), 'Dragon')
+        self.assertEqual(editor['each_attribute'].currentData(), 'Light')
+        editor['attack'].setValue(600)
+        editor['save'].click()
+        changed = w.project.monster_effects_of(1)[0][0]
+        self.assertEqual(changed['attack'], 600)
+        self.assertEqual(changed['for_each'], source['for_each'])
+
+        # Selecting the no-multiplier choice deliberately removes the key.
+        w.effects_table.selectRow(0)
+        editor['each'].setCurrentIndex(editor['each'].findData(None))
+        editor['save'].click()
+        self.assertNotIn('for_each', w.project.monster_effects_of(1)[0][0])
+
+        # The same form creates the remaining multiplier-capable actions.
+        w._add_card_effect()
+        editor['action'].setCurrentIndex(editor['action'].findData('heal'))
+        editor['amount'].setValue(700)
+        editor['each'].setCurrentIndex(editor['each'].findData('own'))
+        editor['save'].click()
+        w._add_card_effect()
+        editor['action'].setCurrentIndex(editor['action'].findData('damage'))
+        editor['amount'].setValue(800)
+        editor['each'].setCurrentIndex(editor['each'].findData('opponent'))
+        editor['each_type'].setCurrentIndex(editor['each_type'].findData('Warrior'))
+        editor['each_attribute'].setCurrentIndex(editor['each_attribute'].findData('Dark'))
+        editor['save'].click()
+        rows = w.project.monster_effects_of(1)[0]
+        self.assertEqual(rows[1]['for_each'], {'whose': 'own'})
+        self.assertEqual(rows[2]['for_each'],
+                         {'whose': 'opponent', 'type': 'Warrior', 'attribute': 'Dark'})
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest.save_mod(w.project, Path(tmp) / 'mod')
+            reopened, _ = manifest.open_mod(w.retail, Path(tmp) / 'mod')
+        self.assertEqual(reopened.monster_effects_of(1), w.project.monster_effects_of(1))
 
     def test_colouring_takes_the_selection_and_leaves_the_rest(self):
         """A colour runs until the next one, so colouring a few words puts
