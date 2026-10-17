@@ -164,10 +164,13 @@ def install() -> None:
         typ = 0 if typ is None else typ
         members = {cid for cid in self.project.monsters() if self.project.cards[cid].type == typ}
         targets = self.project.equips.setdefault(equip, self.project.equip_targets(equip))
+        before = set(targets)
         if allow:
             targets.update(members)
         else:
             targets.difference_update(members)
+        if targets == before:
+            return
         self._mark_dirty()
         self._refresh_equips()
 

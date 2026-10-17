@@ -1820,6 +1820,24 @@ class CardsTest(unittest.TestCase):
         count.click()
         self.assertFalse(any(c['monsters'].isRowHidden(row) for row in range(c['monsters'].rowCount())))
 
+    def test_unchanged_equip_type_operation_does_not_mark_the_project_dirty(self):
+        from PySide6.QtCore import Qt
+        w = self.window
+        c = self.equips_page()
+        equip = w.equip_current
+        typ = next(t for t in range(20)
+                   if any(card.type == t for card in w.project.cards.values() if card.is_monster()))
+        c['type_toggles'][typ].setCheckState(Qt.CheckState.Checked)
+        w._flush_history()
+        history_size = len(w.history.items)
+        w.dirty = False
+        c['type_toggles'][typ].setCheckState(Qt.CheckState.Checked)
+        self.qt.processEvents()
+        self.assertFalse(w.dirty)
+        self.assertEqual(len(w.history.items), history_size)
+        self.assertTrue(all(w.project.cards[cid].type != typ or cid in w.project.equip_targets(equip)
+                            for cid in w.project.monsters()))
+
     def test_equip_targets_persist_through_save_reopen_and_history(self):
         w = self.window
         c = self.equips_page()
