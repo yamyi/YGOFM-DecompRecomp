@@ -10,8 +10,8 @@ from ..gamedata import AI_FIELD_LABELS, RANK_RULES, RANK_STEPS, RANK_ABOVE
 
 class DuelistsMixin:
     def _load_duelist_dialog(self, filename):
-        """Load the Designer-defined dialog shells; Python supplies only the
-        selected roster data and generated rows."""
+        """Load a Designer-defined dialog; Python only binds roster data
+        and actions to its existing widgets."""
         source = QFile(str(Path(__file__).resolve().parents[1] / "ui" / filename))
         if not source.open(QIODevice.OpenModeFlag.ReadOnly):
             raise RuntimeError(f"Could not open {filename}: {source.errorString()}")
@@ -907,75 +907,46 @@ QPushButton#ruleDrop:hover { color: #ffffff; }
         dialog.findChild(QLabel, "rulesDescription").setText(
             "Configure this duelist's behaviour and scoring overrides. Unticked values inherit from "
             "the selected AI source or the retail base.")
-        ai_form = dialog.findChild(QFormLayout, "rulesAiForm")
-        ai_copy = QComboBox()
-        ai_copy.setObjectName("duelistAiCopy")
+        ai_copy = dialog.findChild(QComboBox, "duelistAiCopy")
+        ai_copy.clear()
         ai_copy.addItem("Retail base", "")
         for name in self._roster_names():
             if name != record["name"]:
                 ai_copy.addItem(name, name)
         ai_copy.setCurrentIndex(max(0, ai_copy.findData(ai["copy"])))
-        ai_form.addRow("AI inheritance", ai_copy)
-        sight = QComboBox()
-        sight.setObjectName("duelistAiSight")
-        sight.addItem("Inherit retail/base visibility", None)
-        sight.addItem("Can see face-down cards", True)
-        sight.addItem("Cannot see face-down cards", False)
+
+        sight = dialog.findChild(QComboBox, "duelistAiSight")
+        # QUiLoader does not reliably retain Designer item data.  The choices
+        # themselves are Designer widgets; bind only their stored game values.
+        for index, value in enumerate((None, True, False)):
+            sight.setItemData(index, value)
         sight.setCurrentIndex(max(0, sight.findData(ai["sight"])))
-        ai_form.addRow("Face-down visibility", sight)
-        values_box = QGroupBox("AI values")
-        values_grid = QGridLayout(values_box)
+
         ai_widgets = []
-        for row, label in enumerate(AI_FIELD_LABELS):
-            enabled = QCheckBox("Override")
-            enabled.setObjectName(f"duelistAiOverride{row}")
-            number = QSpinBox()
-            number.setObjectName(f"duelistAiValue{row}")
-            number.setRange(-128, 127)
+        inherited_row = duelist_rules.under_row(self.project, subject, ai["copy"])
+        for row in range(len(AI_FIELD_LABELS)):
+            enabled = dialog.findChild(QCheckBox, f"duelistAiOverride{row}")
+            number = dialog.findChild(QSpinBox, f"duelistAiValue{row}")
             current = ai["values"][row]
-            inherited = duelist_rules.under_row(self.project, subject, ai["copy"])[row]
-            number.setValue(inherited if current is None else current)
+            number.setValue(inherited_row[row] if current is None else current)
             number.setEnabled(current is not None)
             enabled.setChecked(current is not None)
             enabled.toggled.connect(number.setEnabled)
-            values_grid.addWidget(QLabel(label), row, 0)
-            values_grid.addWidget(enabled, row, 1)
-            values_grid.addWidget(number, row, 2)
             ai_widgets.append((enabled, number))
-        ai_form.addRow(values_box)
 
-        rank_layout = dialog.findChild(QVBoxLayout, "rulesRankLayout")
-        rank_layout.setContentsMargins(4, 4, 4, 4)
         rank_groups = {}
-        for rule, label in enumerate(RANK_RULES):
-            group = QGroupBox(label.title())
-            group.setObjectName(f"duelistRankGroup{rule}")
-            group.setCheckable(True)
+        for rule in range(len(RANK_RULES)):
+            group = dialog.findChild(QGroupBox, f"duelistRankGroup{rule}")
             group.setChecked(rule in ranks)
-            grid = QGridLayout(group)
-            grid.addWidget(QLabel("Threshold"), 0, 1)
-            grid.addWidget(QLabel("Score change"), 0, 2)
             current = ranks.get(rule, duelist_rules.retail_rank(rule))
             pairs = []
             for step in range(RANK_STEPS):
-                grid.addWidget(QLabel("And above" if step == RANK_STEPS - 1 else f"Step {step + 1}"), step + 1, 0)
-                threshold, change = QSpinBox(), QSpinBox()
-                threshold.setObjectName(f"duelistRankThreshold{rule}_{step}")
-                change.setObjectName(f"duelistRankChange{rule}_{step}")
-                threshold.setRange(-32768, 32767)
-                change.setRange(-32768, 32767)
+                threshold = dialog.findChild(QSpinBox, f"duelistRankThreshold{rule}_{step}")
+                change = dialog.findChild(QSpinBox, f"duelistRankChange{rule}_{step}")
                 threshold.setValue(current[step][0])
                 change.setValue(current[step][1])
-                threshold.setEnabled(step != RANK_STEPS - 1)
-                if step == RANK_STEPS - 1:
-                    threshold.setValue(RANK_ABOVE)
-                    threshold.setToolTip("The game always uses 32767 for the final range.")
-                grid.addWidget(threshold, step + 1, 1)
-                grid.addWidget(change, step + 1, 2)
                 pairs.append((threshold, change))
-            rank_layout.addWidget(group)
             rank_groups[rule] = (group, pairs)
-        rank_layout.addStretch(1)
 
         restore = dialog.findChild(QPushButton, "rulesRestoreButton")
         def restore_defaults():

@@ -1,2 +1,3108 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<ui version="4.0"><class>DuelistRulesDialog</class><widget class="QDialog" name="DuelistRulesDialog"><property name="windowTitle"><string>AI and rank scoring</string></property><property name="minimumSize"><size><width>760</width><height>560</height></size></property><layout class="QVBoxLayout" name="rulesOuter"><item><widget class="QLabel" name="rulesDescription"><property name="wordWrap"><bool>true</bool></property><property name="text"><string>Configure this duelist's behaviour and scoring overrides.</string></property></widget></item><item><widget class="QTabWidget" name="rulesTabs"><property name="currentIndex"><number>0</number></property><widget class="QWidget" name="rulesAiPage"><attribute name="title"><string>AI behaviour</string></attribute><layout class="QFormLayout" name="rulesAiForm"/></widget><widget class="QWidget" name="rulesRankPage"><attribute name="title"><string>Rank scoring</string></attribute><layout class="QVBoxLayout" name="rulesRankOuter"><property name="leftMargin"><number>0</number></property><property name="topMargin"><number>0</number></property><property name="rightMargin"><number>0</number></property><property name="bottomMargin"><number>0</number></property><item><widget class="QScrollArea" name="rulesRankScroll"><property name="widgetResizable"><bool>true</bool></property><widget class="QWidget" name="rulesRankHost"><property name="geometry"><rect><x>0</x><y>0</y><width>720</width><height>480</height></rect></property><layout class="QVBoxLayout" name="rulesRankLayout"/></widget></widget></item></layout></widget></widget></item><item><layout class="QHBoxLayout" name="rulesFooter"><item><widget class="QPushButton" name="rulesRestoreButton"><property name="text"><string>Use retail defaults</string></property></widget></item><item><spacer name="rulesFooterSpacer"><property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property></spacer></item><item><widget class="QPushButton" name="rulesCancelButton"><property name="text"><string>Cancel</string></property></widget></item><item><widget class="QPushButton" name="rulesSaveButton"><property name="text"><string>Save rules</string></property></widget></item></layout></item></layout></widget><resources/><connections/></ui>
+<ui version="4.0">
+ <class>DuelistRulesDialog</class>
+ <widget class="QDialog" name="DuelistRulesDialog">
+  <property name="windowTitle">
+   <string>AI and rank scoring</string>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>860</width>
+    <height>640</height>
+   </size>
+  </property>
+  <layout class="QVBoxLayout" name="rulesOuter">
+   <item>
+    <widget class="QLabel" name="rulesDescription">
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+     <property name="text">
+      <string>Configure this duelist’s behaviour and scoring overrides.</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QTabWidget" name="rulesTabs">
+     <property name="currentIndex">
+      <number>0</number>
+     </property>
+     <widget class="QWidget" name="rulesAiPage">
+      <attribute name="title">
+       <string>AI behaviour</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="rulesAiOuter">
+       <item>
+        <widget class="QLabel" name="rulesAiHelp">
+         <property name="toolTip">
+          <string>Each unchecked value inherits from the selected AI source or this duelist’s retail base.</string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+         <property name="text">
+          <string>Hover a field label to learn what it controls. Unticked values inherit from the selected AI source or retail base.</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <layout class="QFormLayout" name="rulesAiForm">
+         <item row="0" column="0">
+          <widget class="QLabel" name="duelistAiCopyLabel">
+           <property name="toolTip">
+            <string>Choose the duelist whose AI values this duelist inherits whenever an override is unticked.</string>
+           </property>
+           <property name="text">
+            <string>AI inheritance</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QComboBox" name="duelistAiCopy" />
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="duelistAiSightLabel">
+           <property name="toolTip">
+            <string>Controls whether the AI may see face-down cards. Inherit uses the retail base setting.</string>
+           </property>
+           <property name="text">
+            <string>Face-down visibility</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QComboBox" name="duelistAiSight">
+           <item>
+            <property name="text">
+             <string>Inherit retail/base visibility</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Can see face-down cards</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Cannot see face-down cards</string>
+            </property>
+           </item>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="duelistAiValuesGroup">
+         <property name="toolTip">
+          <string>Each row is one of the game’s nine AI values. Untick Override to inherit its effective value.</string>
+         </property>
+         <property name="title">
+          <string>AI values</string>
+         </property>
+         <layout class="QGridLayout" name="duelistAiValuesLayout">
+          <item row="0" column="0">
+           <widget class="QLabel" name="duelistAiHeading0">
+            <property name="toolTip">
+             <string>The game AI value being configured. Hover each field name for its meaning.</string>
+            </property>
+            <property name="text">
+             <string>Value</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QLabel" name="duelistAiHeading1">
+            <property name="toolTip">
+             <string>When checked, save this duelist’s value. When unchecked, inherit from the selected AI source.</string>
+            </property>
+            <property name="text">
+             <string>Override</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="2">
+           <widget class="QLabel" name="duelistAiHeading2">
+            <property name="toolTip">
+             <string>Signed byte value supplied to the game AI.</string>
+            </property>
+            <property name="text">
+             <string>Number</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="duelistAiFieldLabel0">
+            <property name="toolTip">
+             <string>How far ahead the duelist searches for playable cards. Higher values inspect more cards.</string>
+            </property>
+            <property name="text">
+             <string>Deck search</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QCheckBox" name="duelistAiOverride0">
+            <property name="toolTip">
+             <string>Store an explicit value for this duelist. Untick to inherit the effective source value.</string>
+            </property>
+            <property name="text">
+             <string>Override</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="2">
+           <widget class="QSpinBox" name="duelistAiValue0">
+            <property name="toolTip">
+             <string>How far ahead the duelist searches for playable cards. Higher values inspect more cards.</string>
+            </property>
+            <property name="enabled">
+             <bool>true</bool>
+            </property>
+            <property name="minimum">
+             <number>-128</number>
+            </property>
+            <property name="maximum">
+             <number>127</number>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="duelistAiFieldLabel1">
+            <property name="toolTip">
+             <string>Life-point threshold for AI decisions, stored in hundreds. For example, 20 means 2000 LP.</string>
+            </property>
+            <property name="text">
+             <string>LP threshold ÷100</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QCheckBox" name="duelistAiOverride1">
+            <property name="toolTip">
+             <string>Store an explicit value for this duelist. Untick to inherit the effective source value.</string>
+            </property>
+            <property name="text">
+             <string>Override</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="2">
+           <widget class="QSpinBox" name="duelistAiValue1">
+            <property name="toolTip">
+             <string>Life-point threshold for AI decisions, stored in hundreds. For example, 20 means 2000 LP.</string>
+            </property>
+            <property name="enabled">
+             <bool>true</bool>
+            </property>
+            <property name="minimum">
+             <number>-128</number>
+            </property>
+            <property name="maximum">
+             <number>127</number>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="0">
+           <widget class="QLabel" name="duelistAiFieldLabel2">
+            <property name="toolTip">
+             <string>Number of cards remaining that the AI treats as a low deck.</string>
+            </property>
+            <property name="text">
+             <string>Low-deck threshold</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QCheckBox" name="duelistAiOverride2">
+            <property name="toolTip">
+             <string>Store an explicit value for this duelist. Untick to inherit the effective source value.</string>
+            </property>
+            <property name="text">
+             <string>Override</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="2">
+           <widget class="QSpinBox" name="duelistAiValue2">
+            <property name="toolTip">
+             <string>Number of cards remaining that the AI treats as a low deck.</string>
+            </property>
+            <property name="enabled">
+             <bool>true</bool>
+            </property>
+            <property name="minimum">
+             <number>-128</number>
+            </property>
+            <property name="maximum">
+             <number>127</number>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="0">
+           <widget class="QLabel" name="duelistAiFieldLabel3">
+            <property name="toolTip">
+             <string>How deeply the AI searches fusion combinations. A value of 3 can fuse from cards in hand.</string>
+            </property>
+            <property name="text">
+             <string>Fusion depth</string>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="1">
+           <widget class="QCheckBox" name="duelistAiOverride3">
+            <property name="toolTip">
+             <string>Store an explicit value for this duelist. Untick to inherit the effective source value.</string>
+            </property>
+            <property name="text">
+             <string>Override</string>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="2">
+           <widget class="QSpinBox" name="duelistAiValue3">
+            <property name="toolTip">
+             <string>How deeply the AI searches fusion combinations. A value of 3 can fuse from cards in hand.</string>
+            </property>
+            <property name="enabled">
+             <bool>true</bool>
+            </property>
+            <property name="minimum">
+             <number>-128</number>
+            </property>
+            <property name="maximum">
+             <number>127</number>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="0">
+           <widget class="QLabel" name="duelistAiFieldLabel4">
+            <property name="toolTip">
+             <string>Secondary search depth used by the AI when evaluating its next actions.</string>
+            </property>
+            <property name="text">
+             <string>Second depth</string>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="1">
+           <widget class="QCheckBox" name="duelistAiOverride4">
+            <property name="toolTip">
+             <string>Store an explicit value for this duelist. Untick to inherit the effective source value.</string>
+            </property>
+            <property name="text">
+             <string>Override</string>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="2">
+           <widget class="QSpinBox" name="duelistAiValue4">
+            <property name="toolTip">
+             <string>Secondary search depth used by the AI when evaluating its next actions.</string>
+            </property>
+            <property name="enabled">
+             <bool>true</bool>
+            </property>
+            <property name="minimum">
+             <number>-128</number>
+            </property>
+            <property name="maximum">
+             <number>127</number>
+            </property>
+           </widget>
+          </item>
+          <item row="6" column="0">
+           <widget class="QLabel" name="duelistAiFieldLabel5">
+            <property name="toolTip">
+             <string>Raw game AI byte 5. Its exact gameplay meaning has not been identified.</string>
+            </property>
+            <property name="text">
+             <string>Byte 5 (unread)</string>
+            </property>
+           </widget>
+          </item>
+          <item row="6" column="1">
+           <widget class="QCheckBox" name="duelistAiOverride5">
+            <property name="toolTip">
+             <string>Store an explicit value for this duelist. Untick to inherit the effective source value.</string>
+            </property>
+            <property name="text">
+             <string>Override</string>
+            </property>
+           </widget>
+          </item>
+          <item row="6" column="2">
+           <widget class="QSpinBox" name="duelistAiValue5">
+            <property name="toolTip">
+             <string>Raw game AI byte 5. Its exact gameplay meaning has not been identified.</string>
+            </property>
+            <property name="enabled">
+             <bool>true</bool>
+            </property>
+            <property name="minimum">
+             <number>-128</number>
+            </property>
+            <property name="maximum">
+             <number>127</number>
+            </property>
+           </widget>
+          </item>
+          <item row="7" column="0">
+           <widget class="QLabel" name="duelistAiFieldLabel6">
+            <property name="toolTip">
+             <string>Raw game AI byte 6. Its exact gameplay meaning has not been identified.</string>
+            </property>
+            <property name="text">
+             <string>Byte 6 (unread)</string>
+            </property>
+           </widget>
+          </item>
+          <item row="7" column="1">
+           <widget class="QCheckBox" name="duelistAiOverride6">
+            <property name="toolTip">
+             <string>Store an explicit value for this duelist. Untick to inherit the effective source value.</string>
+            </property>
+            <property name="text">
+             <string>Override</string>
+            </property>
+           </widget>
+          </item>
+          <item row="7" column="2">
+           <widget class="QSpinBox" name="duelistAiValue6">
+            <property name="toolTip">
+             <string>Raw game AI byte 6. Its exact gameplay meaning has not been identified.</string>
+            </property>
+            <property name="enabled">
+             <bool>true</bool>
+            </property>
+            <property name="minimum">
+             <number>-128</number>
+            </property>
+            <property name="maximum">
+             <number>127</number>
+            </property>
+           </widget>
+          </item>
+          <item row="8" column="0">
+           <widget class="QLabel" name="duelistAiFieldLabel7">
+            <property name="toolTip">
+             <string>Chance, as a percentage, used by the AI’s Duster or card-holding decision.</string>
+            </property>
+            <property name="text">
+             <string>Duster / hold %</string>
+            </property>
+           </widget>
+          </item>
+          <item row="8" column="1">
+           <widget class="QCheckBox" name="duelistAiOverride7">
+            <property name="toolTip">
+             <string>Store an explicit value for this duelist. Untick to inherit the effective source value.</string>
+            </property>
+            <property name="text">
+             <string>Override</string>
+            </property>
+           </widget>
+          </item>
+          <item row="8" column="2">
+           <widget class="QSpinBox" name="duelistAiValue7">
+            <property name="toolTip">
+             <string>Chance, as a percentage, used by the AI’s Duster or card-holding decision.</string>
+            </property>
+            <property name="enabled">
+             <bool>true</bool>
+            </property>
+            <property name="minimum">
+             <number>-128</number>
+            </property>
+            <property name="maximum">
+             <number>127</number>
+            </property>
+           </widget>
+          </item>
+          <item row="9" column="0">
+           <widget class="QLabel" name="duelistAiFieldLabel8">
+            <property name="toolTip">
+             <string>Chance, as a percentage, that the AI attacks without full information.</string>
+            </property>
+            <property name="text">
+             <string>Blind attack %</string>
+            </property>
+           </widget>
+          </item>
+          <item row="9" column="1">
+           <widget class="QCheckBox" name="duelistAiOverride8">
+            <property name="toolTip">
+             <string>Store an explicit value for this duelist. Untick to inherit the effective source value.</string>
+            </property>
+            <property name="text">
+             <string>Override</string>
+            </property>
+           </widget>
+          </item>
+          <item row="9" column="2">
+           <widget class="QSpinBox" name="duelistAiValue8">
+            <property name="toolTip">
+             <string>Chance, as a percentage, that the AI attacks without full information.</string>
+            </property>
+            <property name="enabled">
+             <bool>true</bool>
+            </property>
+            <property name="minimum">
+             <number>-128</number>
+            </property>
+            <property name="maximum">
+             <number>127</number>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="rulesRankPage">
+      <attribute name="title">
+       <string>Rank scoring</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="rulesRankOuter">
+       <item>
+        <widget class="QLabel" name="rulesRankHelp">
+         <property name="toolTip">
+          <string>Enable a rule to override it for this duelist. Disabled rules inherit their retail score ranges.</string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+         <property name="text">
+          <string>Enable a rule to override its five score ranges. Disabled rules inherit retail scoring.</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QScrollArea" name="rulesRankScroll">
+         <property name="widgetResizable">
+          <bool>true</bool>
+         </property>
+         <widget class="QWidget" name="rulesRankHost">
+          <property name="geometry">
+           <rect>
+            <x>0</x>
+            <y>0</y>
+            <width>820</width>
+            <height>1200</height>
+           </rect>
+          </property>
+          <layout class="QVBoxLayout" name="rulesRankLayout">
+           <item>
+            <widget class="QGroupBox" name="duelistRankGroup0">
+             <property name="toolTip">
+              <string>Enable to give this duelist its own score changes for turns.</string>
+             </property>
+             <property name="title">
+              <string>Turns</string>
+             </property>
+             <property name="checkable">
+              <bool>true</bool>
+             </property>
+             <layout class="QGridLayout" name="duelistRankLayout0">
+              <item row="0" column="0">
+               <widget class="QLabel" name="duelistRankHeading0_0">
+                <property name="toolTip">
+                 <string>The score range where this row applies.</string>
+                </property>
+                <property name="text">
+                 <string>Range</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QLabel" name="duelistRankHeading0_1">
+                <property name="toolTip">
+                 <string>The starting score for this range. The last range always begins at 32767.</string>
+                </property>
+                <property name="text">
+                 <string>Threshold</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="2">
+               <widget class="QLabel" name="duelistRankHeading0_2">
+                <property name="toolTip">
+                 <string>Amount added to or subtracted from the duel rank score.</string>
+                </property>
+                <property name="text">
+                 <string>Score change</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel0_0">
+                <property name="toolTip">
+                 <string>The step 1 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 1</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold0_0">
+                <property name="toolTip">
+                 <string>The step 1 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="2">
+               <widget class="QSpinBox" name="duelistRankChange0_0">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel0_1">
+                <property name="toolTip">
+                 <string>The step 2 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 2</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold0_1">
+                <property name="toolTip">
+                 <string>The step 2 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="2">
+               <widget class="QSpinBox" name="duelistRankChange0_1">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel0_2">
+                <property name="toolTip">
+                 <string>The step 3 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 3</string>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold0_2">
+                <property name="toolTip">
+                 <string>The step 3 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="2">
+               <widget class="QSpinBox" name="duelistRankChange0_2">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel0_3">
+                <property name="toolTip">
+                 <string>The step 4 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 4</string>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold0_3">
+                <property name="toolTip">
+                 <string>The step 4 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="2">
+               <widget class="QSpinBox" name="duelistRankChange0_3">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel0_4">
+                <property name="toolTip">
+                 <string>The final score range; its threshold is always 32767 in the game.</string>
+                </property>
+                <property name="text">
+                 <string>And above</string>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold0_4">
+                <property name="toolTip">
+                 <string>The final score range; its threshold is always 32767 in the game.</string>
+                </property>
+                <property name="enabled">
+                 <bool>false</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="2">
+               <widget class="QSpinBox" name="duelistRankChange0_4">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
+            <widget class="QGroupBox" name="duelistRankGroup1">
+             <property name="toolTip">
+              <string>Enable to give this duelist its own score changes for effective attacks.</string>
+             </property>
+             <property name="title">
+              <string>Effective attacks</string>
+             </property>
+             <property name="checkable">
+              <bool>true</bool>
+             </property>
+             <layout class="QGridLayout" name="duelistRankLayout1">
+              <item row="0" column="0">
+               <widget class="QLabel" name="duelistRankHeading1_0">
+                <property name="toolTip">
+                 <string>The score range where this row applies.</string>
+                </property>
+                <property name="text">
+                 <string>Range</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QLabel" name="duelistRankHeading1_1">
+                <property name="toolTip">
+                 <string>The starting score for this range. The last range always begins at 32767.</string>
+                </property>
+                <property name="text">
+                 <string>Threshold</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="2">
+               <widget class="QLabel" name="duelistRankHeading1_2">
+                <property name="toolTip">
+                 <string>Amount added to or subtracted from the duel rank score.</string>
+                </property>
+                <property name="text">
+                 <string>Score change</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel1_0">
+                <property name="toolTip">
+                 <string>The step 1 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 1</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold1_0">
+                <property name="toolTip">
+                 <string>The step 1 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="2">
+               <widget class="QSpinBox" name="duelistRankChange1_0">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel1_1">
+                <property name="toolTip">
+                 <string>The step 2 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 2</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold1_1">
+                <property name="toolTip">
+                 <string>The step 2 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="2">
+               <widget class="QSpinBox" name="duelistRankChange1_1">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel1_2">
+                <property name="toolTip">
+                 <string>The step 3 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 3</string>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold1_2">
+                <property name="toolTip">
+                 <string>The step 3 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="2">
+               <widget class="QSpinBox" name="duelistRankChange1_2">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel1_3">
+                <property name="toolTip">
+                 <string>The step 4 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 4</string>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold1_3">
+                <property name="toolTip">
+                 <string>The step 4 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="2">
+               <widget class="QSpinBox" name="duelistRankChange1_3">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel1_4">
+                <property name="toolTip">
+                 <string>The final score range; its threshold is always 32767 in the game.</string>
+                </property>
+                <property name="text">
+                 <string>And above</string>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold1_4">
+                <property name="toolTip">
+                 <string>The final score range; its threshold is always 32767 in the game.</string>
+                </property>
+                <property name="enabled">
+                 <bool>false</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="2">
+               <widget class="QSpinBox" name="duelistRankChange1_4">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
+            <widget class="QGroupBox" name="duelistRankGroup2">
+             <property name="toolTip">
+              <string>Enable to give this duelist its own score changes for defensive wins.</string>
+             </property>
+             <property name="title">
+              <string>Defensive wins</string>
+             </property>
+             <property name="checkable">
+              <bool>true</bool>
+             </property>
+             <layout class="QGridLayout" name="duelistRankLayout2">
+              <item row="0" column="0">
+               <widget class="QLabel" name="duelistRankHeading2_0">
+                <property name="toolTip">
+                 <string>The score range where this row applies.</string>
+                </property>
+                <property name="text">
+                 <string>Range</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QLabel" name="duelistRankHeading2_1">
+                <property name="toolTip">
+                 <string>The starting score for this range. The last range always begins at 32767.</string>
+                </property>
+                <property name="text">
+                 <string>Threshold</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="2">
+               <widget class="QLabel" name="duelistRankHeading2_2">
+                <property name="toolTip">
+                 <string>Amount added to or subtracted from the duel rank score.</string>
+                </property>
+                <property name="text">
+                 <string>Score change</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel2_0">
+                <property name="toolTip">
+                 <string>The step 1 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 1</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold2_0">
+                <property name="toolTip">
+                 <string>The step 1 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="2">
+               <widget class="QSpinBox" name="duelistRankChange2_0">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel2_1">
+                <property name="toolTip">
+                 <string>The step 2 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 2</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold2_1">
+                <property name="toolTip">
+                 <string>The step 2 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="2">
+               <widget class="QSpinBox" name="duelistRankChange2_1">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel2_2">
+                <property name="toolTip">
+                 <string>The step 3 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 3</string>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold2_2">
+                <property name="toolTip">
+                 <string>The step 3 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="2">
+               <widget class="QSpinBox" name="duelistRankChange2_2">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel2_3">
+                <property name="toolTip">
+                 <string>The step 4 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 4</string>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold2_3">
+                <property name="toolTip">
+                 <string>The step 4 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="2">
+               <widget class="QSpinBox" name="duelistRankChange2_3">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel2_4">
+                <property name="toolTip">
+                 <string>The final score range; its threshold is always 32767 in the game.</string>
+                </property>
+                <property name="text">
+                 <string>And above</string>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold2_4">
+                <property name="toolTip">
+                 <string>The final score range; its threshold is always 32767 in the game.</string>
+                </property>
+                <property name="enabled">
+                 <bool>false</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="2">
+               <widget class="QSpinBox" name="duelistRankChange2_4">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
+            <widget class="QGroupBox" name="duelistRankGroup3">
+             <property name="toolTip">
+              <string>Enable to give this duelist its own score changes for face-down plays.</string>
+             </property>
+             <property name="title">
+              <string>Face-down plays</string>
+             </property>
+             <property name="checkable">
+              <bool>true</bool>
+             </property>
+             <layout class="QGridLayout" name="duelistRankLayout3">
+              <item row="0" column="0">
+               <widget class="QLabel" name="duelistRankHeading3_0">
+                <property name="toolTip">
+                 <string>The score range where this row applies.</string>
+                </property>
+                <property name="text">
+                 <string>Range</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QLabel" name="duelistRankHeading3_1">
+                <property name="toolTip">
+                 <string>The starting score for this range. The last range always begins at 32767.</string>
+                </property>
+                <property name="text">
+                 <string>Threshold</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="2">
+               <widget class="QLabel" name="duelistRankHeading3_2">
+                <property name="toolTip">
+                 <string>Amount added to or subtracted from the duel rank score.</string>
+                </property>
+                <property name="text">
+                 <string>Score change</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel3_0">
+                <property name="toolTip">
+                 <string>The step 1 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 1</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold3_0">
+                <property name="toolTip">
+                 <string>The step 1 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="2">
+               <widget class="QSpinBox" name="duelistRankChange3_0">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel3_1">
+                <property name="toolTip">
+                 <string>The step 2 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 2</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold3_1">
+                <property name="toolTip">
+                 <string>The step 2 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="2">
+               <widget class="QSpinBox" name="duelistRankChange3_1">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel3_2">
+                <property name="toolTip">
+                 <string>The step 3 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 3</string>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold3_2">
+                <property name="toolTip">
+                 <string>The step 3 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="2">
+               <widget class="QSpinBox" name="duelistRankChange3_2">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel3_3">
+                <property name="toolTip">
+                 <string>The step 4 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 4</string>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold3_3">
+                <property name="toolTip">
+                 <string>The step 4 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="2">
+               <widget class="QSpinBox" name="duelistRankChange3_3">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel3_4">
+                <property name="toolTip">
+                 <string>The final score range; its threshold is always 32767 in the game.</string>
+                </property>
+                <property name="text">
+                 <string>And above</string>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold3_4">
+                <property name="toolTip">
+                 <string>The final score range; its threshold is always 32767 in the game.</string>
+                </property>
+                <property name="enabled">
+                 <bool>false</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="2">
+               <widget class="QSpinBox" name="duelistRankChange3_4">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
+            <widget class="QGroupBox" name="duelistRankGroup4">
+             <property name="toolTip">
+              <string>Enable to give this duelist its own score changes for pure magic.</string>
+             </property>
+             <property name="title">
+              <string>Pure magic</string>
+             </property>
+             <property name="checkable">
+              <bool>true</bool>
+             </property>
+             <layout class="QGridLayout" name="duelistRankLayout4">
+              <item row="0" column="0">
+               <widget class="QLabel" name="duelistRankHeading4_0">
+                <property name="toolTip">
+                 <string>The score range where this row applies.</string>
+                </property>
+                <property name="text">
+                 <string>Range</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QLabel" name="duelistRankHeading4_1">
+                <property name="toolTip">
+                 <string>The starting score for this range. The last range always begins at 32767.</string>
+                </property>
+                <property name="text">
+                 <string>Threshold</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="2">
+               <widget class="QLabel" name="duelistRankHeading4_2">
+                <property name="toolTip">
+                 <string>Amount added to or subtracted from the duel rank score.</string>
+                </property>
+                <property name="text">
+                 <string>Score change</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel4_0">
+                <property name="toolTip">
+                 <string>The step 1 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 1</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold4_0">
+                <property name="toolTip">
+                 <string>The step 1 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="2">
+               <widget class="QSpinBox" name="duelistRankChange4_0">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel4_1">
+                <property name="toolTip">
+                 <string>The step 2 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 2</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold4_1">
+                <property name="toolTip">
+                 <string>The step 2 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="2">
+               <widget class="QSpinBox" name="duelistRankChange4_1">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel4_2">
+                <property name="toolTip">
+                 <string>The step 3 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 3</string>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold4_2">
+                <property name="toolTip">
+                 <string>The step 3 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="2">
+               <widget class="QSpinBox" name="duelistRankChange4_2">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel4_3">
+                <property name="toolTip">
+                 <string>The step 4 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 4</string>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold4_3">
+                <property name="toolTip">
+                 <string>The step 4 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="2">
+               <widget class="QSpinBox" name="duelistRankChange4_3">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel4_4">
+                <property name="toolTip">
+                 <string>The final score range; its threshold is always 32767 in the game.</string>
+                </property>
+                <property name="text">
+                 <string>And above</string>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold4_4">
+                <property name="toolTip">
+                 <string>The final score range; its threshold is always 32767 in the game.</string>
+                </property>
+                <property name="enabled">
+                 <bool>false</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="2">
+               <widget class="QSpinBox" name="duelistRankChange4_4">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
+            <widget class="QGroupBox" name="duelistRankGroup5">
+             <property name="toolTip">
+              <string>Enable to give this duelist its own score changes for traps triggered.</string>
+             </property>
+             <property name="title">
+              <string>Traps triggered</string>
+             </property>
+             <property name="checkable">
+              <bool>true</bool>
+             </property>
+             <layout class="QGridLayout" name="duelistRankLayout5">
+              <item row="0" column="0">
+               <widget class="QLabel" name="duelistRankHeading5_0">
+                <property name="toolTip">
+                 <string>The score range where this row applies.</string>
+                </property>
+                <property name="text">
+                 <string>Range</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QLabel" name="duelistRankHeading5_1">
+                <property name="toolTip">
+                 <string>The starting score for this range. The last range always begins at 32767.</string>
+                </property>
+                <property name="text">
+                 <string>Threshold</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="2">
+               <widget class="QLabel" name="duelistRankHeading5_2">
+                <property name="toolTip">
+                 <string>Amount added to or subtracted from the duel rank score.</string>
+                </property>
+                <property name="text">
+                 <string>Score change</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel5_0">
+                <property name="toolTip">
+                 <string>The step 1 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 1</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold5_0">
+                <property name="toolTip">
+                 <string>The step 1 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="2">
+               <widget class="QSpinBox" name="duelistRankChange5_0">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel5_1">
+                <property name="toolTip">
+                 <string>The step 2 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 2</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold5_1">
+                <property name="toolTip">
+                 <string>The step 2 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="2">
+               <widget class="QSpinBox" name="duelistRankChange5_1">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel5_2">
+                <property name="toolTip">
+                 <string>The step 3 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 3</string>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold5_2">
+                <property name="toolTip">
+                 <string>The step 3 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="2">
+               <widget class="QSpinBox" name="duelistRankChange5_2">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel5_3">
+                <property name="toolTip">
+                 <string>The step 4 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 4</string>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold5_3">
+                <property name="toolTip">
+                 <string>The step 4 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="2">
+               <widget class="QSpinBox" name="duelistRankChange5_3">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel5_4">
+                <property name="toolTip">
+                 <string>The final score range; its threshold is always 32767 in the game.</string>
+                </property>
+                <property name="text">
+                 <string>And above</string>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold5_4">
+                <property name="toolTip">
+                 <string>The final score range; its threshold is always 32767 in the game.</string>
+                </property>
+                <property name="enabled">
+                 <bool>false</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="2">
+               <widget class="QSpinBox" name="duelistRankChange5_4">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
+            <widget class="QGroupBox" name="duelistRankGroup6">
+             <property name="toolTip">
+              <string>Enable to give this duelist its own score changes for cards used.</string>
+             </property>
+             <property name="title">
+              <string>Cards used</string>
+             </property>
+             <property name="checkable">
+              <bool>true</bool>
+             </property>
+             <layout class="QGridLayout" name="duelistRankLayout6">
+              <item row="0" column="0">
+               <widget class="QLabel" name="duelistRankHeading6_0">
+                <property name="toolTip">
+                 <string>The score range where this row applies.</string>
+                </property>
+                <property name="text">
+                 <string>Range</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QLabel" name="duelistRankHeading6_1">
+                <property name="toolTip">
+                 <string>The starting score for this range. The last range always begins at 32767.</string>
+                </property>
+                <property name="text">
+                 <string>Threshold</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="2">
+               <widget class="QLabel" name="duelistRankHeading6_2">
+                <property name="toolTip">
+                 <string>Amount added to or subtracted from the duel rank score.</string>
+                </property>
+                <property name="text">
+                 <string>Score change</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel6_0">
+                <property name="toolTip">
+                 <string>The step 1 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 1</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold6_0">
+                <property name="toolTip">
+                 <string>The step 1 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="2">
+               <widget class="QSpinBox" name="duelistRankChange6_0">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel6_1">
+                <property name="toolTip">
+                 <string>The step 2 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 2</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold6_1">
+                <property name="toolTip">
+                 <string>The step 2 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="2">
+               <widget class="QSpinBox" name="duelistRankChange6_1">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel6_2">
+                <property name="toolTip">
+                 <string>The step 3 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 3</string>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold6_2">
+                <property name="toolTip">
+                 <string>The step 3 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="2">
+               <widget class="QSpinBox" name="duelistRankChange6_2">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel6_3">
+                <property name="toolTip">
+                 <string>The step 4 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 4</string>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold6_3">
+                <property name="toolTip">
+                 <string>The step 4 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="2">
+               <widget class="QSpinBox" name="duelistRankChange6_3">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel6_4">
+                <property name="toolTip">
+                 <string>The final score range; its threshold is always 32767 in the game.</string>
+                </property>
+                <property name="text">
+                 <string>And above</string>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold6_4">
+                <property name="toolTip">
+                 <string>The final score range; its threshold is always 32767 in the game.</string>
+                </property>
+                <property name="enabled">
+                 <bool>false</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="2">
+               <widget class="QSpinBox" name="duelistRankChange6_4">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
+            <widget class="QGroupBox" name="duelistRankGroup7">
+             <property name="toolTip">
+              <string>Enable to give this duelist its own score changes for remaining lp.</string>
+             </property>
+             <property name="title">
+              <string>Remaining LP</string>
+             </property>
+             <property name="checkable">
+              <bool>true</bool>
+             </property>
+             <layout class="QGridLayout" name="duelistRankLayout7">
+              <item row="0" column="0">
+               <widget class="QLabel" name="duelistRankHeading7_0">
+                <property name="toolTip">
+                 <string>The score range where this row applies.</string>
+                </property>
+                <property name="text">
+                 <string>Range</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QLabel" name="duelistRankHeading7_1">
+                <property name="toolTip">
+                 <string>The starting score for this range. The last range always begins at 32767.</string>
+                </property>
+                <property name="text">
+                 <string>Threshold</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="2">
+               <widget class="QLabel" name="duelistRankHeading7_2">
+                <property name="toolTip">
+                 <string>Amount added to or subtracted from the duel rank score.</string>
+                </property>
+                <property name="text">
+                 <string>Score change</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel7_0">
+                <property name="toolTip">
+                 <string>The step 1 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 1</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold7_0">
+                <property name="toolTip">
+                 <string>The step 1 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="2">
+               <widget class="QSpinBox" name="duelistRankChange7_0">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel7_1">
+                <property name="toolTip">
+                 <string>The step 2 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 2</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold7_1">
+                <property name="toolTip">
+                 <string>The step 2 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="2">
+               <widget class="QSpinBox" name="duelistRankChange7_1">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel7_2">
+                <property name="toolTip">
+                 <string>The step 3 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 3</string>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold7_2">
+                <property name="toolTip">
+                 <string>The step 3 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="2">
+               <widget class="QSpinBox" name="duelistRankChange7_2">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel7_3">
+                <property name="toolTip">
+                 <string>The step 4 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 4</string>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold7_3">
+                <property name="toolTip">
+                 <string>The step 4 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="2">
+               <widget class="QSpinBox" name="duelistRankChange7_3">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel7_4">
+                <property name="toolTip">
+                 <string>The final score range; its threshold is always 32767 in the game.</string>
+                </property>
+                <property name="text">
+                 <string>And above</string>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold7_4">
+                <property name="toolTip">
+                 <string>The final score range; its threshold is always 32767 in the game.</string>
+                </property>
+                <property name="enabled">
+                 <bool>false</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="2">
+               <widget class="QSpinBox" name="duelistRankChange7_4">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
+            <widget class="QGroupBox" name="duelistRankGroup8">
+             <property name="toolTip">
+              <string>Enable to give this duelist its own score changes for initiate fusion.</string>
+             </property>
+             <property name="title">
+              <string>Initiate fusion</string>
+             </property>
+             <property name="checkable">
+              <bool>true</bool>
+             </property>
+             <layout class="QGridLayout" name="duelistRankLayout8">
+              <item row="0" column="0">
+               <widget class="QLabel" name="duelistRankHeading8_0">
+                <property name="toolTip">
+                 <string>The score range where this row applies.</string>
+                </property>
+                <property name="text">
+                 <string>Range</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QLabel" name="duelistRankHeading8_1">
+                <property name="toolTip">
+                 <string>The starting score for this range. The last range always begins at 32767.</string>
+                </property>
+                <property name="text">
+                 <string>Threshold</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="2">
+               <widget class="QLabel" name="duelistRankHeading8_2">
+                <property name="toolTip">
+                 <string>Amount added to or subtracted from the duel rank score.</string>
+                </property>
+                <property name="text">
+                 <string>Score change</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel8_0">
+                <property name="toolTip">
+                 <string>The step 1 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 1</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold8_0">
+                <property name="toolTip">
+                 <string>The step 1 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="2">
+               <widget class="QSpinBox" name="duelistRankChange8_0">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel8_1">
+                <property name="toolTip">
+                 <string>The step 2 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 2</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold8_1">
+                <property name="toolTip">
+                 <string>The step 2 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="2">
+               <widget class="QSpinBox" name="duelistRankChange8_1">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel8_2">
+                <property name="toolTip">
+                 <string>The step 3 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 3</string>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold8_2">
+                <property name="toolTip">
+                 <string>The step 3 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="2">
+               <widget class="QSpinBox" name="duelistRankChange8_2">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel8_3">
+                <property name="toolTip">
+                 <string>The step 4 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 4</string>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold8_3">
+                <property name="toolTip">
+                 <string>The step 4 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="2">
+               <widget class="QSpinBox" name="duelistRankChange8_3">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel8_4">
+                <property name="toolTip">
+                 <string>The final score range; its threshold is always 32767 in the game.</string>
+                </property>
+                <property name="text">
+                 <string>And above</string>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold8_4">
+                <property name="toolTip">
+                 <string>The final score range; its threshold is always 32767 in the game.</string>
+                </property>
+                <property name="enabled">
+                 <bool>false</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="2">
+               <widget class="QSpinBox" name="duelistRankChange8_4">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
+            <widget class="QGroupBox" name="duelistRankGroup9">
+             <property name="toolTip">
+              <string>Enable to give this duelist its own score changes for equip magic.</string>
+             </property>
+             <property name="title">
+              <string>Equip magic</string>
+             </property>
+             <property name="checkable">
+              <bool>true</bool>
+             </property>
+             <layout class="QGridLayout" name="duelistRankLayout9">
+              <item row="0" column="0">
+               <widget class="QLabel" name="duelistRankHeading9_0">
+                <property name="toolTip">
+                 <string>The score range where this row applies.</string>
+                </property>
+                <property name="text">
+                 <string>Range</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QLabel" name="duelistRankHeading9_1">
+                <property name="toolTip">
+                 <string>The starting score for this range. The last range always begins at 32767.</string>
+                </property>
+                <property name="text">
+                 <string>Threshold</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="2">
+               <widget class="QLabel" name="duelistRankHeading9_2">
+                <property name="toolTip">
+                 <string>Amount added to or subtracted from the duel rank score.</string>
+                </property>
+                <property name="text">
+                 <string>Score change</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel9_0">
+                <property name="toolTip">
+                 <string>The step 1 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 1</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold9_0">
+                <property name="toolTip">
+                 <string>The step 1 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="2">
+               <widget class="QSpinBox" name="duelistRankChange9_0">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel9_1">
+                <property name="toolTip">
+                 <string>The step 2 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 2</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold9_1">
+                <property name="toolTip">
+                 <string>The step 2 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="2">
+               <widget class="QSpinBox" name="duelistRankChange9_1">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel9_2">
+                <property name="toolTip">
+                 <string>The step 3 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 3</string>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold9_2">
+                <property name="toolTip">
+                 <string>The step 3 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="2">
+               <widget class="QSpinBox" name="duelistRankChange9_2">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel9_3">
+                <property name="toolTip">
+                 <string>The step 4 score range for this rule.</string>
+                </property>
+                <property name="text">
+                 <string>Step 4</string>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold9_3">
+                <property name="toolTip">
+                 <string>The step 4 score range for this rule.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="2">
+               <widget class="QSpinBox" name="duelistRankChange9_3">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="0">
+               <widget class="QLabel" name="duelistRankRangeLabel9_4">
+                <property name="toolTip">
+                 <string>The final score range; its threshold is always 32767 in the game.</string>
+                </property>
+                <property name="text">
+                 <string>And above</string>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="1">
+               <widget class="QSpinBox" name="duelistRankThreshold9_4">
+                <property name="toolTip">
+                 <string>The final score range; its threshold is always 32767 in the game.</string>
+                </property>
+                <property name="enabled">
+                 <bool>false</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="2">
+               <widget class="QSpinBox" name="duelistRankChange9_4">
+                <property name="toolTip">
+                 <string>Score change applied when this range matches.</string>
+                </property>
+                <property name="enabled">
+                 <bool>true</bool>
+                </property>
+                <property name="minimum">
+                 <number>-32768</number>
+                </property>
+                <property name="maximum">
+                 <number>32767</number>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
+            <spacer name="rulesRankStretch">
+             <property name="orientation">
+              <enum>Qt::Orientation::Vertical</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>20</width>
+               <height>40</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+          </layout>
+         </widget>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="rulesFooter">
+     <item>
+      <widget class="QPushButton" name="rulesRestoreButton">
+       <property name="text">
+        <string>Use retail defaults</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="rulesFooterSpacer">
+       <property name="orientation">
+        <enum>Qt::Orientation::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QPushButton" name="rulesCancelButton">
+       <property name="text">
+        <string>Cancel</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="rulesSaveButton">
+       <property name="text">
+        <string>Save rules</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources />
+ <connections />
+</ui>

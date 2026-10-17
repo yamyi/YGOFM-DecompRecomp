@@ -2108,6 +2108,30 @@ class CardsTest(unittest.TestCase):
             open_dialog()
         self.assertIsNone(roster.replacement(w.project, subject))
 
+    def test_duelist_rules_dialog_keeps_ai_controls_and_hover_help_in_designer(self):
+        """The full AI/rank form is static Designer UI, including field help.
+
+        Python may populate the selected duelist's values, but it must not
+        construct controls that a Designer user cannot inspect or edit.
+        """
+        from PySide6.QtWidgets import QCheckBox, QGroupBox, QLabel, QSpinBox
+        w = self.window
+        dialog = w._load_duelist_dialog('duelist_rules_dialog.ui')
+        for row in range(9):
+            label = dialog.findChild(QLabel, f'duelistAiFieldLabel{row}')
+            self.assertIsNotNone(label)
+            self.assertTrue(label.toolTip())
+            self.assertIsNotNone(dialog.findChild(QCheckBox, f'duelistAiOverride{row}'))
+            value = dialog.findChild(QSpinBox, f'duelistAiValue{row}')
+            self.assertIsNotNone(value)
+            self.assertEqual((value.minimum(), value.maximum()), (-128, 127))
+        for rule in range(10):
+            self.assertIsNotNone(dialog.findChild(QGroupBox, f'duelistRankGroup{rule}'))
+            for step in range(5):
+                self.assertIsNotNone(dialog.findChild(QSpinBox, f'duelistRankThreshold{rule}_{step}'))
+                self.assertIsNotNone(dialog.findChild(QSpinBox, f'duelistRankChange{rule}_{step}'))
+        dialog.deleteLater()
+
     def test_duelist_rules_dialog_saves_ai_and_rank_overrides(self):
         """The Designer dialog writes the shared duelist_rules schema before
         Apply, including an AI byte and a complete rank-rule row."""
