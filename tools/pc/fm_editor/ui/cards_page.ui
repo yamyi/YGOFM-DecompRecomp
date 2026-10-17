@@ -37,7 +37,7 @@
      <widget class="QFrame" name="cardListPanel">
       <property name="minimumSize">
        <size>
-        <width>260</width>
+        <width>575</width>
         <height>0</height>
        </size>
       </property>
@@ -200,7 +200,7 @@
      <widget class="QFrame" name="cardDataPanel">
       <property name="minimumSize">
        <size>
-        <width>390</width>
+        <width>420</width>
         <height>0</height>
        </size>
       </property>
@@ -1139,7 +1139,7 @@
      <widget class="QFrame" name="cardPreviewPanel">
       <property name="minimumSize">
        <size>
-        <width>390</width>
+        <width>240</width>
         <height>0</height>
        </size>
       </property>

@@ -121,6 +121,8 @@ def install() -> None:
     original_apply_card = CardsMixin.apply_card
     original_store_equip_bonus = CardsMixin._store_equip_bonus
     original_show_equip_bonus = CardsMixin._show_equip_bonus
+    original_load_equip_bonus = CardsMixin._load_equip_bonus
+    original_render_card_text = CardsMixin._render_card_text
     original_text_icon = CardsMixin._text_icon
     original_build_manifest_cards = manifest.build_cards
     original_read_manifest_cards = manifest.read_cards
@@ -835,7 +837,7 @@ def install() -> None:
             # text preview; reserve the full rendering for a real SLUS.
             slus = getattr(self.files, "slus", None)
             if slus is None:
-                return
+                return original_render_card_text(self)
             key = (id(slus), id(archive))
             cached = getattr(self, "_game_card_view", None)
             if cached is None or cached[0] != key:
@@ -1144,8 +1146,11 @@ def install() -> None:
     CardsMixin.apply_card = apply_card
     CardsMixin._render_card_text = render_full_description
     CardsMixin._store_equip_bonus = store_equip_bonus
-    CardsMixin._show_equip_bonus = show_equip_bonus
-    CardsMixin._load_equip_bonus = load_equip_bonus
+    # The form's sentinel represents an inherited retail bonus.  Keep the
+    # classic widget behaviour so an untouched equip cannot accidentally
+    # become an explicit +500/+1000 override.
+    CardsMixin._show_equip_bonus = original_show_equip_bonus
+    CardsMixin._load_equip_bonus = original_load_equip_bonus
     CardsMixin._text_icon = text_icon
     CardsMixin._set_card_effects = set_effects
     CardsMixin._effect_words = words

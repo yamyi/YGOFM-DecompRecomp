@@ -318,9 +318,6 @@ class CardsMixin:
             box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         for field in (self.level_box, self.attack_box, self.defense_box):
             field.setMaximumWidth(150)
-        widget(QFrame, "cardListPanel").setMinimumWidth(400)
-        widget(QFrame, "cardDataPanel").setMinimumWidth(420)
-        widget(QFrame, "cardPreviewPanel").setMinimumWidth(240)
         splitter = widget(QSplitter, "cardsSplitter")
         splitter.setStretchFactor(0, 5)
         splitter.setStretchFactor(1, 4)
