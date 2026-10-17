@@ -117,6 +117,7 @@ def install() -> None:
     original_build_cards = CardsMixin._build_cards
     original_refresh_cards = CardsMixin.refresh_cards
     original_show_card = CardsMixin.show_card
+    original_type_changed = CardsMixin._type_changed
     original_apply_card = CardsMixin.apply_card
     original_store_equip_bonus = CardsMixin._store_equip_bonus
     original_show_equip_bonus = CardsMixin._show_equip_bonus
@@ -234,9 +235,21 @@ def install() -> None:
             return
 
     def uses_card_effects(self, cid=None):
+        """Whether the current form is authoring Magic/Trap card effects.
+
+        During a type change, the form is the source of truth until Apply
+        commits the replacement card record.  Other cards keep using their
+        saved type, so inherited effect lookups remain stable.
+        """
         cid = self.current if cid is None else cid
         card = self.project.cards.get(cid) if self.project and cid else None
-        return bool(card and card.type in (gamedata.TYPE_MAGIC, gamedata.TYPE_TRAP))
+        if not card:
+            return False
+        kind = card.type
+        type_box = getattr(self, "fields", {}).get("type")
+        if cid == self.current and type_box is not None:
+            kind = type_box.currentIndex()
+        return kind in (gamedata.TYPE_MAGIC, gamedata.TYPE_TRAP)
 
     def card_effects_of(self, cid):
         """A Magic/Trap card's own or inherited ``card_effects`` list."""
@@ -555,6 +568,7 @@ def install() -> None:
                           if card_effect else {"when": "summon", "do": "boost", "target": "self", "attack": 500})
         editor["frame"].setProperty("effect_index", index)
         editor["frame"].setProperty("card_id", self.current)
+        editor["frame"].setProperty("card_effect_kind", card_effect)
         editor["problem"].clear()
         editor["when"].setCurrentIndex(max(0, editor["when"].findData(value.get("when", "summon"))))
         editor["follows"]()
@@ -626,6 +640,29 @@ def install() -> None:
             self.name_colour.setItemData(index, index - 1)
         field_icons(self)
 
+    def update_effects_tab(self):
+        """Keep the Effects tab aligned with the type currently in the form."""
+        effects_tab = getattr(self, "_effects_tab_index", -1)
+        if effects_tab < 0:
+            return
+        card = self.project.cards.get(self.current) if self.project and self.current else None
+        kind = self.fields["type"].currentIndex() if card and hasattr(self, "fields") else -1
+        supports_effects = bool(card and (kind < gamedata.TYPE_MAGIC or
+                                          kind in (gamedata.TYPE_MAGIC, gamedata.TYPE_TRAP)))
+        self.card_data_tabs.setTabVisible(effects_tab, supports_effects)
+        if not supports_effects and self.card_data_tabs.currentIndex() == effects_tab:
+            self.card_data_tabs.setCurrentIndex(0)
+
+    def type_changed(self, index):
+        original_type_changed(self, index)
+        if getattr(self, "_loading", False) or not getattr(self, "current", None):
+            return
+        update_effects_tab(self)
+        # ``refresh`` switches between monster_effects and card_effects using
+        # the form's selected type. It also resets the inline form to the
+        # correct schema before the user can add an effect.
+        refresh(self)
+
     def show_card(self, cid):
         original_show_card(self, cid)
         # The disc leaves an unused attribute byte on non-monster records.
@@ -633,12 +670,7 @@ def install() -> None:
         # 7; the game ignores it.  Display the semantic value the editor will
         # save instead of labelling a Magic card as a Trap.
         card = self.project.cards.get(cid) if self.project else None
-        effects_tab = getattr(self, "_effects_tab_index", -1)
-        if effects_tab >= 0:
-            supports_effects = bool(card and (card.is_monster() or card.type in (gamedata.TYPE_MAGIC, gamedata.TYPE_TRAP)))
-            self.card_data_tabs.setTabVisible(effects_tab, supports_effects)
-            if not supports_effects and self.card_data_tabs.currentIndex() == effects_tab:
-                self.card_data_tabs.setCurrentIndex(0)
+        update_effects_tab(self)
         if card is not None and not card.is_monster():
             self.attribute_box.setCurrentIndex(
                 7 if card.type == gamedata.TYPE_TRAP else 6)
@@ -904,10 +936,13 @@ def install() -> None:
         extra = self.project.card_extra.get(self.current, {}) if retail else {}
         none = retail and extra.get(key) == []
         if hasattr(self, "effects_none"):
+            kind = self.fields["type"].currentIndex() if card and hasattr(self, "fields") else -1
+            supports_effects = bool(card and (kind < gamedata.TYPE_MAGIC or
+                                              kind in (gamedata.TYPE_MAGIC, gamedata.TYPE_TRAP)))
             blocked = self.effects_none.blockSignals(True)
             self.effects_none.setChecked(none)
             self.effects_none.setVisible(retail and not rows)
-            self.effects_none.setEnabled(bool(card and (card.is_monster() or card_effect)))
+            self.effects_none.setEnabled(supports_effects)
             self.effects_none.setToolTip(f'Writes "{key}": [] so this mod explicitly removes inherited effects.')
             self.effects_none.blockSignals(blocked)
         if hasattr(self, "card_effects_mode"):
@@ -920,7 +955,9 @@ def install() -> None:
             if mode_row is not None:
                 mode_row.setVisible(card_effect)
         editor = getattr(self, "_inline_effect_editor", None)
-        if editor is not None and self.current and editor["frame"].property("card_id") != self.current:
+        if editor is not None and self.current and (
+                editor["frame"].property("card_id") != self.current or
+                editor["frame"].property("card_effect_kind") != card_effect):
             begin_effect_edit(self)
         if not card:
             note = "Select a card to edit its effects."
@@ -1101,6 +1138,7 @@ def install() -> None:
     CardsMixin._build_cards = build_cards
     CardsMixin.refresh_cards = refresh_cards
     CardsMixin.show_card = show_card
+    CardsMixin._type_changed = type_changed
     CardsMixin.apply_card = apply_card
     CardsMixin._render_card_text = render_full_description
     CardsMixin._store_equip_bonus = store_equip_bonus

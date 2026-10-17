@@ -208,6 +208,78 @@ class CardsTest(unittest.TestCase):
         self.assertEqual(reopened.tags_of(1), (["god", "dragon"], False))
         self.assertEqual(reopened.tags_of(added), (["god", "dragon"], True))
 
+    def test_type_change_switches_the_effects_schema_before_apply(self):
+        """Effects follow the selected type, rather than the saved card type."""
+        w = self.window
+        monster_effect = {'when': 'summon', 'do': 'boost', 'target': 'self', 'attack': 500}
+        w.project.set_monster_effects(1, [monster_effect])
+        w.show_card(1)
+        form = w._inline_effect_editor
+        self.assertEqual(w.cards_form.findChild(type(w.effects_note), 'effectsTitle').text(), 'Monster effects')
+        self.assertFalse(form['when'].isHidden())
+
+        w.fields['type'].setCurrentIndex(gamedata.TYPE_MAGIC)
+        self.assertEqual(w.cards_form.findChild(type(w.effects_note), 'effectsTitle').text(), 'Card effects')
+        self.assertTrue(form['when'].isHidden())
+        self.assertEqual(w._card_effects(), [])
+        w._add_card_effect()
+        form['action'].setCurrentIndex(form['action'].findData('damage'))
+        form['amount'].setValue(900)
+        form['save'].click()
+        self.assertEqual(w.project.monster_effects_of(1)[0], [monster_effect])
+        self.assertEqual(w.project.card_extra[1]['card_effects'],
+                         [{'do': 'damage', 'target': 'opponent', 'amount': 900}])
+        self.assertTrue(w.apply_card(quiet=True))
+        self.assertEqual(w.project.cards[1].type, gamedata.TYPE_MAGIC)
+
+        w.fields['type'].setCurrentIndex(0)
+        self.assertEqual(w.cards_form.findChild(type(w.effects_note), 'effectsTitle').text(), 'Monster effects')
+        self.assertFalse(form['when'].isHidden())
+        self.assertEqual(w._card_effects(), [monster_effect])
+
+    def test_type_conversion_keeps_effect_metadata_and_added_identity(self):
+        """Type conversion clears game-only fields without discarding mod data."""
+        w = self.window
+        retail = w.project.retail.cards[1]
+        monster_effect = {'when': 'summon', 'do': 'boost', 'target': 'self', 'attack': 500}
+        card_effect = {'do': 'damage', 'target': 'opponent', 'amount': 800}
+        w.project.card_extra[1] = {
+            'monster_effects': [monster_effect], 'card_effects': [card_effect],
+            'unknown': {'keep': True},
+        }
+        for kind, attribute in ((gamedata.TYPE_MAGIC, 6), (gamedata.TYPE_TRAP, 7),
+                                (gamedata.TYPE_EQUIP, 6), (gamedata.TYPE_RITUAL, 6)):
+            w.show_card(1)
+            w.fields['type'].setCurrentIndex(kind)
+            self.assertTrue(w.apply_card(quiet=True))
+            card = w.project.cards[1]
+            self.assertEqual((card.type, card.attribute), (kind, attribute))
+            self.assertEqual((card.attack, card.defense, card.level, card.star1, card.star2), (0, 0, 0, 0, 0))
+            self.assertEqual(w.project.card_extra[1]['monster_effects'], [monster_effect])
+            self.assertEqual(w.project.card_extra[1]['card_effects'], [card_effect])
+            self.assertEqual(w.project.card_extra[1]['unknown'], {'keep': True})
+        w.fields['type'].setCurrentIndex(retail.type)
+        self.assertTrue(w.apply_card(quiet=True))
+        restored = w.project.cards[1]
+        self.assertEqual((restored.type, restored.attribute, restored.level, restored.attack, restored.defense,
+                          restored.star1, restored.star2),
+                         (retail.type, retail.attribute, retail.level, retail.attack, retail.defense,
+                          retail.star1, retail.star2))
+
+        added = w.project.add_card(1)
+        identity, key = w.project.identity(added), w.project.added[added].key
+        w.show_card(added)
+        w.fields['type'].setCurrentIndex(gamedata.TYPE_TRAP)
+        self.assertTrue(w.apply_card(quiet=True))
+        self.assertEqual((w.project.identity(added), w.project.added[added].key), (identity, key))
+        self.assertEqual((w.project.cards[added].type, w.project.cards[added].attribute),
+                         (gamedata.TYPE_TRAP, 7))
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest.save_mod(w.project, Path(tmp) / 'mod')
+            reopened, _ = manifest.open_mod(w.retail, Path(tmp) / 'mod')
+        self.assertEqual(reopened.cards[1], w.project.cards[1])
+        self.assertEqual(reopened.added[added].key, key)
+
     def test_starchips_distinguishes_an_unchanged_price_from_zero(self):
         w = self.window
         w.show_card(1)
