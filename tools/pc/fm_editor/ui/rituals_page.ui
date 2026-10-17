@@ -67,7 +67,7 @@
       <item>
        <widget class="QLineEdit" name="ritualSearchEdit">
         <property name="placeholderText">
-         <string>Search ritual cards...</string>
+         <string>Search ritual cards, tributes, or summoned monsters...</string>
         </property>
        </widget>
       </item>
@@ -127,6 +127,11 @@
           <item>
            <property name="text">
             <string>Uses base recipe</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Inactive recipes</string>
            </property>
           </item>
          </widget>

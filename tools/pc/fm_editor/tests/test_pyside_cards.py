@@ -1608,6 +1608,7 @@ class CardsTest(unittest.TestCase):
         ritual = sorted(w.project.retail.rituals)[0]
         if conditions is not None:
             w.project.ritual_requirements[ritual] = conditions
+        w._ritual_drafts.pop(ritual, None)
         w.ritual_current = ritual
         w._refresh_rituals()
         row = next(i for i in range(c['cards'].rowCount())
@@ -1653,12 +1654,84 @@ class CardsTest(unittest.TestCase):
         # model.ritual_status counts conditions as a change; the page used to
         # read the recipe alone and call it Stock.
         self.assertEqual(w.project.ritual_status(ritual), 'changed')
-        self.assertEqual(c['cards'].item(row, 2).text(), 'Changed')
-        self.assertIn('ATK ≥ 1500', c['cards'].item(row, 3).text())
-        self.assertIn('Dragon', c['cards'].item(row, 3).text())
-        # The three boxes cannot say what the conditions say, so they are shut.
-        self.assertTrue(all(not box.isEnabled() for box in c['tribute_combos']))
-        self.assertIn('Edit recipe', c['state'].text())
+        self.assertEqual(c['cards'].item(row, 2).text(), '3')
+        self.assertEqual(c['cards'].item(row, 3).text(), 'Changed')
+        self.assertIn('ATK ≥ 1500', w._ritual_tribute_text(w._ritual_recipe(ritual)[0][0]))
+        self.assertIn('Dragon', w._ritual_tribute_text(w._ritual_recipe(ritual)[0][1]))
+        # The structured rule editor is active for the selected rule-based tribute.
+        self.assertTrue(c['conditions'].isEnabled())
+
+    def test_ritual_search_finds_named_tributes_and_summoned_monsters(self):
+        w = self.window
+        ritual, c, row = self.a_ritual()
+        tributes, result, _origin = w.project.ritual_recipe(ritual)
+        c['search'].setText(w.project.cards[result].name)
+        self.assertFalse(c['cards'].isRowHidden(row))
+        c['search'].setText(w.project.cards[tributes[0]['card']].name)
+        self.assertFalse(c['cards'].isRowHidden(row))
+
+    def test_inactive_ritual_recipes_remain_visible_for_inspection(self):
+        from fm_editor import gamedata
+        w = self.window
+        ritual, c, _row = self.a_ritual()
+        before = tuple(w.project.rituals[ritual])
+        w.project.cards[ritual].type = gamedata.TYPE_MAGIC
+        w._refresh_rituals()
+        row = next(row for row in range(c['cards'].rowCount())
+                   if c['cards'].item(row, 0).data(Qt_UserRole()) == ritual)
+        self.assertIn('Inactive', c['cards'].item(row, 3).text())
+        c['state_filter'].setCurrentText('Inactive recipes')
+        self.assertFalse(c['cards'].isRowHidden(row))
+        c['cards'].selectRow(row)
+        w._select_ritual()
+        w._apply_ritual_selector_recipe()
+        self.assertEqual(w.project.rituals[ritual], before)
+
+    def test_five_tribute_rituals_preserve_conditions_origin_and_copy_isolation(self):
+        from fm_editor.gamedata import FUSION_GROUPS, TYPE_NAMES
+        w = self.window
+        ritual, _c, _row = self.a_ritual()
+        monsters = w.project.monsters()
+        result = monsters[5]
+        requirements = [
+            {'card': monsters[0]},
+            {'type': TYPE_NAMES[w.project.cards[monsters[1]].type]},
+            {'min_attack': 1200, 'max_attack': 2500},
+            {'fusion_group': FUSION_GROUPS[0]},
+            {'card': monsters[4]},
+        ]
+        w.project.set_ritual(ritual, requirements, result, 'both')
+        w._refresh_rituals()
+        self.assertEqual(w._ritual_recipe(ritual)[:3], (requirements, result, 'both'))
+        copied = w.project.add_card(ritual)
+        w.ritual_current = copied
+        draft = w._ritual_draft(copied)
+        draft['tributes'][0] = {'min_attack': 3333}
+        w._apply_ritual_selector_recipe()
+        self.assertEqual(w.project.ritual_requirements[ritual], requirements)
+        self.assertEqual(w.project.ritual_requirements[copied][0], {'min_attack': 3333})
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp) / 'mod'
+            manifest.save_mod(w.project, folder)
+            reopened, messages = manifest.open_mod(w.retail, folder)
+        self.assertFalse(messages)
+        self.assertEqual(reopened.ritual_recipe(ritual), (requirements, result, 'both'))
+        self.assertEqual(reopened.ritual_recipe(copied)[0][0], {'min_attack': 3333})
+
+    def test_conditional_ritual_edits_undo_and_redo_as_a_complete_recipe(self):
+        w = self.window
+        ritual, _c, _row = self.a_ritual()
+        before = [dict(row) for row in w._ritual_recipe(ritual)[0]]
+        w._start_history()
+        draft = w._ritual_draft(ritual)
+        draft['tributes'][0] = {'min_attack': 2345}
+        w._apply_ritual_selector_recipe()
+        w._flush_history()
+        self.assertEqual(w.project.ritual_requirements[ritual][0], {'min_attack': 2345})
+        w.undo()
+        self.assertEqual(w._ritual_recipe(ritual)[0], before)
+        w.redo()
+        self.assertEqual(w._ritual_recipe(ritual)[0][0], {'min_attack': 2345})
 
     def test_the_recipe_dialog_edits_conditions(self):
         from PySide6.QtWidgets import QSpinBox
@@ -1701,9 +1774,8 @@ class CardsTest(unittest.TestCase):
         w = self.window
         ritual, c, _row = self.a_ritual([{'min_level': 5, 'max_level': 8},
                                          {'defense_gt_attack': True}, {'card': 1}])
-        row = next(i for i in range(c['cards'].rowCount())
-                   if c['cards'].item(i, 0).data(Qt_UserRole()) == ritual)
-        text = c['cards'].item(row, 3).text()
+        requirements = w._ritual_recipe(ritual)[0]
+        text = " · ".join(w._ritual_tribute_text(requirement) for requirement in requirements)
         for part in ('Level ≥ 5', 'Level ≤ 8', 'DEF > ATK', 'Blue Dragon'):
             self.assertIn(part, text)
 

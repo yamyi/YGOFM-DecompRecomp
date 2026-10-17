@@ -357,7 +357,15 @@ def install() -> None:
         table = controls["cards"]
         previous = getattr(self, "ritual_current", None)
         table.blockSignals(True); table.setRowCount(0)
-        for ritual in self.project.ritual_cards():
+        # Keep recipes visible after their card changes type.  They are stale
+        # game data, but hiding them makes an imported mod impossible to
+        # inspect or clean up.
+        rituals = (set(self.project.ritual_cards()) | set(self.project.rituals)
+                   | set(self.project.retail.rituals) | set(self.project.ritual_requirements)
+                   | set(self.project.ritual_from))
+        for ritual in sorted(rituals):
+            if ritual not in self.project.cards:
+                continue
             found = self._ritual_recipe(ritual)
             row = table.rowCount(); table.insertRow(row)
             ident = QTableWidgetItem(f"{ritual:03d}")
@@ -366,8 +374,14 @@ def install() -> None:
             table.setItem(row, 1, QTableWidgetItem(self.project.cards[ritual].name))
             table.setItem(row, 2, QTableWidgetItem(str(len(found[0])) if found else "—"))
             state = self._ritual_state(ritual)
-            item = QTableWidgetItem(state.title())
-            if state != "stock": self._tint_state(item, "removed" if state == "no recipe" else state)
+            inactive = not self.project.is_ritual(ritual)
+            display = f"Inactive · {state.title()}" if inactive else state.title()
+            item = QTableWidgetItem(display)
+            item.setData(Qt.ItemDataRole.UserRole, (state, inactive))
+            if inactive:
+                self._tint_state(item, "removed")
+            elif state != "stock":
+                self._tint_state(item, "removed" if state == "no recipe" else state)
             table.setItem(row, 3, item)
         table.blockSignals(False)
         controls["count"].setText(f"{table.rowCount()} ritual{'s' if table.rowCount() != 1 else ''}")
@@ -405,11 +419,20 @@ def install() -> None:
             ritual = table.item(row, 0).data(Qt.ItemDataRole.UserRole)
             found = self._ritual_recipe(ritual)
             state = self._ritual_state(ritual)
-            match = not query or query in self.project.cards[ritual].name.casefold() or query in str(ritual)
+            inactive = not self.project.is_ritual(ritual)
+            named_cards = [ritual]
+            if found:
+                named_cards.extend(requirement["card"] for requirement in found[0]
+                                   if requirement.get("card"))
+                named_cards.append(found[1])
+            match = not query or any(cid in self.project.cards and self._card_matches(cid, query)
+                                     for cid in named_cards)
             if wanted_origin:
                 origin = found[2] if found else "field"
                 match &= origin == ("field", "hand", "both")[wanted_origin - 1]
-            if wanted_state != "all states":
+            if wanted_state == "inactive recipes":
+                match &= inactive
+            elif wanted_state != "all states":
                 match &= wanted_state == state
             table.setRowHidden(row, not match)
 
@@ -456,7 +479,9 @@ def install() -> None:
         labels["ritualHeadingLabel"].setText(f"Ritual: {self.project.cards[ritual].name}")
         labels["ritualIdLabel"].setText(f"ID {ritual}")
         state = self._ritual_state(ritual)
-        labels["ritualStateLabel"].setText(f"State: {state.title()}")
+        inactive = not self.project.is_ritual(ritual)
+        state_text = f"Inactive · {state.title()}" if inactive else state.title()
+        labels["ritualStateLabel"].setText(f"State: {state_text}")
         widget(page, QLineEdit, "ritualCardNameEdit").setText(self.project.cards[ritual].name)
         labels["ritualCardNameEditLabel"].setText(self.project.cards[ritual].name)
         card_id = widget(page, QSpinBox, "ritualCardIdSpin"); card_id.blockSignals(True); card_id.setValue(ritual); card_id.blockSignals(False)
@@ -469,8 +494,9 @@ def install() -> None:
         selected = min(max(0, self._ritual_selected_tribute), len(tributes) - 1)
         self._ritual_selected_tribute = selected
         labels["ritualStatusLabel"].setText(
-            "Pending changes" if self._ritual_draft_changed(ritual, draft)
-            else "The game's own recipe.")
+            "Inactive recipe: this card is no longer a Ritual, so its stored recipe is shown for inspection only."
+            if inactive else ("Pending changes" if self._ritual_draft_changed(ritual, draft)
+                             else "The game's own recipe."))
         labels["ritualRecipeSummaryLabel"].setText(f"{len(tributes)} tribute{'s' if len(tributes) != 1 else ''} → {self.project.card_label(result)}")
         labels["tributeCountStatusLabel"].setText(f"{len(tributes)} / 5 tributes")
         labels["tributeOriginHintLabel"].setText(_ORIGIN_TEXT[origin])
@@ -780,7 +806,10 @@ def install() -> None:
                 draft = {"tributes": [{"card": card} for card in values[:-1]],
                          "result": values[-1], "origin": "field", "own": True}
                 self._ritual_drafts[ritual] = draft
-        error = self._validate_ritual_draft(draft)
+        if not self.project.is_ritual(ritual):
+            error = "This card is no longer a Ritual; change its type before editing its stored recipe."
+        else:
+            error = self._validate_ritual_draft(draft)
         label = widget(self.workspace_controls["Rituals"]["page"], QLabel, "ritualErrorLabel")
         if error: label.setText(error); self.statusBar().showMessage(error, 5000); return
         self.project.set_ritual(ritual, draft["tributes"], draft["result"], draft["origin"])
