@@ -547,6 +547,41 @@ class CardsTest(unittest.TestCase):
         self.assertEqual(shown, base_image)
         self.assertIn('base', where)
 
+    def test_art_filter_updates_after_deferred_initialization(self):
+        from fm_editor import art, pngio
+        from PySide6.QtCore import Qt
+        w = self.window
+        w.select_workspace('Art')
+        copy = w.project.add_card(1, 'art-filter-copy')
+        image = pngio.Image(102, 96, bytes([10, 20, 30, 255]) * (102 * 96))
+        art.set_image(w.project, copy, 'art', image)
+        w.refresh_art_list(select_id=copy)
+        w.art_filter.setCurrentText('Added by the mod')
+        self.assertEqual([w.art_table.item(row, 0).data(Qt.ItemDataRole.UserRole)
+                          for row in range(w.art_table.rowCount())], [copy])
+        w.art_search.setText('nothing-matches-this')
+        self.assertEqual(w.art_table.rowCount(), 0)
+        w.art_search.setText(str(copy))
+        self.assertEqual(w.art_table.item(0, 0).data(Qt.ItemDataRole.UserRole), copy)
+
+    def test_art_save_and_reopen_keeps_retail_and_added_artwork(self):
+        from fm_editor import art, manifest, pngio
+        w = self.window
+        retail_image = pngio.Image(102, 96, bytes([15, 25, 35, 255]) * (102 * 96))
+        added_image = pngio.Image(102, 96, bytes([45, 55, 65, 255]) * (102 * 96))
+        added = w.project.add_card(1, 'art-save-copy')
+        art.set_image(w.project, 2, 'art', retail_image)
+        art.set_image(w.project, added, 'art', added_image)
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp) / 'art-save'
+            w._save_project(folder)
+            reopened, messages = manifest.open_mod(w.retail, folder)
+            self.assertEqual(messages, [])
+            reopened_added = next(cid for cid, item in reopened.added.items()
+                                 if item.key == 'art-save-copy')
+            self.assertEqual(art.replacement_image(reopened, 2, 'art'), retail_image)
+            self.assertEqual(art.replacement_image(reopened, reopened_added, 'art'), added_image)
+
     def test_art_import_warns_on_crop(self):
         from fm_editor import pngio
         w = self.window
