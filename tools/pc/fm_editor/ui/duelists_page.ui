@@ -194,7 +194,7 @@
             </property>
            </widget>
           </item>
-          <item row="0" column="3" rowspan="5">
+          <item row="0" column="3" rowspan="4">
            <layout class="QVBoxLayout" name="duelistEditButtonsLayout">
             <property name="spacing">
              <number>6</number>
@@ -228,42 +228,16 @@
               <property name="text"><string>Bust…</string></property>
              </widget>
             </item>
-            <item>
-             <widget class="QPushButton" name="duelistRevertPortraitButton">
-              <property name="toolTip"><string>Remove this duelist's portrait override.</string></property>
-              <property name="text"><string>Revert portrait</string></property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QPushButton" name="duplicateDuelistButton">
-              <property name="toolTip"><string>Create an independent copy of this custom duelist.</string></property>
-              <property name="text"><string>Duplicate</string></property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QPushButton" name="addDuelistButton">
-              <property name="text">
-               <string>Add duelist</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QPushButton" name="applyDuelistButton">
-              <property name="text">
-               <string>Apply edits</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QPushButton" name="removeDuelistButton">
-              <property name="enabled">
-               <bool>false</bool>
-              </property>
-              <property name="text">
-               <string>Remove</string>
-              </property>
-             </widget>
-            </item>
+           </layout>
+          </item>
+          <item row="4" column="1" colspan="3">
+           <layout class="QHBoxLayout" name="duelistRosterActionsLayout">
+            <property name="spacing"><number>6</number></property>
+            <item><widget class="QPushButton" name="duplicateDuelistButton"><property name="toolTip"><string>Create an independent copy of this custom duelist.</string></property><property name="text"><string>Duplicate</string></property></widget></item>
+            <item><widget class="QPushButton" name="addDuelistButton"><property name="text"><string>Add duelist</string></property></widget></item>
+            <item><widget class="QPushButton" name="applyDuelistButton"><property name="text"><string>Apply edits</string></property></widget></item>
+            <item><widget class="QPushButton" name="removeDuelistButton"><property name="enabled"><bool>false</bool></property><property name="text"><string>Remove</string></property></widget></item>
+            <item><widget class="QPushButton" name="duelistRevertPortraitButton"><property name="toolTip"><string>Remove this duelist's portrait override.</string></property><property name="text"><string>Revert portrait</string></property></widget></item>
            </layout>
           </item>
           <item row="0" column="4" rowspan="5">
