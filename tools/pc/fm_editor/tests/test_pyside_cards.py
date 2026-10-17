@@ -447,10 +447,12 @@ class CardsTest(unittest.TestCase):
         w._refresh_starter_decks()
         self.assertEqual(w.starter_current, 0)
 
-    def test_art_details_and_type_column(self):
+    def test_art_details_for_added_card(self):
         w = self.window
         w.refresh_art_list(select_id=1)
-        self.assertEqual(w.art_table.horizontalHeaderItem(2).text(), 'Type')
+        # The Art view deliberately has only identity and artwork-state
+        # columns; the Cards workspace owns card type editing.
+        self.assertEqual(w.art_table.horizontalHeaderItem(2).text(), 'Art status')
         self.assertIn('Texture pack:', w.art_pack_status.text())
         cid = w.project.add_card(1)
         w.show_art_card(cid)
@@ -485,6 +487,65 @@ class CardsTest(unittest.TestCase):
         with mock.patch('fm_editor.pyside_app.QFileDialog.getSaveFileName', return_value=('', '')) as chooser:
             w._save_art_image(1, 'art', image, 'mod')
         self.assertEqual(chooser.call_args.args[2], '0001-card-with-unsafe-characters-mod.png')
+
+    def test_art_preview_double_click_imports_its_part(self):
+        from PySide6.QtCore import Qt
+        from PySide6.QtTest import QTest
+        w = self.window
+        w.show_art_card(1)
+        preview = w.art_previews['thumbnail']['game']
+        w.show()
+        self.qt.processEvents()
+        with mock.patch.object(w, 'import_art') as import_art:
+            QTest.mouseDClick(preview, Qt.MouseButton.LeftButton)
+            self.qt.processEvents()
+        import_art.assert_called_once_with('thumbnail')
+        w.hide()
+
+    def test_art_export_write_error_is_reported(self):
+        from fm_editor import pngio
+        w = self.window
+        image = pngio.Image(1, 1, bytes([0, 0, 0, 255]))
+        with mock.patch('fm_editor.pyside_app.QFileDialog.getSaveFileName',
+                        return_value=('denied.png', '')), \
+             mock.patch('fm_editor.pyside_app.art.pngio.write',
+                        side_effect=OSError('permission denied')), \
+             mock.patch('fm_editor.pyside_app.QMessageBox.critical') as critical:
+            w._save_art_image(1, 'art', image, 'mod')
+        critical.assert_called_once()
+        self.assertEqual(critical.call_args.args[1], 'Could not export artwork')
+        self.assertIn('permission denied', critical.call_args.args[2])
+
+    def test_art_edit_undo_and_redo(self):
+        from fm_editor import art, pngio
+        w = self.window
+        image = pngio.Image(102, 96, bytes([30, 40, 50, 255]) * (102 * 96))
+        w.current_art_card = 1
+        with mock.patch('fm_editor.pyside_app.QFileDialog.getOpenFileName',
+                        return_value=('art.png', '')), \
+             mock.patch('fm_editor.pyside_app.art.pngio.read', return_value=image):
+            w.import_art('art')
+        w._record_edit()
+        self.assertEqual(art.replacement_image(w.project, 1, 'art'), image)
+        w.undo()
+        self.assertIsNone(art.replacement_image(w.project, 1, 'art'))
+        w.redo()
+        self.assertEqual(art.replacement_image(w.project, 1, 'art'), image)
+
+    def test_revert_art_copy_restores_base_inheritance(self):
+        from fm_editor import art, pngio
+        w = self.window
+        base_image = pngio.Image(102, 96, bytes([40, 50, 60, 255]) * (102 * 96))
+        copy_image = pngio.Image(102, 96, bytes([70, 80, 90, 255]) * (102 * 96))
+        copy = w.project.add_card(1, 'art-copy')
+        art.set_image(w.project, 1, 'art', base_image)
+        art.set_image(w.project, copy, 'art', copy_image)
+        w.current_art_card = copy
+        w.revert_art('art')
+        self.assertIsNone(art.replacement_image(w.project, copy, 'art'))
+        shown, where = art.shown_image(w.project, w.preview_wa, copy, 'art')
+        self.assertEqual(shown, base_image)
+        self.assertIn('base', where)
 
     def test_art_import_warns_on_crop(self):
         from fm_editor import pngio

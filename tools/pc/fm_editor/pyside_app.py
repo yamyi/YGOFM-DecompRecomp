@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from .qt.compat import install as _install_compat
 from .qt.cards_compat import install as _install_cards_compat
+from .qt.art_compat import install as _install_art_compat
 from .qt.fusions_compat import install as _install_fusions_compat
 from .qt.rituals_compat import install as _install_rituals_compat
 from .qt.import_compat import install as _install_import_compat
@@ -27,6 +28,7 @@ from .qt.window import ModernEditor, main      # noqa: F401
 from .qt.ui_assets_compat import install as _install_ui_assets_compat
 
 _install_cards_compat()
+_install_art_compat()
 _install_fusions_compat()
 _install_rituals_compat()
 _install_import_compat()

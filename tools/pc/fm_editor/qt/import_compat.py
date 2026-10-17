@@ -522,6 +522,15 @@ def install() -> None:
         finally:
             self._refresh_workspace = hidden_refresh
             self.refresh_art_list = art_refresh
+        # Art is built while its initial refresh is suppressed above. Its
+        # search controls therefore captured that temporary no-op slot.
+        # Reconnect them to the restored method before the page is shown.
+        for signal in (self.art_search.textChanged, self.art_filter.currentTextChanged):
+            try:
+                signal.disconnect()
+            except RuntimeError:
+                pass
+            signal.connect(self.refresh_art_list)
         # The base constructor deliberately left the hidden pages empty so
         # the first window can paint immediately.  They must consequently be
         # stale: otherwise the cached-navigation wrapper below mistakes an
