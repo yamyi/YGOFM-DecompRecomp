@@ -637,11 +637,9 @@ def install() -> None:
         # The Art list is lazy too.  Leave it unselected so selecting Art
         # performs its first population through select_workspace.
         self.current_art_card = None
-        # Duelists is now lazily refreshed with the other hidden pages.
-        # Its bookkeeping object therefore does not exist until that page is
-        # first selected.
-        description_added = (self._sync_added_duelists_description()
-                             if hasattr(self, "duelist_slots") else False)
+        # The shared roster model is already loaded even while its page is
+        # lazy, so its generated Free Duel note must not wait for a page visit.
+        description_added = self._sync_added_duelists_description()
         self._start_history()
         self._unsaved_start = False
         self.setWindowTitle(f"{self.project.info.name} — FM Editor")

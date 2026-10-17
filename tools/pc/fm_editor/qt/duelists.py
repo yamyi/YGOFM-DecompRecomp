@@ -4,6 +4,7 @@ from __future__ import annotations
 from .common import *      # noqa: F401,F403
 from .common import (_qimage, _line_count, _pairs_text, _parse_pairs, _whole,
                      _card_image)      # noqa: F401
+from .. import roster
 
 
 class DuelistsMixin:
@@ -12,7 +13,7 @@ class DuelistsMixin:
     def _sync_added_duelists_description(self):
         """Add the editor's Free Duel note only to an otherwise blank
         description, then keep that generated note's count current."""
-        count = sum(record.get("kind") == "added" for record in self.duelist_slots.values())
+        count = len(roster.copies(self.project))
         previous = self.project.info.description
         lines = previous.splitlines()
         line = f"Adds {count} duelists to the free duel"
@@ -46,47 +47,13 @@ class DuelistsMixin:
                 table.setItem(row, col, TableItem(str(value)))
         sort_resumed(table, held)
     def _duelist_roster_source(self):
-        """Read inline, file-backed, or folder duelist definitions without losing their source form."""
-        cached=getattr(self,"_duelist_entries_cache",None)
-        if cached is not None and getattr(self,"_duelist_entries_cache_project",None) is self.project:
-            return cached
-        raw=self.project.other.get("duelists")
-        entries=[];sources={};mode="inline";path=None
-        if isinstance(raw,list):
-            entries=[dict(e) for e in raw if isinstance(e,dict)]
-            mode="inline"
-        elif isinstance(raw,str):
-            path=raw;mode="file"
-            source=Path(self.project.source_dir or "") / raw
-            try:
-                blob=self.project.files.get(raw)
-                loaded=json.loads(blob.decode("utf-8-sig") if blob is not None else source.read_text(encoding="utf-8-sig"))
-                if isinstance(loaded,list):entries=[dict(e) for e in loaded if isinstance(e,dict)]
-            except (OSError,ValueError):
-                pass
-        else:
-            # New projects use the framework's one-duelist-per-file format,
-            # even before the `duelists/` directory exists on disk.
-            mode="folder"
-            folder=Path(self.project.source_dir or "") / "duelists"
-            files={file.relative_to(self.project.source_dir).as_posix():file for file in folder.glob("*.json")} if self.project.source_dir and folder.is_dir() else {}
-            for relative,blob in self.project.files.items():
-                if relative.startswith("duelists/") and relative.endswith(".json"):
-                    files.setdefault(relative,folder/Path(relative).name)
-            for relative,file in sorted(files.items()):
-                try:
-                    blob=self.project.files.get(relative)
-                    loaded=json.loads(blob.decode("utf-8-sig") if blob is not None else file.read_text(encoding="utf-8-sig"))
-                    entry=loaded
-                    if isinstance(entry,dict):
-                        # In the folder format, the filename is the ID; an
-                        # `id` property in the JSON is ignored by the game.
-                        entry["id"]=file.stem;entries.append(entry);sources[file.stem]=relative
-                except (OSError,ValueError):
-                    continue
-        result=(entries,mode,path,sources)
-        self._duelist_entries_cache=result;self._duelist_entries_cache_project=self.project
-        return result
+        """Compatibility view of the roster; editing uses roster.py directly."""
+        entries = [roster.entry(entry, True) for entry in roster.entries(self.project)]
+        sources = {entry.key: f"duelists/{entry.key}.json" for entry in roster.entries(self.project)
+                   if entry.origin == "folder"}
+        mode = "file" if self.project.roster_file is not None else (
+            "inline" if any(entry.origin == "manifest" for entry in roster.entries(self.project)) else "folder")
+        return entries, mode, self.project.roster_file, sources
     @staticmethod
     def _replaces_slot(entry, slot) -> bool:
         """Whether this entry replaces that duelist, however it names one: by
@@ -106,34 +73,27 @@ class DuelistsMixin:
         slug=re.sub(r"[^a-z0-9]+","-",str(text).lower()).strip("-")
         return slug or "new-duelist"
     def _duelist_layout(self):
-        entries,mode,path,sources=self._duelist_roster_source()
-        # Slot 000 is Deck Build, not an opponent: preserve the empty grid
-        # position but never expose it as an editable duelist.
-        slots={i:{"slot":i,"name":DUELIST_NAMES[i],"base":i,"kind":"stock","entry":None}
-               for i in range(1,min(40,len(DUELIST_NAMES)))}
-        # Replacements occupy their retail positions and do not take an added slot.
-        for entry in entries:
-            if "replace" not in entry:continue
-            from ..model import duelist_named
-            d=duelist_named(entry.get("replace"))
-            if 0<d<40:
-                slots[d]={"slot":d,"name":str(entry.get("name") or DUELIST_NAMES[d]),"base":d,
-                          "kind":"replacement","entry":entry}
-        # Reserve all explicit positions first, matching the framework's placement pass.
-        added=[]
-        for entry in entries:
-            if "replace" in entry:continue
-            slot=entry.get("slot")
-            if isinstance(slot,int) and not isinstance(slot,bool) and 40<=slot<128 and slot not in slots:
-                slots[slot]={"slot":slot,"name":str(entry.get("name") or entry.get("id") or "Duelist"),
-                             "base":self._duelist_base_index(entry.get("copy")),"kind":"added","entry":entry}
-            else:added.append(entry)
-        for entry in added:
-            free=next((slot for slot in range(40,128) if slot not in slots),None)
-            if free is None:break
-            slots[free]={"slot":free,"name":str(entry.get("name") or entry.get("id") or "Duelist"),
-                         "base":self._duelist_base_index(entry.get("copy")),"kind":"added","entry":entry}
-        self._duelist_entries_cache=(entries,mode,path,sources);self._duelist_entries_cache_project=self.project
+        """The game roster laid out by its shared model, not a second raw
+        manifest view.  In particular, an added copy keeps its own roster
+        subject so its pools and fixed deck cannot fall through to its base."""
+        slots = {i: {"slot": i, "name": roster.shown_name(self.project, i),
+                     "base": i, "kind": "stock", "entry": None, "subject": i}
+                 for i in range(1, min(40, len(DUELIST_NAMES)))}
+        for entry in roster.entries(self.project):
+            if entry.replace and 0 < entry.base < 40:
+                slots[entry.base] = {
+                    "slot": entry.base, "name": roster.shown_name(self.project, entry.base),
+                    "base": entry.base, "kind": "replacement",
+                    "entry": roster.entry(entry, True), "subject": entry.base,
+                }
+        for entry, slot in roster.placement(self.project).items():
+            if slot is None or not 40 <= slot < 128:
+                continue
+            slots[slot] = {
+                "slot": slot, "name": roster.shown_name(self.project, entry),
+                "base": entry.base, "kind": "added",
+                "entry": roster.entry(entry, True), "subject": entry,
+            }
         return slots
     @staticmethod
     def _duelist_base_name(base) -> str:
@@ -148,6 +108,11 @@ class DuelistsMixin:
         found=duelist_named(value)
         return found if found>0 else 1
     def _duelist_portrait_pixmap(self, record):
+        subject = record.get("subject")
+        if subject is not None and not isinstance(subject, int) and subject.portrait is not None:
+            pix = QPixmap()
+            if pix.loadFromData(subject.portrait):
+                return pix
         entry=record.get("entry") or {}
         portrait=entry.get("portrait")
         if portrait:
@@ -256,12 +221,15 @@ class DuelistsMixin:
             # A duelist the mod has touched reads as touched, as the Tk list's
             # "changed"/"fixed" column says.
             base=int(record.get("base",0) or 0)
+            subject = record.get("subject", base)
             state=""
-            if 0<=base<len(self.project.pools):
-                if fixed_decks.deck_of(self.project,base) is not None:state="fixed"
-                elif any({c:w for c,w in self.project.pools[base][pool].items() if w}
-                         !=self.project.retail.pools[base][pool] for pool in POOLS):state="changed"
-            if record["kind"]=="added":state="added"
+            if fixed_decks.deck_of(self.project, subject) is not None:
+                state="fixed"
+            elif any({c:w for c,w in roster.pools_of(self.project, subject)[pool].items() if w}
+                     !=roster.retail_pool(self.project, subject, pool) for pool in POOLS):
+                state="changed"
+            if record["kind"]=="added" and not state:
+                state="added"
             if state:
                 ink=self._state_colour("added" if state in ("added","fixed") else state)
                 if ink is not None:label.setStyleSheet(f"color:{ink.name()}")
@@ -279,6 +247,15 @@ class DuelistsMixin:
         slot=getattr(self,"duelist_selected_slot",0)
         record=getattr(self,"duelist_slots",{}).get(slot)
         return (record or {}).get("base",1)
+    def _selected_duelist_subject(self):
+        """The roster subject currently being edited: a retail ID or a copy."""
+        slot = getattr(self, "duelist_selected_slot", 0)
+        record = getattr(self, "duelist_slots", {}).get(slot)
+        return (record or {}).get("subject", (record or {}).get("base", 1))
+
+    def _selected_duelist_stash_key(self):
+        subject = self._selected_duelist_subject()
+        return subject if isinstance(subject, int) else ("copy", subject.key)
     def _select_duelist(self,row=None,column=None,refresh_grid=True):
         c=self.workspace_controls["Duelists"]
         if row is None or row<0:row=c["duelists"].currentRow()
@@ -320,119 +297,101 @@ class DuelistsMixin:
         pix=QPixmap.fromImage(image)
         label=self.workspace_controls["Duelists"]["portrait"]
         label.setPixmap(pix.scaled(label.size(),Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation));label.setText("")
-    def _store_duelist_entries(self,entries):
-        _,mode,path,sources=getattr(self,"_duelist_entries_cache",( [],"inline",None,{}))
-        if mode=="inline":
-            self.project.other["duelists"]=entries
-        elif mode=="file":
-            self.project.files[path]=json.dumps(entries,ensure_ascii=False,indent=4).encode("utf-8")+b"\n"
-        else:
-            for entry in entries:
-                duel_id=str(entry.get("id") or "")
-                relative=sources.get(duel_id,f"duelists/{duel_id}.json")
-                body=dict(entry)
-                # The folder format derives IDs from the filename and expects
-                # only duelist properties (copy/name/slot/portrait) in JSON.
-                body.pop("id",None)
-                self.project.files[relative]=json.dumps(body,ensure_ascii=False,indent=4).encode("utf-8")+b"\n"
-    def _save_duelist(self,adding=False):
-        c=self.workspace_controls["Duelists"]
-        name=c["name"].text().strip()
+    def _roster_origin(self):
+        """Where a newly created roster entry belongs in the current mod."""
+        if self.project.roster_file is not None:
+            return "file"
+        if any(entry.origin == "manifest" for entry in roster.entries(self.project)):
+            return "manifest"
+        return "folder"
+
+    def _save_duelist(self, adding=False):
+        """Apply the form through roster.py so every custom duelist remains
+        its own pool and fixed-deck subject after save/reopen."""
+        c = self.workspace_controls["Duelists"]
+        name = c["name"].text().strip()
         if not name:
-            QMessageBox.warning(self,"Duelist name required","Enter a name for this duelist.");return
-        entries,mode,path,sources=self._duelist_roster_source();self._duelist_entries_cache=(entries,mode,path,sources)
-        slot=getattr(self,"duelist_selected_slot",None);record=self.duelist_slots.get(slot) if slot is not None else None
-        raw_id=c["id"].text().strip()
-        # An id the mod already wrote stays exactly as written: slugging it
-        # here renamed "Dark_Simon" to "dark-simon" and left its roster, deck,
-        # drop and portrait files behind under the old one.
-        written=str(((record or {}).get("entry") or {}).get("id") or "")
-        duelist_id=raw_id if raw_id and raw_id==written else self._duelist_slug(raw_id or name)
-        existing=next((e for e in entries if str(e.get("id","")).casefold()==duelist_id.casefold()),None)
-        # Two duelists with one name cannot both be meant: "beat", "drops" and
-        # "decks" all name a duelist by it, and Duelists_Named answers with the
-        # first it finds, so the second would be unreachable.
-        # Editing, the duelist may keep its own name; adding, every other one
-        # counts, the duelist selected at the time included.
-        mine=None if adding else (record or {}).get("slot")
-        taken=next((other for other in self.duelist_slots.values()
-                    if other.get("slot")!=mine and other.get("name","").casefold()==name.casefold()),None)
-        if taken is not None:
-            QMessageBox.warning(self,"Name already used",
-                                f"{taken['name']} is at grid position {taken['slot']} already. "
-                                "Two duelists with one name cannot be told apart by \"beat\", \"drops\" or "
-                                "\"decks\".")
+            QMessageBox.warning(self, "Duelist name required", "Enter a name for this duelist.")
             return
+        slot = getattr(self, "duelist_selected_slot", None)
+        record = self.duelist_slots.get(slot) if slot is not None else None
+        mine = record.get("subject") if record else None
+        taken = next((other for other in self.duelist_slots.values()
+                      if other.get("subject") is not mine and
+                      other.get("name", "").casefold() == name.casefold()), None)
+        if taken is not None:
+            QMessageBox.warning(
+                self, "Name already used",
+                f"{taken['name']} is at grid position {taken['slot']} already. "
+                "Two duelists with one name cannot be told apart by \"beat\", \"drops\" or \"decks\".")
+            return
+
+        requested_key = c["id"].text().strip()
         if adding:
-            if existing:
-                QMessageBox.warning(self,"ID already used",f"The ID {duelist_id!r} is already in use.");return
-            base=c["base"].currentData()
+            base = c["base"].currentData()
             if base is None:
-                QMessageBox.warning(self,"Choose a base","Choose a stock duelist to copy.");return
-            chosen_slot=c["position"].currentData()
-            if chosen_slot is not None:
-                if chosen_slot in self.duelist_slots:
-                    QMessageBox.warning(self,"Position occupied",f"Grid position {chosen_slot} is occupied. Choose another position or Automatic.");return
-            # The base by name, never by number: the port reads an entry's
-            # "copy" with Json_String and asks Duelists_Named for it
-            # (free_duel/duelists.c), so a number is no string, names no
-            # duelist, and the whole entry is dropped with a note. A card's
-            # "copy" takes either; a duelist's does not.
-            entry={"id":duelist_id,"copy":self._duelist_base_name(base),"name":name}
-            if chosen_slot is not None:entry["slot"]=int(chosen_slot)
-            entries.append(entry)
-            target_id=duelist_id
-            slot=chosen_slot
+                QMessageBox.warning(self, "Choose a base", "Choose a stock duelist to copy.")
+                return
+            chosen_slot = c["position"].currentData()
+            if chosen_slot is not None and chosen_slot in self.duelist_slots:
+                QMessageBox.warning(self, "Position occupied",
+                                    f"Grid position {chosen_slot} is occupied. Choose another position or Automatic.")
+                return
+            key = self._duelist_slug(requested_key or name)
+            if roster.find(self.project, key) is not None:
+                QMessageBox.warning(self, "ID already used", f"The ID {key!r} is already in use.")
+                return
+            subject = roster.add_copy(self.project, base, name, chosen_slot, key)
+            subject.origin = self._roster_origin()
         else:
             if record is None:
-                QMessageBox.warning(self,"Choose a duelist","Select a duelist to edit, or use Add duelist for an empty position.");return
-            if record["kind"] in ("added","replacement"):
-                entry=record["entry"]
-                old_id=str(entry.get("id") or "")
-                if duelist_id!=old_id and existing:
-                    QMessageBox.warning(self,"ID already used",f"The ID {duelist_id!r} is already in use.");return
-                entry["id"]=duelist_id;entry["name"]=name
-                if record["kind"]=="added":
-                    base=c["base"].currentData()
-                    if base is None:
-                        QMessageBox.warning(self,"Choose a base","Choose a stock duelist to copy.");return
-                    entry["copy"]=self._duelist_base_name(base)
-                    chosen_slot=c["position"].currentData()
-                    if chosen_slot is not None and chosen_slot in self.duelist_slots and chosen_slot!=slot:
-                        QMessageBox.warning(self,"Position occupied",f"Grid position {chosen_slot} is occupied.");return
-                    if chosen_slot is None:entry.pop("slot",None)
-                    else:entry["slot"]=int(chosen_slot)
-                target_id=duelist_id
-            else:
-                if slot == 0 and record["kind"] == "stock":
-                    QMessageBox.warning(self,"Reserved position","Position 000 is reserved for Deck Build and cannot be replaced.");return
-                entry=next((e for e in entries if self._replaces_slot(e,slot)),None)
-                if entry is not None:
-                    entry["name"]=name;entry["id"]=duelist_id
-                else:
-                    entry={"id":duelist_id,"replace":DUELIST_NAMES[slot],"name":name};entries.append(entry)
-                target_id=duelist_id
-        portrait=getattr(self,"_duelist_portrait_pending",None)
+                QMessageBox.warning(self, "Choose a duelist",
+                                    "Select a duelist to edit, or use Add duelist for an empty position.")
+                return
+            subject = record.get("subject", record["base"])
+            if isinstance(subject, int):
+                subject = roster.take_over(self.project, subject)
+                subject.origin = self._roster_origin()
+            if record["kind"] == "added":
+                base = c["base"].currentData()
+                if base is None:
+                    QMessageBox.warning(self, "Choose a base", "Choose a stock duelist to copy.")
+                    return
+                chosen_slot = c["position"].currentData()
+                if chosen_slot is not None and chosen_slot in self.duelist_slots and chosen_slot != slot:
+                    QMessageBox.warning(self, "Position occupied", f"Grid position {chosen_slot} is occupied.")
+                    return
+                subject.base = int(base)
+                subject.slot = chosen_slot
+            if requested_key and requested_key != subject.key:
+                key = self._duelist_slug(requested_key)
+                other = roster.find(self.project, key)
+                if other is not None and other is not subject:
+                    QMessageBox.warning(self, "ID already used", f"The ID {key!r} is already in use.")
+                    return
+                subject.key = key
+            roster.set_name(self.project, subject, name)
+            subject.written = None
+
+        portrait = getattr(self, "_duelist_portrait_pending", None)
         if portrait:
-            rel=f"portraits/{target_id}.png";self.project.files[rel]=portrait
-            entry["portrait"]=rel
-            self._duelist_portrait_pending=None
-        if mode=="folder" and entry.get("id") and entry.get("id") not in sources:
-            sources[entry["id"]]=f"duelists/{entry['id']}.json"
-        self._duelist_entries_cache=(entries,mode,path,sources);self._duelist_entries_cache_project=self.project
-        self._store_duelist_entries(entries)
+            try:
+                roster.set_portrait(self.project, subject, portrait)
+            except pngio.PngError as problem:
+                QMessageBox.warning(self, "Invalid portrait", str(problem))
+                return
+            self._duelist_portrait_pending = None
         self._mark_dirty()
-        self.duelist_slots=self._duelist_layout()
+        self.duelist_slots = self._duelist_layout()
         self._sync_added_duelists_description()
-        slot=next((s for s,r in self.duelist_slots.items()
-                   if (r.get("entry") or {}).get("id")==target_id),slot)
-        if slot is not None:
-            self.duelist_selected_slot=slot
+        selected = roster.slot_of(self.project, subject)
+        if selected is not None:
+            self.duelist_selected_slot = selected
             if c["search"].text() and c["search"].text().casefold() not in name.casefold():
                 c["search"].clear()
-            c["page"].setCurrentIndex(slot//40)
+            c["page"].setCurrentIndex(selected // 40)
         self._refresh_duelists()
-        self.statusBar().showMessage(f"Applied edits to {name}. Use Save to write them to the mod.",8000)
+        self.statusBar().showMessage(f"Applied edits to {name}. Use Save to write them to the mod.", 8000)
 
     # The unlock a duelist entry may carry (free_duel/duelists.c read_one_duelist):
     # beaten duelist, card owned, wins, campaign flag. The pack's own Unlock
@@ -853,60 +812,44 @@ QPushButton#ruleDrop:hover { color: #ffffff; }
                 child.setEnabled(on)
 
     def _set_duelist_unlock(self, record, unlock):
-        """Put it on the duelist's entry, making a stock duelist the mod's own
-        first: an unlock needs an entry to live on."""
-        entries, mode, path, sources = self._duelist_roster_source()
-        entry = record.get("entry")
-        if entry is None:
-            slot = record.get("slot", getattr(self, "duelist_selected_slot", 0))
-            entry = {"id": self._duelist_slug(record["name"]), "replace": DUELIST_NAMES[record["base"]],
-                     "name": record["name"]}
-            entries.append(entry)
-            if mode == "folder" and entry["id"] not in sources:
-                sources[entry["id"]] = f"duelists/{entry['id']}.json"
+        """Store unlock data on the selected roster entry, creating a retail
+        replacement only when the stock duelist actually needs one."""
+        subject = record.get("subject", record.get("base"))
+        if isinstance(subject, int):
+            subject = roster.take_over(self.project, subject)
+            subject.origin = self._roster_origin()
         if unlock:
-            entry["unlock"] = unlock
+            subject.extra["unlock"] = unlock
         else:
-            entry.pop("unlock", None)
-        self._duelist_entries_cache = (entries, mode, path, sources)
-        self._duelist_entries_cache_project = self.project
-        self._store_duelist_entries(entries)
+            subject.extra.pop("unlock", None)
+        subject.written = None
+        roster.prune(self.project, subject)
         self._mark_dirty()
         self._refresh_duelists()
         self.statusBar().showMessage(
             f"{record['name']} is unlocked by {', '.join(sorted(unlock))}." if unlock
             else f"{record['name']} is there from the start.", 8000)
+
     def _remove_duelist(self):
-        c=self.workspace_controls["Duelists"]
-        slot=getattr(self,"duelist_selected_slot",None)
-        record=self.duelist_slots.get(slot) if slot is not None else None
-        if not record or record.get("kind")!="added":
-            QMessageBox.information(self,"Remove duelist","Select a custom-added duelist to remove. Retail duelists and replacements cannot be removed.")
+        slot = getattr(self, "duelist_selected_slot", None)
+        record = self.duelist_slots.get(slot) if slot is not None else None
+        subject = (record or {}).get("subject")
+        if not record or record.get("kind") != "added" or isinstance(subject, int):
+            QMessageBox.information(self, "Remove duelist",
+                                    "Select a custom-added duelist to remove. Retail duelists and replacements cannot be removed.")
             return
-        name=record["name"]
-        answer=QMessageBox.question(self,"Remove duelist",f"Remove {name} from the roster? Its duelists, deck, drop, and portrait files will be omitted when you save the mod.")
-        if answer!=QMessageBox.StandardButton.Yes:return
-        entries,mode,path,sources=self._duelist_roster_source()
-        entry=record["entry"];duelist_id=str(entry.get("id") or "")
-        entries=[item for item in entries if item is not entry]
-        if mode=="folder":
-            roster_path=sources.pop(duelist_id,f"duelists/{duelist_id}.json")
-            self.project.removed_files.add(roster_path)
-            for related in (f"decks/{duelist_id}.json",f"drops/{duelist_id}.json"):
-                self.project.removed_files.add(related)
-            portrait=entry.get("portrait") or f"portraits/{duelist_id}.png"
-            still_used=any((other.get("portrait") or f"portraits/{other.get('id','')}.png")==portrait for other in entries)
-            if not still_used:self.project.removed_files.add(portrait)
-            for relative in (roster_path,f"decks/{duelist_id}.json",f"drops/{duelist_id}.json",portrait):
-                self.project.files.pop(relative,None)
-        self._duelist_entries_cache=(entries,mode,path,sources)
-        self._duelist_entries_cache_project=self.project
-        self._store_duelist_entries(entries)
-        self._duelist_portrait_pending=None
+        answer = QMessageBox.question(
+            self, "Remove duelist",
+            f"Remove {record['name']} from the roster? Its duelist, deck, drop, and portrait files will be removed when you save the mod.")
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        roster.remove(self.project, subject)
+        self._duelist_portrait_pending = None
         self._mark_dirty()
-        self.duelist_slots=self._duelist_layout()
+        self.duelist_slots = self._duelist_layout()
         self._sync_added_duelists_description()
         self._refresh_duelists()
+
     def _selected_pool_name(self):
         return POOLS[max(0, self.workspace_controls["Duelists"]["pool"].currentIndex())]
     STAT_STYLE = """
@@ -1084,10 +1027,9 @@ QLabel#statsRank { color: #8aa0bd; }
 
     def _refresh_duelist_pool(self,*_):
         if "Duelists" not in self.workspace_controls:return
-        c=self.workspace_controls["Duelists"];d=self._selected_duelist();name=self._selected_pool_name()
+        c=self.workspace_controls["Duelists"];d=self._selected_duelist();subject=self._selected_duelist_subject();name=self._selected_pool_name()
         record=getattr(self,"duelist_slots",{}).get(getattr(self,"duelist_selected_slot",d))
-        is_added=bool(record and record.get("kind")=="added")
-        pool=self.project.pools[d][name];retail=self.project.retail.pools[d][name]
+        pool=roster.pools_of(self.project, subject)[name];retail=roster.retail_pool(self.project, subject, name)
         title=record["name"] if record else DUELIST_NAMES[d]
         if self._refresh_fixed_deck():
             return                      # the forty written down are what shows
@@ -1098,7 +1040,7 @@ QLabel#statsRank { color: #8aa0bd; }
         c["summary"].setStyleSheet("color:#7fd49b" if total==POOL_TOTAL else "color:#ff7777")
         for button_name in ("addPoolCardButton","setPoolWeightButton","removePoolCardButton","normalizePoolButton","revertPoolButton"):
             button=c["page"].findChild(QPushButton,button_name)
-            if button:button.setEnabled(not is_added)
+            if button:button.setEnabled(True)
         rows=[]
         for cid in sorted(set(pool)|set(retail),key=lambda i:(-pool.get(i,0),i)):
             weight,before=pool.get(cid,0),retail.get(cid,0)
@@ -1124,7 +1066,7 @@ QLabel#statsRank { color: #8aa0bd; }
         """The duelist's fixed deck, while the deck pool is the one shown."""
         if self._selected_pool_name() != "deck":
             return None
-        return fixed_decks.deck_of(self.project, self._selected_duelist())
+        return fixed_decks.deck_of(self.project, self._selected_duelist_subject())
     def _show_fixed_widgets(self, layout, visible):
         for index in range(layout.count()):
             item = layout.itemAt(index)
@@ -1156,7 +1098,7 @@ QLabel#statsRank { color: #8aa0bd; }
         table.blockSignals(True)
         held = sort_paused(table)
         table.setRowCount(0)
-        weights = self.project.pools[self._selected_duelist()]["deck"]
+        weights = roster.pools_of(self.project, self._selected_duelist_subject())["deck"]
         for cid in sorted(deck.cards):
             copies = deck.cards[cid]
             card = self.project.cards.get(cid)
@@ -1203,20 +1145,21 @@ QLabel#statsRank { color: #8aa0bd; }
         c = self.workspace_controls["Duelists"]
         if self._selected_pool_name() != "deck":
             return
-        duelist = self._selected_duelist()
+        duelist = self._selected_duelist_subject()
+        stash_key = self._selected_duelist_stash_key()
         if c["fixed_radio"].isChecked():
             if fixed_decks.deck_of(self.project, duelist) is None:
-                if self.fixed_stash.get(duelist):
-                    fixed_decks.restore(self.project, self.fixed_stash.pop(duelist))
+                if self.fixed_stash.get(stash_key):
+                    fixed_decks.restore(self.project, self.fixed_stash.pop(stash_key))
                 else:
                     # A start that deals: the forty the weighted deck most
                     # likely deals. Clear starts from nothing.
                     fixed_decks.set_deck(self.project, duelist,
-                                         fixed_decks.most_likely(self.project.pools[duelist]["deck"]))
+                                         fixed_decks.most_likely(roster.pools_of(self.project, duelist)["deck"]))
         else:
             taken = fixed_decks.remove(self.project, duelist)
             if taken:
-                self.fixed_stash[duelist] = taken
+                self.fixed_stash[stash_key] = taken
         self._fixed_edited()
     def _fixed_edited(self):
         deck = self._fixed_deck()
@@ -1276,9 +1219,9 @@ QLabel#statsRank { color: #8aa0bd; }
                 QMessageBox.StandardButton.No)
             if answer != QMessageBox.StandardButton.Yes:
                 return
-        duelist = self._selected_duelist()
+        duelist = self._selected_duelist_subject()
         fixed_decks.set_deck(self.project, duelist,
-                             fixed_decks.most_likely(self.project.pools[duelist]["deck"]))
+                             fixed_decks.most_likely(roster.pools_of(self.project, duelist)["deck"]))
         self._fixed_edited()
     def _clear_fixed_deck(self):
         deck = self._fixed_deck()
@@ -1288,18 +1231,21 @@ QLabel#statsRank { color: #8aa0bd; }
         self._fixed_edited()
     def _revert_fixed_deck(self):
         """Back to the disc's: no fixed deck, and the weighted deck retail's."""
-        duelist = self._selected_duelist()
+        duelist = self._selected_duelist_subject()
         answer = QMessageBox.question(
             self, "Revert to retail",
-            f"Deal {DUELIST_NAMES[duelist]} the disc's weighted deck again? "
+            f"Deal {roster.label(self.project, duelist)} the disc's weighted deck again? "
             "The fixed deck and the weighted deck's edits are taken out.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No)
         if answer != QMessageBox.StandardButton.Yes:
             return
         fixed_decks.remove(self.project, duelist)
-        self.fixed_stash.pop(duelist, None)
-        self.project.revert_pool(duelist, "deck")
+        self.fixed_stash.pop(self._selected_duelist_stash_key(), None)
+        if isinstance(duelist, int):
+            self.project.revert_pool(duelist, "deck")
+        else:
+            roster.pools_of(self.project, duelist)["deck"] = dict(roster.retail_pool(self.project, duelist, "deck"))
         self._fixed_edited()
     def _select_pool_card(self):
         c=self.workspace_controls["Duelists"];row=c["table"].currentRow()
@@ -1307,7 +1253,7 @@ QLabel#statsRank { color: #8aa0bd; }
     def _add_pool_card(self):
         cid=self._choose_one_card("Add card to pool")
         if cid:
-            d=self._selected_duelist();pool=self.project.pools[d][self._selected_pool_name()]
+            d=self._selected_duelist_subject();pool=roster.pools_of(self.project, d)[self._selected_pool_name()]
             pool[cid]=max(1,self.workspace_controls["Duelists"]["weight"].value())
             self._mark_dirty();self._refresh_duelists()
             return cid
@@ -1316,23 +1262,26 @@ QLabel#statsRank { color: #8aa0bd; }
         return [table.item(row,0).data(Qt.ItemDataRole.UserRole)
                 for row in sorted({x.row() for x in table.selectedItems()}) if table.item(row,0)]
     def _set_pool_weight(self):
-        pool=self.project.pools[self._selected_duelist()][self._selected_pool_name()]
+        pool=roster.pools_of(self.project, self._selected_duelist_subject())[self._selected_pool_name()]
         weight=self.workspace_controls["Duelists"]["weight"].value()
         for cid in self._selected_pool_cards():
             if weight:pool[cid]=weight
             else:pool.pop(cid,None)
         self._mark_dirty();self._refresh_duelist_pool()
     def _remove_pool_cards(self):
-        pool=self.project.pools[self._selected_duelist()][self._selected_pool_name()]
+        pool=roster.pools_of(self.project, self._selected_duelist_subject())[self._selected_pool_name()]
         for cid in self._selected_pool_cards():pool.pop(cid,None)
         self._mark_dirty();self._refresh_duelist_pool()
     def _normalize_pool(self):
-        d=self._selected_duelist();pool=self._selected_pool_name()
-        self.project.pools[d][pool]=poolmath.normalize(self.project.pools[d][pool])
+        d=self._selected_duelist_subject();pool=self._selected_pool_name()
+        roster.pools_of(self.project, d)[pool]=poolmath.normalize(roster.pools_of(self.project, d)[pool])
         self._mark_dirty();self._refresh_duelist_pool()
     def _revert_pool(self):
-        d=self._selected_duelist();pool=self._selected_pool_name()
-        self.project.revert_pool(d,pool)
+        d=self._selected_duelist_subject();pool=self._selected_pool_name()
+        if isinstance(d, int):
+            self.project.revert_pool(d,pool)
+        else:
+            roster.pools_of(self.project, d)[pool] = dict(roster.retail_pool(self.project, d, pool))
         self._mark_dirty();self._refresh_duelists()
     @property
     def limits_duelists(self):

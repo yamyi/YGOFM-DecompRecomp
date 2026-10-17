@@ -2002,6 +2002,71 @@ class CardsTest(unittest.TestCase):
         self.assertGreater(c['fixed_table'].rowCount(), 0)
         self.assertEqual(c['summary'].text(), '40/40 cards')
 
+    def test_custom_duelist_pools_and_fixed_decks_are_isolated_and_persist(self):
+        """A roster copy edits itself, never the retail duelist it copied."""
+        from fm_editor import fixed_decks, manifest, roster
+        from fm_editor.gamedata import POOLS
+        w = self.window
+        c = self.duelists_page()
+        c['name'].setText('Pool Tester')
+        c['id'].setText('pool-tester')
+        c['base'].setCurrentIndex(c['base'].findData(1))
+        c['position'].setCurrentIndex(c['position'].findData(None))
+        w._save_duelist(adding=True)
+        subject = w._selected_duelist_subject()
+        self.assertFalse(isinstance(subject, int))
+        base = subject.base
+        retail_deck = dict(w.project.pools[base]['deck'])
+        retail_pow = dict(w.project.pools[base]['pow'])
+
+        table = c['table']
+        cid = table.item(0, 0).data(Qt_UserRole())
+        table.selectRow(0)
+        c['weight'].setValue(subject.pools['deck'][cid] + 1)
+        w._set_pool_weight()
+        self.assertEqual(w.project.pools[base]['deck'], retail_deck)
+        self.assertEqual(subject.pools['deck'][cid], retail_deck[cid] + 1)
+        w._normalize_pool()
+        custom_deck = dict(subject.pools['deck'])
+
+        c['pool'].setCurrentIndex(POOLS.index('pow'))
+        table = c['table']
+        drop = table.item(0, 0).data(Qt_UserRole())
+        table.selectRow(0)
+        c['weight'].setValue(subject.pools['pow'][drop] + 1)
+        w._set_pool_weight()
+        self.assertEqual(w.project.pools[base]['pow'], retail_pow)
+        self.assertEqual(subject.pools['pow'][drop], retail_pow[drop] + 1)
+        w._normalize_pool()
+        custom_pow = dict(subject.pools['pow'])
+
+        # The weighted deck and drops serialize independently before a fixed
+        # deck replaces the weighted deck the game deals.
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp) / 'weighted'
+            manifest.save_mod(w.project, folder)
+            reopened, messages = manifest.open_mod(w.retail, folder)
+            self.assertFalse(messages)
+            reopened_subject = roster.find(reopened, 'pool-tester')
+            self.assertIsNotNone(reopened_subject)
+            self.assertEqual(reopened_subject.pools['deck'], custom_deck)
+            self.assertEqual(reopened_subject.pools['pow'], custom_pow)
+            self.assertEqual(reopened.pools[base]['deck'], retail_deck)
+            self.assertEqual(reopened.pools[base]['pow'], retail_pow)
+
+            c['pool'].setCurrentIndex(POOLS.index('deck'))
+            c['fixed_radio'].setChecked(True)
+            self.assertIsNotNone(fixed_decks.deck_of(w.project, subject))
+            self.assertIsNone(fixed_decks.deck_of(w.project, base))
+            fixed_folder = Path(tmp) / 'fixed'
+            manifest.save_mod(w.project, fixed_folder)
+            fixed_reopened, messages = manifest.open_mod(w.retail, fixed_folder)
+        self.assertFalse(messages)
+        fixed_subject = roster.find(fixed_reopened, 'pool-tester')
+        self.assertIsNotNone(fixed_decks.deck_of(fixed_reopened, fixed_subject))
+        self.assertIsNone(fixed_decks.deck_of(fixed_reopened, base))
+        self.assertEqual(fixed_reopened.pools[base]['deck'], retail_deck)
+
     def test_switching_back_to_weighted_keeps_the_fixed_deck_to_hand(self):
         from fm_editor import fixed_decks
         w = self.window
@@ -2741,26 +2806,24 @@ class CardsTest(unittest.TestCase):
     # --- what a review found: ids, files and the duelists' own ---------------
 
     def test_an_id_the_mod_wrote_is_not_reslugged(self):
-        """"Dark_Simon" stayed "Dark_Simon": slugging it renamed the duelist
-        and left its roster, deck, drop and portrait files behind."""
-        import json
+        """A roster key stays verbatim when its copy is edited."""
+        from fm_editor import roster
         w = self.window
-        w.project.files['duelists/Dark_Simon.json'] = json.dumps(
-            {'copy': 1, 'name': 'Dark Simon'}).encode()
-        w._duelist_entries_cache = None
+        subject = roster.add_copy(w.project, 1, 'Dark Simon', key='Dark_Simon')
+        subject.origin = 'folder'
         w.select_workspace('Duelists')
         c = w.workspace_controls['Duelists']
-        slot = next(s for s, r in w.duelist_slots.items()
-                    if (r.get('entry') or {}).get('id') == 'Dark_Simon')
+        slot = roster.slot_of(w.project, subject)
         w.duelist_selected_slot = slot
+        w._refresh_duelists()
         c['name'].setText('Dark Simon the Second')
         c['id'].setText('Dark_Simon')
-        c['base'].setCurrentIndex(1)
         w._save_duelist()
-        entries = w._duelist_roster_source()[0]
-        self.assertEqual([e.get('id') for e in entries], ['Dark_Simon'])
-        self.assertEqual(sorted(k for k in w.project.files if k.startswith('duelists/')),
-                         ['duelists/Dark_Simon.json'])
+        self.assertEqual(subject.key, 'Dark_Simon')
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp) / 'mod'
+            manifest.save_mod(w.project, folder)
+            self.assertTrue((folder / 'duelists' / 'Dark_Simon.json').is_file())
 
     def test_a_replace_is_matched_however_it_names_its_duelist(self):
         """By number or by name in any case: matching the name alone wrote a
