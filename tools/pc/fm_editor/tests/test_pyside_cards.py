@@ -208,6 +208,28 @@ class CardsTest(unittest.TestCase):
         self.assertEqual(reopened.tags_of(1), (["god", "dragon"], False))
         self.assertEqual(reopened.tags_of(added), (["god", "dragon"], True))
 
+    def test_starchips_distinguishes_an_unchanged_price_from_zero(self):
+        w = self.window
+        w.show_card(1)
+        retail_cost = w.project.retail.starchips[1]
+        self.assertEqual(w.fields["starchips"].value(), retail_cost)
+        before = manifest.build(w.project)
+
+        # Merely applying a retail card must not add a free-price override.
+        self.assertTrue(w.apply_card(quiet=True))
+        self.assertNotIn(1, w.project.starchips)
+        self.assertEqual(manifest.build(w.project), before)
+
+        # Zero is still an intentional override and survives a later no-op
+        # apply rather than being mistaken for the default price.
+        w.fields["starchips"].setValue(0)
+        self.assertTrue(w.apply_card(quiet=True))
+        self.assertEqual(w.project.starchips[1], 0)
+        w.show_card(1)
+        self.assertEqual(w.fields["starchips"].value(), 0)
+        self.assertTrue(w.apply_card(quiet=True))
+        self.assertEqual(w.project.starchips[1], 0)
+
     def test_add_without_selection(self):
         w = self.window
         w.show_card(None)
