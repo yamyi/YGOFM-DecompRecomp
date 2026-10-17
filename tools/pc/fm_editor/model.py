@@ -168,7 +168,6 @@ class Project:
         self.cards = {cid: card.copy() for cid, card in retail.cards.items()}
         self.added = {}                 # editor id (723+) -> AddedCard
         self.card_extra = {}            # retail id -> keys of its "replace" entry the editor keeps as written
-        self.card_tags = {}             # card id -> ordered, editor-only tag strings
         self.fusions = dict(retail.fusions)
         # {"remove": C} rules, in the mod's order: no recipe on the disc makes
         # C (tables.c Tables_FilterFusion); their pairs are out of `fusions`.

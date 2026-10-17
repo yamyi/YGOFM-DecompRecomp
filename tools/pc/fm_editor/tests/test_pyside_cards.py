@@ -158,6 +158,56 @@ class CardsTest(unittest.TestCase):
             w.apply_card()
         self.assertEqual(w.validation.text(), 'Existing issue')
 
+    def test_tags_match_the_classic_cards_form_and_round_trip(self):
+        """Blank inherits or omits, [] is explicit, and untouched data survives."""
+        w = self.window
+        w.show_card(1)
+        self.assertEqual(w.fields["tags"].text(), "")
+
+        w.fields["tags"].setText(" god, dragon, god ")
+        self.assertTrue(w.apply_card(quiet=True))
+        self.assertEqual(w.fields["tags"].text(), "god, dragon")
+        self.assertEqual(w.project.tags_of(1), (["god", "dragon"], False))
+        self.assertEqual(manifest.build(w.project)["cards"],
+                         [{"replace": 1, "tags": ["god", "dragon"]}])
+        w._flush_history()
+        w.undo()
+        self.assertEqual(w.project.tags_of(1), ([], False))
+        w.redo()
+        self.assertEqual(w.project.tags_of(1), (["god", "dragon"], False))
+
+        # An added card inherits its base while the field is blank. [] is a
+        # meaningful override, and clearing it restores inheritance.
+        added = w.project.add_card(1)
+        w.show_card(added)
+        self.assertEqual(w.fields["tags"].text(), "")
+        self.assertEqual(w.project.tags_of(added), (["god", "dragon"], True))
+        w.fields["tags"].setText("[]")
+        self.assertTrue(w.apply_card(quiet=True))
+        self.assertEqual(w.project.tags_of(added), ([], False))
+        w.fields["tags"].clear()
+        self.assertTrue(w.apply_card(quiet=True))
+        self.assertEqual(w.project.tags_of(added), (["god", "dragon"], True))
+
+        # Selecting and applying a card must not rewrite malformed but validly
+        # preserved metadata. A different field may still be saved with it.
+        raw_tags = ["", "x" * 32]
+        w.project.card_extra[2] = {"tags": raw_tags, "unknown": {"keep": True}}
+        w.show_card(2)
+        self.assertTrue(w.apply_card(quiet=True))
+        self.assertEqual(w.project.card_extra[2], {"tags": raw_tags, "unknown": {"keep": True}})
+        w.fields["name"].setText("Changed Two")
+        self.assertTrue(w.apply_card(quiet=True))
+        self.assertEqual(w.project.card_extra[2], {"tags": raw_tags, "unknown": {"keep": True}})
+
+        # Saving and reopening retains the tag override, including its
+        # distinction from inherited tags.
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest.save_mod(w.project, Path(tmp))
+            reopened, _ = manifest.open_mod(w.retail, Path(tmp))
+        self.assertEqual(reopened.tags_of(1), (["god", "dragon"], False))
+        self.assertEqual(reopened.tags_of(added), (["god", "dragon"], True))
+
     def test_add_without_selection(self):
         w = self.window
         w.show_card(None)

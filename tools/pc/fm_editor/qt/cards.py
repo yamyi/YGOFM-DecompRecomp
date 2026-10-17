@@ -4,6 +4,7 @@ from __future__ import annotations
 from .common import *      # noqa: F401,F403
 from .common import (_qimage, _line_count, _pairs_text, _parse_pairs, _whole,
                      _card_image, _pack_texture)      # noqa: F401
+from ..model import parse_tags, tags_text
 
 
 class CardsMixin:
@@ -194,6 +195,7 @@ class CardsMixin:
             "frame": widget(QComboBox, "frameCombo"),
             "password": widget(QLineEdit, "passwordEdit"),
             "starchips": widget(QSpinBox, "starchipsSpin"),
+            "tags": widget(QLineEdit, "tagsEdit"),
             # A magic, trap, ritual or equip card has an effect where a
             # monster has its stats, and an attack trap a threshold with it.
             "effect": widget(QComboBox, "effectCombo"),
@@ -207,7 +209,7 @@ class CardsMixin:
         self.trap_caption = widget(QLabel, "trapThresholdLabel")
         self.bonus_captions = {"equip_attack": widget(QLabel, "equipAttackLabel"),
                                "equip_defense": widget(QLabel, "equipDefenseLabel")}
-        self._shown_effect, self._shown_threshold = "", -1
+        self._shown_effect, self._shown_threshold, self._shown_tags = "", -1, ""
         # Password and Starchips share Card Data's two columns, so the right
         # one starts where Attribute, Frame, DEF and Guardian Star 2 do. Their
         # grid is its own, and without this the password field takes the width
@@ -218,6 +220,7 @@ class CardsMixin:
         password.setMaxLength(8)
         password.setValidator(QRegularExpressionValidator(QRegularExpression(r"[0-9]{0,8}"), password))
         password.setToolTip("Up to 8 digits, or blank for none")
+        self.fields["tags"].setToolTip("Comma-separated tags. Blank inherits a copy's base; [] means none.")
         password_grid = page.findChild(QGridLayout, "passwordGrid")
         for column in (0, 1):
             password_grid.setColumnStretch(column, 1)
@@ -350,7 +353,7 @@ class CardsMixin:
         for field in (self.level_box, self.attack_box, self.defense_box):
             field.valueChanged.connect(self._render_preview)
         # The marks follow what is typed, not only what is applied.
-        for field in (self.fields["name"], self.fields["password"]):
+        for field in (self.fields["name"], self.fields["password"], self.fields["tags"]):
             field.textChanged.connect(self._marks_follow)
         for field in (self.type_box, self.attribute_box, self.star1_box, self.star2_box, self.frame_box,
                       self.fields["effect"]):
@@ -587,7 +590,7 @@ class CardsMixin:
         self.current = cid
         if not cid or cid not in self.project.cards:
             self._clear_card_form()
-            self._shown_effect, self._shown_threshold = "", -1
+            self._shown_effect, self._shown_threshold, self._shown_tags = "", -1, ""
             self.effects_table.setRowCount(0)
             self._card_effect_buttons()
             for part in (self.effect_caption, self.fields["effect"],
@@ -628,6 +631,13 @@ class CardsMixin:
         self._shown_effect = self.fields["effect"].currentText()
         self.fields["frame"].setCurrentIndex(card.frame + 1)
         self.fields["password"].setText(self.project.password(cid))
+        own = (self.project.added[cid].extra if cid in self.project.added
+               else self.project.card_extra.get(cid, {}))
+        # The classic form displays only a card's own tags. A blank added
+        # card therefore inherits its base's tags, while [] explicitly says
+        # that it has none.
+        self._shown_tags = tags_text(own.get("tags")) if "tags" in own else ""
+        self.fields["tags"].setText(self._shown_tags)
         # The Password screen sells the disc's cards and knows nothing of an
         # added one, so there is no price to put on it.
         sold = cid in self.project.retail.cards
@@ -647,7 +657,7 @@ class CardsMixin:
             if added else "")
         self._show_card_reference(cid, added)
         extra = added.extra if added else self.project.card_extra.get(cid, {})
-        kept = sorted(set(extra) - {"effect", "trap_threshold", "effects"})      # the form edits those
+        kept = sorted(set(extra) - {"effect", "trap_threshold", "effects", "tags"})      # the form edits those
         self.extra_info.setText("Kept as written in mod.json: " + ", ".join(kept) if kept else "")
         self.revert_button.setText("Revert to Base" if added else "Revert to Retail")
         self._render_preview()
@@ -1562,6 +1572,17 @@ QLabel#referenceValue[changed="true"] { color: #8ab4f8; border-color: #3f6ea8; }
                 changed = True
         if password != self.project.password(cid):
             self.project.set_password(cid, password); changed = True
+        # Keep a tags entry exactly as the mod wrote it until the user edits
+        # this field. Blank then removes the entry (and lets a copy inherit),
+        # while [] is an explicit empty list.
+        if self.fields["tags"].text().strip() != self._shown_tags.strip():
+            tags = parse_tags(self.fields["tags"].text())
+            own = added.extra if added else self.project.card_extra.get(cid, {})
+            if tags != own.get("tags", None):
+                self.project.set_tags(cid, tags)
+                changed = True
+            self._shown_tags = tags_text(tags)
+            self.fields["tags"].setText(self._shown_tags)
         if cid in self.project.retail.cards:
             starchips = self.fields["starchips"].value()
             if starchips != self.project.starchip_cost(cid):

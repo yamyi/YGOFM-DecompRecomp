@@ -122,16 +122,13 @@ def build_cards(project: Project) -> list:
                 del fields[name]        # the mod's text file carries it, codes and all
         extra = project.card_extra.get(cid, {})
         notes = project.notes.get(cid)
-        tags = project.card_tags.get(cid, [])
-        if fields or extra or notes or tags:
+        if fields or extra or notes:
             # With "notes" alone the entry only notes the card (cards.c).
             entry = {"replace": cid}
             entry.update(fields)
             entry.update(extra)
             if notes:
                 entry["notes"] = notes
-            if tags:
-                entry["tags"] = tags
             entries.append(entry)
     for cid in sorted(project.added):
         added = project.added[cid]
@@ -927,13 +924,8 @@ def read_cards(project: Project, entries, messages: list):
                 had = project.notes.get(base)
                 project.set_notes(base, f"{had}\n{notes}" if had else notes)
             # What the editor does not show (art, password...) is kept as written.
-            tags = entry.get("tags")
-            if isinstance(tags, list) and all(isinstance(tag, str) and tag and len(tag) <= 31 for tag in tags) and len(tags) <= 32:
-                project.card_tags[base] = list(dict.fromkeys(tags))
-            elif "tags" in entry:
-                messages.append(f"{where}: \"tags\" is up to 32 non-empty strings of 31 characters; left out")
             shown = ("replace", "name", "description", "attack", "defense", "type", "attribute", "level", "stars",
-                     "frame", "tags")
+                     "frame")
             if notes is not None:
                 shown += ("notes",)
             extra = {k: v for k, v in entry.items() if k not in shown}
