@@ -4,6 +4,7 @@ from __future__ import annotations
 from .common import *      # noqa: F401,F403
 from .common import (_qimage, _line_count, _pairs_text, _parse_pairs, _whole,
                      _card_image, _card_plate, _card_detail_sprite)      # noqa: F401
+from .. import roster
 
 
 class PacksMixin:
@@ -74,7 +75,7 @@ class PacksMixin:
         # to make it catch up, and the pack being renamed is the one shown.
         c["name"].textChanged.connect(self._rename_pack_row)
         c["list"].currentCellChanged.connect(self._select_pack);c["search"].textChanged.connect(self._filter_packs);t.itemSelectionChanged.connect(self._select_pack_content)
-        actions=(("addPackButton",self._add_pack),("duplicatePackButton",self._duplicate_pack),("removePackButton",self._remove_pack),("movePackUpButton",lambda:self._move_pack(-1)),("movePackDownButton",lambda:self._move_pack(1)),("addPackCardButton",self._add_pack_card),("addFilteredPackCardsButton",self._add_filtered_pack_cards),("removePackCardsButton",self._remove_pack_cards),("setPackWeightButton",self._set_pack_weight),("setPackTierButton",self._set_pack_tier),("addPackTierButton",self._add_pack_tier),("importPackImageButton",self._import_pack_image),("exportPackImageButton",self._export_pack_image),("revertPackImageButton",self._revert_pack_image),("toggleAdvancedPackButton",self._toggle_pack_advanced),("applyShopSettingsButton",self._apply_shop_settings),("addShopButton",self._add_shop),("removeShopButton",self._remove_selected_shops),("simulatePackButton",self._simulate_pack),("viewPackResultsButton",self._show_pack_results))
+        actions=(("addPackButton",self._add_pack),("fromDropsPackButton",self._add_pack_from_drops),("duplicatePackButton",self._duplicate_pack),("removePackButton",self._remove_pack),("movePackUpButton",lambda:self._move_pack(-1)),("movePackDownButton",lambda:self._move_pack(1)),("addPackCardButton",self._add_pack_card),("addFilteredPackCardsButton",self._add_filtered_pack_cards),("removePackCardsButton",self._remove_pack_cards),("setPackWeightButton",self._set_pack_weight),("setPackTierButton",self._set_pack_tier),("addPackTierButton",self._add_pack_tier),("importPackImageButton",self._import_pack_image),("exportPackImageButton",self._export_pack_image),("revertPackImageButton",self._revert_pack_image),("toggleAdvancedPackButton",self._toggle_pack_advanced),("applyShopSettingsButton",self._apply_shop_settings),("addShopButton",self._add_shop),("removeShopButton",self._remove_selected_shops),("simulatePackButton",self._simulate_pack),("viewPackResultsButton",self._show_pack_results))
         for name,fn in actions:get(QPushButton,name).clicked.connect(fn)
         c["image_scale"].currentIndexChanged.connect(lambda *_:self._refresh_pack_image())
         c["image_style"].currentIndexChanged.connect(self._pack_style_chosen)
@@ -161,7 +162,8 @@ class PacksMixin:
             square = get(QPushButton, name)
             square.setMinimumWidth(0)
             square.setStyleSheet("padding:7px 8px")
-        get(QPushButton, "addPackButton").setMinimumWidth(0)
+        for name in ("addPackButton", "fromDropsPackButton"):
+            get(QPushButton, name).setMinimumWidth(0)
         get(QPushButton, "toggleAdvancedPackButton").setStyleSheet(
             "padding:5px 9px;color:#9aacc4;background:transparent;border:1px solid #2a3d55")
         get(QPushButton, "applyShopSettingsButton").setStyleSheet(
@@ -243,7 +245,7 @@ class PacksMixin:
         self._set_packs_status(f'"packs" points to {self.project.packs_file}; that external file is read-only here.' if external else "")
         self._fill_pack()
         self._fill_shop_settings()
-        for name in ("addPackButton","duplicatePackButton","removePackButton","movePackUpButton","movePackDownButton","addPackCardButton","addFilteredPackCardsButton","removePackCardsButton","setPackWeightButton","setPackTierButton","addPackTierButton","importPackImageButton"):
+        for name in ("addPackButton","fromDropsPackButton","duplicatePackButton","removePackButton","movePackUpButton","movePackDownButton","addPackCardButton","addFilteredPackCardsButton","removePackCardsButton","setPackWeightButton","setPackTierButton","addPackTierButton","importPackImageButton"):
             b=c["page"].findChild(QPushButton,name)
             if b:b.setEnabled(not external)
         for key in ("name","description","price","count","stock","infinite","contents","tier","weight","image_style"):
@@ -1462,13 +1464,94 @@ class PacksMixin:
         c["pack_index"]=index;self._fill_pack()
     def _apply_pack(self):
         if self._commit_packs():self._refresh_packs();self._set_packs_status("Changes applied to this mod.")
+    def _pack_ids(self):
+        return {packmath.pack_id(entry) for entry in self.project.packs if isinstance(entry, dict)}
+
+    def _append_pack(self, entry):
+        c = self.workspace_controls["Packs"]
+        self.project.packs.append(entry)
+        c["pack_index"] = len(self.project.packs) - 1
+        self._mark_dirty()
+        self._refresh_packs()
+
     def _add_pack(self):
-        if not self._commit_packs():return
-        self.project.packs.append(packmath.new_pack(f"Pack {len(self.project.packs)+1}",{packmath.pack_id(x) for x in self.project.packs}));self.workspace_controls["Packs"]["pack_index"]=len(self.project.packs)-1;self._mark_dirty();self._refresh_packs()
+        if not self._commit_packs():
+            return
+        self._append_pack(packmath.new_pack(f"Pack {len(self.project.packs)+1}", self._pack_ids()))
+
+    def _load_pack_dialog(self, filename):
+        source = QFile(str(UI_DIR / filename))
+        if not source.open(QIODevice.OpenModeFlag.ReadOnly):
+            raise RuntimeError(f"Could not open {filename}: {source.errorString()}")
+        dialog = QUiLoader().load(source, self)
+        source.close()
+        if not isinstance(dialog, QDialog):
+            raise RuntimeError(f"Could not load {filename}")
+        return dialog
+
+    def _add_pack_from_drops(self):
+        """Create a pack whose first tier is one opponent pool, preserving
+        the pool's effective weights for retail and custom Duelists alike."""
+        if self.project.packs_file is not None or not self._commit_packs():
+            return
+        dialog = self._load_pack_dialog("pack_drops_dialog.ui")
+        opponents = dialog.findChild(QComboBox, "packDropsOpponentCombo")
+        for label, subject in roster.opponents(self.project):
+            opponents.addItem(label, subject)
+        pool = dialog.findChild(QComboBox, "packDropsPoolCombo")
+        # The labels belong to the Designer form. QUiLoader can lose item
+        # data, so bind its game pool keys explicitly.
+        for index, key in enumerate(("pow", "bcd", "tec", "deck")):
+            pool.setItemData(index, key)
+        if not opponents.count():
+            dialog.deleteLater()
+            QMessageBox.information(self, "Pack from opponent drops", "No opponents are available.")
+            return
+        dialog.findChild(QPushButton, "packDropsCancelButton").clicked.connect(dialog.reject)
+        dialog.findChild(QPushButton, "packDropsCreateButton").clicked.connect(dialog.accept)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            dialog.deleteLater()
+            return
+        subject, key = opponents.currentData(), pool.currentData()
+        items = [(self.project.ref(card), weight)
+                 for card, weight in sorted(roster.pools_of(self.project, subject)[key].items())
+                 if weight > 0]
+        if not items:
+            dialog.deleteLater()
+            QMessageBox.information(self, "Pack from opponent drops", "That pool has no weighted cards.")
+            return
+        name = f"{roster.shown_name(self.project, subject)} {key.upper()}"[:packmath.NAME_LETTERS]
+        entry = packmath.new_pack(name, self._pack_ids())
+        packmath.set_tier_pool(entry, "cards", items)
+        dialog.deleteLater()
+        self._append_pack(entry)
+
     def _duplicate_pack(self):
-        e=self._pack_entry()
-        if e is None or not self._commit_packs():return
-        n=copy.deepcopy(e);n["name"]=(str(e.get("name","Pack"))+" copy")[:packmath.NAME_LETTERS];n.pop("id",None);c=self.workspace_controls["Packs"];c["pack_index"]+=1;self.project.packs.insert(c["pack_index"],n);self._mark_dirty();self._refresh_packs()
+        entry = self._pack_entry()
+        if entry is None or not self._commit_packs():
+            return
+        name = (str(entry.get("name", "Pack")) + " copy")[:packmath.NAME_LETTERS]
+        base, pid, suffix = packmath.slug(name), packmath.slug(name), 2
+        taken = self._pack_ids()
+        while pid in taken:
+            pid, suffix = f"{base}-{suffix}", suffix + 1
+        duplicate = copy.deepcopy(entry)
+        duplicate["name"] = name
+        duplicate.pop("id", None)
+        if pid != packmath.slug(name):
+            duplicate = {"id": pid, **duplicate}
+        # A duplicate owns a new asset path. Changing or reverting either
+        # cover therefore cannot affect the other pack.
+        blob = self._pack_image_bytes(entry)
+        if blob is not None:
+            image = self._free_pack_image_name(pid)
+            self.project.files[image] = blob
+            duplicate["image"] = image
+        c = self.workspace_controls["Packs"]
+        c["pack_index"] += 1
+        self.project.packs.insert(c["pack_index"], duplicate)
+        self._mark_dirty()
+        self._refresh_packs()
     def _remove_pack(self):
         e=self._pack_entry();c=self.workspace_controls["Packs"]
         if e is None:return
@@ -1813,8 +1896,10 @@ class PacksMixin:
         controls = self.workspace_controls.get("Packs")
         if not controls:
             return
-        if isinstance(index, int) and 0 <= index < controls["list"].count():
-            controls["list"].setCurrentRow(index)
+        listing = controls["list"]
+        if isinstance(index, int) and 0 <= index < listing.rowCount():
+            listing.setCurrentCell(index, 0)
+            listing.selectRow(index)
     def _update_art_pack_status(self, state=None):
         label = getattr(self, "art_pack_status", None)
         if label is None:

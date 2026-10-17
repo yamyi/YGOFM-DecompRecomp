@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>PackDropsDialog</class>
+ <widget class="QDialog" name="PackDropsDialog">
+  <property name="windowTitle"><string>Pack from opponent drops</string></property>
+  <property name="minimumSize"><size><width>500</width><height>210</height></size></property>
+  <layout class="QVBoxLayout" name="packDropsLayout">
+   <item>
+    <widget class="QLabel" name="packDropsDescription">
+     <property name="wordWrap"><bool>true</bool></property>
+     <property name="text"><string>Create a pack from one opponent pool. Each card keeps that opponent's effective drop weight, including custom Duelists.</string></property>
+    </widget>
+   </item>
+   <item>
+    <layout class="QFormLayout" name="packDropsForm">
+     <item row="0" column="0"><widget class="QLabel" name="packDropsOpponentLabel"><property name="text"><string>Opponent</string></property></widget></item>
+     <item row="0" column="1"><widget class="QComboBox" name="packDropsOpponentCombo"/></item>
+     <item row="1" column="0"><widget class="QLabel" name="packDropsPoolLabel"><property name="text"><string>Pool</string></property></widget></item>
+     <item row="1" column="1"><widget class="QComboBox" name="packDropsPoolCombo">
+      <item><property name="text"><string>S/A-POW drops</string></property></item>
+      <item><property name="text"><string>B/C/D drops</string></property></item>
+      <item><property name="text"><string>S/A-TEC drops</string></property></item>
+      <item><property name="text"><string>Deck</string></property></item>
+     </widget></item>
+    </layout>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="packDropsActions">
+     <item><spacer name="packDropsSpacer"><property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property></spacer></item>
+     <item><widget class="QPushButton" name="packDropsCancelButton"><property name="text"><string>Cancel</string></property></widget></item>
+     <item><widget class="QPushButton" name="packDropsCreateButton"><property name="text"><string>Create pack</string></property></widget></item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources/><connections/>
+</ui>

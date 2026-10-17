@@ -143,6 +143,16 @@
            </property>
           </widget>
          </item>
+         <item>
+          <widget class="QPushButton" name="fromDropsPackButton">
+           <property name="toolTip">
+            <string>Create a pack from one opponent drop pool, using its original card weights.</string>
+           </property>
+           <property name="text">
+            <string>From drops…</string>
+           </property>
+          </widget>
+         </item>
         </layout>
        </item>
        <item>
@@ -1297,6 +1307,7 @@
  </widget>
  <tabstops>
   <tabstop>addPackButton</tabstop>
+  <tabstop>fromDropsPackButton</tabstop>
   <tabstop>packSearchEdit</tabstop>
   <tabstop>packsList</tabstop>
   <tabstop>movePackUpButton</tabstop>
