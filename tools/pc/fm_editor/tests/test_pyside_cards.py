@@ -55,6 +55,7 @@ class CardsTest(unittest.TestCase):
         from fm_editor.tests.test_monster_view import model_record
         from PySide6.QtCore import Qt
         from PySide6.QtTest import QTest
+        from PySide6.QtWidgets import QPushButton
         w = self.window
         before = manifest.build(w.project)
         with mock.patch.object(monster_view, "read_record", return_value=model_record()) as read:
@@ -401,6 +402,189 @@ class CardsTest(unittest.TestCase):
             labels = [action.text() for action in menus[name].actions()]
             for entry in entries:
                 self.assertTrue(any(label.startswith(entry) for label in labels), (name, entry))
+
+    def test_ui_title_and_menu_edits_are_interactive_and_round_trip(self):
+        """The UI workspace is the visual editor, not only the texture
+        catalogue: its Designer tabs create the same title/menu data that a
+        saved mod subsequently reloads."""
+        from PySide6.QtCore import QPoint, Qt
+        from PySide6.QtTest import QTest
+        from PySide6.QtWidgets import QPushButton
+        from fm_editor import manifest
+
+        w = self.window
+        w.select_workspace('Assets')
+        c = w.workspace_controls['Assets']
+        self.assertEqual([c['tabs'].tabText(i) for i in range(c['tabs'].count())],
+                         ['Title screen', 'Menus', 'Duel', 'Frames', 'Duel board',
+                          'Build Deck', 'Assets'])
+
+        # Title text is created through the Designer action, then selected,
+        # clicked and nudged directly on its interactive preview.
+        c['shell'].findChild(QPushButton, 'addTitleTextButton').click()
+        c['title_text'].setText('HELLO FM')
+        c['title_text'].editingFinished.emit()
+        w.show()
+        self.qt.processEvents()
+        canvas = c['title_preview']
+        box = c['title_boxes']['text:0']
+        scale = min(canvas.width() / 320, canvas.height() / 240)
+        point = QPoint(round((canvas.width() - 320 * scale) / 2 + (box[0] + box[2] / 2) * scale),
+                       round((canvas.height() - 240 * scale) / 2 + (box[1] + box[3] / 2) * scale))
+        QTest.mouseClick(canvas, Qt.MouseButton.LeftButton, pos=point)
+        self.assertEqual(c['title_selected'], 'text:0')
+        QTest.keyClick(canvas, Qt.Key.Key_Right)
+        title_text = w.project.other['title']['text'][0]
+        self.assertEqual((title_text['text'], title_text['x'], title_text['y']),
+                         ('HELLO FM', 161, 220))
+
+        # A custom menu button, like its title counterpart, is configured by
+        # the form and remains independent when its page is later reverted.
+        c['tabs'].setCurrentIndex(1)
+        c['shell'].findChild(QPushButton, 'addMenuButtonButton').click()
+        c['menu_words'].setText('MY BUTTON')
+        c['menu_action'].setCurrentIndex(c['menu_action'].findData('notice'))
+        c['menu_x'].setValue(12)
+        c['menu_y'].setValue(34)
+        c['menu_words'].editingFinished.emit()
+        button = w.project.other['menu']['buttons'][0]
+        self.assertEqual(button['label'], 'MY BUTTON')
+        self.assertEqual(button['x'], 12)
+        self.assertEqual(button['y'], 34)
+
+        with tempfile.TemporaryDirectory() as folder:
+            manifest.save_mod(w.project, Path(folder))
+            reopened, _messages = manifest.open_mod(w.retail, Path(folder))
+        self.assertEqual(reopened.other['title']['text'][0], title_text)
+        self.assertEqual(reopened.other['menu']['buttons'][0]['label'], 'MY BUTTON')
+
+        c['shell'].findChild(QPushButton, 'revertMenuPageButton').click()
+        self.assertNotIn('menu', w.project.other)
+        self.assertIn('title', w.project.other)
+        w.hide()
+
+    def test_frame_style_edits_and_assignments_round_trip(self):
+        """Frames is a Designer-backed editor for card_layout.frame_styles,
+        including normal placement edits and the global fallback assignment."""
+        from PySide6.QtCore import QPoint, Qt
+        from PySide6.QtTest import QTest
+        from PySide6.QtWidgets import QPushButton
+        from fm_editor import manifest
+
+        w = self.window
+        w.select_workspace('Assets')
+        c = w.workspace_controls['Assets']['frames']
+        self.assertEqual(c['form'].objectName(), 'FramesTab')
+        self.assertEqual(c['style'].currentText(), 'custom')
+
+        # Select Artwork through the tree model exactly as a user does, then
+        # edit its game-pixel position through the Designer spin boxes.
+        art_row = next(c['parts'].topLevelItem(group).child(row)
+                       for group in range(c['parts'].topLevelItemCount())
+                       for row in range(c['parts'].topLevelItem(group).childCount())
+                       if c['parts'].topLevelItem(group).child(row).data(0, Qt_UserRole()) == 'art')
+        c['parts'].setCurrentItem(art_row)
+        c['x'].setValue(27)
+        c['y'].setValue(55)
+        # The preview uses the same game-pixel values as its spin boxes; a
+        # direct drag must select and move the part, not only redraw it.
+        w.show()
+        self.qt.processEvents()
+        canvas, box = c['preview'], c['boxes']['art']
+        scale = min(canvas.width() / 320, canvas.height() / 240)
+        point = QPoint(round((canvas.width() - 320 * scale) / 2 + (box[0] + box[2] / 2) * scale),
+                       round((canvas.height() - 240 * scale) / 2 + (box[1] + box[3] / 2) * scale))
+        QTest.mousePress(canvas, Qt.MouseButton.LeftButton, pos=point)
+        QTest.mouseMove(canvas, QPoint(point.x() + round(5 * scale), point.y() + round(3 * scale)))
+        QTest.mouseRelease(canvas, Qt.MouseButton.LeftButton, pos=QPoint(point.x() + round(5 * scale), point.y() + round(3 * scale)))
+        self.assertEqual((w.project.other['card_layout']['frame_styles']['custom']['art']['x'],
+                          w.project.other['card_layout']['frame_styles']['custom']['art']['y']), (32, 58))
+        c['form'].findChild(QPushButton, 'setFrameDefaultButton').click()
+        c['kind_rule'].setCurrentIndex(c['kind_rule'].findData('monster'))
+        c['form'].findChild(QPushButton, 'setFrameKindButton').click()
+        c['type_rule'].setCurrentIndex(0)
+        selected_type = c['type_rule'].currentData()
+        c['form'].findChild(QPushButton, 'setFrameTypeButton').click()
+        c['card_rule'].setValue(1)
+        c['form'].findChild(QPushButton, 'setFrameCardButton').click()
+        self.assertEqual(w.project.other['card_layout']['default_style'], 'custom')
+        self.assertEqual(w.project.other['card_layout']['default_styles']['kinds']['monster'], 'custom')
+        self.assertEqual(w.project.other['card_layout']['default_styles']['types'][selected_type], 'custom')
+        self.assertEqual(w.project.card_extra[1]['frame_style'], 'custom')
+        self.assertEqual(w.project.other['card_layout']['frame_styles']['custom']['art']['x'], 32)
+        self.assertEqual(w.project.other['card_layout']['frame_styles']['custom']['art']['y'], 58)
+
+        with tempfile.TemporaryDirectory() as folder:
+            manifest.save_mod(w.project, Path(folder))
+            reopened, messages = manifest.open_mod(w.retail, Path(folder))
+        self.assertFalse(messages)
+        layout = reopened.other['card_layout']
+        self.assertEqual(layout['default_style'], 'custom')
+        self.assertEqual(layout['default_styles']['kinds']['monster'], 'custom')
+        self.assertEqual(layout['default_styles']['types'][selected_type], 'custom')
+        self.assertEqual(reopened.card_extra[1]['frame_style'], 'custom')
+        self.assertEqual((layout['frame_styles']['custom']['art']['x'],
+                          layout['frame_styles']['custom']['art']['y']), (32, 58))
+        w.hide()
+
+    def test_removing_ui_title_images_prunes_only_orphans(self):
+        """Removing a Title picture deletes its imported PNG on the next save,
+        but leaves the PNG intact while another UI element still references it."""
+        from PySide6.QtWidgets import QPushButton
+        from fm_editor import manifest
+
+        w = self.window
+        w.select_workspace('Assets')
+        c = w.workspace_controls['Assets']
+        source = self.pack_png(48, 48)
+        with mock.patch('fm_editor.pyside_app.QFileDialog.getOpenFileName', return_value=(source, '')):
+            c['shell'].findChild(QPushButton, 'addTitlePictureButton').click()
+        image = w.project.other['title']['images'][0]['image']
+        self.assertIn(image, w.project.files)
+
+        # A second element can reuse an imported file. Removing the first
+        # must keep the shared file and its remaining reference.
+        w.project.other['title']['images'].append({'image': image, 'x': 120, 'y': 80})
+        c['title_selected'] = 'picture:0'
+        c['shell'].findChild(QPushButton, 'removeTitleElementButton').click()
+        self.assertIn(image, w.project.files)
+        self.assertEqual(w.project.other['title']['images'],
+                         [{'image': image, 'x': 120, 'y': 80}])
+
+        c['title_selected'] = 'picture:0'
+        c['shell'].findChild(QPushButton, 'removeTitleElementButton').click()
+        self.assertNotIn(image, w.project.files)
+        self.assertIn(image, w.project.deleted_files)
+        with tempfile.TemporaryDirectory() as folder:
+            output = Path(folder)
+            manifest.save_mod(w.project, output)
+            self.assertFalse((output / image).exists())
+
+    def test_holding_retail_board_view_preserves_saved_board_changes(self):
+        """The asynchronous board preview may temporarily use retail art, but
+        releasing its comparison control must restore the actual BoardArt
+        object before the mod is saved."""
+        from PySide6.QtWidgets import QPushButton
+        from fm_editor import board_art, manifest
+
+        w = self.window
+        w.select_workspace('Assets')
+        c = w.workspace_controls['Assets']
+        board_art.set_tint(w.project, ['normal'], [board_art.BY_KEY['wall_middle']], 0x4080C0)
+        original = w.project.board_art
+        expected = dict(original.tints)
+        button = c['shell'].findChild(QPushButton, 'holdGameBoardButton')
+        button.pressed.emit()
+        self.assertIsNot(w.project.board_art, original)
+        button.released.emit()
+        self.qt.processEvents()
+        self.assertIs(w.project.board_art, original)
+        self.assertEqual(w.project.board_art.tints, expected)
+
+        with tempfile.TemporaryDirectory() as folder:
+            manifest.save_mod(w.project, Path(folder))
+            reopened, _messages = manifest.open_mod(w.retail, Path(folder))
+        self.assertEqual(reopened.board_art.tints, expected)
 
     def test_theme_toggle_remembers_choice(self):
         w = self.window

@@ -72,6 +72,9 @@ def install():
         shell = _all_tabs_form(page)
         layout.addWidget(shell)
         tabs = _asset_widget(shell, QTabWidget, "uiPageTabs")
+        frames_tab = _frames_form(tabs)
+        board_tab = _asset_widget(shell, QWidget, "duelBoardTab")
+        tabs.insertTab(tabs.indexOf(board_tab), frames_tab, "Frames")
         assets_tab = QWidget(tabs)
         assets_tab.setObjectName("assetsTab")
         assets_layout = QVBoxLayout(assets_tab)
@@ -86,9 +89,10 @@ def install():
         # catalogue visible directly after it.
         tabs.insertTab(tabs.indexOf(assets_tab), build_deck_tab, "Build Deck")
         _build_build_deck_tab(self, build_deck_tab, controls, build_deck_layout)
-        controls.update(shell=shell, tabs=tabs, assets_tab=assets_tab)
+        controls.update(shell=shell, tabs=tabs, assets_tab=assets_tab, frames_tab=frames_tab)
         _apply_reference_skin(shell, tabs, assets_tab)
         _wire_ui_tabs(self, shell, controls)
+        _wire_frames_tab(self, frames_tab, controls)
         tabs.setCurrentIndex(0)
         return shell
 
@@ -142,6 +146,7 @@ def install():
     def refresh(self):
         _refresh_template(self)
         _refresh_ui_tabs(self)
+        _refresh_frames_tab(self)
 
     AssetsMixin._build_assets_page = build; AssetsMixin._refresh_assets = refresh; AssetsMixin._ui_duel = duel
 
@@ -506,7 +511,34 @@ def _ui_section(editor, key, create=False):
     return {}
 
 
+def _ui_strings(value):
+    """Every string stored by the UI configuration.
+
+    Imported Title, Menu, and Duel PNGs all live under ``ui/``.  A removal
+    may leave an otherwise valid file behind, so find paths still mentioned
+    anywhere in the surviving configuration before queuing a file deletion.
+    """
+    if isinstance(value, str):
+        return {value}
+    if isinstance(value, dict):
+        return set().union(*(_ui_strings(item) for item in value.values())) if value else set()
+    if isinstance(value, list):
+        return set().union(*(_ui_strings(item) for item in value)) if value else set()
+    return set()
+
+
+def _drop_ui_orphans(editor):
+    """Remove unreferenced imported UI PNGs without disturbing shared ones."""
+    project = editor.project
+    used = _ui_strings(project.other)
+    for name in tuple(project.files):
+        if name.startswith("ui/") and name not in used:
+            project.files.pop(name, None)
+            project.deleted_files.add(name)
+
+
 def _commit_ui(editor):
+    _drop_ui_orphans(editor)
     editor._mark_dirty()
     _refresh_ui_tabs(editor)
 
@@ -561,6 +593,443 @@ def _colour(text, default="#FFFFFF"):
     if re.fullmatch(r"#[0-9a-fA-F]{6}", value):
         return value.upper()
     return default
+
+
+# ``card_layout.frame_styles`` is deliberately edited here rather than through
+# the named-asset catalogue.  It is a layout rule read by the card viewer and
+# duel renderer, while the catalogue is a texture replacement registry.
+# Keep the schema in one table, matching ui_frames.py without importing its
+# Tkinter UI module into the PySide application.
+_FRAME_PARTS = (
+    ("frame", "Frame image", ("image",), (0, 0, 140, 196), False, True, True),
+    ("back", "Back image", ("back_image",), (0, 0, 140, 196), False, True, True),
+    ("hand", "Duel hand image", ("hand_image",), (0, 0, 52, 60), False, False, True),
+    ("field", "Face-up field image", ("field_image",), (0, 0, 40, 56), False, False, True),
+    ("field_back", "Face-down field image", ("field_back_image",), (0, 0, 40, 56), False, False, True),
+    ("library", "Library icon", ("library_icon",), (0, 0, 24, 32), False, False, True),
+    ("digits", "Digit strip", ("digits",), (0, 0, 10, 12), False, True, True),
+    ("title", "Card name", ("title",), (12, 14, 96, 14), True, False, False),
+    ("art", "Artwork", ("art",), (19, 50, 102, 96), True, True, False),
+    ("stars", "Level stars", ("stars",), (119, 32, 56, 9), True, False, False),
+    ("attribute", "Attribute icon", ("attribute",), (110, 13, 16, 16), True, True, False),
+    ("atk", "ATK value", ("digits", "atk"), (97, 169, 10, 12), True, True, False),
+    ("def", "DEF value", ("digits", "def"), (97, 184, 10, 12), True, True, False),
+    ("atk_label", "ATK label", ("atk_label",), (12, 171, 16, 8), True, True, True),
+    ("dfd_label", "DFD label", ("dfd_label",), (12, 184, 16, 8), True, True, True),
+    ("magic_label", "Magic-card caption", ("type_label", "magic"), (84, 35, 56, 16), True, True, True),
+    ("equip_label", "Equip-card caption", ("type_label", "equip"), (84, 35, 56, 16), True, True, True),
+    ("ritual_label", "Ritual-card caption", ("type_label", "ritual"), (84, 35, 56, 16), True, True, True),
+    ("trap_label", "Trap-card caption", ("type_label", "trap"), (84, 35, 56, 16), True, True, True),
+    ("spell_icon", "Spell/trap icon", ("spell", "icon"), (110, 13, 16, 16), True, True, False),
+    ("hand_art", "Hand artwork", ("hand", "art"), (6, 6, 40, 32), True, True, False),
+    ("hand_atk", "Hand ATK", ("hand", "atk"), (14, 40, 8, 8), True, True, False),
+    ("hand_def", "Hand DEF", ("hand", "def"), (14, 48, 8, 8), True, True, False),
+    ("hand_atk_label", "Hand ATK label", ("hand", "atk_label"), (5, 40, 8, 8), True, True, False),
+    ("hand_dfd_label", "Hand DFD label", ("hand", "dfd_label"), (5, 48, 8, 8), True, True, False),
+)
+_FRAME_SPEC = {item[0]: item for item in _FRAME_PARTS}
+_FRAME_DIRECT = {"frame", "back", "hand", "field", "field_back", "library"}
+_FRAME_IMAGE = {"digits", "atk_label", "dfd_label", "magic_label", "equip_label", "ritual_label", "trap_label"}
+_FRAME_MOVABLE = {part[0] for part in _FRAME_PARTS if part[0] not in _FRAME_DIRECT}
+
+
+def _frame_layout(editor, create=False):
+    value = editor.project.other.get("card_layout")
+    if isinstance(value, dict):
+        return value
+    if create:
+        editor.project.other["card_layout"] = value = {}
+        return value
+    return {}
+
+
+def _frame_styles(editor, create=False):
+    layout = _frame_layout(editor, create)
+    value = layout.get("frame_styles")
+    if isinstance(value, dict):
+        return value
+    if create:
+        layout["frame_styles"] = value = {}
+        return value
+    return {}
+
+
+def _frame_style(editor, create=False):
+    c = editor.workspace_controls["Assets"]["frames"]
+    name = c["style"].currentText().strip() or "custom"
+    styles = _frame_styles(editor, create)
+    value = styles.get(name)
+    if isinstance(value, dict):
+        return value
+    if create:
+        styles[name] = value = {"hand_color": "gold"}
+        if len(styles) == 1:
+            _frame_layout(editor, True).setdefault("default_style", name)
+        return value
+    return {}
+
+
+def _frame_part(editor, key, create=False):
+    style = _frame_style(editor, create)
+    path = _FRAME_SPEC[key][2]
+    if key in _FRAME_DIRECT:
+        return style
+    for name in path:
+        value = style.get(name)
+        if not isinstance(value, dict):
+            if not create:
+                return {}
+            style[name] = value = {}
+        style = value
+    return style
+
+
+def _frame_size_owner(editor, key, create=False):
+    # The digit sprite has one shared glyph size for ATK and DEF, exactly as
+    # the runtime does.  Its positions remain independently editable.
+    if key in ("atk", "def"):
+        style = _frame_style(editor, create)
+        value = style.get("digits")
+        if not isinstance(value, dict) and create:
+            style["digits"] = value = {}
+        return value if isinstance(value, dict) else {}
+    return _frame_style(editor, create) if key in _FRAME_DIRECT else _frame_part(editor, key, create)
+
+
+def _frame_rect(editor, key):
+    _, _, _, default, _, _, _ = _FRAME_SPEC[key]
+    part = _frame_part(editor, key)
+    owner = _frame_size_owner(editor, key)
+    return (_as_int(part.get("x"), default[0]), _as_int(part.get("y"), default[1]),
+            max(1, _as_int(owner.get("width"), default[2])), max(1, _as_int(owner.get("height"), default[3])))
+
+
+def _frame_asset(editor, key):
+    style = _frame_style(editor)
+    if key in _FRAME_DIRECT:
+        value = style.get(_FRAME_SPEC[key][2][0])
+    elif key in _FRAME_IMAGE:
+        value = _frame_part(editor, key).get("image")
+    else:
+        value = None
+    return value if isinstance(value, str) else None
+
+
+def _set_frame_asset(editor, key, image):
+    if key in _FRAME_DIRECT:
+        _put(_frame_style(editor, True), _FRAME_SPEC[key][2][0], image)
+    elif key in _FRAME_IMAGE:
+        _put(_frame_part(editor, key, True), "image", image)
+
+
+def _frame_commit(editor):
+    _drop_frame_orphans(editor)
+    editor._mark_dirty()
+    _refresh_frames_tab(editor)
+
+
+def _drop_frame_orphans(editor):
+    used = _ui_strings(editor.project.other)
+    for name in tuple(editor.project.files):
+        if name.startswith("frames/") and name not in used:
+            editor.project.files.pop(name, None)
+            editor.project.deleted_files.add(name)
+
+
+class _FramePreviewEvents(QObject):
+    def __init__(self, editor, parent):
+        super().__init__(parent); self.editor = editor
+
+    def eventFilter(self, watched, event):
+        if event.type() == QEvent.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton:
+            point = _preview_point(watched, event.position()); key = _preview_key(self.editor.workspace_controls["Assets"]["frames"].get("boxes", {}), point)
+            if key:
+                c = self.editor.workspace_controls["Assets"]["frames"]
+                c["selected"] = key; c["drag"] = (key, point, False); _refresh_frames_tab(self.editor)
+            return True
+        if event.type() == QEvent.Type.MouseMove and event.buttons() & Qt.MouseButton.LeftButton:
+            c = self.editor.workspace_controls["Assets"]["frames"]; drag = c.get("drag")
+            if not drag: return True
+            key, start, moved = drag; x, y = _preview_point(watched, event.position()); dx, dy = round(x - start[0]), round(y - start[1])
+            if not dx and not dy: return True
+            if key in _FRAME_MOVABLE:
+                part = _frame_part(self.editor, key, True); rx, ry, _, _ = _frame_rect(self.editor, key)
+                default = _FRAME_SPEC[key][3]
+                _put(part, "x", rx + dx, default[0]); _put(part, "y", ry + dy, default[1])
+                c["drag"] = (key, start, True); _draw_frames(self.editor)
+            return True
+        if event.type() == QEvent.Type.MouseButtonRelease and event.button() == Qt.MouseButton.LeftButton:
+            c = self.editor.workspace_controls["Assets"]["frames"]; drag = c.pop("drag", None)
+            if drag and drag[2]: _frame_commit(self.editor)
+            return True
+        if event.type() == QEvent.Type.Wheel:
+            c = self.editor.workspace_controls["Assets"]["frames"]; key = c.get("selected", "frame")
+            if _FRAME_SPEC[key][5]:
+                owner = _frame_size_owner(self.editor, key, True); _, _, width, height = _frame_rect(self.editor, key); default = _FRAME_SPEC[key][3]
+                step = 4 if event.angleDelta().y() > 0 else -4
+                _put(owner, "width", max(1, min(140, width + step)), default[2]); _put(owner, "height", max(1, min(196, height + step)), default[3])
+                _frame_commit(self.editor)
+            return True
+        if event.type() == QEvent.Type.Resize: _rescale_preview_label(watched)
+        return False
+
+
+def _frames_form(parent):
+    source = QFile(str(Path(__file__).with_name("frames_tab_compat.ui")))
+    if not source.open(QIODevice.OpenModeFlag.ReadOnly):
+        raise RuntimeError(f"Could not load Frames form: {source.errorString()}")
+    try:
+        form = QUiLoader().load(source, parent)
+    finally:
+        source.close()
+    if form is None:
+        raise RuntimeError("Could not load Frames compatibility form")
+    return form
+
+
+def _frames_widget(form, kind, name):
+    value = form.findChild(kind, name)
+    if value is None:
+        raise RuntimeError(f"Frames form is missing {name}")
+    return value
+
+
+def _wire_frames_tab(editor, form, controls):
+    from PySide6.QtWidgets import QTreeWidget
+    c = {
+        "form": form, "style": _frames_widget(form, QComboBox, "frameStyleCombo"),
+        "parts": _frames_widget(form, QTreeWidget, "framePartsTree"),
+        "preview": _frames_widget(form, QLabel, "framePreviewCanvas"),
+        "kind": _frames_widget(form, QComboBox, "framePreviewKindCombo"),
+        "x": _frames_widget(form, QSpinBox, "frameXSpin"), "y": _frames_widget(form, QSpinBox, "frameYSpin"),
+        "width": _frames_widget(form, QSpinBox, "frameWidthSpin"), "height": _frames_widget(form, QSpinBox, "frameHeightSpin"),
+        "visible": _frames_widget(form, QCheckBox, "frameVisibleCheck"),
+        "image": _frames_widget(form, QLineEdit, "frameImagePathEdit"),
+        "kind_rule": _frames_widget(form, QComboBox, "frameKindCombo"),
+        "type_rule": _frames_widget(form, QComboBox, "frameTypeCombo"),
+        "card_rule": _frames_widget(form, QSpinBox, "frameCardIdSpin"),
+        "selected": "frame", "loading": False, "boxes": {},
+    }
+    controls["frames"] = c
+    for combo, values in ((c["kind"], (("monster", "Monster front"), ("magic", "Magic front"), ("trap", "Trap front"), ("back", "Card back"))),
+                          (c["kind_rule"], (("monster", "Monster"), ("magic", "Magic"), ("trap", "Trap"), ("ritual", "Ritual"), ("equip", "Equip")))):
+        combo.clear()
+        for value, label in values: combo.addItem(label, value)
+    c["type_rule"].clear()
+    for type_id, name in enumerate(TYPE_NAMES):
+        if name: c["type_rule"].addItem(name, name)
+    c["card_rule"].setMaximum(max(editor.project.cards, default=722))
+    bridge = _FramePreviewEvents(editor, c["preview"])
+    c["preview"].setMouseTracking(True); c["preview"].setFocusPolicy(Qt.FocusPolicy.StrongFocus); c["preview"].installEventFilter(bridge); c["events"] = bridge
+    c["parts"].currentItemChanged.connect(lambda item, _: _frame_select(editor, item))
+    c["style"].currentTextChanged.connect(lambda _: _refresh_frames_tab(editor))
+    c["kind"].currentIndexChanged.connect(lambda _: _draw_frames(editor))
+    for field in (c["x"], c["y"], c["width"], c["height"]): field.valueChanged.connect(lambda _: _frame_geometry_changed(editor))
+    c["visible"].toggled.connect(lambda _: _frame_geometry_changed(editor))
+    _frames_widget(form, QPushButton, "newFrameStyleButton").clicked.connect(lambda: _frame_new_style(editor))
+    _frames_widget(form, QPushButton, "deleteFrameStyleButton").clicked.connect(lambda: _frame_delete_style(editor))
+    _frames_widget(form, QPushButton, "importFrameImageButton").clicked.connect(lambda: _frame_import(editor))
+    _frames_widget(form, QPushButton, "exportFrameImageButton").clicked.connect(lambda: _frame_export(editor))
+    _frames_widget(form, QPushButton, "clearFrameImageButton").clicked.connect(lambda: _frame_clear_image(editor))
+    _frames_widget(form, QPushButton, "resetFramePartButton").clicked.connect(lambda: _frame_reset_part(editor))
+    _frames_widget(form, QPushButton, "setFrameDefaultButton").clicked.connect(lambda: _frame_assign(editor, "default", True))
+    _frames_widget(form, QPushButton, "clearFrameDefaultButton").clicked.connect(lambda: _frame_assign(editor, "default", False))
+    _frames_widget(form, QPushButton, "setFrameKindButton").clicked.connect(lambda: _frame_assign(editor, "kind", True))
+    _frames_widget(form, QPushButton, "clearFrameKindButton").clicked.connect(lambda: _frame_assign(editor, "kind", False))
+    _frames_widget(form, QPushButton, "setFrameTypeButton").clicked.connect(lambda: _frame_assign(editor, "type", True))
+    _frames_widget(form, QPushButton, "clearFrameTypeButton").clicked.connect(lambda: _frame_assign(editor, "type", False))
+    _frames_widget(form, QPushButton, "setFrameCardButton").clicked.connect(lambda: _frame_assign(editor, "card", True))
+    _frames_widget(form, QPushButton, "clearFrameCardButton").clicked.connect(lambda: _frame_assign(editor, "card", False))
+    _frames_widget(form, QPushButton, "revertFramesPageButton").clicked.connect(lambda: _frame_revert_all(editor))
+    hold = _frames_widget(form, QPushButton, "holdGameFramesButton")
+    hold.pressed.connect(lambda: _frame_hold(editor, True)); hold.released.connect(lambda: _frame_hold(editor, False))
+    _refresh_frames_tab(editor)
+
+
+def _frame_select(editor, item):
+    if item is None or editor.workspace_controls["Assets"]["frames"].get("loading"):
+        return
+    key = item.data(0, Qt.ItemDataRole.UserRole)
+    if key in _FRAME_SPEC:
+        editor.workspace_controls["Assets"]["frames"]["selected"] = key
+        _refresh_frames_tab(editor)
+
+
+def _refresh_frames_tab(editor):
+    c = editor.workspace_controls.get("Assets", {}).get("frames")
+    if not c or c.get("loading"):
+        return
+    c["loading"] = True
+    try:
+        styles = _frame_styles(editor); names = list(styles) or ["custom"]
+        current = c["style"].currentText().strip()
+        if current not in names: current = names[0]
+        c["style"].blockSignals(True); c["style"].clear(); c["style"].addItems(names); c["style"].setCurrentText(current); c["style"].blockSignals(False)
+        from PySide6.QtWidgets import QTreeWidgetItem
+        tree = c["parts"]; tree.blockSignals(True); tree.clear(); chosen = None
+        groups = (("Main card", _FRAME_PARTS[:20]), ("Duel hand", _FRAME_PARTS[20:]),)
+        for label, parts in groups:
+            root = QTreeWidgetItem([label]); root.setFlags(root.flags() & ~Qt.ItemFlag.ItemIsSelectable)
+            tree.addTopLevelItem(root)
+            for key, part_label, *_ in parts:
+                item = QTreeWidgetItem([part_label]); item.setData(0, Qt.ItemDataRole.UserRole, key); root.addChild(item)
+                if key == c["selected"]: chosen = item
+        tree.expandAll(); tree.setCurrentItem(chosen or tree.topLevelItem(0).child(0)); tree.blockSignals(False)
+        key = c["selected"]; spec = _FRAME_SPEC[key]; x, y, width, height = _frame_rect(editor, key)
+        for name, value in (("x", x), ("y", y), ("width", width), ("height", height)):
+            c[name].blockSignals(True); c[name].setValue(value); c[name].blockSignals(False)
+        can_move, can_size = key in _FRAME_MOVABLE, spec[5]
+        for name, enabled in (("x", can_move), ("y", can_move), ("width", can_size), ("height", can_size)):
+            c[name].setEnabled(enabled)
+        part = _frame_part(editor, key)
+        c["visible"].blockSignals(True); c["visible"].setChecked(not bool(part.get("hide", False))); c["visible"].setEnabled(spec[4]); c["visible"].blockSignals(False)
+        c["image"].setText(_frame_asset(editor, key) or "Uses the game's artwork")
+        c["image"].setEnabled(spec[6])
+        for name in ("importFrameImageButton", "exportFrameImageButton", "clearFrameImageButton"):
+            button = _frames_widget(c["form"], QPushButton, name); button.setEnabled(spec[6] and (name != "exportFrameImageButton" or _frame_asset(editor, key) is not None))
+        _frames_widget(c["form"], QLabel, "framePartTitle").setText(spec[1])
+        _draw_frames(editor)
+    finally:
+        c["loading"] = False
+
+
+def _draw_frames(editor):
+    c = editor.workspace_controls.get("Assets", {}).get("frames")
+    if not c: return
+    image = QImage(320, 240, QImage.Format.Format_RGBA8888); image.fill(QColor("#06111e"))
+    painter = QPainter(image); painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+    offset_x, offset_y, scale = 90, 22, 1
+    painter.fillRect(offset_x, offset_y, 140, 196, QColor("#b18a38" if c["kind"].currentData() != "back" else "#423455"))
+    c["boxes"] = {}
+    for key, label, _path, _default, can_hide, _resize, _asset in _FRAME_PARTS:
+        if key.startswith("hand_") or key in {"hand", "field", "field_back", "library"}: continue
+        if c["kind"].currentData() == "back" and key not in {"back", "frame"}: continue
+        part = _frame_part(editor, key)
+        if can_hide and part.get("hide") is True: continue
+        x, y, width, height = _frame_rect(editor, key); box = QRect(offset_x + x, offset_y + y, width, height)
+        c["boxes"][key] = (box.x(), box.y(), box.width(), box.height())
+        asset = _ui_image(editor, _frame_asset(editor, key))
+        if asset is not None:
+            picture = _qimage(asset.width, asset.height, asset.rgba)
+            painter.drawImage(box, picture)
+        elif key == "art": painter.fillRect(box, QColor("#315d8a"))
+        elif key == "title": painter.setPen(QColor("#ffffff")); painter.setFont(QFont("Serif", 8)); painter.drawText(box, Qt.AlignmentFlag.AlignCenter, "Blue-eyes White Dragon")
+        elif key in {"atk", "def"}: painter.setPen(QColor("#ffffff")); painter.drawText(box, Qt.AlignmentFlag.AlignCenter, "3000" if key == "atk" else "2500")
+        elif key == "stars": painter.setPen(QColor("#ffcf41")); painter.drawText(box, Qt.AlignmentFlag.AlignCenter, "★★★★★★★★")
+        else: painter.setPen(QColor("#8fa8c4")); painter.drawRect(box)
+    chosen = c.get("selected")
+    if chosen in c["boxes"]:
+        painter.setPen(QPen(QColor("#1686ff"), 2)); painter.drawRect(QRect(*c["boxes"][chosen]))
+    painter.end(); _set_preview_pixmap(c["preview"], QPixmap.fromImage(image))
+
+
+def _frame_geometry_changed(editor):
+    c = editor.workspace_controls["Assets"]["frames"]
+    if c.get("loading"): return
+    key, spec = c["selected"], _FRAME_SPEC[c["selected"]]
+    part = _frame_part(editor, key, True); owner = _frame_size_owner(editor, key, True); default = spec[3]
+    if key in _FRAME_MOVABLE:
+        _put(part, "x", c["x"].value(), default[0]); _put(part, "y", c["y"].value(), default[1])
+    if spec[5]:
+        _put(owner, "width", c["width"].value(), default[2]); _put(owner, "height", c["height"].value(), default[3])
+    if spec[4]: _put(part, "hide", not c["visible"].isChecked(), False)
+    _frame_commit(editor)
+
+
+def _frame_new_style(editor):
+    c = editor.workspace_controls["Assets"]["frames"]
+    name, accepted = QInputDialog.getText(editor, "New frame style", "Style name (for mod.json):")
+    name = re.sub(r"[^A-Za-z0-9_-]+", "_", name).strip("_")
+    if not accepted or not name: return
+    _frame_styles(editor, True).setdefault(name, {"hand_color": "gold"}); c["style"].setCurrentText(name); _frame_commit(editor)
+
+
+def _frame_delete_style(editor):
+    c = editor.workspace_controls["Assets"]["frames"]; name = c["style"].currentText().strip(); styles = _frame_styles(editor)
+    if name not in styles: return
+    if QMessageBox.question(editor, "Delete frame style", f'Delete frame style "{name}"? Its assignments will be cleared.') != QMessageBox.StandardButton.Yes: return
+    layout = _frame_layout(editor, True); styles.pop(name, None)
+    if layout.get("default_style") == name: layout.pop("default_style", None)
+    defaults = layout.get("default_styles")
+    if isinstance(defaults, dict):
+        for group in ("kinds", "types"):
+            values = defaults.get(group)
+            if isinstance(values, dict):
+                for value in [key for key, value in values.items() if value == name]: values.pop(value, None)
+    for extra in (*editor.project.card_extra.values(), *(added.extra for added in editor.project.added.values())):
+        if extra.get("frame_style") == name: extra.pop("frame_style", None)
+    _frame_commit(editor)
+
+
+def _frame_import(editor):
+    key = editor.workspace_controls["Assets"]["frames"]["selected"]
+    if not _FRAME_SPEC[key][6]: return
+    path, _ = QFileDialog.getOpenFileName(editor, "Import frame image", "", "PNG images (*.png)")
+    if not path: return
+    try: image = pngio.read(path)
+    except (OSError, ValueError, pngio.PngError) as problem: QMessageBox.critical(editor, "Frame image", str(problem)); return
+    stem = re.sub(r"[^a-z0-9_-]+", "-", f"{editor.workspace_controls['Assets']['frames']['style'].currentText()}-{key}".casefold()).strip("-")
+    name, suffix = f"frames/{stem}.png", 2
+    while name in editor.project.files: name = f"frames/{stem}-{suffix}.png"; suffix += 1
+    editor.project.files[name] = pngio.encode(image); editor.project.deleted_files.discard(name); _set_frame_asset(editor, key, name); _frame_commit(editor)
+
+
+def _frame_export(editor):
+    key = editor.workspace_controls["Assets"]["frames"]["selected"]; image = _ui_image(editor, _frame_asset(editor, key))
+    _export_ui_png(editor, image, f"{key}.png")
+
+
+def _frame_clear_image(editor):
+    key = editor.workspace_controls["Assets"]["frames"]["selected"]; _set_frame_asset(editor, key, None); _frame_commit(editor)
+
+
+def _frame_reset_part(editor):
+    key = editor.workspace_controls["Assets"]["frames"]["selected"]
+    if key in _FRAME_DIRECT: _frame_style(editor, True).pop(_FRAME_SPEC[key][2][0], None)
+    else: _frame_part(editor, key, True).clear()
+    _frame_commit(editor)
+
+
+def _frame_assign(editor, level, enabled):
+    c = editor.workspace_controls["Assets"]["frames"]; style = c["style"].currentText().strip(); layout = _frame_layout(editor, enabled)
+    if level == "default":
+        if enabled: layout["default_style"] = style
+        else: layout.pop("default_style", None)
+    elif level in {"kind", "type"}:
+        key = c[f"{level}_rule"].currentData() or c[f"{level}_rule"].currentText()
+        defaults = layout.setdefault("default_styles", {}) if enabled else layout.get("default_styles", {})
+        group = defaults.setdefault(f"{level}s", {}) if enabled else defaults.get(f"{level}s", {})
+        if isinstance(group, dict):
+            if enabled: group[key] = style
+            else: group.pop(key, None)
+    else:
+        card_id = c["card_rule"].value()
+        if card_id not in editor.project.cards: return
+        if enabled:
+            target = (editor.project.added[card_id].extra if card_id in editor.project.added
+                      else editor.project.card_extra.setdefault(card_id, {}))
+            target["frame_style"] = style
+        else:
+            target = (editor.project.added[card_id].extra if card_id in editor.project.added
+                      else editor.project.card_extra.get(card_id))
+            if target is not None: target.pop("frame_style", None)
+    _frame_commit(editor)
+
+
+def _frame_revert_all(editor):
+    editor.project.other.pop("card_layout", None)
+    for extra in (*editor.project.card_extra.values(), *(added.extra for added in editor.project.added.values())): extra.pop("frame_style", None)
+    _frame_commit(editor)
+
+
+def _frame_hold(editor, held):
+    c = editor.workspace_controls["Assets"]["frames"]
+    if held:
+        c["saved_layout"] = editor.project.other.pop("card_layout", None)
+    elif "saved_layout" in c:
+        saved = c.pop("saved_layout")
+        if saved is not None: editor.project.other["card_layout"] = saved
+    _refresh_frames_tab(editor)
 
 
 def _wire_ui_tabs(editor, shell, controls):
