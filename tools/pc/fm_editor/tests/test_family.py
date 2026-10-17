@@ -28,7 +28,7 @@ class ArchiveTest(unittest.TestCase):
         f = fixture()
         wa = bytearray(f.wa)
         for k in range(importer.WA_PATCHES_MOST + 1):             # small changes all over the pictures
-            wa[0x169000 + 0x1000 * k] ^= 0x5A
+            wa[0x169000 + 0x100 * k] ^= 0x5A
         equip = g.TERRAIN_BASE + g.EQUIP_OFFSET
         wa[equip:equip + 8] = b"\x99" * 8                          # a table in a format mod.json carries otherwise
         starters = bytearray(g.STARTER_LENGTH)                     # starter decks as counts of 40

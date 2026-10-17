@@ -2174,6 +2174,16 @@ def _asset_shares_entry(self, asset, manifest_entry):
                for name, (entry, _crop) in _legacy_pack_entries(self).items())
 
 
+def _asset_shares_entry_outside(self, manifest_entry, names_in_scope):
+    """Whether a catalogued asset *not* in ``names_in_scope`` still resolves
+    to this pack entry -- used by a bulk revert to tell "every sibling this
+    atlas has is also being reverted right now" from "something outside
+    this operation still needs it", so the former can fully clear the
+    entry instead of only patching pixels back to retail."""
+    return any(entry is manifest_entry and name not in names_in_scope
+               for name, (entry, _crop) in _legacy_pack_entries(self).items())
+
+
 def _file_still_used(project, filename, except_entry):
     """Whether any OTHER manifest entry still names this PNG. Two distinct
     texture-pack entries can share one backing file even when no catalogued
@@ -2224,6 +2234,34 @@ def _open_assets_folder(self):
 
 def _show_asset_help(self):
     QMessageBox.information(self, "UI asset replacement", "Select a catalogued UI texture, import a PNG replacement, then save the mod. The editor writes replacements under assets/ using the catalog name.")
+
+
+def _asset_goto_tab(self, label):
+    """Switch the UI/Graphics tabs to the one titled ``label``, if any."""
+    tabs = self.workspace_controls.get("Assets", {}).get("tabs")
+    if tabs is None:
+        return
+    for i in range(tabs.count()):
+        if tabs.tabText(i) == label:
+            tabs.setCurrentIndex(i)
+            return
+
+
+def _asset_goto_duel_element(self, key):
+    """Jump to the Duel tab with ``key`` (a duel_assets.ELEMENTS name)
+    selected, as if its row in the element tree had been clicked."""
+    _asset_goto_tab(self, "Duel")
+    c = self.workspace_controls.get("Assets", {})
+    if "duel_tree" in c:
+        c["duel_selected"] = key
+        _refresh_duel(self)
+
+
+def _asset_screen_not_catalogued(self, screen):
+    QMessageBox.information(self, "UI asset replacement",
+        f"The {screen} screen's own textures are not catalogued yet (unlike Duel, Title and Menus, "
+        f"the port has no per-element config for {screen.lower()}), so there is nothing to jump to or "
+        "replace for it specifically here.")
 
 
 def _build_framework(self, page, controls, layout):
@@ -2486,6 +2524,12 @@ def _build_template_framework(self, page, controls, layout):
     _asset_widget(form, QPushButton, "revertAllUiButton").clicked.connect(lambda: _revert_template(self))
     _asset_widget(form, QPushButton, "applyAssetsButton").clicked.connect(self.save_mod)
     _asset_widget(form, QPushButton, "previewAssetsModButton").clicked.connect(self.preview_manifest)
+    _asset_widget(form, QPushButton, "locationCardView").clicked.connect(lambda: self.select_workspace("Art"))
+    _asset_widget(form, QPushButton, "locationBuildDeck").clicked.connect(lambda: _asset_goto_tab(self, "Build Deck"))
+    _asset_widget(form, QPushButton, "locationDuelHand").clicked.connect(lambda: _asset_goto_duel_element(self, "hand_cursor"))
+    _asset_widget(form, QPushButton, "locationDuelField").clicked.connect(lambda: _asset_goto_duel_element(self, "field_cursor"))
+    _asset_widget(form, QPushButton, "locationLibrary").clicked.connect(lambda: _asset_screen_not_catalogued(self, "Library"))
+    _asset_widget(form, QPushButton, "locationPassword").clicked.connect(lambda: _asset_screen_not_catalogued(self, "Password"))
     for scale, name in ((1, "preview1xButton"), (2, "preview2xButton"), (4, "preview4xButton")):
         button = _asset_widget(form, QPushButton, name)
         button.clicked.connect(lambda _checked=False, value=scale: _set_template_scale(self, value))
@@ -3219,12 +3263,13 @@ def _remove_build_deck(self):
 def _revert_build_deck_all(self):
     """Only the build_deck/* entries -- not every named asset in the mod."""
     bd = self.workspace_controls["Assets"]["build_deck"]
+    names_in_scope = {a["name"] for a in bd.get("catalog", [])}
     for asset in bd.get("catalog", []):
         path, origin, manifest_entry = _entry_origin(self, asset)
         if path is None: continue
         if origin == "pack" and manifest_entry is not None:
             crop = _legacy_crop(self, asset)
-            if crop is not None and _asset_shares_entry(self, asset, manifest_entry):
+            if crop is not None and _asset_shares_entry_outside(self, manifest_entry, names_in_scope):
                 # Shared with an asset outside this tab's own catalog (not
                 # being reverted here): patch this region, leave the rest.
                 base = _named_image(self, path)
@@ -3234,6 +3279,9 @@ def _revert_build_deck_all(self):
                     patch = pngio.scale_to(retail, width, height)
                     self.project.files[path] = pngio.encode(pngio.paste(base, patch, left, top))
                 continue
+            # Every sibling this atlas has (if any) is also build_deck/* and
+            # is being reverted in this same pass: safe to clear the entry
+            # outright instead of leaving retail pixels under a live entry.
             st = art.state(self.project)
             if not _file_still_used(self.project, manifest_entry.get("file"), manifest_entry):
                 _remember_asset_removal(self.project, path)

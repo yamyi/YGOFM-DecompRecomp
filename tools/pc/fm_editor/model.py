@@ -168,6 +168,7 @@ class Project:
         self.cards = {cid: card.copy() for cid, card in retail.cards.items()}
         self.added = {}                 # editor id (723+) -> AddedCard
         self.card_extra = {}            # retail id -> keys of its "replace" entry the editor keeps as written
+        self.card_tags = {}             # card id -> ordered, editor-only tag strings
         self.fusions = dict(retail.fusions)
         # {"remove": C} rules, in the mod's order: no recipe on the disc makes
         # C (tables.c Tables_FilterFusion); their pairs are out of `fusions`.
@@ -398,11 +399,14 @@ class Project:
         # (rather than its id as a dict key) has to run before it is gone.
         from . import packs as packmath
 
-        def clean_pool(pool, key="cards"):
+        def clean_pool(pool, key="cards", as_dict=False):
             items = packmath.pool_items(pool.get(key, []))
             if any(self.resolve(ref) == cid for ref, _ in items):
-                pool[key] = packmath.pool_value([(ref, weight) for ref, weight in items
-                                                  if self.resolve(ref) != cid])
+                kept = [(ref, weight) for ref, weight in items if self.resolve(ref) != cid]
+                # "cost" "cards" is only ever {card: copies} (packs.py
+                # _parse): unlike a tier or slot pool, it rejects the whole
+                # pack if it is ever written back as a list.
+                pool[key] = {str(ref): weight for ref, weight in kept} if as_dict else packmath.pool_value(kept)
 
         for entry in self.packs:
             if not isinstance(entry, dict):
@@ -412,7 +416,7 @@ class Project:
             for pool in pools:
                 clean_pool(pool)
             if isinstance(entry.get("cost"), dict):
-                clean_pool(entry["cost"])
+                clean_pool(entry["cost"], as_dict=True)
             for slot in entry.get("slots") or []:
                 if not isinstance(slot, dict):
                     continue
@@ -427,6 +431,11 @@ class Project:
                 entry.pop("unlock", None)
             if self.resolve(entry.get("cover")) == cid:
                 entry.pop("cover", None)
+        if isinstance(self.pack_shop, dict):
+            for shop in self.pack_shop.get("shops") or []:
+                if (isinstance(shop, dict) and isinstance(shop.get("unlock"), dict)
+                        and self.resolve(shop["unlock"].get("card")) == cid):
+                    shop.pop("unlock", None)
         self.starchips.pop(cid, None)
         self.password_keys.pop(cid, None)
         del self.added[cid]

@@ -369,6 +369,43 @@ def chest_overflow(retail_slus: bytes, slus: bytes):
     return limit, pay
 
 
+OPPONENT_DATA = 0x800917F0       # gDuel_aOpponentData: 40 duelists, 9 signed bytes each
+
+
+def opponent_ai(slus: bytes):
+    """Each duelist's nine AI bytes as the executable has them now (plain
+    data at gDuel_aOpponentData, read whether or not the kit's code is
+    there), or None when the table runs past the executable's end."""
+    memory = Memory(slus)
+    rows = []
+    for d in range(g.DUELIST_COUNT):
+        row = []
+        for i in range(g.AI_FIELDS):
+            value = memory.s8(OPPONENT_DATA + d * g.AI_FIELDS + i)
+            if value is None:
+                return None
+            row.append(value)
+        rows.append(row)
+    return rows
+
+
+MEGAMORPH_BONUS = 0x8001A820     # Tables_EquipBoost: addiu $reg, $zero, 1000 for Megamorph (card 657)
+MEGAMORPH_CARD = 657
+
+
+def megamorph_bonus(retail_slus: bytes, slus: bytes):
+    """Megamorph's own equip bonus (the disc's +1000), when Tables_EquipBoost
+    still loads it the same way (addiu $reg, $zero, imm) with another number,
+    else None."""
+    retail, memory = Memory(retail_slus), Memory(slus)
+    word, old = memory.word(MEGAMORPH_BONUS), retail.word(MEGAMORPH_BONUS)
+    if word is None or old is None or word == old:
+        return None
+    if word >> 26 != 9 or (word >> 21) & 0x1F != 0:      # not addiu $rt, $zero, imm
+        return None
+    return s16(word & 0xFFFF)
+
+
 ATTACK_TRAP = 0x8001F0F0         # Duel_SelectAttackTrap
 TRAP_THRESHOLDS = 0x8009AF24     # retail: six bytes, hundreds of ATK
 ATTACK_TRAPS = ("House of Adhesive Tape", "Eatgaboon", "Bear Trap", "Invisible Wire", "Acid Trap Hole",

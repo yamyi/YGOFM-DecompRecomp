@@ -45,6 +45,13 @@ ART_CLUT = 0x2640
 TITLE_PIXELS = 0x2840
 THUMB_CLUT = 0x500             # in the card's own sector
 
+PORTRAIT_BASE = 0xF55000
+PORTRAIT_STRIDE = 0x980
+PORTRAIT_PIXELS = 0x900
+PORTRAIT_SIZE = (48, 48)
+PORTRAIT_COLOURS = 64
+PORTRAIT_COUNT = 40
+
 PARTS = ("art", "thumbnail", "title")
 LABELS = {"art": "Picture", "thumbnail": "Thumbnail", "title": "Name plate"}
 SIZES = {"art": (102, 96), "thumbnail": (40, 32), "title": (96, 14)}
@@ -173,6 +180,17 @@ def disc_image(wa: bytes, cid: int, part: str) -> Image:
         return _paletted(wa, small, 40, 32, small + THUMB_CLUT, 64)
     return plate_image(disc_plate_inks(wa, cid))
 
+
+def portrait_at(duelist: int) -> int:
+    """Where a duelist's Free Duel face is stored in WA_MRG.MRG."""
+    return PORTRAIT_BASE + duelist * PORTRAIT_STRIDE
+def portrait_image(wa: bytes, duelist: int) -> Image:
+    """A duelist's Free Duel face as the disc has it."""
+    if not 0 <= duelist < PORTRAIT_COUNT:
+        raise ValueError(f"duelist {duelist} has no portrait on the disc")
+    at = portrait_at(duelist)
+    width, height = PORTRAIT_SIZE
+    return _paletted(wa, at, width, height, at + PORTRAIT_PIXELS, PORTRAIT_COLOURS)
 
 def ink_of(coverage: int) -> int:
     for ink, start in enumerate(INK_FROM):
@@ -718,14 +736,21 @@ def write_mod(project, folder):
         if rep.kind == "pack" and rep.pending:
             rep.file = _free_file(st, key, rep.file)
     textures = pack_dir(project)
+    pending = [(key, rep) for key, rep in sorted(st.images.items()) if rep.pending and rep.image is not None]
+    # rep.file comes straight from the mod's own JSON (read_mod), unvalidated:
+    # refuse the whole save rather than write even one PNG through a path a
+    # malicious mod could use to escape the folder.
+    for _key, rep in pending:
+        relative = str(Path(textures if rep.kind == "pack" else "") / rep.file)
+        if safe_target(folder, relative) is None:
+            raise ValueError(f"{rep.file!r} is not a safe path inside the mod folder; nothing was saved")
     map_art.write(project, folder)
     board_art.write(project, folder)
-    for key, rep in sorted(st.images.items()):
-        if rep.pending and rep.image is not None:
-            path = folder / (textures if rep.kind == "pack" else "") / rep.file
-            path.parent.mkdir(parents=True, exist_ok=True)
-            pngio.write(path, rep.image)
-            rep.pending = False
+    for key, rep in pending:
+        path = folder / (textures if rep.kind == "pack" else "") / rep.file
+        path.parent.mkdir(parents=True, exist_ok=True)
+        pngio.write(path, rep.image)
+        rep.pending = False
     if st.changed and not st.problem:
         entries = entries_now(project)
         (folder / textures).mkdir(parents=True, exist_ok=True)
@@ -753,6 +778,24 @@ def contained(path) -> bool:
     if "\\" in path:
         return False
     return all(part not in ("", ".", "..") for part in path.split("/"))
+
+
+def safe_target(folder, path):
+    """``Path(folder) / path``, or None when `path` is not `contained()`, or
+    a symlink a mod ships could send it (or a directory on its way to it)
+    outside `folder`: `path` itself a symlink (writing through one follows
+    it; so does a later re-read), or a real ancestor directory that is."""
+    if not contained(path):
+        return None
+    folder = Path(folder)
+    target = folder / path
+    if target.is_symlink():
+        return None
+    try:
+        real_folder, real_parent = folder.resolve(), target.parent.resolve()
+    except OSError:
+        return None
+    return target if real_parent == real_folder or real_parent.is_relative_to(real_folder) else None
 
 
 def check(project, out: list):

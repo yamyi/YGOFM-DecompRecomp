@@ -184,7 +184,7 @@ DUELIST_BASE = 0xE99800
 DUELIST_STRIDE = 0x1800
 POOL_OFFSETS = {"deck": 0x000, "pow": 0x5B4, "bcd": 0xB68, "tec": 0x111C}
 STARTER_BASE = 0xF92BD4             # the seven starter deck pools the name entry deals from
-STARTER_LENGTH = 7 * (2 + 2 * CARD_COUNT)
+STARTER_LENGTH = 7 * 0x5B8          # seven 0x5B8-byte retail rows (722 weights plus row padding)
 # The Password screen's table (src/pc/cards/passwords.c): a record per card
 # id from 0, the price in starchips and the password, a BCD nibble per digit,
 # both little-endian words. PASSWORD_NONE is a card the screen cannot give.
@@ -256,13 +256,17 @@ def _image(slus: bytes):
     return image
 
 
-def decode_text(image, address: int, glyphs: dict, limit: int = 1024) -> str:
+def decode_text(image, address: int, glyphs: dict, limit: int = 1024, bank: int = None) -> str:
     """A card name or text as plain UTF-8: 0xFE is a line break, 0xFF the
-    end; any control code is written the way the text listing spells it."""
+    end; any control code is written the way the text listing spells it.
+    0xFD <u16 offset> (Text_SetCursorOffset) redirects the stream to a new
+    offset within `bank`, a retail/mod-kit trick to share a common string
+    suffix (e.g. a card name ending) across several entries; followed only
+    when `bank` is given, else kept as the literal placeholder below."""
     out = []
     at = address
-    end = address + limit
-    while at < end:
+    jumps = 0
+    for _ in range(limit):
         code = image.bytes(at, 1)
         if not code:
             break
@@ -281,6 +285,9 @@ def decode_text(image, address: int, glyphs: dict, limit: int = 1024) -> str:
         elif code == 0xF8 and image.bytes(at + 1, 1) and image.bytes(at + 1, 1)[0] in (0x0A, 0x0B):
             out.append("{f8 %02X %02X}" % tuple(image.bytes(at + 1, 2)))      # a color or an icon, as the listing
             at += 3
+        elif code == 0xFD and bank is not None and jumps < 8:
+            at = bank + int.from_bytes(image.bytes(at + 1, 2), "little")
+            jumps += 1
         else:
             out.append("{%02X}" % code)
             at += 1
@@ -289,15 +296,23 @@ def decode_text(image, address: int, glyphs: dict, limit: int = 1024) -> str:
 
 def plain_names(image, glyphs: dict) -> dict:
     """Card names as text: a color or icon code (F8 0A NN, F8 0B NN) at
-    the start or inside, as community mods write them, is skipped."""
+    the start or inside, as community mods write them, is skipped. 0xFD
+    <u16 offset> (Text_SetCursorOffset) jumps the stream to a new offset
+    within the names bank, a retail/mod-kit trick to share a common name
+    suffix (e.g. "The Wicked ...") across several cards."""
     names = {}
     for cid in range(1, CARD_COUNT + 1):
         at = NAME_BANK + image.u16(NAME_TABLE + cid * 2)
         text = ""
+        jumps = 0
         while len(text) < 64:
             code = image.bytes(at, 1)[0]
             if code == 0xF8:
                 at += 3 if image.bytes(at + 1, 1)[0] in (0x0A, 0x0B) else 2
+                continue
+            if code == 0xFD and jumps < 8:
+                at = NAME_BANK + int.from_bytes(image.bytes(at + 1, 2), "little")
+                jumps += 1
                 continue
             if code >= 0xF0:
                 break
@@ -355,15 +370,26 @@ def read_cards(slus: bytes, wa: bytes = b"") -> dict:
     image = _image(slus)
     glyphs = _tl.glyph_characters(image)
     names = plain_names(image, glyphs)
-    texts = description_bytes(slus, wa)
+    # Raw bytes through 0xFF, for mods that keep text in WA_MRG.MRG's own
+    # slots: these never jump banks, so decode_text's fallback (bank=None)
+    # is already correct for them. The executable's own bank is decoded
+    # straight from `image` instead, so a 0xFD jump (see plain_names) can
+    # follow a shared suffix wherever it actually lives in that bank.
+    kept_in_wa = bool(wa) and wa_descriptions(slus, wa)
+    texts = description_bytes(slus, wa) if kept_in_wa else None
     cards = {}
     for cid in range(1, CARD_COUNT + 1):
         stats = image.u32(STATS_ADDRESS + (cid - 1) * 4)
         level_attr = image.bytes(LEVEL_ATTR_ADDRESS + cid, 1)[0]
+        if kept_in_wa:
+            description = decode_text(_Bytes(texts[cid]), 0, glyphs, len(texts[cid]))
+        else:
+            description = decode_text(image, DESCRIPTION_BANK + image.u16(STRING_TABLE + (0x100 + cid) * 2),
+                                        glyphs, bank=DESCRIPTION_BANK)
         cards[cid] = Card(
             id=cid,
             name=names.get(cid, ""),
-            description=decode_text(_Bytes(texts[cid]), 0, glyphs, len(texts[cid])),
+            description=description,
             attack=(stats & 0x1FF) * 10,
             defense=((stats >> 9) & 0x1FF) * 10,
             star2=(stats >> 18) & 0xF,

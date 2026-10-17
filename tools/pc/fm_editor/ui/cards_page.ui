@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
  <class>CardsPage</class>
  <widget class="QWidget" name="CardsPage">
@@ -149,8 +149,8 @@
          <attribute name="verticalHeaderVisible">
           <bool>false</bool>
          </attribute>
-         <column />
-         <column />
+         <column/>
+         <column/>
         </widget>
        </item>
        <item>
@@ -246,8 +246,8 @@
            <rect>
             <x>0</x>
             <y>0</y>
-            <width>475</width>
-            <height>964</height>
+            <width>474</width>
+            <height>1046</height>
            </rect>
           </property>
           <layout class="QVBoxLayout" name="cardFieldsLayout">
@@ -268,6 +268,9 @@
            </property>
            <item>
             <widget class="QTabWidget" name="cardDataTabs">
+             <property name="currentIndex">
+              <number>2</number>
+             </property>
              <widget class="QWidget" name="cardGeneralTab">
               <attribute name="title">
                <string>General</string>
@@ -352,72 +355,45 @@
                     <property name="text">
                      <string>Retail / default</string>
                     </property>
-                    <property name="userData">
-                     <string />
-                    </property>
                    </item>
                    <item>
                     <property name="text">
                      <string>White (0)</string>
-                    </property>
-                    <property name="userData">
-                     <string>0</string>
                     </property>
                    </item>
                    <item>
                     <property name="text">
                      <string>Yellow (1)</string>
                     </property>
-                    <property name="userData">
-                     <string>1</string>
-                    </property>
                    </item>
                    <item>
                     <property name="text">
                      <string>Blue (2)</string>
-                    </property>
-                    <property name="userData">
-                     <string>2</string>
                     </property>
                    </item>
                    <item>
                     <property name="text">
                      <string>Green (3)</string>
                     </property>
-                    <property name="userData">
-                     <string>3</string>
-                    </property>
                    </item>
                    <item>
                     <property name="text">
                      <string>Grey (4)</string>
-                    </property>
-                    <property name="userData">
-                     <string>4</string>
                     </property>
                    </item>
                    <item>
                     <property name="text">
                      <string>Orange (5)</string>
                     </property>
-                    <property name="userData">
-                     <string>5</string>
-                    </property>
                    </item>
                    <item>
                     <property name="text">
                      <string>Red (6)</string>
                     </property>
-                    <property name="userData">
-                     <string>6</string>
-                    </property>
                    </item>
                    <item>
                     <property name="text">
                      <string>Unused (7)</string>
-                    </property>
-                    <property name="userData">
-                     <string>7</string>
                     </property>
                    </item>
                   </widget>
@@ -433,7 +409,7 @@
                   <number>7</number>
                  </property>
                  <item row="8" column="1">
-                  <widget class="QComboBox" name="guardian2Combo" />
+                  <widget class="QComboBox" name="guardian2Combo"/>
                  </item>
                  <item row="7" column="0">
                   <widget class="QLabel" name="guardian1Label">
@@ -450,7 +426,7 @@
                   </widget>
                  </item>
                  <item row="1" column="1">
-                  <widget class="QComboBox" name="attributeCombo" />
+                  <widget class="QComboBox" name="attributeCombo"/>
                  </item>
                  <item row="4" column="0">
                   <widget class="QLabel" name="attackLabel">
@@ -460,10 +436,10 @@
                   </widget>
                  </item>
                  <item row="3" column="1">
-                  <widget class="QComboBox" name="frameCombo" />
+                  <widget class="QComboBox" name="frameCombo"/>
                  </item>
                  <item row="8" column="0">
-                  <widget class="QComboBox" name="guardian1Combo" />
+                  <widget class="QComboBox" name="guardian1Combo"/>
                  </item>
                  <item row="2" column="0">
                   <widget class="QLabel" name="levelLabel">
@@ -504,7 +480,7 @@
                   </widget>
                  </item>
                  <item row="1" column="0">
-                  <widget class="QComboBox" name="typeCombo" />
+                  <widget class="QComboBox" name="typeCombo"/>
                  </item>
                  <item row="5" column="1">
                   <widget class="QSpinBox" name="defenseSpinBox">
@@ -538,7 +514,7 @@
                   </widget>
                  </item>
                  <item row="10" column="0" colspan="2">
-                  <widget class="QComboBox" name="effectCombo" />
+                  <widget class="QComboBox" name="effectCombo"/>
                  </item>
                  <item row="11" column="0" colspan="2">
                   <widget class="QLabel" name="trapThresholdLabel">
@@ -633,11 +609,11 @@
                  </item>
                  <item row="1" column="1">
                   <widget class="QSpinBox" name="starchipsSpin">
-                   <property name="maximum">
-                    <number>999999</number>
-                   </property>
                    <property name="toolTip">
                     <string>What the Password screen charges for this card.</string>
+                   </property>
+                   <property name="maximum">
+                    <number>999999</number>
                    </property>
                   </widget>
                  </item>
@@ -646,11 +622,11 @@
                    <property name="visible">
                     <bool>false</bool>
                    </property>
-                   <property name="wordWrap">
-                    <bool>true</bool>
-                   </property>
                    <property name="text">
                     <string>Saved in this added card’s mod entry. Apply changes, then Save; it works in the Password shop.</string>
+                   </property>
+                   <property name="wordWrap">
+                    <bool>true</bool>
                    </property>
                   </widget>
                  </item>
@@ -663,17 +639,17 @@
                  </item>
                  <item row="4" column="0" colspan="2">
                   <widget class="QPlainTextEdit" name="cardNotesEdit">
-                   <property name="placeholderText">
-                    <string>Private notes about this card</string>
-                   </property>
-                   <property name="toolTip">
-                    <string>Saved in the mod for the author. The game does not display it.</string>
-                   </property>
                    <property name="minimumSize">
                     <size>
                      <width>0</width>
                      <height>88</height>
                     </size>
+                   </property>
+                   <property name="toolTip">
+                    <string>Saved in the mod for the author. The game does not display it.</string>
+                   </property>
+                   <property name="placeholderText">
+                    <string>Private notes about this card</string>
                    </property>
                   </widget>
                  </item>
@@ -723,7 +699,7 @@
                   <item>
                    <widget class="QLabel" name="baseCardInfoLabel">
                     <property name="text">
-                     <string />
+                     <string/>
                     </property>
                    </widget>
                   </item>
@@ -776,7 +752,7 @@
                   <number>8</number>
                  </property>
                  <item>
-                  <widget class="QTableWidget" name="effectsTable" />
+                  <widget class="QTableWidget" name="effectsTable"/>
                  </item>
                  <item>
                   <layout class="QVBoxLayout" name="effectsButtons">
@@ -838,7 +814,7 @@
                <item>
                 <widget class="QLabel" name="effectsNote">
                  <property name="text">
-                  <string />
+                  <string/>
                  </property>
                  <property name="wordWrap">
                   <bool>true</bool>
@@ -891,11 +867,11 @@
                </item>
                <item>
                 <widget class="QLabel" name="cardTextPreview">
+                 <property name="text">
+                  <string/>
+                 </property>
                  <property name="alignment">
                   <set>Qt::AlignmentFlag::AlignCenter</set>
-                 </property>
-                 <property name="text">
-                  <string />
                  </property>
                 </widget>
                </item>
@@ -919,7 +895,7 @@
            <item>
             <widget class="QLabel" name="validationLabel">
              <property name="text">
-              <string />
+              <string/>
              </property>
              <property name="wordWrap">
               <bool>true</bool>
@@ -1018,11 +994,11 @@
           </item>
           <item row="0" column="4">
            <widget class="QPushButton" name="modelPreviewButton">
-            <property name="text">
-             <string>3D View</string>
-            </property>
             <property name="toolTip">
              <string>View the card's in-game 3D model</string>
+            </property>
+            <property name="text">
+             <string>3D View</string>
             </property>
            </widget>
           </item>
@@ -1044,7 +1020,7 @@
           </size>
          </property>
          <property name="text">
-          <string />
+          <string/>
          </property>
          <property name="scaledContents">
           <bool>false</bool>
@@ -1060,6 +1036,49 @@
    </item>
   </layout>
  </widget>
- <resources />
- <connections />
+ <tabstops>
+  <tabstop>cardSearchEdit</tabstop>
+  <tabstop>cardFilterCombo</tabstop>
+  <tabstop>advancedCardFilterButton</tabstop>
+  <tabstop>cardTable</tabstop>
+  <tabstop>addCopyButton</tabstop>
+  <tabstop>revertButton</tabstop>
+  <tabstop>removeCopyButton</tabstop>
+  <tabstop>applyButton</tabstop>
+  <tabstop>cardDataScroll</tabstop>
+  <tabstop>cardIdSpinBox</tabstop>
+  <tabstop>nameEdit</tabstop>
+  <tabstop>nameColourCombo</tabstop>
+  <tabstop>typeCombo</tabstop>
+  <tabstop>attributeCombo</tabstop>
+  <tabstop>levelSpinBox</tabstop>
+  <tabstop>frameCombo</tabstop>
+  <tabstop>attackSpinBox</tabstop>
+  <tabstop>defenseSpinBox</tabstop>
+  <tabstop>guardian1Combo</tabstop>
+  <tabstop>guardian2Combo</tabstop>
+  <tabstop>effectCombo</tabstop>
+  <tabstop>trapThresholdSpin</tabstop>
+  <tabstop>equipAttackSpin</tabstop>
+  <tabstop>equipDefenseSpin</tabstop>
+  <tabstop>passwordEdit</tabstop>
+  <tabstop>starchipsSpin</tabstop>
+  <tabstop>cardNotesEdit</tabstop>
+  <tabstop>stableKeyEdit</tabstop>
+  <tabstop>dropsCheckBox</tabstop>
+  <tabstop>opponentsCheckBox</tabstop>
+  <tabstop>effectsTable</tabstop>
+  <tabstop>addEffectButton</tabstop>
+  <tabstop>editEffectButton</tabstop>
+  <tabstop>cardDataTabs</tabstop>
+  <tabstop>removeEffectButton</tabstop>
+  <tabstop>effectUpButton</tabstop>
+  <tabstop>effectDownButton</tabstop>
+  <tabstop>descriptionEdit</tabstop>
+  <tabstop>discPreviewButton</tabstop>
+  <tabstop>hdPreviewButton</tabstop>
+  <tabstop>modelPreviewButton</tabstop>
+ </tabstops>
+ <resources/>
+ <connections/>
 </ui>

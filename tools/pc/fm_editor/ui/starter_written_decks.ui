@@ -1,12 +1,44 @@
-<ui version="4.0"><class>starterWrittenTab</class><widget class="QWidget" name="starterWrittenTab">
-      <layout class="QVBoxLayout" name="starterWrittenLayout">
-<item>
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>starterWrittenTab</class>
+ <widget class="QWidget" name="starterWrittenTab">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1280</width>
+    <height>720</height>
+   </rect>
+  </property>
+  <layout class="QVBoxLayout" name="starterWrittenLayout">
+   <item>
     <widget class="QSplitter" name="starterSplit">
      <property name="orientation">
       <enum>Qt::Orientation::Horizontal</enum>
      </property>
+     <property name="handleWidth">
+      <number>12</number>
+     </property>
+     <property name="childrenCollapsible">
+      <bool>false</bool>
+     </property>
      <widget class="QWidget" name="starterListPane">
       <layout class="QVBoxLayout" name="starterListLayout">
+       <property name="spacing">
+        <number>8</number>
+       </property>
+       <property name="leftMargin">
+        <number>2</number>
+       </property>
+       <property name="topMargin">
+        <number>0</number>
+       </property>
+       <property name="rightMargin">
+        <number>2</number>
+       </property>
+       <property name="bottomMargin">
+        <number>0</number>
+       </property>
        <item>
         <widget class="QLabel" name="starterDeckHeading">
          <property name="text">
@@ -33,7 +65,7 @@
          </column>
          <column>
           <property name="text">
-            <string>Cards</string>
+           <string>Cards</string>
           </property>
          </column>
          <column>
@@ -61,10 +93,25 @@
          </item>
         </layout>
        </item>
-      <property name="leftMargin"><number>2</number></property><property name="rightMargin"><number>2</number></property><property name="topMargin"><number>0</number></property><property name="bottomMargin"><number>0</number></property><property name="spacing"><number>8</number></property></layout>
+      </layout>
      </widget>
      <widget class="QWidget" name="starterDetailPane">
       <layout class="QVBoxLayout" name="starterDetailLayout">
+       <property name="spacing">
+        <number>8</number>
+       </property>
+       <property name="leftMargin">
+        <number>2</number>
+       </property>
+       <property name="topMargin">
+        <number>0</number>
+       </property>
+       <property name="rightMargin">
+        <number>2</number>
+       </property>
+       <property name="bottomMargin">
+        <number>0</number>
+       </property>
        <item>
         <layout class="QHBoxLayout" name="starterDeckDetails">
          <item>
@@ -157,11 +204,25 @@
          </item>
         </layout>
        </item>
-      <property name="leftMargin"><number>2</number></property><property name="rightMargin"><number>2</number></property><property name="topMargin"><number>0</number></property><property name="bottomMargin"><number>0</number></property><property name="spacing"><number>8</number></property></layout>
-     </widget>
-    <property name="handleWidth"><number>12</number></property><property name="childrenCollapsible"><bool>false</bool></property></widget>
-   </item>
       </layout>
      </widget>
-
-      </ui>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <tabstops>
+  <tabstop>starterDeckTable</tabstop>
+  <tabstop>addDeckButton</tabstop>
+  <tabstop>removeDeckButton</tabstop>
+  <tabstop>starterNameEdit</tabstop>
+  <tabstop>starterWeightSpin</tabstop>
+  <tabstop>applyDeckButton</tabstop>
+  <tabstop>starterCardTable</tabstop>
+  <tabstop>starterCopiesSpin</tabstop>
+  <tabstop>addDeckCardButton</tabstop>
+  <tabstop>setDeckCopiesButton</tabstop>
+  <tabstop>removeDeckCardButton</tabstop>
+ </tabstops>
+ <resources/>
+ <connections/>
+</ui>

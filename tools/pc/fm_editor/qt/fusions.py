@@ -183,6 +183,19 @@ class FusionsMixin:
                 raise RuntimeError(f"Fusions Designer form is missing {name!r}")
             return item
 
+        def panel_from_layout(parent_layout, layout):
+            """Wrap a nested layout in a QWidget so the whole group can be
+            shown/hidden as one -- the form nests it directly with no such
+            container of its own (materialAAdvancedLayout/materialBAdvancedLayout)."""
+            for index in range(parent_layout.count()):
+                if parent_layout.itemAt(index).layout() is layout:
+                    parent_layout.takeAt(index)
+                    panel = QWidget()
+                    panel.setLayout(layout)
+                    parent_layout.insertWidget(index, panel)
+                    return panel
+            raise RuntimeError(f"{layout.objectName()!r} is not a direct item of {parent_layout.objectName()!r}")
+
         def bind_filter(side):
             cap = side.upper()
             types = get(QListWidget, f"material{cap}TypeList")
@@ -194,7 +207,7 @@ class FusionsMixin:
             for listing in (types, stars):
                 listing.setSpacing(3)
                 listing.viewport().installEventFilter(self)
-            advanced = get(QWidget, f"material{cap}AdvancedPanel")
+            advanced = panel_from_layout(get(QVBoxLayout, f"material{cap}Layout"), get(QVBoxLayout, f"material{cap}AdvancedLayout"))
             kinds = {kind: get(QCheckBox, f"material{cap}Kind{kind.capitalize()}")
                      for kind in bulk_fusions.KINDS}
             for box in kinds.values():

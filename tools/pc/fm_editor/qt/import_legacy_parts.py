@@ -140,14 +140,23 @@ def import_guardian_stars(project, retail, modded, retail_slus: bytes, modded_sl
                 if bonus != guardian_stars.retail_matchup(attacker, defender):
                     pairs.append({"attacker": attacker, "defender": defender, "bonus": bonus})
         section["matchups"] = pairs
+        extract_icon = getattr(guardian_stars, "imported_icon", None)
+        skipped_icons = 0
         for entry in entries:
             if entry["id"] <= guardian_stars.RETAIL_COUNT:
                 continue
-            found = guardian_stars.imported_icon(modded_wa, entry["id"])
+            if extract_icon is None:
+                skipped_icons += 1
+                continue
+            found = extract_icon(modded_wa, entry["id"])
             if found is not None:
                 path = f"icons/star-{entry['id']}.png"
                 project.files[path] = pngio.encode(pngio.Image(*found))
                 entry["icon"] = path
+        if skipped_icons:
+            report.append(f"guardian stars: {skipped_icons} custom star icon"
+                          + ("s" if skipped_icons != 1 else "")
+                          + " could not be extracted; the id and name are imported, add the icon by hand")
         report.append(f"guardian stars: imported the 16-star matchup table ({len(pairs)} changed pairs)")
     project.other["guardian_stars"] = section
     report.append(f"guardian stars: imported {len(entries)} renamed or used slot"

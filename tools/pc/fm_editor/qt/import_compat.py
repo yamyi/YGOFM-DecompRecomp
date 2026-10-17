@@ -23,6 +23,20 @@ def install() -> None:
     if not getattr(importer, "_qt_progress_compat", False):
         original_import_modded = importer.import_modded
 
+        def decode_descriptions(slus, wa, glyphs):
+            """Every card's description, correctly following a 0xFD cursor
+            jump (gamedata.read_cards does the same): the executable's bank
+            directly, or WA_MRG.MRG's own per-card slots a mod kit may keep
+            them in instead (plain strings there, never jumps)."""
+            if wa and gamedata.wa_descriptions(slus, wa):
+                return {cid: gamedata.decode_text(gamedata._Bytes(text), 0, glyphs, len(text))
+                        for cid, text in gamedata.description_bytes(slus, wa).items()}
+            image = gamedata._image(slus)
+            return {cid: gamedata.decode_text(
+                        image, gamedata.DESCRIPTION_BANK + image.u16(gamedata.STRING_TABLE + (0x100 + cid) * 2),
+                        glyphs, bank=gamedata.DESCRIPTION_BANK)
+                    for cid in range(1, gamedata.CARD_COUNT + 1)}
+
         def minimal_text_changes(retail_slus, modded_slus, report, modded_wa=b"", card_fields=None):
             """Write only changed text items and their required local labels.
 
@@ -57,6 +71,19 @@ def install() -> None:
                 return any(cid in card_fields.get(field, ())
                            for cid in importer._card_ids(bank, key))
 
+            # The listing represents a 0xFD cursor jump as a separate,
+            # labeled item ({jump LABEL}), and a plain contiguous run as a
+            # same-byte-offset item split off with no label at all ({cont}):
+            # neither is safely resolvable from the listing text alone. Read
+            # the modded card text straight from the game files instead, the
+            # same way gamedata.read_cards() does (follows both correctly).
+            modded_image = gamedata._image(modded_slus)
+            modded_glyphs = gamedata._tl.glyph_characters(modded_image)
+            carried_source = {
+                "name": gamedata.plain_names(modded_image, modded_glyphs),
+                "description": decode_descriptions(modded_slus, modded_wa, modded_glyphs),
+            }
+
             parts, carried = [], {}
             for bank in ("dialog", "names", "descriptions"):
                 old, new = before.get(bank, {}), after.get(bank, {})
@@ -90,9 +117,15 @@ def install() -> None:
                 parts.append(f"@bank {bank}\n")
                 parts.extend(new[key] + ("" if new[key].endswith("{cont}") else "\n")
                              for key in keys)
+                field = importer.CARD_BANKS.get(bank, (0, ""))[1]
+                source = carried_source.get(field)
                 for key in keys:
-                    for cid in importer._card_ids(bank, key):
-                        carried[(cid, importer.CARD_BANKS[bank][1])] = new[key]
+                    cids = importer._card_ids(bank, key)
+                    if cids and source is not None:
+                        for cid in cids:
+                            # manifest.plain_name/listing_plain both discard
+                            # an item's first line as its [ID] header.
+                            carried[(cid, field)] = "[x]\n" + source.get(cid, "")
                 report.append(f"text: {len(keys)} changed {bank} entries imported")
 
             if not parts:
@@ -343,14 +376,14 @@ def install() -> None:
                 image = gamedata._image(slus)
                 glyphs = gamedata._tl.glyph_characters(image)
                 names = gamedata.plain_names(image, glyphs)
-                texts = gamedata.description_bytes(slus, wa)
+                descriptions = decode_descriptions(slus, wa, glyphs)
                 cards = {}
                 for cid in range(1, gamedata.CARD_COUNT + 1):
                     stats = image.u32(gamedata.STATS_ADDRESS + (cid - 1) * 4)
                     level_attr = image.bytes(gamedata.LEVEL_ATTR_ADDRESS + cid, 1)[0]
                     cards[cid] = gamedata.Card(
                         id=cid, name=names.get(cid, ""),
-                        description=gamedata.decode_text(gamedata._Bytes(texts[cid]), 0, glyphs, len(texts[cid])),
+                        description=descriptions.get(cid, ""),
                         attack=(stats & 0x1FF) * 10, defense=((stats >> 9) & 0x1FF) * 10,
                         star2=(stats >> 18) & 0xF, star1=(stats >> 22) & 0xF,
                         type=(stats >> 26) & 0x1F, level=level_attr & 0xF, attribute=level_attr >> 4)

@@ -1,7 +1,15 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
  <class>genericFusionTab</class>
  <widget class="QWidget" name="genericFusionTab">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>966</width>
+    <height>510</height>
+   </rect>
+  </property>
   <layout class="QVBoxLayout" name="genericFusionTabLayout">
    <property name="spacing">
     <number>6</number>
@@ -14,16 +22,10 @@
         <property name="text">
          <string>Add fusions</string>
         </property>
-        <property name="userData">
-         <string>add</string>
-        </property>
        </item>
        <item>
         <property name="text">
          <string>Take fusions away</string>
-        </property>
-        <property name="userData">
-         <string>remove</string>
         </property>
        </item>
       </widget>
@@ -73,8 +75,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>827</width>
-         <height>734</height>
+         <width>765</width>
+         <height>1302</height>
         </rect>
        </property>
        <layout class="QVBoxLayout" name="genericFusionFormLayout">
@@ -102,7 +104,7 @@
                </property>
                <layout class="QVBoxLayout" name="materialATypeLayout">
                 <item>
-                 <widget class="QListWidget" name="materialATypeList" />
+                 <widget class="QListWidget" name="materialATypeList"/>
                 </item>
                </layout>
               </widget>
@@ -114,7 +116,7 @@
                </property>
                <layout class="QVBoxLayout" name="materialAStarLayout">
                 <item>
-                 <widget class="QListWidget" name="materialAStarList" />
+                 <widget class="QListWidget" name="materialAStarList"/>
                 </item>
                </layout>
               </widget>
@@ -259,178 +261,176 @@
             </widget>
            </item>
            <item>
-            <widget class="QWidget" name="materialAAdvancedPanel">
-             <layout class="QVBoxLayout" name="materialAAdvancedLayout">
-              <property name="spacing">
-               <number>3</number>
-              </property>
-              <item>
-               <layout class="QHBoxLayout" name="materialAAtkLayout">
-                <item>
-                 <widget class="QLabel" name="materialAAtkLabel">
-                  <property name="text">
-                   <string>ATK</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QLabel" name="materialAAtkFromLabel">
-                  <property name="text">
-                   <string>from</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QLineEdit" name="materialAAtkMin">
-                  <property name="placeholderText">
-                   <string>Any</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QLabel" name="materialAAtkToLabel">
-                  <property name="text">
-                   <string>to</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QLineEdit" name="materialAAtkMax">
-                  <property name="placeholderText">
-                   <string>Any</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <spacer name="materialAAtkSpacer">
-                  <property name="orientation">
-                   <enum>Qt::Orientation::Horizontal</enum>
-                  </property>
-                  <property name="sizeHint" stdset="0">
-                   <size>
-                    <width>40</width>
-                    <height>20</height>
-                   </size>
-                  </property>
-                 </spacer>
-                </item>
-               </layout>
-              </item>
-              <item>
-               <layout class="QHBoxLayout" name="materialADefLayout">
-                <item>
-                 <widget class="QLabel" name="materialADefLabel">
-                  <property name="text">
-                   <string>DEF</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QLabel" name="materialADefFromLabel">
-                  <property name="text">
-                   <string>from</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QLineEdit" name="materialADefMin">
-                  <property name="placeholderText">
-                   <string>Any</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QLabel" name="materialADefToLabel">
-                  <property name="text">
-                   <string>to</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QLineEdit" name="materialADefMax">
-                  <property name="placeholderText">
-                   <string>Any</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <spacer name="materialADefSpacer">
-                  <property name="orientation">
-                   <enum>Qt::Orientation::Horizontal</enum>
-                  </property>
-                  <property name="sizeHint" stdset="0">
-                   <size>
-                    <width>40</width>
-                    <height>20</height>
-                   </size>
-                  </property>
-                 </spacer>
-                </item>
-               </layout>
-              </item>
-              <item>
-               <layout class="QHBoxLayout" name="materialANameFilterLayout">
-                <item>
-                 <widget class="QLabel" name="materialANameLabel">
-                  <property name="text">
-                   <string>Name contains</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QLineEdit" name="materialAName">
-                  <property name="placeholderText">
-                   <string />
-                  </property>
-                 </widget>
-                </item>
-               </layout>
-              </item>
-              <item>
-               <layout class="QHBoxLayout" name="materialATextFilterLayout">
-                <item>
-                 <widget class="QLabel" name="materialATextLabel">
-                  <property name="text">
-                   <string>Text contains</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QLineEdit" name="materialAText">
-                  <property name="placeholderText">
-                   <string />
-                  </property>
-                 </widget>
-                </item>
-               </layout>
-              </item>
-              <item>
-               <layout class="QHBoxLayout" name="materialACardsFilterLayout">
-                <item>
-                 <widget class="QLabel" name="materialACardsLabel">
-                  <property name="text">
-                   <string>Specific cards</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QLineEdit" name="materialACards">
-                  <property name="placeholderText">
-                   <string>IDs, ranges, or names; comma separated</string>
-                  </property>
-                 </widget>
-                </item>
-               </layout>
-              </item>
-              <item>
-               <widget class="QCheckBox" name="materialAResultsOnly">
-                <property name="text">
-                 <string>Only cards that are fusion results</string>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </widget>
+            <layout class="QVBoxLayout" name="materialAAdvancedLayout">
+             <property name="spacing">
+              <number>3</number>
+             </property>
+             <item>
+              <layout class="QHBoxLayout" name="materialAAtkLayout">
+               <item>
+                <widget class="QLabel" name="materialAAtkLabel">
+                 <property name="text">
+                  <string>ATK</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="materialAAtkFromLabel">
+                 <property name="text">
+                  <string>from</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLineEdit" name="materialAAtkMin">
+                 <property name="placeholderText">
+                  <string>Any</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="materialAAtkToLabel">
+                 <property name="text">
+                  <string>to</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLineEdit" name="materialAAtkMax">
+                 <property name="placeholderText">
+                  <string>Any</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <spacer name="materialAAtkSpacer">
+                 <property name="orientation">
+                  <enum>Qt::Orientation::Horizontal</enum>
+                 </property>
+                 <property name="sizeHint" stdset="0">
+                  <size>
+                   <width>40</width>
+                   <height>20</height>
+                  </size>
+                 </property>
+                </spacer>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="materialADefLayout">
+               <item>
+                <widget class="QLabel" name="materialADefLabel">
+                 <property name="text">
+                  <string>DEF</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="materialADefFromLabel">
+                 <property name="text">
+                  <string>from</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLineEdit" name="materialADefMin">
+                 <property name="placeholderText">
+                  <string>Any</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="materialADefToLabel">
+                 <property name="text">
+                  <string>to</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLineEdit" name="materialADefMax">
+                 <property name="placeholderText">
+                  <string>Any</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <spacer name="materialADefSpacer">
+                 <property name="orientation">
+                  <enum>Qt::Orientation::Horizontal</enum>
+                 </property>
+                 <property name="sizeHint" stdset="0">
+                  <size>
+                   <width>40</width>
+                   <height>20</height>
+                  </size>
+                 </property>
+                </spacer>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="materialANameFilterLayout">
+               <item>
+                <widget class="QLabel" name="materialANameLabel">
+                 <property name="text">
+                  <string>Name contains</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLineEdit" name="materialAName">
+                 <property name="placeholderText">
+                  <string/>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="materialATextFilterLayout">
+               <item>
+                <widget class="QLabel" name="materialATextLabel">
+                 <property name="text">
+                  <string>Text contains</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLineEdit" name="materialAText">
+                 <property name="placeholderText">
+                  <string/>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="materialACardsFilterLayout">
+               <item>
+                <widget class="QLabel" name="materialACardsLabel">
+                 <property name="text">
+                  <string>Specific cards</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLineEdit" name="materialACards">
+                 <property name="placeholderText">
+                  <string>IDs, ranges, or names; comma separated</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="materialAResultsOnly">
+               <property name="text">
+                <string>Only cards that are fusion results</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
            </item>
            <item>
             <widget class="QLabel" name="materialACountLabel">
@@ -551,7 +551,7 @@
                </property>
                <layout class="QVBoxLayout" name="materialBTypeLayout">
                 <item>
-                 <widget class="QListWidget" name="materialBTypeList" />
+                 <widget class="QListWidget" name="materialBTypeList"/>
                 </item>
                </layout>
               </widget>
@@ -563,7 +563,7 @@
                </property>
                <layout class="QVBoxLayout" name="materialBStarLayout">
                 <item>
-                 <widget class="QListWidget" name="materialBStarList" />
+                 <widget class="QListWidget" name="materialBStarList"/>
                 </item>
                </layout>
               </widget>
@@ -708,178 +708,176 @@
             </widget>
            </item>
            <item>
-            <widget class="QWidget" name="materialBAdvancedPanel">
-             <layout class="QVBoxLayout" name="materialBAdvancedLayout">
-              <property name="spacing">
-               <number>3</number>
-              </property>
-              <item>
-               <layout class="QHBoxLayout" name="materialBAtkLayout">
-                <item>
-                 <widget class="QLabel" name="materialBAtkLabel">
-                  <property name="text">
-                   <string>ATK</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QLabel" name="materialBAtkFromLabel">
-                  <property name="text">
-                   <string>from</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QLineEdit" name="materialBAtkMin">
-                  <property name="placeholderText">
-                   <string>Any</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QLabel" name="materialBAtkToLabel">
-                  <property name="text">
-                   <string>to</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QLineEdit" name="materialBAtkMax">
-                  <property name="placeholderText">
-                   <string>Any</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <spacer name="materialBAtkSpacer">
-                  <property name="orientation">
-                   <enum>Qt::Orientation::Horizontal</enum>
-                  </property>
-                  <property name="sizeHint" stdset="0">
-                   <size>
-                    <width>40</width>
-                    <height>20</height>
-                   </size>
-                  </property>
-                 </spacer>
-                </item>
-               </layout>
-              </item>
-              <item>
-               <layout class="QHBoxLayout" name="materialBDefLayout">
-                <item>
-                 <widget class="QLabel" name="materialBDefLabel">
-                  <property name="text">
-                   <string>DEF</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QLabel" name="materialBDefFromLabel">
-                  <property name="text">
-                   <string>from</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QLineEdit" name="materialBDefMin">
-                  <property name="placeholderText">
-                   <string>Any</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QLabel" name="materialBDefToLabel">
-                  <property name="text">
-                   <string>to</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QLineEdit" name="materialBDefMax">
-                  <property name="placeholderText">
-                   <string>Any</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <spacer name="materialBDefSpacer">
-                  <property name="orientation">
-                   <enum>Qt::Orientation::Horizontal</enum>
-                  </property>
-                  <property name="sizeHint" stdset="0">
-                   <size>
-                    <width>40</width>
-                    <height>20</height>
-                   </size>
-                  </property>
-                 </spacer>
-                </item>
-               </layout>
-              </item>
-              <item>
-               <layout class="QHBoxLayout" name="materialBNameFilterLayout">
-                <item>
-                 <widget class="QLabel" name="materialBNameLabel">
-                  <property name="text">
-                   <string>Name contains</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QLineEdit" name="materialBName">
-                  <property name="placeholderText">
-                   <string />
-                  </property>
-                 </widget>
-                </item>
-               </layout>
-              </item>
-              <item>
-               <layout class="QHBoxLayout" name="materialBTextFilterLayout">
-                <item>
-                 <widget class="QLabel" name="materialBTextLabel">
-                  <property name="text">
-                   <string>Text contains</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QLineEdit" name="materialBText">
-                  <property name="placeholderText">
-                   <string />
-                  </property>
-                 </widget>
-                </item>
-               </layout>
-              </item>
-              <item>
-               <layout class="QHBoxLayout" name="materialBCardsFilterLayout">
-                <item>
-                 <widget class="QLabel" name="materialBCardsLabel">
-                  <property name="text">
-                   <string>Specific cards</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QLineEdit" name="materialBCards">
-                  <property name="placeholderText">
-                   <string>IDs, ranges, or names; comma separated</string>
-                  </property>
-                 </widget>
-                </item>
-               </layout>
-              </item>
-              <item>
-               <widget class="QCheckBox" name="materialBResultsOnly">
-                <property name="text">
-                 <string>Only cards that are fusion results</string>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </widget>
+            <layout class="QVBoxLayout" name="materialBAdvancedLayout">
+             <property name="spacing">
+              <number>3</number>
+             </property>
+             <item>
+              <layout class="QHBoxLayout" name="materialBAtkLayout">
+               <item>
+                <widget class="QLabel" name="materialBAtkLabel">
+                 <property name="text">
+                  <string>ATK</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="materialBAtkFromLabel">
+                 <property name="text">
+                  <string>from</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLineEdit" name="materialBAtkMin">
+                 <property name="placeholderText">
+                  <string>Any</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="materialBAtkToLabel">
+                 <property name="text">
+                  <string>to</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLineEdit" name="materialBAtkMax">
+                 <property name="placeholderText">
+                  <string>Any</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <spacer name="materialBAtkSpacer">
+                 <property name="orientation">
+                  <enum>Qt::Orientation::Horizontal</enum>
+                 </property>
+                 <property name="sizeHint" stdset="0">
+                  <size>
+                   <width>40</width>
+                   <height>20</height>
+                  </size>
+                 </property>
+                </spacer>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="materialBDefLayout">
+               <item>
+                <widget class="QLabel" name="materialBDefLabel">
+                 <property name="text">
+                  <string>DEF</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="materialBDefFromLabel">
+                 <property name="text">
+                  <string>from</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLineEdit" name="materialBDefMin">
+                 <property name="placeholderText">
+                  <string>Any</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="materialBDefToLabel">
+                 <property name="text">
+                  <string>to</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLineEdit" name="materialBDefMax">
+                 <property name="placeholderText">
+                  <string>Any</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <spacer name="materialBDefSpacer">
+                 <property name="orientation">
+                  <enum>Qt::Orientation::Horizontal</enum>
+                 </property>
+                 <property name="sizeHint" stdset="0">
+                  <size>
+                   <width>40</width>
+                   <height>20</height>
+                  </size>
+                 </property>
+                </spacer>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="materialBNameFilterLayout">
+               <item>
+                <widget class="QLabel" name="materialBNameLabel">
+                 <property name="text">
+                  <string>Name contains</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLineEdit" name="materialBName">
+                 <property name="placeholderText">
+                  <string/>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="materialBTextFilterLayout">
+               <item>
+                <widget class="QLabel" name="materialBTextLabel">
+                 <property name="text">
+                  <string>Text contains</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLineEdit" name="materialBText">
+                 <property name="placeholderText">
+                  <string/>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="materialBCardsFilterLayout">
+               <item>
+                <widget class="QLabel" name="materialBCardsLabel">
+                 <property name="text">
+                  <string>Specific cards</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLineEdit" name="materialBCards">
+                 <property name="placeholderText">
+                  <string>IDs, ranges, or names; comma separated</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="materialBResultsOnly">
+               <property name="text">
+                <string>Only cards that are fusion results</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
            </item>
            <item>
             <widget class="QLabel" name="materialBCountLabel">
@@ -1043,7 +1041,7 @@
        <item>
         <widget class="QLabel" name="genericFusionErrorsLabel">
          <property name="text">
-          <string />
+          <string/>
          </property>
          <property name="wordWrap">
           <bool>true</bool>
@@ -1053,7 +1051,7 @@
        <item>
         <widget class="QLabel" name="genericFusionWarningsLabel">
          <property name="text">
-          <string />
+          <string/>
          </property>
          <property name="wordWrap">
           <bool>true</bool>
@@ -1132,4 +1130,83 @@
    </item>
   </layout>
  </widget>
+ <tabstops>
+  <tabstop>bulkFusionModeCombo</tabstop>
+  <tabstop>clearBulkResultButton</tabstop>
+  <tabstop>genericFusionLeftScroll</tabstop>
+  <tabstop>materialATypeList</tabstop>
+  <tabstop>materialAStarList</tabstop>
+  <tabstop>materialAAttribute0</tabstop>
+  <tabstop>materialAAttribute1</tabstop>
+  <tabstop>materialAAttribute2</tabstop>
+  <tabstop>materialAAttribute3</tabstop>
+  <tabstop>materialAAttribute4</tabstop>
+  <tabstop>materialAAttribute5</tabstop>
+  <tabstop>materialALevelAny</tabstop>
+  <tabstop>genericFusionPlanTable</tabstop>
+  <tabstop>materialALevelExactRadio</tabstop>
+  <tabstop>materialALevelExact</tabstop>
+  <tabstop>materialALevelRangeRadio</tabstop>
+  <tabstop>materialALevelMin</tabstop>
+  <tabstop>materialALevelMax</tabstop>
+  <tabstop>materialAAdvancedToggle</tabstop>
+  <tabstop>materialAAtkMin</tabstop>
+  <tabstop>materialAAtkMax</tabstop>
+  <tabstop>materialADefMin</tabstop>
+  <tabstop>materialADefMax</tabstop>
+  <tabstop>materialAName</tabstop>
+  <tabstop>materialAText</tabstop>
+  <tabstop>materialACards</tabstop>
+  <tabstop>materialAResultsOnly</tabstop>
+  <tabstop>undoBulkFusionsButton</tabstop>
+  <tabstop>applyBulkFusionsButton</tabstop>
+  <tabstop>materialAKindTrap</tabstop>
+  <tabstop>materialAKindRitual</tabstop>
+  <tabstop>materialAKindEquip</tabstop>
+  <tabstop>materialAClearFiltersButton</tabstop>
+  <tabstop>materialAListMatchesButton</tabstop>
+  <tabstop>copyAToBButton</tabstop>
+  <tabstop>copyBToAButton</tabstop>
+  <tabstop>materialBTypeList</tabstop>
+  <tabstop>materialBStarList</tabstop>
+  <tabstop>materialBAttribute0</tabstop>
+  <tabstop>materialBAttribute1</tabstop>
+  <tabstop>materialBAttribute2</tabstop>
+  <tabstop>materialBAttribute3</tabstop>
+  <tabstop>materialBAttribute4</tabstop>
+  <tabstop>materialBAttribute5</tabstop>
+  <tabstop>materialBLevelAny</tabstop>
+  <tabstop>materialBLevelExactRadio</tabstop>
+  <tabstop>materialBLevelExact</tabstop>
+  <tabstop>materialBLevelRangeRadio</tabstop>
+  <tabstop>materialBLevelMin</tabstop>
+  <tabstop>materialBLevelMax</tabstop>
+  <tabstop>materialBAdvancedToggle</tabstop>
+  <tabstop>materialBAtkMin</tabstop>
+  <tabstop>materialBAtkMax</tabstop>
+  <tabstop>materialBDefMin</tabstop>
+  <tabstop>materialBDefMax</tabstop>
+  <tabstop>materialBName</tabstop>
+  <tabstop>materialBText</tabstop>
+  <tabstop>materialBCards</tabstop>
+  <tabstop>materialBResultsOnly</tabstop>
+  <tabstop>materialBKindMonster</tabstop>
+  <tabstop>materialBKindMagic</tabstop>
+  <tabstop>materialBKindTrap</tabstop>
+  <tabstop>materialBKindRitual</tabstop>
+  <tabstop>materialBKindEquip</tabstop>
+  <tabstop>materialBClearFiltersButton</tabstop>
+  <tabstop>materialBListMatchesButton</tabstop>
+  <tabstop>chooseFusionCardRadio</tabstop>
+  <tabstop>chooseFusionResultButton</tabstop>
+  <tabstop>fusionLadderRadio</tabstop>
+  <tabstop>fusionLadderCandidates</tabstop>
+  <tabstop>fusionStrongerCheck</tabstop>
+  <tabstop>fusionAllowSelfCheck</tabstop>
+  <tabstop>fusionOverwriteCheck</tabstop>
+  <tabstop>materialAKindMonster</tabstop>
+  <tabstop>materialAKindMagic</tabstop>
+ </tabstops>
+ <resources/>
+ <connections/>
 </ui>

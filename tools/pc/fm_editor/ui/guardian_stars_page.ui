@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
  <class>WorkspacePage</class>
  <widget class="QWidget" name="WorkspacePage">
@@ -19,6 +19,12 @@
    </property>
    <item>
     <widget class="QLabel" name="pageTitleLabel">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
      <property name="text">
       <string>Guardian Stars</string>
      </property>
@@ -26,6 +32,12 @@
    </item>
    <item>
     <widget class="QLabel" name="pageSummaryLabel">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
      <property name="text">
       <string>Edit guardian star data and their effectiveness against each other. A positive value is added to the attacker's ATK, a negative one taken off it.</string>
      </property>
@@ -42,7 +54,6 @@
      <property name="childrenCollapsible">
       <bool>false</bool>
      </property>
-
      <widget class="QWidget" name="starsLeftColumn" native="true">
       <layout class="QVBoxLayout" name="starsLeftLayout">
        <property name="spacing">
@@ -90,17 +101,17 @@
           </item>
           <item>
            <widget class="QTableWidget" name="starTable">
+            <property name="editTriggers">
+             <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
+            </property>
             <property name="alternatingRowColors">
              <bool>true</bool>
-            </property>
-            <property name="selectionBehavior">
-             <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
             </property>
             <property name="selectionMode">
              <enum>QAbstractItemView::SelectionMode::SingleSelection</enum>
             </property>
-            <property name="editTriggers">
-             <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
+            <property name="selectionBehavior">
+             <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
             </property>
             <column>
              <property name="text">
@@ -131,31 +142,31 @@
             </property>
             <item>
              <widget class="QPushButton" name="addStarButton">
-              <property name="text">
-               <string>+</string>
-              </property>
               <property name="toolTip">
                <string>Add a star past the disc's ten</string>
+              </property>
+              <property name="text">
+               <string>+</string>
               </property>
              </widget>
             </item>
             <item>
              <widget class="QPushButton" name="duplicateStarButton">
-              <property name="text">
-               <string>❐</string>
-              </property>
               <property name="toolTip">
                <string>Add a star with the selected one's name and icon</string>
+              </property>
+              <property name="text">
+               <string>❐</string>
               </property>
              </widget>
             </item>
             <item>
              <widget class="QPushButton" name="removeStarButton">
-              <property name="text">
-               <string>✕</string>
-              </property>
               <property name="toolTip">
                <string>Remove the selected star</string>
+              </property>
+              <property name="text">
+               <string>✕</string>
               </property>
              </widget>
             </item>
@@ -177,7 +188,6 @@
          </layout>
         </widget>
        </item>
-
        <item>
         <widget class="QFrame" name="selectedStarPanel">
          <property name="frameShape">
@@ -225,11 +235,11 @@
                 <height>72</height>
                </size>
               </property>
-              <property name="alignment">
-               <set>Qt::AlignmentFlag::AlignCenter</set>
-              </property>
               <property name="text">
                <string>—</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignmentFlag::AlignCenter</set>
               </property>
              </widget>
             </item>
@@ -367,7 +377,6 @@
        </item>
       </layout>
      </widget>
-
      <widget class="QWidget" name="starsRightColumn" native="true">
       <layout class="QVBoxLayout" name="starsRightLayout">
        <property name="spacing">
@@ -415,11 +424,11 @@
           </item>
           <item>
            <widget class="QTableWidget" name="matrixTable">
-            <property name="selectionMode">
-             <enum>QAbstractItemView::SelectionMode::SingleSelection</enum>
-            </property>
             <property name="editTriggers">
              <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
+            </property>
+            <property name="selectionMode">
+             <enum>QAbstractItemView::SelectionMode::SingleSelection</enum>
             </property>
            </widget>
           </item>
@@ -497,7 +506,6 @@
          </layout>
         </widget>
        </item>
-
        <item>
         <widget class="QFrame" name="defaultsPanel">
          <property name="frameShape">
@@ -613,21 +621,21 @@
             </property>
             <item>
              <widget class="QPushButton" name="retailCyclesButton">
-              <property name="text">
-               <string>Retail cycles</string>
-              </property>
               <property name="toolTip">
                <string>The disc's two cycles at the default bonus; new stars neutral</string>
+              </property>
+              <property name="text">
+               <string>Retail cycles</string>
               </property>
              </widget>
             </item>
             <item>
              <widget class="QPushButton" name="clearAllButton">
-              <property name="text">
-               <string>Clear all pairs</string>
-              </property>
               <property name="toolTip">
                <string>Every pair neutral</string>
+              </property>
+              <property name="text">
+               <string>Clear all pairs</string>
               </property>
              </widget>
             </item>
@@ -677,11 +685,11 @@
      </property>
      <item>
       <widget class="QPushButton" name="resetAllStarsButton">
-       <property name="text">
-        <string>⟲  Reset all guardian stars</string>
-       </property>
        <property name="toolTip">
         <string>Every pair neutral, and the disc's cycles cleared</string>
+       </property>
+       <property name="text">
+        <string>⟲  Reset all guardian stars</string>
        </property>
       </widget>
      </item>
@@ -716,6 +724,34 @@
    </item>
   </layout>
  </widget>
+ <tabstops>
+  <tabstop>starTable</tabstop>
+  <tabstop>addStarButton</tabstop>
+  <tabstop>duplicateStarButton</tabstop>
+  <tabstop>removeStarButton</tabstop>
+  <tabstop>starNameEdit</tabstop>
+  <tabstop>importIconButton</tabstop>
+  <tabstop>removeIconButton</tabstop>
+  <tabstop>starsAdvancedCheck</tabstop>
+  <tabstop>starLanguagesEdit</tabstop>
+  <tabstop>starPaletteCombo</tabstop>
+  <tabstop>starChoiceCombo</tabstop>
+  <tabstop>matrixTable</tabstop>
+  <tabstop>matrixValueSpin</tabstop>
+  <tabstop>matrixSetButton</tabstop>
+  <tabstop>matrixDefaultCombo</tabstop>
+  <tabstop>matrixClearButton</tabstop>
+  <tabstop>matrixMirrorCheck</tabstop>
+  <tabstop>defaultBonusSpin</tabstop>
+  <tabstop>starNamesEdit</tabstop>
+  <tabstop>resetNamesButton</tabstop>
+  <tabstop>retailCyclesButton</tabstop>
+  <tabstop>clearAllButton</tabstop>
+  <tabstop>starRulesButton</tabstop>
+  <tabstop>resetAllStarsButton</tabstop>
+  <tabstop>revertStarsButton</tabstop>
+  <tabstop>applyStarsButton</tabstop>
+ </tabstops>
  <resources/>
  <connections/>
 </ui>

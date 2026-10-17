@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from fm_editor import gamedata as g, importer, manifest
+from fm_editor import gamedata as g, importer, manifest, roster
 from fm_editor.disc import GameFiles
 from fm_editor.model import Project
 from fm_editor.tests import fixtures
@@ -30,7 +30,7 @@ def modded():
     deck[first] -= 50
     deck[second] += 50
     slus = bytearray(fixtures.make_slus(cards, {0x330: "Heishin X"}))
-    slus[g.slus_offset(0x800917F0)] = 9                      # an AI parameter
+    slus[g.slus_offset(0x800917F9)] = 9                      # an AI parameter (duelist 1: Simon Muran)
     wa = bytearray(fixtures.make_wa(fusions, equips, f.rituals, pools))
     wa[0x100:0x104] = b"\x01\x02\x03\x04"                     # a small patch
     wa[0x169000:0x169000 + 5000] = bytes([7]) * 5000          # a long run: sectors
@@ -45,7 +45,14 @@ class ImporterTest(unittest.TestCase):
         modded_files.wa_lba = 9173        # a modified disc lays its files out elsewhere: the lba stays retail's
         result = importer.import_modded(retail_files, modded_files, "community")
         report = "\n".join(result.report)
-        self.assertIn("AI parameters", report)
+        # The one duelist whose AI byte the fixture changes (0x800917F9,
+        # Simon Muran) is read as a plain data edit and written as an "ai"
+        # rule, not left as an unimportable executable byte range.
+        self.assertIn('"ai" (Simon Muran)', report)
+        self.assertNotIn("AI parameters", report)
+        simon = roster.replacement(result.project, 1)
+        self.assertIsNotNone(simon)
+        self.assertEqual(simon.extra.get("ai"), [9, 0, 0, 0, 0, 0, 0, 0, 0])
         self.assertIn("cards: 3 changed", report)
         self.assertNotIn("in the names bank", report)               # the changed names are text, not code
         self.assertIn("where the retail text was", report)     # card 7's shorter text leaves old bytes behind

@@ -259,7 +259,20 @@ def decode_bank(image: Image, bank: Bank, glyphs: dict[int, str]) -> tuple[dict[
                 item = Op(here, 1, "end")
                 follow = False
             for other in range(here + 1, here + item.length):
-                if other in ops or other in starts:
+                if other in starts:
+                    # An op inferred by walking sequentially (never an
+                    # explicit string id or jump target itself) runs into a
+                    # string that IS independently, legitimately declared to
+                    # start at `other`. The two readings of these bytes
+                    # cannot both be represented in one listing; keep the
+                    # declared string intact and cut this inferred, likely
+                    # unreachable branch short instead of losing the whole
+                    # bank to one conflict (seen in mod-repacked dialog
+                    # banks whose byte layout the retail game never had).
+                    item = Op(here, 1, "end")
+                    follow = False
+                    break
+                if other in ops:
                     raise DecodeError(f"{bank.name}: {here:#x} overlaps {other:#x}")
             ops[here] = item
             for target in item.targets:

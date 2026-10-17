@@ -2,62 +2,1442 @@
 <ui version="4.0">
  <class>WorkspacePage</class>
  <widget class="QWidget" name="WorkspacePage">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1268</width>
+    <height>1016</height>
+   </rect>
+  </property>
   <layout class="QHBoxLayout" name="ritualsPageLayout">
-   <property name="spacing"><number>10</number></property><property name="leftMargin"><number>6</number></property><property name="topMargin"><number>6</number></property><property name="rightMargin"><number>6</number></property><property name="bottomMargin"><number>6</number></property>
+   <property name="spacing">
+    <number>10</number>
+   </property>
+   <property name="leftMargin">
+    <number>6</number>
+   </property>
+   <property name="topMargin">
+    <number>6</number>
+   </property>
+   <property name="rightMargin">
+    <number>6</number>
+   </property>
+   <property name="bottomMargin">
+    <number>6</number>
+   </property>
    <item>
     <widget class="QFrame" name="ritualListPanel">
-     <property name="minimumSize"><size><width>320</width><height>0</height></size></property><property name="maximumSize"><size><width>390</width><height>16777215</height></size></property>
+     <property name="minimumSize">
+      <size>
+       <width>320</width>
+       <height>0</height>
+      </size>
+     </property>
+     <property name="maximumSize">
+      <size>
+       <width>390</width>
+       <height>16777215</height>
+      </size>
+     </property>
      <layout class="QVBoxLayout" name="ritualListLayout">
-      <property name="spacing"><number>7</number></property>
-      <item><widget class="QLabel" name="ritualListTitle"><property name="text"><string>Ritual cards</string></property><property name="styleSheet"><string notr="true">font-size:19px;font-weight:700;</string></property></widget></item>
-      <item><widget class="QLabel" name="ritualListSummary"><property name="text"><string>Edit ritual recipes, tributes and their summoned monsters.</string></property><property name="wordWrap"><bool>true</bool></property></widget></item>
-      <item><widget class="QLineEdit" name="ritualSearchEdit"><property name="placeholderText"><string>Search ritual cards...</string></property></widget></item>
-      <item><layout class="QHBoxLayout" name="ritualFiltersLayout">
-       <item><widget class="QComboBox" name="ritualSourceFilter"><item><property name="text"><string>All tribute sources</string></property></item><item><property name="text"><string>On the field</string></property></item><item><property name="text"><string>In the hand</string></property></item><item><property name="text"><string>Both</string></property></item></widget></item>
-       <item><widget class="QComboBox" name="ritualStateFilter"><item><property name="text"><string>All states</string></property></item><item><property name="text"><string>Stock</string></property></item><item><property name="text"><string>Changed</string></property></item><item><property name="text"><string>Added</string></property></item><item><property name="text"><string>No recipe</string></property></item><item><property name="text"><string>Uses base recipe</string></property></item></widget></item>
-      </layout></item>
-      <item><widget class="QTableWidget" name="ritualTable"><property name="columnCount"><number>4</number></property><property name="rowCount"><number>0</number></property><property name="selectionBehavior"><enum>QAbstractItemView::SelectionBehavior::SelectRows</enum></property><property name="selectionMode"><enum>QAbstractItemView::SelectionMode::SingleSelection</enum></property><property name="editTriggers"><set>QAbstractItemView::EditTrigger::NoEditTriggers</set></property><property name="alternatingRowColors"><bool>true</bool></property><attribute name="verticalHeaderVisible"><bool>false</bool></attribute><column><property name="text"><string>ID</string></property></column><column><property name="text"><string>Ritual card</string></property></column><column><property name="text"><string>Field</string></property></column><column><property name="text"><string>State</string></property></column></widget></item>
-      <item><layout class="QHBoxLayout" name="ritualListFooter"><item><widget class="QLabel" name="ritualCountLabel"><property name="text"><string>0 rituals</string></property></widget></item><item><spacer name="ritualListFooterSpacer"><property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>20</width><height>20</height></size></property></spacer></item><item><widget class="QPushButton" name="addRitualButton"><property name="text"><string>＋ Add</string></property></widget></item><item><widget class="QPushButton" name="duplicateRitualButton"><property name="text"><string>Duplicate</string></property></widget></item><item><widget class="QPushButton" name="deleteRitualButton"><property name="text"><string>Delete</string></property></widget></item></layout></item>
+      <property name="spacing">
+       <number>7</number>
+      </property>
+      <item>
+       <widget class="QLabel" name="ritualListTitle">
+        <property name="styleSheet">
+         <string notr="true">font-size:19px;font-weight:700;</string>
+        </property>
+        <property name="text">
+         <string>Ritual cards</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="ritualListSummary">
+        <property name="text">
+         <string>Edit ritual recipes, tributes and their summoned monsters.</string>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLineEdit" name="ritualSearchEdit">
+        <property name="placeholderText">
+         <string>Search ritual cards...</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="ritualFiltersLayout">
+        <item>
+         <widget class="QComboBox" name="ritualSourceFilter">
+          <item>
+           <property name="text">
+            <string>All tribute sources</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>On the field</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>In the hand</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Both</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item>
+         <widget class="QComboBox" name="ritualStateFilter">
+          <item>
+           <property name="text">
+            <string>All states</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Stock</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Changed</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Added</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>No recipe</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Uses base recipe</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="QTableWidget" name="ritualTable">
+        <property name="editTriggers">
+         <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
+        </property>
+        <property name="alternatingRowColors">
+         <bool>true</bool>
+        </property>
+        <property name="selectionMode">
+         <enum>QAbstractItemView::SelectionMode::SingleSelection</enum>
+        </property>
+        <property name="selectionBehavior">
+         <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
+        </property>
+        <property name="rowCount">
+         <number>0</number>
+        </property>
+        <property name="columnCount">
+         <number>4</number>
+        </property>
+        <attribute name="verticalHeaderVisible">
+         <bool>false</bool>
+        </attribute>
+        <column>
+         <property name="text">
+          <string>ID</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>Ritual card</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>Field</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>State</string>
+         </property>
+        </column>
+       </widget>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="ritualListFooter">
+        <item>
+         <widget class="QLabel" name="ritualCountLabel">
+          <property name="text">
+           <string>0 rituals</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="ritualListFooterSpacer">
+          <property name="orientation">
+           <enum>Qt::Orientation::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>20</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item>
+         <widget class="QPushButton" name="addRitualButton">
+          <property name="text">
+           <string>＋ Add</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="duplicateRitualButton">
+          <property name="text">
+           <string>Duplicate</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="deleteRitualButton">
+          <property name="text">
+           <string>Delete</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
      </layout>
     </widget>
    </item>
    <item>
     <widget class="QFrame" name="ritualEditorPanel">
      <layout class="QVBoxLayout" name="ritualEditorLayout">
-      <property name="spacing"><number>8</number></property>
-      <item><layout class="QHBoxLayout" name="ritualHeaderLayout"><item><widget class="QLabel" name="ritualHeadingLabel"><property name="text"><string>Ritual</string></property><property name="styleSheet"><string notr="true">font-size:19px;font-weight:700;</string></property></widget></item><item><widget class="QLabel" name="ritualIdLabel"><property name="text"><string>ID —</string></property></widget></item><item><widget class="QLabel" name="ritualStateLabel"><property name="text"><string>State: —</string></property></widget></item><item><spacer name="ritualHeaderSpacer"><property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property></spacer></item><item><widget class="QPushButton" name="giveOwnRecipeButton"><property name="text"><string>Give it its own recipe</string></property></widget></item><item><widget class="QPushButton" name="revertRitualButton"><property name="text"><string>Revert to game's data</string></property></widget></item><item><widget class="QPushButton" name="removeRecipeButton"><property name="text"><string>Remove recipe</string></property></widget></item></layout></item>
-      <item><widget class="QLabel" name="ritualStatusLabel"><property name="text"><string>The game's own recipe.</string></property></widget></item>
-      <item><widget class="QGroupBox" name="recipeOverviewGroup"><property name="title"><string>Recipe overview</string></property><layout class="QVBoxLayout" name="recipeOverviewLayout">
-       <item><widget class="QLabel" name="ritualRecipeSummaryLabel"><property name="text"><string>Configure the ritual card, its tribute requirements (1–5) and the summoned monster.</string></property></widget></item>
-       <item><layout class="QHBoxLayout" name="ritualTopLayout">
-        <item><layout class="QVBoxLayout" name="ritualCardGroupLayout"><item><widget class="QLabel" name="ritualCardGroupLabel"><property name="text"><string>Ritual card</string></property></widget></item><item><widget class="QLabel" name="ritualCardPreview"><property name="minimumSize"><size><width>112</width><height>154</height></size></property><property name="maximumSize"><size><width>132</width><height>178</height></size></property><property name="alignment"><set>Qt::AlignmentFlag::AlignCenter</set></property><property name="text"><string>Ritual card</string></property></widget></item><item><widget class="QLabel" name="ritualCardNameEditLabel"><property name="text"><string>Ritual card</string></property><property name="alignment"><set>Qt::AlignmentFlag::AlignCenter</set></property></widget></item><item><widget class="QLineEdit" name="ritualCardNameEdit"><property name="visible"><bool>false</bool></property><property name="readOnly"><bool>true</bool></property></widget></item><item><widget class="QSpinBox" name="ritualCardIdSpin"><property name="visible"><bool>false</bool></property><property name="minimum"><number>1</number></property><property name="maximum"><number>9999</number></property></widget></item><item><widget class="QPushButton" name="openRitualCardButton"><property name="visible"><bool>false</bool></property><property name="text"><string>Open on Cards page</string></property></widget></item></layout></item>
-        <item><widget class="QLabel" name="ritualArrowLabel"><property name="text"><string>→</string></property><property name="styleSheet"><string notr="true">font-size:28px;</string></property></widget></item>
-        <item><layout class="QVBoxLayout" name="tributeSlotsBox"><item><widget class="QLabel" name="tributeSlotsTitle"><property name="text"><string>Tributes</string></property><property name="alignment"><set>Qt::AlignmentFlag::AlignCenter</set></property></widget></item><item><layout class="QHBoxLayout" name="tributeSlotsLayout">
-         <item><widget class="QFrame" name="tributeSlot1"><layout class="QVBoxLayout" name="tributeSlot1Layout"><property name="leftMargin"><number>2</number></property><property name="topMargin"><number>2</number></property><property name="rightMargin"><number>2</number></property><property name="bottomMargin"><number>2</number></property><property name="spacing"><number>2</number></property><item><widget class="QLabel" name="tributeSlot1Title"><property name="text"><string>1</string></property><property name="alignment"><set>Qt::AlignmentFlag::AlignCenter</set></property></widget></item><item><widget class="QLabel" name="tributeSlot1Preview"><property name="minimumSize"><size><width>64</width><height>86</height></size></property><property name="maximumSize"><size><width>64</width><height>86</height></size></property><property name="alignment"><set>Qt::AlignmentFlag::AlignCenter</set></property></widget></item><item><widget class="QLabel" name="tributeSlot1Summary"><property name="minimumSize"><size><width>0</width><height>30</height></size></property><property name="maximumSize"><size><width>16777215</width><height>30</height></size></property><property name="wordWrap"><bool>true</bool></property><property name="alignment"><set>Qt::AlignmentFlag::AlignCenter</set></property></widget></item><item><widget class="QPushButton" name="selectTribute1Button"><property name="maximumSize"><size><width>16777215</width><height>28</height></size></property><property name="text"><string>Edit</string></property></widget></item></layout></widget></item>
-         <item><widget class="QFrame" name="tributeSlot2"><layout class="QVBoxLayout" name="tributeSlot2Layout"><property name="leftMargin"><number>2</number></property><property name="topMargin"><number>2</number></property><property name="rightMargin"><number>2</number></property><property name="bottomMargin"><number>2</number></property><property name="spacing"><number>2</number></property><item><widget class="QLabel" name="tributeSlot2Title"><property name="text"><string>2</string></property><property name="alignment"><set>Qt::AlignmentFlag::AlignCenter</set></property></widget></item><item><widget class="QLabel" name="tributeSlot2Preview"><property name="minimumSize"><size><width>64</width><height>86</height></size></property><property name="maximumSize"><size><width>64</width><height>86</height></size></property><property name="alignment"><set>Qt::AlignmentFlag::AlignCenter</set></property></widget></item><item><widget class="QLabel" name="tributeSlot2Summary"><property name="minimumSize"><size><width>0</width><height>30</height></size></property><property name="maximumSize"><size><width>16777215</width><height>30</height></size></property><property name="wordWrap"><bool>true</bool></property><property name="alignment"><set>Qt::AlignmentFlag::AlignCenter</set></property></widget></item><item><widget class="QPushButton" name="selectTribute2Button"><property name="maximumSize"><size><width>16777215</width><height>28</height></size></property><property name="text"><string>Edit</string></property></widget></item></layout></widget></item>
-         <item><widget class="QFrame" name="tributeSlot3"><layout class="QVBoxLayout" name="tributeSlot3Layout"><property name="leftMargin"><number>2</number></property><property name="topMargin"><number>2</number></property><property name="rightMargin"><number>2</number></property><property name="bottomMargin"><number>2</number></property><property name="spacing"><number>2</number></property><item><widget class="QLabel" name="tributeSlot3Title"><property name="text"><string>3</string></property><property name="alignment"><set>Qt::AlignmentFlag::AlignCenter</set></property></widget></item><item><widget class="QLabel" name="tributeSlot3Preview"><property name="minimumSize"><size><width>64</width><height>86</height></size></property><property name="maximumSize"><size><width>64</width><height>86</height></size></property><property name="alignment"><set>Qt::AlignmentFlag::AlignCenter</set></property></widget></item><item><widget class="QLabel" name="tributeSlot3Summary"><property name="minimumSize"><size><width>0</width><height>30</height></size></property><property name="maximumSize"><size><width>16777215</width><height>30</height></size></property><property name="wordWrap"><bool>true</bool></property><property name="alignment"><set>Qt::AlignmentFlag::AlignCenter</set></property></widget></item><item><widget class="QPushButton" name="selectTribute3Button"><property name="maximumSize"><size><width>16777215</width><height>28</height></size></property><property name="text"><string>Edit</string></property></widget></item></layout></widget></item>
-         <item><widget class="QFrame" name="tributeSlot4"><layout class="QVBoxLayout" name="tributeSlot4Layout"><property name="leftMargin"><number>2</number></property><property name="topMargin"><number>2</number></property><property name="rightMargin"><number>2</number></property><property name="bottomMargin"><number>2</number></property><property name="spacing"><number>2</number></property><item><widget class="QLabel" name="tributeSlot4Title"><property name="text"><string>4</string></property><property name="alignment"><set>Qt::AlignmentFlag::AlignCenter</set></property></widget></item><item><widget class="QLabel" name="tributeSlot4Preview"><property name="text"><string>＋</string></property><property name="styleSheet"><string notr="true">font-size:24px;</string></property><property name="alignment"><set>Qt::AlignmentFlag::AlignCenter</set></property></widget></item><item><widget class="QLabel" name="tributeSlot4Summary"><property name="text"><string>Add tribute</string></property><property name="alignment"><set>Qt::AlignmentFlag::AlignCenter</set></property></widget></item><item><widget class="QPushButton" name="addTribute4Button"><property name="maximumSize"><size><width>16777215</width><height>28</height></size></property><property name="text"><string>Add</string></property></widget></item></layout></widget></item>
-         <item><widget class="QFrame" name="tributeSlot5"><layout class="QVBoxLayout" name="tributeSlot5Layout"><property name="leftMargin"><number>2</number></property><property name="topMargin"><number>2</number></property><property name="rightMargin"><number>2</number></property><property name="bottomMargin"><number>2</number></property><property name="spacing"><number>2</number></property><item><widget class="QLabel" name="tributeSlot5Title"><property name="text"><string>5</string></property><property name="alignment"><set>Qt::AlignmentFlag::AlignCenter</set></property></widget></item><item><widget class="QLabel" name="tributeSlot5Preview"><property name="text"><string>＋</string></property><property name="styleSheet"><string notr="true">font-size:24px;</string></property><property name="alignment"><set>Qt::AlignmentFlag::AlignCenter</set></property></widget></item><item><widget class="QLabel" name="tributeSlot5Summary"><property name="text"><string>Add tribute</string></property><property name="alignment"><set>Qt::AlignmentFlag::AlignCenter</set></property></widget></item><item><widget class="QPushButton" name="addTribute5Button"><property name="maximumSize"><size><width>16777215</width><height>28</height></size></property><property name="text"><string>Add</string></property></widget></item></layout></widget></item>
-        </layout></item></layout></item>
-        <item><widget class="QLabel" name="resultArrowLabel"><property name="text"><string>→</string></property><property name="styleSheet"><string notr="true">font-size:28px;</string></property></widget></item>
-        <item><layout class="QVBoxLayout" name="ritualResultLayout"><item><widget class="QLabel" name="ritualResultTitle"><property name="text"><string>Summoned monster</string></property><property name="alignment"><set>Qt::AlignmentFlag::AlignCenter</set></property></widget></item><item><widget class="QLabel" name="ritualResultPreview"><property name="minimumSize"><size><width>112</width><height>154</height></size></property><property name="maximumSize"><size><width>132</width><height>178</height></size></property><property name="alignment"><set>Qt::AlignmentFlag::AlignCenter</set></property><property name="text"><string>Result</string></property></widget></item><item><widget class="QLabel" name="ritualResultNameLabel"><property name="text"><string>Summoned monster</string></property><property name="alignment"><set>Qt::AlignmentFlag::AlignCenter</set></property></widget></item><item><widget class="QComboBox" name="ritualResultCardCombo"><property name="visible"><bool>false</bool></property></widget></item><item><widget class="QPushButton" name="changeRitualResultButton"><property name="text"><string>Change summoned monster...</string></property></widget></item></layout></item>
-       </layout></item>
-       <item><layout class="QHBoxLayout" name="tributeOriginLayout"><item><widget class="QLabel" name="tributeOriginLabel"><property name="text"><string>Tribute source:</string></property></widget></item><item><widget class="QRadioButton" name="originFieldRadio"><property name="text"><string>On the field</string></property><property name="checked"><bool>true</bool></property></widget></item><item><widget class="QRadioButton" name="originHandRadio"><property name="text"><string>In the hand</string></property></widget></item><item><widget class="QRadioButton" name="originBothRadio"><property name="text"><string>Both</string></property></widget></item><item><spacer name="tributeOriginSpacer"><property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property></spacer></item><item><widget class="QLabel" name="tributeCountStatusLabel"><property name="text"><string>3 / 5 tributes</string></property></widget></item></layout></item>
-       <item><widget class="QLabel" name="tributeOriginHintLabel"><property name="text"><string>Monsters on the player's side of the field are used as tributes.</string></property></widget></item>
-      </layout></widget></item>
-      <item><widget class="QGroupBox" name="selectedTributeGroup"><property name="title"><string>Selected tribute</string></property><layout class="QVBoxLayout" name="selectedTributeLayout">
-       <item><layout class="QHBoxLayout" name="selectedTributeHeader"><item><widget class="QLabel" name="selectedTributeLabel"><property name="text"><string>Editing: Tribute 1 of 3</string></property></widget></item><item><spacer name="selectedTributeHeaderSpacer"><property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property></spacer></item><item><widget class="QPushButton" name="previousTributeButton"><property name="text"><string>← Previous</string></property></widget></item><item><widget class="QPushButton" name="nextTributeButton"><property name="text"><string>Next →</string></property></widget></item><item><widget class="QPushButton" name="removeSelectedTributeButton"><property name="text"><string>Remove this tribute</string></property></widget></item></layout></item>
-       <item><layout class="QHBoxLayout" name="selectedTributeBodyLayout"><item><widget class="QFrame" name="tributeModePanel"><property name="minimumSize"><size><width>320</width><height>0</height></size></property><layout class="QVBoxLayout" name="tributeModePanelLayout"><item><widget class="QLabel" name="tributeModeTitle"><property name="text"><string>Tribute mode</string></property></widget></item><item><widget class="QRadioButton" name="specificCardModeRadio"><property name="text"><string>Specific card</string></property><property name="checked"><bool>true</bool></property></widget></item><item><widget class="QRadioButton" name="ruleBasedModeRadio"><property name="text"><string>Any monster that matches these conditions</string></property></widget></item><item><widget class="QLabel" name="ruleBasedSummary"><property name="text"><string>Build a requirement from the conditions on the right.</string></property><property name="wordWrap"><bool>true</bool></property></widget></item><item><layout class="QHBoxLayout" name="specificCardControlsLayout"><item><widget class="QLabel" name="specificCardPreview"><property name="minimumSize"><size><width>78</width><height>104</height></size></property><property name="maximumSize"><size><width>78</width><height>104</height></size></property><property name="alignment"><set>Qt::AlignmentFlag::AlignCenter</set></property></widget></item><item><layout class="QVBoxLayout" name="specificCardSelectLayout"><item><widget class="QComboBox" name="specificTributeCardCombo"/></item><item><widget class="QPushButton" name="chooseSpecificTributeCardButton"><property name="text"><string>Change card...</string></property></widget></item><item><spacer name="specificCardControlsSpacer"><property name="orientation"><enum>Qt::Orientation::Vertical</enum></property><property name="sizeHint" stdset="0"><size><width>20</width><height>20</height></size></property></spacer></item></layout></item></layout></item></layout></widget></item>
-        <item><widget class="QFrame" name="conditionsPanel"><layout class="QVBoxLayout" name="conditionsPanelLayout"><item><layout class="QHBoxLayout" name="conditionsHeader"><item><widget class="QLabel" name="conditionsTitle"><property name="text"><string>Conditions (all must be true)</string></property></widget></item><item><spacer name="conditionsHeaderSpacer"><property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property></spacer></item><item><widget class="QPushButton" name="clearConditionsButton"><property name="text"><string>Clear all</string></property></widget></item></layout></item><item><widget class="QTableWidget" name="conditionsTable"><property name="minimumSize"><size><width>0</width><height>112</height></size></property><property name="wordWrap"><bool>false</bool></property><property name="columnCount"><number>4</number></property><property name="rowCount"><number>0</number></property><property name="selectionBehavior"><enum>QAbstractItemView::SelectionBehavior::SelectRows</enum></property><property name="editTriggers"><set>QAbstractItemView::EditTrigger::NoEditTriggers</set></property><attribute name="verticalHeaderVisible"><bool>false</bool></attribute><column><property name="text"><string>Condition</string></property></column><column><property name="text"><string>Value</string></property></column><column><property name="text"><string>Meaning</string></property></column><column><property name="text"><string/></property></column></widget></item><item><layout class="QHBoxLayout" name="addConditionLayout"><item><widget class="QComboBox" name="addConditionCombo"><item><property name="text"><string>Monster type</string></property></item><item><property name="text"><string>Fusion group</string></property></item><item><property name="text"><string>ATK at least</string></property></item><item><property name="text"><string>ATK at most</string></property></item><item><property name="text"><string>DEF at least</string></property></item><item><property name="text"><string>DEF at most</string></property></item><item><property name="text"><string>Level at least</string></property></item><item><property name="text"><string>Level at most</string></property></item><item><property name="text"><string>DEF above ATK</string></property></item><item><property name="text"><string>Is this card (or a copy)</string></property></item></widget></item><item><widget class="QPushButton" name="addConditionButton"><property name="text"><string>＋ Add condition</string></property></widget></item></layout></item><item><widget class="QStackedWidget" name="conditionEditorStack"><widget class="QWidget" name="conditionNonePage"><layout class="QVBoxLayout" name="conditionNonePageLayout"><item><widget class="QLabel" name="conditionNoneHint"><property name="text"><string>Select a condition row to edit its value.</string></property></widget></item></layout></widget><widget class="QWidget" name="conditionTypePage"><layout class="QHBoxLayout" name="conditionTypeLayout"><item><widget class="QLabel" name="conditionTypeLabel"><property name="text"><string>Monster type</string></property></widget></item><item><widget class="QComboBox" name="conditionTypeCombo"/></item></layout></widget><widget class="QWidget" name="conditionFusionGroupPage"><layout class="QHBoxLayout" name="conditionFusionGroupLayout"><item><widget class="QLabel" name="conditionFusionGroupLabel"><property name="text"><string>Fusion group</string></property></widget></item><item><widget class="QComboBox" name="conditionFusionGroupCombo"/></item></layout></widget><widget class="QWidget" name="conditionNumberPage"><layout class="QHBoxLayout" name="conditionNumberLayout"><item><widget class="QLabel" name="conditionNumberLabel"><property name="text"><string>Value</string></property></widget></item><item><widget class="QSpinBox" name="conditionNumberSpin"><property name="maximum"><number>9999</number></property></widget></item></layout></widget><widget class="QWidget" name="conditionCardPage"><layout class="QHBoxLayout" name="conditionCardLayout"><item><widget class="QLabel" name="conditionCardLabel"><property name="text"><string>Card</string></property></widget></item><item><widget class="QComboBox" name="conditionCardCombo"/></item><item><widget class="QPushButton" name="chooseConditionCardButton"><property name="text"><string>Choose...</string></property></widget></item></layout></widget><widget class="QWidget" name="conditionBooleanPage"><layout class="QHBoxLayout" name="conditionBooleanLayout"><item><widget class="QCheckBox" name="conditionDefenseAboveAttackCheck"><property name="text"><string>Require DEF &gt; ATK</string></property></widget></item></layout></widget></widget></item><item><widget class="QLabel" name="conditionsHintLabel"><property name="text"><string>All conditions must hold. ATK, DEF and Level use the card's printed values.</string></property></widget></item></layout></widget></item>
-       </layout></item>
-      </layout></widget></item>
-      <item><widget class="QLabel" name="recipeSentenceLabel"><property name="wordWrap"><bool>true</bool></property></widget></item>
-      <item><widget class="QLabel" name="ritualErrorLabel"><property name="wordWrap"><bool>true</bool></property></widget></item>
-      <item><layout class="QHBoxLayout" name="ritualFooterLayout"><item><widget class="QPushButton" name="applyRitualButton"><property name="text"><string>✓ Apply changes</string></property><property name="minimumSize"><size><width>180</width><height>0</height></size></property></widget></item><item><spacer name="ritualFooterSpacer"><property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property></spacer></item></layout></item>
+      <property name="spacing">
+       <number>8</number>
+      </property>
+      <item>
+       <layout class="QHBoxLayout" name="ritualHeaderLayout">
+        <item>
+         <widget class="QLabel" name="ritualHeadingLabel">
+          <property name="styleSheet">
+           <string notr="true">font-size:19px;font-weight:700;</string>
+          </property>
+          <property name="text">
+           <string>Ritual</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="ritualIdLabel">
+          <property name="text">
+           <string>ID —</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="ritualStateLabel">
+          <property name="text">
+           <string>State: —</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="ritualHeaderSpacer">
+          <property name="orientation">
+           <enum>Qt::Orientation::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item>
+         <widget class="QPushButton" name="giveOwnRecipeButton">
+          <property name="text">
+           <string>Give it its own recipe</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="revertRitualButton">
+          <property name="text">
+           <string>Revert to game's data</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="removeRecipeButton">
+          <property name="text">
+           <string>Remove recipe</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="QLabel" name="ritualStatusLabel">
+        <property name="text">
+         <string>The game's own recipe.</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QGroupBox" name="recipeOverviewGroup">
+        <property name="title">
+         <string>Recipe overview</string>
+        </property>
+        <layout class="QVBoxLayout" name="recipeOverviewLayout">
+         <item>
+          <widget class="QLabel" name="ritualRecipeSummaryLabel">
+           <property name="text">
+            <string>Configure the ritual card, its tribute requirements (1–5) and the summoned monster.</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="ritualTopLayout">
+           <item>
+            <layout class="QVBoxLayout" name="ritualCardGroupLayout">
+             <item>
+              <widget class="QLabel" name="ritualCardGroupLabel">
+               <property name="text">
+                <string>Ritual card</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="ritualCardPreview">
+               <property name="minimumSize">
+                <size>
+                 <width>112</width>
+                 <height>154</height>
+                </size>
+               </property>
+               <property name="maximumSize">
+                <size>
+                 <width>132</width>
+                 <height>178</height>
+                </size>
+               </property>
+               <property name="text">
+                <string>Ritual card</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="ritualCardNameEditLabel">
+               <property name="text">
+                <string>Ritual card</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLineEdit" name="ritualCardNameEdit">
+               <property name="visible">
+                <bool>false</bool>
+               </property>
+               <property name="readOnly">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QSpinBox" name="ritualCardIdSpin">
+               <property name="visible">
+                <bool>false</bool>
+               </property>
+               <property name="minimum">
+                <number>1</number>
+               </property>
+               <property name="maximum">
+                <number>9999</number>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="openRitualCardButton">
+               <property name="visible">
+                <bool>false</bool>
+               </property>
+               <property name="text">
+                <string>Open on Cards page</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <widget class="QLabel" name="ritualArrowLabel">
+             <property name="styleSheet">
+              <string notr="true">font-size:28px;</string>
+             </property>
+             <property name="text">
+              <string>→</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <layout class="QVBoxLayout" name="tributeSlotsBox">
+             <item>
+              <widget class="QLabel" name="tributeSlotsTitle">
+               <property name="text">
+                <string>Tributes</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="tributeSlotsLayout">
+               <item>
+                <widget class="QFrame" name="tributeSlot1">
+                 <layout class="QVBoxLayout" name="tributeSlot1Layout">
+                  <property name="spacing">
+                   <number>2</number>
+                  </property>
+                  <property name="leftMargin">
+                   <number>2</number>
+                  </property>
+                  <property name="topMargin">
+                   <number>2</number>
+                  </property>
+                  <property name="rightMargin">
+                   <number>2</number>
+                  </property>
+                  <property name="bottomMargin">
+                   <number>2</number>
+                  </property>
+                  <item>
+                   <widget class="QLabel" name="tributeSlot1Title">
+                    <property name="text">
+                     <string>1</string>
+                    </property>
+                    <property name="alignment">
+                     <set>Qt::AlignmentFlag::AlignCenter</set>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QLabel" name="tributeSlot1Preview">
+                    <property name="minimumSize">
+                     <size>
+                      <width>64</width>
+                      <height>86</height>
+                     </size>
+                    </property>
+                    <property name="maximumSize">
+                     <size>
+                      <width>64</width>
+                      <height>86</height>
+                     </size>
+                    </property>
+                    <property name="alignment">
+                     <set>Qt::AlignmentFlag::AlignCenter</set>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QLabel" name="tributeSlot1Summary">
+                    <property name="minimumSize">
+                     <size>
+                      <width>0</width>
+                      <height>30</height>
+                     </size>
+                    </property>
+                    <property name="maximumSize">
+                     <size>
+                      <width>16777215</width>
+                      <height>30</height>
+                     </size>
+                    </property>
+                    <property name="alignment">
+                     <set>Qt::AlignmentFlag::AlignCenter</set>
+                    </property>
+                    <property name="wordWrap">
+                     <bool>true</bool>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QPushButton" name="selectTribute1Button">
+                    <property name="maximumSize">
+                     <size>
+                      <width>16777215</width>
+                      <height>28</height>
+                     </size>
+                    </property>
+                    <property name="text">
+                     <string>Edit</string>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </widget>
+               </item>
+               <item>
+                <widget class="QFrame" name="tributeSlot2">
+                 <layout class="QVBoxLayout" name="tributeSlot2Layout">
+                  <property name="spacing">
+                   <number>2</number>
+                  </property>
+                  <property name="leftMargin">
+                   <number>2</number>
+                  </property>
+                  <property name="topMargin">
+                   <number>2</number>
+                  </property>
+                  <property name="rightMargin">
+                   <number>2</number>
+                  </property>
+                  <property name="bottomMargin">
+                   <number>2</number>
+                  </property>
+                  <item>
+                   <widget class="QLabel" name="tributeSlot2Title">
+                    <property name="text">
+                     <string>2</string>
+                    </property>
+                    <property name="alignment">
+                     <set>Qt::AlignmentFlag::AlignCenter</set>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QLabel" name="tributeSlot2Preview">
+                    <property name="minimumSize">
+                     <size>
+                      <width>64</width>
+                      <height>86</height>
+                     </size>
+                    </property>
+                    <property name="maximumSize">
+                     <size>
+                      <width>64</width>
+                      <height>86</height>
+                     </size>
+                    </property>
+                    <property name="alignment">
+                     <set>Qt::AlignmentFlag::AlignCenter</set>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QLabel" name="tributeSlot2Summary">
+                    <property name="minimumSize">
+                     <size>
+                      <width>0</width>
+                      <height>30</height>
+                     </size>
+                    </property>
+                    <property name="maximumSize">
+                     <size>
+                      <width>16777215</width>
+                      <height>30</height>
+                     </size>
+                    </property>
+                    <property name="alignment">
+                     <set>Qt::AlignmentFlag::AlignCenter</set>
+                    </property>
+                    <property name="wordWrap">
+                     <bool>true</bool>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QPushButton" name="selectTribute2Button">
+                    <property name="maximumSize">
+                     <size>
+                      <width>16777215</width>
+                      <height>28</height>
+                     </size>
+                    </property>
+                    <property name="text">
+                     <string>Edit</string>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </widget>
+               </item>
+               <item>
+                <widget class="QFrame" name="tributeSlot3">
+                 <layout class="QVBoxLayout" name="tributeSlot3Layout">
+                  <property name="spacing">
+                   <number>2</number>
+                  </property>
+                  <property name="leftMargin">
+                   <number>2</number>
+                  </property>
+                  <property name="topMargin">
+                   <number>2</number>
+                  </property>
+                  <property name="rightMargin">
+                   <number>2</number>
+                  </property>
+                  <property name="bottomMargin">
+                   <number>2</number>
+                  </property>
+                  <item>
+                   <widget class="QLabel" name="tributeSlot3Title">
+                    <property name="text">
+                     <string>3</string>
+                    </property>
+                    <property name="alignment">
+                     <set>Qt::AlignmentFlag::AlignCenter</set>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QLabel" name="tributeSlot3Preview">
+                    <property name="minimumSize">
+                     <size>
+                      <width>64</width>
+                      <height>86</height>
+                     </size>
+                    </property>
+                    <property name="maximumSize">
+                     <size>
+                      <width>64</width>
+                      <height>86</height>
+                     </size>
+                    </property>
+                    <property name="alignment">
+                     <set>Qt::AlignmentFlag::AlignCenter</set>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QLabel" name="tributeSlot3Summary">
+                    <property name="minimumSize">
+                     <size>
+                      <width>0</width>
+                      <height>30</height>
+                     </size>
+                    </property>
+                    <property name="maximumSize">
+                     <size>
+                      <width>16777215</width>
+                      <height>30</height>
+                     </size>
+                    </property>
+                    <property name="alignment">
+                     <set>Qt::AlignmentFlag::AlignCenter</set>
+                    </property>
+                    <property name="wordWrap">
+                     <bool>true</bool>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QPushButton" name="selectTribute3Button">
+                    <property name="maximumSize">
+                     <size>
+                      <width>16777215</width>
+                      <height>28</height>
+                     </size>
+                    </property>
+                    <property name="text">
+                     <string>Edit</string>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </widget>
+               </item>
+               <item>
+                <widget class="QFrame" name="tributeSlot4">
+                 <layout class="QVBoxLayout" name="tributeSlot4Layout">
+                  <property name="spacing">
+                   <number>2</number>
+                  </property>
+                  <property name="leftMargin">
+                   <number>2</number>
+                  </property>
+                  <property name="topMargin">
+                   <number>2</number>
+                  </property>
+                  <property name="rightMargin">
+                   <number>2</number>
+                  </property>
+                  <property name="bottomMargin">
+                   <number>2</number>
+                  </property>
+                  <item>
+                   <widget class="QLabel" name="tributeSlot4Title">
+                    <property name="text">
+                     <string>4</string>
+                    </property>
+                    <property name="alignment">
+                     <set>Qt::AlignmentFlag::AlignCenter</set>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QLabel" name="tributeSlot4Preview">
+                    <property name="styleSheet">
+                     <string notr="true">font-size:24px;</string>
+                    </property>
+                    <property name="text">
+                     <string>＋</string>
+                    </property>
+                    <property name="alignment">
+                     <set>Qt::AlignmentFlag::AlignCenter</set>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QLabel" name="tributeSlot4Summary">
+                    <property name="text">
+                     <string>Add tribute</string>
+                    </property>
+                    <property name="alignment">
+                     <set>Qt::AlignmentFlag::AlignCenter</set>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QPushButton" name="addTribute4Button">
+                    <property name="maximumSize">
+                     <size>
+                      <width>16777215</width>
+                      <height>28</height>
+                     </size>
+                    </property>
+                    <property name="text">
+                     <string>Add</string>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </widget>
+               </item>
+               <item>
+                <widget class="QFrame" name="tributeSlot5">
+                 <layout class="QVBoxLayout" name="tributeSlot5Layout">
+                  <property name="spacing">
+                   <number>2</number>
+                  </property>
+                  <property name="leftMargin">
+                   <number>2</number>
+                  </property>
+                  <property name="topMargin">
+                   <number>2</number>
+                  </property>
+                  <property name="rightMargin">
+                   <number>2</number>
+                  </property>
+                  <property name="bottomMargin">
+                   <number>2</number>
+                  </property>
+                  <item>
+                   <widget class="QLabel" name="tributeSlot5Title">
+                    <property name="text">
+                     <string>5</string>
+                    </property>
+                    <property name="alignment">
+                     <set>Qt::AlignmentFlag::AlignCenter</set>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QLabel" name="tributeSlot5Preview">
+                    <property name="styleSheet">
+                     <string notr="true">font-size:24px;</string>
+                    </property>
+                    <property name="text">
+                     <string>＋</string>
+                    </property>
+                    <property name="alignment">
+                     <set>Qt::AlignmentFlag::AlignCenter</set>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QLabel" name="tributeSlot5Summary">
+                    <property name="text">
+                     <string>Add tribute</string>
+                    </property>
+                    <property name="alignment">
+                     <set>Qt::AlignmentFlag::AlignCenter</set>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QPushButton" name="addTribute5Button">
+                    <property name="maximumSize">
+                     <size>
+                      <width>16777215</width>
+                      <height>28</height>
+                     </size>
+                    </property>
+                    <property name="text">
+                     <string>Add</string>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </widget>
+               </item>
+              </layout>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <widget class="QLabel" name="resultArrowLabel">
+             <property name="styleSheet">
+              <string notr="true">font-size:28px;</string>
+             </property>
+             <property name="text">
+              <string>→</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <layout class="QVBoxLayout" name="ritualResultLayout">
+             <item>
+              <widget class="QLabel" name="ritualResultTitle">
+               <property name="text">
+                <string>Summoned monster</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="ritualResultPreview">
+               <property name="minimumSize">
+                <size>
+                 <width>112</width>
+                 <height>154</height>
+                </size>
+               </property>
+               <property name="maximumSize">
+                <size>
+                 <width>132</width>
+                 <height>178</height>
+                </size>
+               </property>
+               <property name="text">
+                <string>Result</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="ritualResultNameLabel">
+               <property name="text">
+                <string>Summoned monster</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QComboBox" name="ritualResultCardCombo">
+               <property name="visible">
+                <bool>false</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="changeRitualResultButton">
+               <property name="text">
+                <string>Change summoned monster...</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="tributeOriginLayout">
+           <item>
+            <widget class="QLabel" name="tributeOriginLabel">
+             <property name="text">
+              <string>Tribute source:</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QRadioButton" name="originFieldRadio">
+             <property name="text">
+              <string>On the field</string>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QRadioButton" name="originHandRadio">
+             <property name="text">
+              <string>In the hand</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QRadioButton" name="originBothRadio">
+             <property name="text">
+              <string>Both</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="tributeOriginSpacer">
+             <property name="orientation">
+              <enum>Qt::Orientation::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item>
+            <widget class="QLabel" name="tributeCountStatusLabel">
+             <property name="text">
+              <string>3 / 5 tributes</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <widget class="QLabel" name="tributeOriginHintLabel">
+           <property name="text">
+            <string>Monsters on the player's side of the field are used as tributes.</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item>
+       <widget class="QGroupBox" name="selectedTributeGroup">
+        <property name="title">
+         <string>Selected tribute</string>
+        </property>
+        <layout class="QVBoxLayout" name="selectedTributeLayout">
+         <item>
+          <layout class="QHBoxLayout" name="selectedTributeHeader">
+           <item>
+            <widget class="QLabel" name="selectedTributeLabel">
+             <property name="text">
+              <string>Editing: Tribute 1 of 3</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="selectedTributeHeaderSpacer">
+             <property name="orientation">
+              <enum>Qt::Orientation::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item>
+            <widget class="QPushButton" name="previousTributeButton">
+             <property name="text">
+              <string>← Previous</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="nextTributeButton">
+             <property name="text">
+              <string>Next →</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="removeSelectedTributeButton">
+             <property name="text">
+              <string>Remove this tribute</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="selectedTributeBodyLayout">
+           <item>
+            <widget class="QFrame" name="tributeModePanel">
+             <property name="minimumSize">
+              <size>
+               <width>320</width>
+               <height>0</height>
+              </size>
+             </property>
+             <layout class="QVBoxLayout" name="tributeModePanelLayout">
+              <item>
+               <widget class="QLabel" name="tributeModeTitle">
+                <property name="text">
+                 <string>Tribute mode</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QRadioButton" name="specificCardModeRadio">
+                <property name="text">
+                 <string>Specific card</string>
+                </property>
+                <property name="checked">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QRadioButton" name="ruleBasedModeRadio">
+                <property name="text">
+                 <string>Any monster that matches these conditions</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QLabel" name="ruleBasedSummary">
+                <property name="text">
+                 <string>Build a requirement from the conditions on the right.</string>
+                </property>
+                <property name="wordWrap">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <layout class="QHBoxLayout" name="specificCardControlsLayout">
+                <item>
+                 <widget class="QLabel" name="specificCardPreview">
+                  <property name="minimumSize">
+                   <size>
+                    <width>78</width>
+                    <height>104</height>
+                   </size>
+                  </property>
+                  <property name="maximumSize">
+                   <size>
+                    <width>78</width>
+                    <height>104</height>
+                   </size>
+                  </property>
+                  <property name="alignment">
+                   <set>Qt::AlignmentFlag::AlignCenter</set>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <layout class="QVBoxLayout" name="specificCardSelectLayout">
+                  <item>
+                   <widget class="QComboBox" name="specificTributeCardCombo"/>
+                  </item>
+                  <item>
+                   <widget class="QPushButton" name="chooseSpecificTributeCardButton">
+                    <property name="text">
+                     <string>Change card...</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <spacer name="specificCardControlsSpacer">
+                    <property name="orientation">
+                     <enum>Qt::Orientation::Vertical</enum>
+                    </property>
+                    <property name="sizeHint" stdset="0">
+                     <size>
+                      <width>20</width>
+                      <height>20</height>
+                     </size>
+                    </property>
+                   </spacer>
+                  </item>
+                 </layout>
+                </item>
+               </layout>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
+            <widget class="QFrame" name="conditionsPanel">
+             <layout class="QVBoxLayout" name="conditionsPanelLayout">
+              <item>
+               <layout class="QHBoxLayout" name="conditionsHeader">
+                <item>
+                 <widget class="QLabel" name="conditionsTitle">
+                  <property name="text">
+                   <string>Conditions (all must be true)</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <spacer name="conditionsHeaderSpacer">
+                  <property name="orientation">
+                   <enum>Qt::Orientation::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>40</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="clearConditionsButton">
+                  <property name="text">
+                   <string>Clear all</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <widget class="QTableWidget" name="conditionsTable">
+                <property name="minimumSize">
+                 <size>
+                  <width>0</width>
+                  <height>112</height>
+                 </size>
+                </property>
+                <property name="editTriggers">
+                 <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
+                </property>
+                <property name="selectionBehavior">
+                 <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
+                </property>
+                <property name="wordWrap">
+                 <bool>false</bool>
+                </property>
+                <property name="rowCount">
+                 <number>0</number>
+                </property>
+                <property name="columnCount">
+                 <number>4</number>
+                </property>
+                <attribute name="verticalHeaderVisible">
+                 <bool>false</bool>
+                </attribute>
+                <column>
+                 <property name="text">
+                  <string>Condition</string>
+                 </property>
+                </column>
+                <column>
+                 <property name="text">
+                  <string>Value</string>
+                 </property>
+                </column>
+                <column>
+                 <property name="text">
+                  <string>Meaning</string>
+                 </property>
+                </column>
+                <column>
+                 <property name="text">
+                  <string/>
+                 </property>
+                </column>
+               </widget>
+              </item>
+              <item>
+               <layout class="QHBoxLayout" name="addConditionLayout">
+                <item>
+                 <widget class="QComboBox" name="addConditionCombo">
+                  <item>
+                   <property name="text">
+                    <string>Monster type</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Fusion group</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>ATK at least</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>ATK at most</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>DEF at least</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>DEF at most</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Level at least</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Level at most</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>DEF above ATK</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Is this card (or a copy)</string>
+                   </property>
+                  </item>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="addConditionButton">
+                  <property name="text">
+                   <string>＋ Add condition</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <widget class="QStackedWidget" name="conditionEditorStack">
+                <widget class="QWidget" name="conditionNonePage">
+                 <layout class="QVBoxLayout" name="conditionNonePageLayout">
+                  <item>
+                   <widget class="QLabel" name="conditionNoneHint">
+                    <property name="text">
+                     <string>Select a condition row to edit its value.</string>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </widget>
+                <widget class="QWidget" name="conditionTypePage">
+                 <layout class="QHBoxLayout" name="conditionTypeLayout">
+                  <item>
+                   <widget class="QLabel" name="conditionTypeLabel">
+                    <property name="text">
+                     <string>Monster type</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QComboBox" name="conditionTypeCombo"/>
+                  </item>
+                 </layout>
+                </widget>
+                <widget class="QWidget" name="conditionFusionGroupPage">
+                 <layout class="QHBoxLayout" name="conditionFusionGroupLayout">
+                  <item>
+                   <widget class="QLabel" name="conditionFusionGroupLabel">
+                    <property name="text">
+                     <string>Fusion group</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QComboBox" name="conditionFusionGroupCombo"/>
+                  </item>
+                 </layout>
+                </widget>
+                <widget class="QWidget" name="conditionNumberPage">
+                 <layout class="QHBoxLayout" name="conditionNumberLayout">
+                  <item>
+                   <widget class="QLabel" name="conditionNumberLabel">
+                    <property name="text">
+                     <string>Value</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QSpinBox" name="conditionNumberSpin">
+                    <property name="maximum">
+                     <number>9999</number>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </widget>
+                <widget class="QWidget" name="conditionCardPage">
+                 <layout class="QHBoxLayout" name="conditionCardLayout">
+                  <item>
+                   <widget class="QLabel" name="conditionCardLabel">
+                    <property name="text">
+                     <string>Card</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QComboBox" name="conditionCardCombo"/>
+                  </item>
+                  <item>
+                   <widget class="QPushButton" name="chooseConditionCardButton">
+                    <property name="text">
+                     <string>Choose...</string>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </widget>
+                <widget class="QWidget" name="conditionBooleanPage">
+                 <layout class="QHBoxLayout" name="conditionBooleanLayout">
+                  <item>
+                   <widget class="QCheckBox" name="conditionDefenseAboveAttackCheck">
+                    <property name="text">
+                     <string>Require DEF &gt; ATK</string>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </widget>
+               </widget>
+              </item>
+              <item>
+               <widget class="QLabel" name="conditionsHintLabel">
+                <property name="text">
+                 <string>All conditions must hold. ATK, DEF and Level use the card's printed values.</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+          </layout>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="recipeSentenceLabel">
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="ritualErrorLabel">
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="ritualFooterLayout">
+        <item>
+         <widget class="QPushButton" name="applyRitualButton">
+          <property name="minimumSize">
+           <size>
+            <width>180</width>
+            <height>0</height>
+           </size>
+          </property>
+          <property name="text">
+           <string>✓ Apply changes</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="ritualFooterSpacer">
+          <property name="orientation">
+           <enum>Qt::Orientation::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
      </layout>
     </widget>
    </item>
   </layout>
  </widget>
- <resources/><connections/>
+ <tabstops>
+  <tabstop>ritualSearchEdit</tabstop>
+  <tabstop>ritualSourceFilter</tabstop>
+  <tabstop>ritualStateFilter</tabstop>
+  <tabstop>ritualTable</tabstop>
+  <tabstop>addRitualButton</tabstop>
+  <tabstop>duplicateRitualButton</tabstop>
+  <tabstop>deleteRitualButton</tabstop>
+  <tabstop>giveOwnRecipeButton</tabstop>
+  <tabstop>revertRitualButton</tabstop>
+  <tabstop>removeRecipeButton</tabstop>
+  <tabstop>selectTribute1Button</tabstop>
+  <tabstop>selectTribute2Button</tabstop>
+  <tabstop>selectTribute3Button</tabstop>
+  <tabstop>addTribute4Button</tabstop>
+  <tabstop>addTribute5Button</tabstop>
+  <tabstop>changeRitualResultButton</tabstop>
+  <tabstop>originFieldRadio</tabstop>
+  <tabstop>originHandRadio</tabstop>
+  <tabstop>originBothRadio</tabstop>
+  <tabstop>previousTributeButton</tabstop>
+  <tabstop>nextTributeButton</tabstop>
+  <tabstop>removeSelectedTributeButton</tabstop>
+  <tabstop>specificCardModeRadio</tabstop>
+  <tabstop>ruleBasedModeRadio</tabstop>
+  <tabstop>specificTributeCardCombo</tabstop>
+  <tabstop>chooseSpecificTributeCardButton</tabstop>
+  <tabstop>clearConditionsButton</tabstop>
+  <tabstop>conditionsTable</tabstop>
+  <tabstop>addConditionCombo</tabstop>
+  <tabstop>addConditionButton</tabstop>
+  <tabstop>applyRitualButton</tabstop>
+  <tabstop>conditionFusionGroupCombo</tabstop>
+  <tabstop>conditionNumberSpin</tabstop>
+  <tabstop>conditionCardCombo</tabstop>
+  <tabstop>chooseConditionCardButton</tabstop>
+  <tabstop>conditionDefenseAboveAttackCheck</tabstop>
+  <tabstop>conditionTypeCombo</tabstop>
+ </tabstops>
+ <resources/>
+ <connections/>
 </ui>

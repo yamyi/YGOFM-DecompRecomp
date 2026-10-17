@@ -61,8 +61,8 @@
 #define PATH_MAX_ 1024
 #define STATUS_MAX 512
 #define SECTOR 2048
-#define REGIONS_MAX 64
-#define PATCHES_MAX 1024
+#define REGIONS_MAX 4096
+#define PATCHES_MAX 65536
 
 #define OBJECT_MAX (64u << 20)   /* object_loader.c's own limit */
 

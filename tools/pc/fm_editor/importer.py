@@ -23,7 +23,7 @@ import struct
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import art, gamedata as g, guardian_stars, kit, manifest, pngio, starter_pools, values
+from . import art, duelist_rules, gamedata as g, guardian_stars, kit, manifest, pngio, starter_pools, values
 from .fixed_decks import set_deck as set_fixed_deck
 from .model import Project, StarterDeck, duelist_named
 from .pools import normalize
@@ -31,10 +31,12 @@ from .pools import normalize
 WA_FILE = "\\DATA\\WA_MRG.MRG;1"
 MERGE_GAP = 32              # changed runs closer than this are one patch
 PATCH_LIMIT = 4096          # longer runs become sector replacements
-# The port holds 1024 patched runs and 64 replaced regions for all the mods
-# together (src/pc/mods/mods.c); past these a mod replaces the whole file.
-WA_PATCHES_MOST = 256
-WA_REGIONS_MOST = 16
+# The port holds 65536 patched runs and 4096 replaced regions for all the mods
+# together (src/pc/mods/mods.c PATCHES_MAX, REGIONS_MAX); a quarter of each is
+# this mod's own share, leaving the rest for whatever else is active. Past
+# these a mod replaces the whole file instead of a patch list.
+WA_PATCHES_MOST = 16384
+WA_REGIONS_MOST = 1024
 # A common rebuilt-disc enable patch: it changes the boot compliance branch,
 # rather than any game feature a generated mod should reproduce.
 IGNORED_WA_IMPORT_RANGES = ((0xB61902, 0xB61903),)
@@ -167,6 +169,11 @@ def wa_structured_regions():
         for offset in g.POOL_OFFSETS.values():
             start = g.DUELIST_BASE + d * g.DUELIST_STRIDE + offset
             regions.append((start, start + 2 * g.CARD_COUNT))
+    # Passwords and starchip costs: read into project.passwords/starchips
+    # above and written back as the manifest's "passwords" key, which the
+    # port reads natively -- the raw table stays retail's like the other
+    # structured regions above.
+    regions.append((g.PASSWORD_TABLE, g.PASSWORD_TABLE + 8 * (g.CARD_COUNT + 1)))
     return regions
 
 
@@ -576,10 +583,14 @@ def read_equip_bitmaps(project: Project, modded, retail_files, modded_files) -> 
 
 def check_rituals(project: Project, modded) -> list:
     """No rituals when the ritual table holds no recipe the game could
-    read: the kit keeps code there and takes the rituals away."""
+    read: the kit keeps code there and takes the rituals away. A record's
+    key is not required to be a Ritual-type card: the stock lookup
+    (table801a7ad8_recipe_lookup) matches it against whatever card
+    triggered it and never checks that card's type, so a mod is free to
+    key a recipe on a monster card instead of a spell."""
     cards = modded.cards
     valid = {r: rec for r, rec in project.rituals.items()
-             if r in cards and cards[r].type == g.TYPE_RITUAL and all(1 <= c <= g.CARD_COUNT for c in rec)}
+             if r in cards and all(1 <= c <= g.CARD_COUNT for c in rec)}
     bad = len(project.rituals) - len(valid)
     if bad and len(valid) * 2 < len(project.rituals):
         valid = {}      # mostly not recipes: the few that look like one are the code's bytes by chance
@@ -989,6 +1000,25 @@ def import_starter_table(project: Project, retail_wa: bytes, modded_wa: bytes, r
     return []
 
 
+def _starter_counts(wa: bytes) -> list:
+    """Each of the seven starter rows as (weight, {card id: copies}), or
+    None when its own total is not a plausible deck (0 to forty, no single
+    card past forty): a kit's counted-deck table in place of the disc's
+    weighted pools (the "starter" manifest key, notes/starter-deck.md)."""
+    stride = g.STARTER_LENGTH // 7
+    out = []
+    for k in range(7):
+        base = g.STARTER_BASE + k * stride
+        weight = struct.unpack_from("<H", wa, base)[0]
+        values = struct.unpack_from("<%dH" % g.CARD_COUNT, wa, base + 2)
+        total = sum(values)
+        if not 0 < total <= kit.DECK_SIZE or any(v > kit.DECK_SIZE for v in values):
+            out.append(None)
+            continue
+        out.append((weight, {cid: count for cid, count in enumerate(values, 1) if count}))
+    return out
+
+
 def port_wa(retail_wa: bytes, modded_wa: bytes, keep_retail) -> bytes:
     """The modified archive with `keep_retail` ([start, end) regions: the
     tables mod.json carries, and what the port cannot read the mod's way)
@@ -1016,8 +1046,19 @@ def wa_data(project: Project, retail_files, modded_files, report: list, carried=
     if starter_range not in keep and starters and min(starters) < g.POOL_TOTAL // 2 and wa_new[g.STARTER_BASE:g.STARTER_BASE + g.STARTER_LENGTH] != \
             wa_old[g.STARTER_BASE:g.STARTER_BASE + g.STARTER_LENGTH]:
         keep.append((g.STARTER_BASE, g.STARTER_BASE + g.STARTER_LENGTH))
+        rows, unreadable, added = _starter_counts(wa_new), 0, []
+        for row in rows:
+            if row is None:
+                unreadable += 1
+                continue
+            weight, cards = row
+            deck = StarterDeck(weight=weight, cards=cards)
+            project.starter.append(deck)
+            added.append(deck)
+        complete = sum(1 for d in added if d.complete())
         report.append(f"WA_MRG.MRG: the starter decks are counts of cards (they add up to {', '.join(map(str, starters))}"
-                      "), not weights of 2048; the port has no rule for a counted starter deck, so they stay retail's")
+                      f"), not weights of 2048; written as {len(added)} starter decks ({complete} of forty cards "
+                      "each)" + (f", {unreadable} unreadable" if unreadable else ""))
     for sector, sectors, what in g.PROGRAMS:
         start, end = sector * 2048, (sector + sectors) * 2048
         changed = sum(1 for a, b in zip(wa_old[start:end], wa_new[start:end]) if a != b)
@@ -1043,8 +1084,9 @@ def wa_data(project: Project, retail_files, modded_files, report: list, carried=
     if len(wa_new) != len(wa_old):
         whole = f"its size differs ({len(wa_new)} bytes, retail {len(wa_old)})"
     elif len(patches) > WA_PATCHES_MOST or len(regions) > WA_REGIONS_MOST:
-        whole = (f"{len(patches)} patches and {len(regions)} sector runs would be more than the port holds for every "
-                 f"mod together (1024 and 64, src/pc/mods/mods.c PATCHES_MAX and REGIONS_MAX)")
+        whole = (f"{len(patches)} patches and {len(regions)} sector runs would be more than this mod's share of what "
+                 f"the port holds for every mod together ({WA_PATCHES_MOST} and {WA_REGIONS_MOST} of 65536 and 4096, "
+                 "src/pc/mods/mods.c PATCHES_MAX and REGIONS_MAX)")
     if whole:
         project.files["WA_MRG.MRG"] = port_wa(wa_old, wa_new, keep)
         report.append(f"WA_MRG.MRG: {whole}; the whole file is replaced, with the tables mod.json carries kept as "
@@ -1162,7 +1204,7 @@ def kit_rules(project: Project, modded, retail_files, modded_files) -> tuple:
     mod.json has keys for, read from the code and its tables, and what it
     changes that no key carries, in the game's terms."""
     retail_slus, slus = retail_files.slus, modded_files.slus
-    notes, readme, missing = [], [], []
+    notes, readme, missing, explained = [], [], [], []
     memory, retail = kit.Memory(slus), kit.Memory(retail_slus)
     cards = modded.cards
 
@@ -1188,6 +1230,7 @@ def kit_rules(project: Project, modded, retail_files, modded_files) -> tuple:
                            "home fields): the port has six")
         if terrain.by_attribute:
             missing.append(f"terrains from {terrain.by_attribute} up that favour a monster's attribute, not its type")
+        explained.append((kit.TERRAIN_BOOST, kit.TERRAIN_BOOST + 120))
     traps = kit.trap_thresholds(retail_slus, slus)
     if traps:
         project.other["trap_thresholds"] = traps
@@ -1196,6 +1239,7 @@ def kit_rules(project: Project, modded, retail_files, modded_files) -> tuple:
         readme.append("- Attack traps spring up to the mod's attack thresholds.")
         missing.append("which cards act as which attack trap (the mod's lists, in its rewritten "
                        "Duel_SelectAttackTrap): the disc's six traps keep their places")
+        explained.append((kit.TRAP_THRESHOLDS, kit.TRAP_THRESHOLDS + 12))
     bonus = kit.equip_bonus(retail_slus, slus)
     if bonus:
         equips = {cid: v for cid, v in bonus.fixed.items() if cid in cards and cards[cid].type == g.TYPE_EQUIP}
@@ -1215,6 +1259,28 @@ def kit_rules(project: Project, modded, retail_files, modded_files) -> tuple:
         if bonus.special:
             missing.append(f"{len(bonus.special)} equips (or more) with an effect of their own in the mod's code "
                            f"({_names(project, bonus.special)}): they keep +500 (Megamorph +1000)")
+    megamorph = kit.megamorph_bonus(retail_slus, slus)
+    if megamorph is not None:
+        project.set_equip_bonus(kit.MEGAMORPH_CARD, megamorph)
+        notes.append(f"rules: Megamorph's own equip bonus is the mod's (Tables_EquipBoost, 0x{kit.MEGAMORPH_BONUS:08X}): "
+                     f"\"equips\" \"bonus\" {megamorph:+d} instead of +1000")
+        readme.append(f"- Megamorph adds {megamorph:+d} instead of +1000.")
+        explained.append((kit.MEGAMORPH_BONUS, kit.MEGAMORPH_BONUS + 4))
+    ai_rows, ai_retail_rows = kit.opponent_ai(slus), kit.opponent_ai(retail_slus)
+    ai_changed = []
+    if ai_rows and ai_retail_rows:
+        for d in range(1, g.DUELIST_COUNT):      # 0 is "Unused" (the player's slot): no disc duelist, no rule for it
+            if list(ai_rows[d]) != list(ai_retail_rows[d]):
+                duelist_rules.set_rules(project, d, ai=list(ai_rows[d]))
+                ai_changed.append(d)
+        if ai_changed:
+            shown = ", ".join(g.DUELIST_NAMES[d] for d in ai_changed[:8])
+            if len(ai_changed) > 8:
+                shown += f" and {len(ai_changed) - 8} more"
+            notes.append(f"rules: {len(ai_changed)} duelists' way of playing is the mod's, from gDuel_aOpponentData "
+                         f"(0x{kit.OPPONENT_DATA:08X}): \"ai\" ({shown})")
+            readme.append(f"- {len(ai_changed)} duelists play by the mod's own numbers, not the disc's.")
+        explained.append((kit.OPPONENT_DATA + g.AI_FIELDS, kit.OPPONENT_DATA + g.DUELIST_COUNT * g.AI_FIELDS))
     draws = kit.extra_draws(retail_slus, slus)
     if draws and draws.count:
         # "limits" "card_drops" locks the player's Game > Card drops while
@@ -1251,7 +1317,7 @@ def kit_rules(project: Project, modded, retail_files, modded_files) -> tuple:
                        "carries out in battle and when summoned")
     for line in missing:
         notes.append(f"not imported: {line}")
-    return notes, readme, missing
+    return notes, readme, missing, explained
 
 
 def write_readme(project: Project, readme: list, missing: list):
@@ -1301,6 +1367,20 @@ def import_modded(retail_files, modded_files, mod_id: str = "imported-mod", name
                 setattr(card, name, getattr(old, name))     # only spaces at line ends differ: the same text
                 spaced += 1
         project.cards[cid] = card
+    passwords_changed = 0
+    for cid, password in modded.passwords.items():
+        if password != retail.passwords.get(cid, ""):
+            project.set_password(cid, password)
+            passwords_changed += 1
+    if passwords_changed:
+        report.append(f"cards: {passwords_changed} passwords imported")
+    starchips_changed = 0
+    for cid, price in modded.starchips.items():
+        if cid in project.cards and price != retail.starchips.get(cid):
+            project.set_starchips(cid, price)
+            starchips_changed += 1
+    if starchips_changed:
+        report.append(f"cards: {starchips_changed} starchip shop prices imported")
     drop_notes = decode_drop_pools(retail, modded, retail_files, modded_files)
     project.fusions = dict(modded.fusions)
     project.equips = {e: set(m) for e, m in modded.equips.items()}
@@ -1393,7 +1473,7 @@ def import_modded(retail_files, modded_files, mod_id: str = "imported-mod", name
 
     # Rules the kit's code sets.
     say("Rules the mod's code sets")
-    rule_notes, readme, missing = kit_rules(project, modded, retail_files, modded_files)
+    rule_notes, readme, missing, explained = kit_rules(project, modded, retail_files, modded_files)
     report += rule_notes
     result.unhandled += len(missing)
     write_readme(project, readme, missing)
@@ -1406,8 +1486,13 @@ def import_modded(retail_files, modded_files, mod_id: str = "imported-mod", name
     text_read = text_spans(modded_files.slus) or []      # what text.txt carries; nothing when unreadable
     handled = [(g.slus_offset(a), g.slus_offset(b)) for a, b in SLUS_HANDLED + text_read] + guardian_handled + frame_handled
     named = [(g.slus_offset(a), g.slus_offset(b), label) for a, b, label in SLUS_REGIONS]
+    # A rule above (terrain_bonus, trap_thresholds, megamorph_bonus, the AI
+    # table...) may already have read a named region's bytes as the mod's
+    # own values; do not also report that region as "cannot be imported".
+    explained_offsets = [(g.slus_offset(a), g.slus_offset(b)) for a, b in explained]
+    unexplained_runs = _subtract(slus_runs, explained_offsets)
     for low, high, label in named:
-        count = sum(min(e, high) - max(s, low) for s, e in slus_runs if s < high and e > low)
+        count = sum(min(e, high) - max(s, low) for s, e in unexplained_runs if s < high and e > low)
         if count:
             report.append(f"executable: {label} changed ({count} bytes); the port reads the executable's code "
                           "and tables natively, so this cannot be imported")

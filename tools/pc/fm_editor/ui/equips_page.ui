@@ -53,10 +53,16 @@
      </property>
      <widget class="QWidget" name="equipListPane">
       <property name="minimumSize">
-       <size><width>260</width><height>0</height></size>
+       <size>
+        <width>260</width>
+        <height>0</height>
+       </size>
       </property>
       <property name="maximumSize">
-       <size><width>360</width><height>16777215</height></size>
+       <size>
+        <width>360</width>
+        <height>16777215</height>
+       </size>
       </property>
       <layout class="QVBoxLayout" name="equipListLayout">
        <item>
@@ -89,7 +95,7 @@
          <property name="alignment">
           <set>Qt::AlignmentFlag::AlignCenter</set>
          </property>
-       </widget>
+        </widget>
        </item>
        <item>
         <widget class="QLineEdit" name="equipSearchEdit">
@@ -125,7 +131,7 @@
      <widget class="QWidget" name="equipDetailPane">
       <layout class="QVBoxLayout" name="equipDetailLayout">
        <item>
-       <widget class="QLabel" name="equipHeadingLabel">
+        <widget class="QLabel" name="equipHeadingLabel">
          <property name="text">
           <string>Select an equip card</string>
          </property>
@@ -197,11 +203,11 @@
         <layout class="QHBoxLayout" name="equipActionsLayout">
          <item>
           <widget class="QPushButton" name="addSelectedEquipButton">
-           <property name="text">
-            <string>Add selected</string>
-           </property>
            <property name="enabled">
             <bool>false</bool>
+           </property>
+           <property name="text">
+            <string>Add selected</string>
            </property>
           </widget>
          </item>
@@ -220,6 +226,16 @@
    </item>
   </layout>
  </widget>
+ <tabstops>
+  <tabstop>equipSearchEdit</tabstop>
+  <tabstop>equipTable</tabstop>
+  <tabstop>equipMonsterSearchEdit</tabstop>
+  <tabstop>equipAdvancedFilterButton</tabstop>
+  <tabstop>equipClearFilterButton</tabstop>
+  <tabstop>equipMonsterTable</tabstop>
+  <tabstop>addSelectedEquipButton</tabstop>
+  <tabstop>revertEquipButton</tabstop>
+ </tabstops>
  <resources/>
  <connections/>
 </ui>

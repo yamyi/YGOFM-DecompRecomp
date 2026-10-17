@@ -22,7 +22,7 @@ import re
 import shutil
 from pathlib import Path
 
-from .gamedata import (FUSION_GROUPS, RITUAL_ORIGINS, RITUAL_REQUIREMENT_KEYS, RITUAL_TRIBUTE_MAX, fusion_group_named, ATTRIBUTE_NAMES, CARD_COUNT, DECK_SIZE, DUELIST_NAMES, FRAME_COLOR_NAMES, FRAME_NAME_ALIASES, FRAME_NAMES, POOLS, STAR_NAMES,
+from .gamedata import (FUSION_GROUPS, RITUAL_ORIGINS, RITUAL_REQUIREMENT_KEYS, RITUAL_TRIBUTE_MAX, fusion_group_named, ATTRIBUTE_NAMES, CARD_COUNT, DECK_SIZE, DUELIST_NAMES, FRAME_COLOR_NAMES, FRAME_NAMES, POOLS, STAR_NAMES,
                        EQUIP_BONUS_MAX, STARTER_WEIGHT_LIMIT, TYPE_NAMES, TYPE_MAGIC, TYPE_LIMIT, GameData, is_monster_type)
 from .model import AddedCard, ModInfo, Project, StarterDeck, duelist_named, same_letters, type_named, KEY_RE
 from . import art, board_art, campaign_map, compat, fixed_decks, guardian_stars, packs as packmath, pools as poolmath, roster
@@ -66,6 +66,25 @@ def _attribute_value(a: int):
 def _star_value(s: int):
     return STAR_NAMES[s] if 1 <= s < len(STAR_NAMES) else s
 
+
+GOES_TO = re.compile(r"\{(jump|call) (L[0-9A-Fa-f]{4})\}")
+def followed(items: dict, item: str, depth: int = 0) -> str:
+    """An item's text with its jumps and calls followed, as the game follows
+    them (pal_text.c): {call Lxxxx} reads that label and comes back, {jump
+    Lxxxx} goes there for good. A mod that shares a word or a whole name
+    between two cards writes them that way, and an item read without
+    following them is cut short or empty."""
+    if depth > 8:
+        return item
+
+    def reached(match):
+        target = items.get("{:%s}" % match.group(2))
+        if target is None:
+            return ""
+        body = target.split("\n", 1)[1] if "\n" in target else ""
+        return followed(items, body, depth + 1).replace("{end}", "").replace("{cont}", "")
+
+    return GOES_TO.sub(reached, item)
 
 def _card_fields(card, base, everything=False, project=None) -> dict:
     out = {}
@@ -839,14 +858,17 @@ def _apply_fields(project: Project, card, entry: dict, is_replace: bool, message
             messages.append(f"{where}: \"attribute\" is a retail attribute, or an id/name this mod's own "
                             f"\"attributes\" declares; left out")
     if "frame" in entry:
-        raw = entry["frame"]
-        value = FRAME_NAME_ALIASES.get(raw.strip().lower(), -1) if isinstance(raw, str) else _choice(raw, FRAME_NAMES + ["Type"])
-        if isinstance(raw, str) and raw.strip().lower() == "type":
-            value = len(FRAME_NAMES)
+        value = _choice(entry["frame"], FRAME_NAMES + ["Type"])
+        if not 0 <= value <= len(FRAME_NAMES):
+            # Gold, Green, Pink and Blue: Monster, Magic, Trap and Ritual by their color.
+            value = _choice(entry["frame"], FRAME_COLOR_NAMES)
+            if value >= len(FRAME_COLOR_NAMES):
+                value = -1
         if 0 <= value <= len(FRAME_NAMES):
             card.frame = -2 if value == len(FRAME_NAMES) else value  # -2: "Type", never orange
         else:
-            messages.append(f"{where}: \"frame\" is a frame name, its colour alias, or Type; left out")
+            messages.append(f"{where}: \"frame\" is Gold, Green, Pink, Blue, Purple, Orange or Type (or the disc's "
+                            f"Monster, Magic, Trap, Ritual); left out")
 
 
 def _base_id(project: Project, value) -> int:
@@ -1604,16 +1626,20 @@ def save_mod(project: Project, folder, manifest: dict = None, copy_source: bool 
                     # a symlink supplied by a malformed mod folder.
                     output_path(folder, relative)
                     shutil.copy2(item, target)
+    # project.files keys and deleted_files entries come from mod-controlled
+    # names (an imported asset's folder setting, a pack entry's "file"...);
+    # check every one before writing or deleting any of them, so a single
+    # unsafe name (a symlink inside the mod folder included) refuses the
+    # whole save rather than partly completing it.
+    unsafe = next((name for name in (*project.files, *deleted) if art.safe_target(folder, name) is None), None)
+    if unsafe is not None:
+        raise ValueError(f"{unsafe!r} is not a safe path inside the mod folder; nothing was saved")
     for name, blob in project.files.items():
-        if not art.contained(name):
-            continue
         target = output_path(folder, name)
         target.parent.mkdir(parents=True, exist_ok=True)
         output_path(folder, name)
         target.write_bytes(blob)
     for name in deleted:
-        if not art.contained(name):
-            continue
         target = output_path(folder, name)
         if target.is_file() or target.is_symlink():
             target.unlink()

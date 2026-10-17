@@ -80,6 +80,7 @@ class Job:
     owned: set = field(default_factory=set)     # roster.owned's files of that folder
     name: str = ""
     forms: dict = field(default_factory=dict)
+    deleted: frozenset = field(default_factory=frozenset)   # project.deleted_files at prepare() time
 
 
 class Recovery:
@@ -93,7 +94,7 @@ class Recovery:
             raise ValueError("The recovery folder is inside this mod; choose a different mod folder.")
         return Job(snapshot or Snapshot(project), project.retail, project.source_dir,
                    set(getattr(project, "roster_owned", ()) or ()), project.info.name,
-                   json.loads(json.dumps(forms or {})))
+                   json.loads(json.dumps(forms or {})), frozenset(project.deleted_files))
 
     def write(self, project, forms=None, snapshot=None):
         return self.write_job(self.prepare(project, forms, snapshot))
@@ -118,9 +119,12 @@ class Recovery:
             if source and Path(source).is_dir():
                 # What save_mod would copy first; the files it wrote win.
                 # The roster's files it read are its own to write (roster.py):
-                # a duelist taken out must not come back with its file.
+                # a duelist taken out must not come back with its file. A
+                # reverted replacement save_mod already deleted from
+                # `generation` must not be filled back in from `source`.
                 fill(source, generation, self.folder / previous if previous else None, settled,
-                     skip=lambda rel: rel.name == "mod.json" or rel.as_posix() in job.owned)
+                     skip=lambda rel: rel.name == "mod.json" or rel.as_posix() in job.owned
+                     or rel.as_posix() in job.deleted)
             record = {"name": job.name, "time": stamp(), "generation": generation.name,
                       "source": str(job.source or ""), "forms": job.forms}
             temporary = index.with_suffix(".tmp")
