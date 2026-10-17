@@ -234,21 +234,29 @@ def install() -> None:
             # A partial or imported archive still leaves the text fields usable.
             return
 
+    def selected_card_type(self, cid=None):
+        """The saved type, except for the card currently being edited."""
+        cid = self.current if cid is None else cid
+        card = self.project.cards.get(cid) if self.project and cid else None
+        if card is None:
+            return None
+        type_box = getattr(self, "fields", {}).get("type")
+        return type_box.currentIndex() if cid == self.current and type_box is not None else card.type
+
+    def type_supports_effects(self, cid=None):
+        """Whether the selected type can own Monster or Magic/Trap effects."""
+        kind = selected_card_type(self, cid)
+        return kind is not None and (kind < gamedata.TYPE_MAGIC or
+                                     kind in (gamedata.TYPE_MAGIC, gamedata.TYPE_TRAP))
+
     def uses_card_effects(self, cid=None):
         """Whether the current form is authoring Magic/Trap card effects.
 
         During a type change, the form is the source of truth until Apply
-        commits the replacement card record.  Other cards keep using their
+        commits the replacement card record. Other cards keep using their
         saved type, so inherited effect lookups remain stable.
         """
-        cid = self.current if cid is None else cid
-        card = self.project.cards.get(cid) if self.project and cid else None
-        if not card:
-            return False
-        kind = card.type
-        type_box = getattr(self, "fields", {}).get("type")
-        if cid == self.current and type_box is not None:
-            kind = type_box.currentIndex()
+        kind = selected_card_type(self, cid)
         return kind in (gamedata.TYPE_MAGIC, gamedata.TYPE_TRAP)
 
     def card_effects_of(self, cid):
@@ -645,11 +653,8 @@ def install() -> None:
         effects_tab = getattr(self, "_effects_tab_index", -1)
         if effects_tab < 0:
             return
-        card = self.project.cards.get(self.current) if self.project and self.current else None
-        kind = self.fields["type"].currentIndex() if card and hasattr(self, "fields") else -1
-        supports_effects = bool(card and (kind < gamedata.TYPE_MAGIC or
-                                          kind in (gamedata.TYPE_MAGIC, gamedata.TYPE_TRAP)))
-        self.card_data_tabs.setTabVisible(effects_tab, supports_effects)
+        self.card_data_tabs.setTabVisible(effects_tab, type_supports_effects(self))
+        supports_effects = type_supports_effects(self)
         if not supports_effects and self.card_data_tabs.currentIndex() == effects_tab:
             self.card_data_tabs.setCurrentIndex(0)
 
@@ -936,9 +941,7 @@ def install() -> None:
         extra = self.project.card_extra.get(self.current, {}) if retail else {}
         none = retail and extra.get(key) == []
         if hasattr(self, "effects_none"):
-            kind = self.fields["type"].currentIndex() if card and hasattr(self, "fields") else -1
-            supports_effects = bool(card and (kind < gamedata.TYPE_MAGIC or
-                                              kind in (gamedata.TYPE_MAGIC, gamedata.TYPE_TRAP)))
+            supports_effects = type_supports_effects(self)
             blocked = self.effects_none.blockSignals(True)
             self.effects_none.setChecked(none)
             self.effects_none.setVisible(retail and not rows)
@@ -965,7 +968,7 @@ def install() -> None:
             note = ("Its base's card effects: changing them gives this card a list of its own."
                     if inherited and rows else
                     "These effects run when this Magic or Trap card is played or springs.")
-        elif not card.is_monster():
+        elif not type_supports_effects(self):
             note = "Only Monster, Magic, and Trap cards can have data-defined effects."
         elif inherited and rows:
             note = "Its base's effects: changing them gives this card a list of its own."
@@ -977,8 +980,7 @@ def install() -> None:
         buttons(self)
 
     def buttons(self):
-        card = self.project.cards.get(self.current) if self.current else None
-        enabled = bool(card and (card.is_monster() or uses_card_effects(self)))
+        enabled = type_supports_effects(self)
         row, count = self.effects_table.currentRow(), self.effects_table.rowCount()
         chosen = 0 <= row < count
         for name, on in (("addEffect", enabled and count < effects.MAX_EFFECTS),

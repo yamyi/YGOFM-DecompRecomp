@@ -237,6 +237,17 @@ class CardsTest(unittest.TestCase):
         self.assertFalse(form['when'].isHidden())
         self.assertEqual(w._card_effects(), [monster_effect])
 
+        # A committed Magic card switched to Monster has the same pending
+        # schema and can immediately receive a monster effect before Apply.
+        w.show_card(601)
+        w.fields['type'].setCurrentIndex(0)
+        self.assertTrue(w.effect_buttons['addEffect'].isEnabled())
+        w._add_card_effect()
+        form['save'].click()
+        self.assertEqual(w.project.monster_effects_of(601)[0],
+                         [{'when': 'summon', 'do': 'boost', 'target': 'self', 'attack': 500}])
+        self.assertNotIn('card_effects', w.project.card_extra.get(601, {}))
+
     def test_type_conversion_keeps_effect_metadata_and_added_identity(self):
         """Type conversion clears game-only fields without discarding mod data."""
         w = self.window
