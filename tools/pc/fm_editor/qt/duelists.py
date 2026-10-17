@@ -909,6 +909,7 @@ QPushButton#ruleDrop:hover { color: #ffffff; }
             "the selected AI source or the retail base.")
         ai_form = dialog.findChild(QFormLayout, "rulesAiForm")
         ai_copy = QComboBox()
+        ai_copy.setObjectName("duelistAiCopy")
         ai_copy.addItem("Retail base", "")
         for name in self._roster_names():
             if name != record["name"]:
@@ -916,6 +917,7 @@ QPushButton#ruleDrop:hover { color: #ffffff; }
         ai_copy.setCurrentIndex(max(0, ai_copy.findData(ai["copy"])))
         ai_form.addRow("AI inheritance", ai_copy)
         sight = QComboBox()
+        sight.setObjectName("duelistAiSight")
         sight.addItem("Inherit retail/base visibility", None)
         sight.addItem("Can see face-down cards", True)
         sight.addItem("Cannot see face-down cards", False)
@@ -926,7 +928,9 @@ QPushButton#ruleDrop:hover { color: #ffffff; }
         ai_widgets = []
         for row, label in enumerate(AI_FIELD_LABELS):
             enabled = QCheckBox("Override")
+            enabled.setObjectName(f"duelistAiOverride{row}")
             number = QSpinBox()
+            number.setObjectName(f"duelistAiValue{row}")
             number.setRange(-128, 127)
             current = ai["values"][row]
             inherited = duelist_rules.under_row(self.project, subject, ai["copy"])[row]
@@ -945,6 +949,7 @@ QPushButton#ruleDrop:hover { color: #ffffff; }
         rank_groups = {}
         for rule, label in enumerate(RANK_RULES):
             group = QGroupBox(label.title())
+            group.setObjectName(f"duelistRankGroup{rule}")
             group.setCheckable(True)
             group.setChecked(rule in ranks)
             grid = QGridLayout(group)
@@ -955,6 +960,8 @@ QPushButton#ruleDrop:hover { color: #ffffff; }
             for step in range(RANK_STEPS):
                 grid.addWidget(QLabel("And above" if step == RANK_STEPS - 1 else f"Step {step + 1}"), step + 1, 0)
                 threshold, change = QSpinBox(), QSpinBox()
+                threshold.setObjectName(f"duelistRankThreshold{rule}_{step}")
+                change.setObjectName(f"duelistRankChange{rule}_{step}")
                 threshold.setRange(-32768, 32767)
                 change.setRange(-32768, 32767)
                 threshold.setValue(current[step][0])
@@ -987,7 +994,10 @@ QPushButton#ruleDrop:hover { color: #ffffff; }
         save.setObjectName("primary")
         cancel.clicked.connect(dialog.reject)
         save.clicked.connect(dialog.accept)
-        if dialog.exec() != QDialog.DialogCode.Accepted:
+        accepted = dialog.exec() == QDialog.DialogCode.Accepted
+        if not accepted:
+            dialog.deleteLater()
+            QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
             return
 
         copy_name = ai_copy.currentData() or ""
@@ -1005,6 +1015,8 @@ QPushButton#ruleDrop:hover { color: #ffffff; }
         duelist_rules.set_rules(self.project, subject, unlock=old_unlock, ai=written_ai, ranks=written_ranks)
         self._mark_dirty()
         self._refresh_duelists()
+        dialog.deleteLater()
+        QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
         self.statusBar().showMessage(f"Saved AI and rank rules for {record['name']}.", 8000)
 
     def _open_duelist_bust(self):
@@ -1021,6 +1033,13 @@ QPushButton#ruleDrop:hover { color: #ffffff; }
         preview = dialog.findChild(QLabel, "bustPreview")
         mode = dialog.findChild(QComboBox, "bustFrameMode")
         side = dialog.findChild(QComboBox, "bustSide")
+        # QUiLoader has discarded combo item userData on some supported
+        # builds.  Bind the game values explicitly instead of relying on
+        # Designer's XML representation.
+        for index, value in enumerate(("image", "talk0", "talk1", "blink")):
+            mode.setItemData(index, value)
+        for index, value in enumerate(("left", "right")):
+            side.setItemData(index, value)
         button_names = {"add": "bustAddButton", "rename": "bustRenameButton", "remove": "bustRemoveButton",
                         "default": "bustDefaultButton", "up": "bustUpButton", "down": "bustDownButton",
                         "picture": "bustPictureButton", "talk": "bustTalkButton", "untalk": "bustUntalkButton",
@@ -1109,6 +1128,8 @@ QPushButton#ruleDrop:hover { color: #ffffff; }
         replace.toggled.connect(lambda on: (roster.set_replace_bust(self.project, subject, on), changed()) if isinstance(subject, int) and bust() is not None else None)
         dialog.findChild(QPushButton, "bustCloseButton").clicked.connect(dialog.accept)
         refresh(); dialog.exec()
+        dialog.deleteLater()
+        QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
 
     def _remove_duelist(self):
         slot = getattr(self, "duelist_selected_slot", None)

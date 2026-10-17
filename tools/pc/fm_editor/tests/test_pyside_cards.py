@@ -2108,6 +2108,73 @@ class CardsTest(unittest.TestCase):
             open_dialog()
         self.assertIsNone(roster.replacement(w.project, subject))
 
+    def test_duelist_rules_dialog_saves_ai_and_rank_overrides(self):
+        """The Designer dialog writes the shared duelist_rules schema before
+        Apply, including an AI byte and a complete rank-rule row."""
+        from PySide6.QtCore import QTimer
+        from PySide6.QtWidgets import QApplication, QCheckBox, QComboBox, QGroupBox, QSpinBox
+        from fm_editor import duelist_rules, roster
+        w = self.window
+        self.duelists_page()
+        subject = w._selected_duelist_subject()
+
+        def edit_and_accept():
+            dialog = QApplication.activeModalWidget()
+            ai_copy = dialog.findChild(QComboBox, 'duelistAiCopy')
+            ai_copy.setCurrentIndex(0)
+            override = dialog.findChild(QCheckBox, 'duelistAiOverride0')
+            value = dialog.findChild(QSpinBox, 'duelistAiValue0')
+            override.setChecked(True); value.setValue(12)
+            group = dialog.findChild(QGroupBox, 'duelistRankGroup0')
+            group.setChecked(True)
+            dialog.findChild(QSpinBox, 'duelistRankThreshold0_0').setValue(6)
+            dialog.findChild(QSpinBox, 'duelistRankChange0_0').setValue(9)
+            dialog.accept()
+        QTimer.singleShot(0, edit_and_accept)
+        w._open_duelist_rules()
+        entry = roster.replacement(w.project, subject)
+        self.assertEqual(duelist_rules.ai_of(entry)['values'][0], 12)
+        self.assertEqual(duelist_rules.ranks_of(entry)[0][0], (6, 9))
+
+    def test_duelist_bust_dialog_previews_every_frame_mode_and_round_trips(self):
+        """Frame/side item data is explicit after QUiLoader, so a populated
+        bust can preview picture, talking and blink frames without KeyError."""
+        from PySide6.QtCore import QTimer
+        from PySide6.QtWidgets import QApplication, QComboBox, QLabel
+        from fm_editor import manifest, roster
+        from fm_editor.tests.test_bust import CALM, figure
+        w = self.window
+        self.duelists_page()
+        subject = w._selected_duelist_subject()
+        bust = roster.give_bust(w.project, subject, figure(CALM), 'calm')
+        expr = bust.expressions[0]
+        expr.talk, expr.talk_paths = [figure(CALM, mouth=True), figure(CALM, mouth=True)], [None, None]
+        expr.blink, expr.blink_path = figure(CALM, shut=True), None
+
+        def preview_and_accept():
+            dialog = QApplication.activeModalWidget()
+            mode = dialog.findChild(QComboBox, 'bustFrameMode')
+            side = dialog.findChild(QComboBox, 'bustSide')
+            preview = dialog.findChild(QLabel, 'bustPreview')
+            self.assertEqual([mode.itemData(i) for i in range(mode.count())], ['image', 'talk0', 'talk1', 'blink'])
+            self.assertEqual([side.itemData(i) for i in range(side.count())], ['left', 'right'])
+            for frame in range(mode.count()):
+                mode.setCurrentIndex(frame)
+                for placement in range(side.count()):
+                    side.setCurrentIndex(placement)
+                    self.qt.processEvents()
+                    self.assertFalse(preview.pixmap().isNull())
+            dialog.accept()
+        QTimer.singleShot(0, preview_and_accept)
+        w._open_duelist_bust()
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest.save_mod(w.project, Path(tmp))
+            reopened, messages = manifest.open_mod(w.retail, Path(tmp))
+        self.assertFalse(messages)
+        reopened_bust = roster.bust_of(reopened, subject)
+        self.assertEqual(len(reopened_bust.expressions[0].talk), 2)
+        self.assertIsNotNone(reopened_bust.expressions[0].blink)
+
     def test_switching_back_to_weighted_keeps_the_fixed_deck_to_hand(self):
         from fm_editor import fixed_decks
         w = self.window
