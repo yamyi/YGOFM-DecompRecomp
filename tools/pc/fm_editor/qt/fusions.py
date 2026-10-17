@@ -290,6 +290,11 @@ class FusionsMixin:
                             "warnings": warnings, "preview": preview, "apply": apply,
                             "undo": undo, "batch": None, "result_project": self.project}
         mode = get(QComboBox, "bulkFusionModeCombo")
+        # QUiLoader reads the Designer labels but not per-item data. Keep the
+        # strings that drive the model beside this binding rather than infer
+        # behavior from the translated labels.
+        mode.setItemData(0, "add")
+        mode.setItemData(1, "remove")
         reset_result = get(QPushButton, "clearBulkResultButton")
         controls["bulk"]["mode"] = mode
         controls["bulk"]["reset_result"] = reset_result

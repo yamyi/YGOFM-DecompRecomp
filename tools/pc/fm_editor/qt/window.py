@@ -388,29 +388,19 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
             controls["image_list"].itemDoubleClicked.connect(lambda *_: self._edit_fusion())
             controls["search"].textChanged.connect(self._refresh_fusions)
             controls["changed"].toggled.connect(self._refresh_fusions)
+            for radio in (controls["search_materials"], controls["search_results"],
+                          controls["search_both"]):
+                radio.toggled.connect(lambda checked: checked and self._refresh_fusions())
             controls["table"].cellDoubleClicked.connect(lambda *_: self._edit_fusion())
             for key, callback in (("addFusionButton", lambda: self._edit_fusion(add=True)),
                                   ("editFusionButton", self._edit_fusion),
                                   ("removeFusionButton", self._remove_fusions),
+                                  ("removeFusionResultButton", self._remove_fusion_result),
+                                  ("toggleAllFusionsButton", self._toggle_all_fusions),
                                   ("revertFusionButton", self._revert_fusions)):
                 get(QPushButton, key).clicked.connect(callback)
             for listing in (controls["image_list"], table):
                 listing.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
-            remove_result = QPushButton("Remove recipes of…")
-            button = get(QPushButton, "removeFusionButton")
-            # Use the named Designer action row, keeping the button with its peers.
-            action_layout = get(QPushButton, "revertFusionButton").parentWidget().layout()
-            def add_to_row(layout):
-                for i in range(layout.count()):
-                    item = layout.itemAt(i)
-                    if item.widget() is button:
-                        layout.insertWidget(i + 1, remove_result)
-                        return True
-                    if item.layout() and add_to_row(item.layout()):
-                        return True
-                return False
-            add_to_row(action_layout)
-            remove_result.clicked.connect(self._remove_fusion_result)
             self._build_bulk_fusions_page(get(QWidget, "genericFusionTab"), controls)
             controls["search"].setMaximumWidth(360)
         elif name == "Equips":

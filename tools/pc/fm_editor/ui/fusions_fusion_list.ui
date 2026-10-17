@@ -222,6 +222,20 @@
         </widget>
        </item>
        <item>
+        <widget class="QPushButton" name="removeFusionResultButton">
+         <property name="text">
+          <string>Remove recipes of…</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="toggleAllFusionsButton">
+         <property name="text">
+          <string>Remove all fusions…</string>
+         </property>
+        </widget>
+       </item>
+       <item>
         <widget class="QPushButton" name="revertFusionButton">
          <property name="text">
           <string>Revert to retail</string>
@@ -245,6 +259,8 @@
   <tabstop>addFusionButton</tabstop>
   <tabstop>editFusionButton</tabstop>
   <tabstop>removeFusionButton</tabstop>
+  <tabstop>removeFusionResultButton</tabstop>
+  <tabstop>toggleAllFusionsButton</tabstop>
   <tabstop>revertFusionButton</tabstop>
  </tabstops>
  <resources/>

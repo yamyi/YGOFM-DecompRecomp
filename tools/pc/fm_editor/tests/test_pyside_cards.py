@@ -617,7 +617,9 @@ class CardsTest(unittest.TestCase):
     def test_fusion_multiselect_and_empty_actions(self):
         from PySide6.QtWidgets import QAbstractItemView
         w = self.window
+        w.select_workspace('Fusions')
         c = w.workspace_controls['Fusions']
+        w._set_fusion_view(0)
         listing = c['image_list']
         self.assertEqual(listing.selectionMode(), QAbstractItemView.SelectionMode.ExtendedSelection)
         listing.clearSelection()
@@ -687,6 +689,59 @@ class CardsTest(unittest.TestCase):
         self.assertIn(3, w.project.active_removes())
         self.assertFalse(w.project.fusions.get((1, 2)))
 
+    def test_fusions_keep_non_monster_results_and_restore_disc_table(self):
+        from PySide6.QtWidgets import QMessageBox, QPushButton
+        w = self.window
+        w.select_workspace('Fusions')
+        pair, retail_result = next(iter(w.project.retail.fusions.items()))
+        # The game accepts a non-Monster result even though its automatic
+        # planner intentionally excludes it.  The editor must not block it.
+        non_monster = next(cid for cid, card in w.project.cards.items()
+                           if not card.is_monster())
+        w.project.set_fusion(*pair, non_monster)
+        self.assertEqual(w._effective_fusion_result(pair), non_monster)
+        with mock.patch('fm_editor.pyside_app.QMessageBox.question',
+                        return_value=QMessageBox.StandardButton.Yes):
+            w._toggle_all_fusions()
+        self.assertTrue(w.project.fusion_remove_all)
+        button = next(button for button in w.findChildren(QPushButton)
+                      if button.objectName() == 'toggleAllFusionsButton')
+        self.assertEqual(button.text(), 'Restore disc fusions')
+        self.assertEqual(manifest.build(w.project)['fusions'][0], {'remove': 'all'})
+        # An explicit result remains legal after a global removal.
+        w.project.set_fusion(*pair, non_monster)
+        with mock.patch('fm_editor.pyside_app.QMessageBox.question',
+                        return_value=QMessageBox.StandardButton.Yes):
+            w._toggle_all_fusions()
+        self.assertFalse(w.project.fusion_remove_all)
+        self.assertEqual(w.project.fusions[pair], non_monster)
+        self.assertNotEqual(retail_result, non_monster)
+
+    def test_fusion_edit_uses_effective_retail_result(self):
+        from PySide6.QtWidgets import QDialog
+        w = self.window
+        w.select_workspace('Fusions')
+        pair, retail_result = next(iter(w.project.retail.fusions.items()))
+        # A sparse project can omit an unchanged retail pair. The edit form
+        # still needs to start at its effective result.
+        w.project.fusions.pop(pair, None)
+        self.assertEqual(w._effective_fusion_result(pair), retail_result)
+        table = w.workspace_controls['Fusions']['table']
+        row = next(row for row in range(table.rowCount())
+                   if table.item(row, 0).data(Qt_UserRole()) == pair)
+        table.selectRow(row)
+        selected = []
+        original_card_combo = w._card_combo
+
+        def card_combo(parent, value=None):
+            selected.append(value)
+            return original_card_combo(parent, value)
+
+        with mock.patch.object(w, '_card_combo', side_effect=card_combo), \
+             mock.patch.object(QDialog, 'exec', return_value=0):
+            w._edit_fusion()
+        self.assertEqual(selected, [pair[0], pair[1], retail_result])
+
     def test_fusion_display_limit(self):
         w = self.window
         for a in range(1, 61):
@@ -709,7 +764,7 @@ class CardsTest(unittest.TestCase):
         w.resize(1580, 980)      # the size this layout is measured at
         self.qt.processEvents()
         for side in c['bulk_filters'].values():
-            self.assertTrue(side['advanced'].parentWidget().isHidden())
+            self.assertTrue(side['advanced'].isHidden())
             for key in ('types', 'stars'):
                 listing = side[key]
                 item = listing.item(0)
@@ -722,21 +777,16 @@ class CardsTest(unittest.TestCase):
                 self.assertEqual(item.checkState(), Qt.CheckState.Unchecked)
         w.hide()
 
-    def test_fusion_header_tracks_sidebar_resize(self):
+    def test_fusion_headers_sort_results(self):
         w = self.window
-        w.show()
-        w.resize(1580, 980)      # wide enough that the sidebar's room matters
         w.select_workspace('Fusions')
-        c = w.workspace_controls['Fusions']
-        c['pages'].setCurrentIndex(0)
-        for _ in range(3): self.qt.processEvents()
-        before = c['sort_headers'][0].width()
-        w._toggle_workspace(False)
-        for _ in range(3): self.qt.processEvents()
-        width = c['image_list'].viewport().width()
-        self.assertEqual(c['sort_headers'][0].width(), 80 + max(210, width - 478) // 3)
-        self.assertNotEqual(before, c['sort_headers'][0].width())
-        w.hide()
+        table = w.workspace_controls['Fusions']['table']
+        header = table.horizontalHeader()
+        self.assertTrue(header.sectionsClickable())
+        header.sectionClicked.emit(2)
+        self.assertTrue(table.horizontalHeaderItem(2).text().endswith('↑'))
+        header.sectionClicked.emit(2)
+        self.assertTrue(table.horizontalHeaderItem(2).text().endswith('↓'))
 
     def test_no_selection_clears_and_disables_the_card_form(self):
         """A filter with no results must not leave the last card's data in a
@@ -859,12 +909,19 @@ class CardsTest(unittest.TestCase):
         that is here, so it is what the page opens on."""
         w = self.window
         w.select_workspace('Fusions')
+        p = w.project
+        p.cards[1].name, p.cards[2].name = 'First material', 'Second material'
+        result = p.add_card(3, 'result-needle')
+        p.cards[result].name = 'Result needle'
+        p.set_fusion(1, 2, result)
+        w._refresh_fusions()
         c = w.workspace_controls['Fusions']
         self.assertTrue(c['search_both'].isChecked())
-        c['search'].setText('Kuriboh')
+        c['search'].setText('Result needle')
         both = c['table'].rowCount()
         c['search_materials'].setChecked(True)
-        self.assertLess(c['table'].rowCount(), both)    # narrowing is still offered
+        self.assertEqual(both, 1)
+        self.assertEqual(c['table'].rowCount(), 0)       # narrowing is still offered
 
     def test_rows_are_coloured_by_their_state(self):
         from PySide6.QtCore import Qt
@@ -901,6 +958,8 @@ class CardsTest(unittest.TestCase):
         w.select_workspace('Fusions')
         c = w.workspace_controls['Fusions']
         c['search'].clear()
+        w._refresh_fusions()
+        w._set_fusion_view(0)
         c['image_list'].item(0).setSelected(True)
         pair = w._selected_fusion_pairs()[0]
         expected = w.project.fusions.get(pair)
