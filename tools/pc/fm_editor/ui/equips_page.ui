@@ -138,6 +138,154 @@
         </widget>
        </item>
        <item>
+        <widget class="QGroupBox" name="equipTypeTargetsGroup">
+         <property name="title"><string>By monster type</string></property>
+         <property name="toolTip"><string>Tick to allow every monster of a type. A partial tick means only some are eligible; click its count to filter the table.</string></property>
+         <layout class="QGridLayout" name="equipTypeTargetsLayout">
+          <item row="0" column="0">
+           <layout class="QHBoxLayout" name="equipTypeCell0">
+            <property name="spacing"><number>3</number></property>
+            <item><widget class="QCheckBox" name="equipTypeToggle0"><property name="text"><string>Dragon</string></property><property name="tristate"><bool>true</bool></property></widget></item>
+            <item><widget class="QToolButton" name="equipTypeCount0"><property name="text"><string>0/0</string></property><property name="toolTip"><string>Show only Dragon monsters</string></property></widget></item>
+           </layout>
+          </item>
+          <item row="0" column="1">
+           <layout class="QHBoxLayout" name="equipTypeCell1">
+            <property name="spacing"><number>3</number></property>
+            <item><widget class="QCheckBox" name="equipTypeToggle1"><property name="text"><string>Spellcaster</string></property><property name="tristate"><bool>true</bool></property></widget></item>
+            <item><widget class="QToolButton" name="equipTypeCount1"><property name="text"><string>0/0</string></property><property name="toolTip"><string>Show only Spellcaster monsters</string></property></widget></item>
+           </layout>
+          </item>
+          <item row="0" column="2">
+           <layout class="QHBoxLayout" name="equipTypeCell2">
+            <property name="spacing"><number>3</number></property>
+            <item><widget class="QCheckBox" name="equipTypeToggle2"><property name="text"><string>Zombie</string></property><property name="tristate"><bool>true</bool></property></widget></item>
+            <item><widget class="QToolButton" name="equipTypeCount2"><property name="text"><string>0/0</string></property><property name="toolTip"><string>Show only Zombie monsters</string></property></widget></item>
+           </layout>
+          </item>
+          <item row="0" column="3">
+           <layout class="QHBoxLayout" name="equipTypeCell3">
+            <property name="spacing"><number>3</number></property>
+            <item><widget class="QCheckBox" name="equipTypeToggle3"><property name="text"><string>Warrior</string></property><property name="tristate"><bool>true</bool></property></widget></item>
+            <item><widget class="QToolButton" name="equipTypeCount3"><property name="text"><string>0/0</string></property><property name="toolTip"><string>Show only Warrior monsters</string></property></widget></item>
+           </layout>
+          </item>
+          <item row="0" column="4">
+           <layout class="QHBoxLayout" name="equipTypeCell4">
+            <property name="spacing"><number>3</number></property>
+            <item><widget class="QCheckBox" name="equipTypeToggle4"><property name="text"><string>Beast-Warrior</string></property><property name="tristate"><bool>true</bool></property></widget></item>
+            <item><widget class="QToolButton" name="equipTypeCount4"><property name="text"><string>0/0</string></property><property name="toolTip"><string>Show only Beast-Warrior monsters</string></property></widget></item>
+           </layout>
+          </item>
+          <item row="1" column="0">
+           <layout class="QHBoxLayout" name="equipTypeCell5">
+            <property name="spacing"><number>3</number></property>
+            <item><widget class="QCheckBox" name="equipTypeToggle5"><property name="text"><string>Beast</string></property><property name="tristate"><bool>true</bool></property></widget></item>
+            <item><widget class="QToolButton" name="equipTypeCount5"><property name="text"><string>0/0</string></property><property name="toolTip"><string>Show only Beast monsters</string></property></widget></item>
+           </layout>
+          </item>
+          <item row="1" column="1">
+           <layout class="QHBoxLayout" name="equipTypeCell6">
+            <property name="spacing"><number>3</number></property>
+            <item><widget class="QCheckBox" name="equipTypeToggle6"><property name="text"><string>Winged Beast</string></property><property name="tristate"><bool>true</bool></property></widget></item>
+            <item><widget class="QToolButton" name="equipTypeCount6"><property name="text"><string>0/0</string></property><property name="toolTip"><string>Show only Winged Beast monsters</string></property></widget></item>
+           </layout>
+          </item>
+          <item row="1" column="2">
+           <layout class="QHBoxLayout" name="equipTypeCell7">
+            <property name="spacing"><number>3</number></property>
+            <item><widget class="QCheckBox" name="equipTypeToggle7"><property name="text"><string>Fiend</string></property><property name="tristate"><bool>true</bool></property></widget></item>
+            <item><widget class="QToolButton" name="equipTypeCount7"><property name="text"><string>0/0</string></property><property name="toolTip"><string>Show only Fiend monsters</string></property></widget></item>
+           </layout>
+          </item>
+          <item row="1" column="3">
+           <layout class="QHBoxLayout" name="equipTypeCell8">
+            <property name="spacing"><number>3</number></property>
+            <item><widget class="QCheckBox" name="equipTypeToggle8"><property name="text"><string>Fairy</string></property><property name="tristate"><bool>true</bool></property></widget></item>
+            <item><widget class="QToolButton" name="equipTypeCount8"><property name="text"><string>0/0</string></property><property name="toolTip"><string>Show only Fairy monsters</string></property></widget></item>
+           </layout>
+          </item>
+          <item row="1" column="4">
+           <layout class="QHBoxLayout" name="equipTypeCell9">
+            <property name="spacing"><number>3</number></property>
+            <item><widget class="QCheckBox" name="equipTypeToggle9"><property name="text"><string>Insect</string></property><property name="tristate"><bool>true</bool></property></widget></item>
+            <item><widget class="QToolButton" name="equipTypeCount9"><property name="text"><string>0/0</string></property><property name="toolTip"><string>Show only Insect monsters</string></property></widget></item>
+           </layout>
+          </item>
+          <item row="2" column="0">
+           <layout class="QHBoxLayout" name="equipTypeCell10">
+            <property name="spacing"><number>3</number></property>
+            <item><widget class="QCheckBox" name="equipTypeToggle10"><property name="text"><string>Dinosaur</string></property><property name="tristate"><bool>true</bool></property></widget></item>
+            <item><widget class="QToolButton" name="equipTypeCount10"><property name="text"><string>0/0</string></property><property name="toolTip"><string>Show only Dinosaur monsters</string></property></widget></item>
+           </layout>
+          </item>
+          <item row="2" column="1">
+           <layout class="QHBoxLayout" name="equipTypeCell11">
+            <property name="spacing"><number>3</number></property>
+            <item><widget class="QCheckBox" name="equipTypeToggle11"><property name="text"><string>Reptile</string></property><property name="tristate"><bool>true</bool></property></widget></item>
+            <item><widget class="QToolButton" name="equipTypeCount11"><property name="text"><string>0/0</string></property><property name="toolTip"><string>Show only Reptile monsters</string></property></widget></item>
+           </layout>
+          </item>
+          <item row="2" column="2">
+           <layout class="QHBoxLayout" name="equipTypeCell12">
+            <property name="spacing"><number>3</number></property>
+            <item><widget class="QCheckBox" name="equipTypeToggle12"><property name="text"><string>Fish</string></property><property name="tristate"><bool>true</bool></property></widget></item>
+            <item><widget class="QToolButton" name="equipTypeCount12"><property name="text"><string>0/0</string></property><property name="toolTip"><string>Show only Fish monsters</string></property></widget></item>
+           </layout>
+          </item>
+          <item row="2" column="3">
+           <layout class="QHBoxLayout" name="equipTypeCell13">
+            <property name="spacing"><number>3</number></property>
+            <item><widget class="QCheckBox" name="equipTypeToggle13"><property name="text"><string>Sea Serpent</string></property><property name="tristate"><bool>true</bool></property></widget></item>
+            <item><widget class="QToolButton" name="equipTypeCount13"><property name="text"><string>0/0</string></property><property name="toolTip"><string>Show only Sea Serpent monsters</string></property></widget></item>
+           </layout>
+          </item>
+          <item row="2" column="4">
+           <layout class="QHBoxLayout" name="equipTypeCell14">
+            <property name="spacing"><number>3</number></property>
+            <item><widget class="QCheckBox" name="equipTypeToggle14"><property name="text"><string>Machine</string></property><property name="tristate"><bool>true</bool></property></widget></item>
+            <item><widget class="QToolButton" name="equipTypeCount14"><property name="text"><string>0/0</string></property><property name="toolTip"><string>Show only Machine monsters</string></property></widget></item>
+           </layout>
+          </item>
+          <item row="3" column="0">
+           <layout class="QHBoxLayout" name="equipTypeCell15">
+            <property name="spacing"><number>3</number></property>
+            <item><widget class="QCheckBox" name="equipTypeToggle15"><property name="text"><string>Thunder</string></property><property name="tristate"><bool>true</bool></property></widget></item>
+            <item><widget class="QToolButton" name="equipTypeCount15"><property name="text"><string>0/0</string></property><property name="toolTip"><string>Show only Thunder monsters</string></property></widget></item>
+           </layout>
+          </item>
+          <item row="3" column="1">
+           <layout class="QHBoxLayout" name="equipTypeCell16">
+            <property name="spacing"><number>3</number></property>
+            <item><widget class="QCheckBox" name="equipTypeToggle16"><property name="text"><string>Aqua</string></property><property name="tristate"><bool>true</bool></property></widget></item>
+            <item><widget class="QToolButton" name="equipTypeCount16"><property name="text"><string>0/0</string></property><property name="toolTip"><string>Show only Aqua monsters</string></property></widget></item>
+           </layout>
+          </item>
+          <item row="3" column="2">
+           <layout class="QHBoxLayout" name="equipTypeCell17">
+            <property name="spacing"><number>3</number></property>
+            <item><widget class="QCheckBox" name="equipTypeToggle17"><property name="text"><string>Pyro</string></property><property name="tristate"><bool>true</bool></property></widget></item>
+            <item><widget class="QToolButton" name="equipTypeCount17"><property name="text"><string>0/0</string></property><property name="toolTip"><string>Show only Pyro monsters</string></property></widget></item>
+           </layout>
+          </item>
+          <item row="3" column="3">
+           <layout class="QHBoxLayout" name="equipTypeCell18">
+            <property name="spacing"><number>3</number></property>
+            <item><widget class="QCheckBox" name="equipTypeToggle18"><property name="text"><string>Rock</string></property><property name="tristate"><bool>true</bool></property></widget></item>
+            <item><widget class="QToolButton" name="equipTypeCount18"><property name="text"><string>0/0</string></property><property name="toolTip"><string>Show only Rock monsters</string></property></widget></item>
+           </layout>
+          </item>
+          <item row="3" column="4">
+           <layout class="QHBoxLayout" name="equipTypeCell19">
+            <property name="spacing"><number>3</number></property>
+            <item><widget class="QCheckBox" name="equipTypeToggle19"><property name="text"><string>Plant</string></property><property name="tristate"><bool>true</bool></property></widget></item>
+            <item><widget class="QToolButton" name="equipTypeCount19"><property name="text"><string>0/0</string></property><property name="toolTip"><string>Show only Plant monsters</string></property></widget></item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
         <layout class="QHBoxLayout" name="equipMonsterFilterLayout">
          <item>
           <widget class="QLineEdit" name="equipMonsterSearchEdit">
@@ -229,6 +377,46 @@
  <tabstops>
   <tabstop>equipSearchEdit</tabstop>
   <tabstop>equipTable</tabstop>
+  <tabstop>equipTypeToggle0</tabstop>
+  <tabstop>equipTypeCount0</tabstop>
+  <tabstop>equipTypeToggle1</tabstop>
+  <tabstop>equipTypeCount1</tabstop>
+  <tabstop>equipTypeToggle2</tabstop>
+  <tabstop>equipTypeCount2</tabstop>
+  <tabstop>equipTypeToggle3</tabstop>
+  <tabstop>equipTypeCount3</tabstop>
+  <tabstop>equipTypeToggle4</tabstop>
+  <tabstop>equipTypeCount4</tabstop>
+  <tabstop>equipTypeToggle5</tabstop>
+  <tabstop>equipTypeCount5</tabstop>
+  <tabstop>equipTypeToggle6</tabstop>
+  <tabstop>equipTypeCount6</tabstop>
+  <tabstop>equipTypeToggle7</tabstop>
+  <tabstop>equipTypeCount7</tabstop>
+  <tabstop>equipTypeToggle8</tabstop>
+  <tabstop>equipTypeCount8</tabstop>
+  <tabstop>equipTypeToggle9</tabstop>
+  <tabstop>equipTypeCount9</tabstop>
+  <tabstop>equipTypeToggle10</tabstop>
+  <tabstop>equipTypeCount10</tabstop>
+  <tabstop>equipTypeToggle11</tabstop>
+  <tabstop>equipTypeCount11</tabstop>
+  <tabstop>equipTypeToggle12</tabstop>
+  <tabstop>equipTypeCount12</tabstop>
+  <tabstop>equipTypeToggle13</tabstop>
+  <tabstop>equipTypeCount13</tabstop>
+  <tabstop>equipTypeToggle14</tabstop>
+  <tabstop>equipTypeCount14</tabstop>
+  <tabstop>equipTypeToggle15</tabstop>
+  <tabstop>equipTypeCount15</tabstop>
+  <tabstop>equipTypeToggle16</tabstop>
+  <tabstop>equipTypeCount16</tabstop>
+  <tabstop>equipTypeToggle17</tabstop>
+  <tabstop>equipTypeCount17</tabstop>
+  <tabstop>equipTypeToggle18</tabstop>
+  <tabstop>equipTypeCount18</tabstop>
+  <tabstop>equipTypeToggle19</tabstop>
+  <tabstop>equipTypeCount19</tabstop>
   <tabstop>equipMonsterSearchEdit</tabstop>
   <tabstop>equipAdvancedFilterButton</tabstop>
   <tabstop>equipClearFilterButton</tabstop>

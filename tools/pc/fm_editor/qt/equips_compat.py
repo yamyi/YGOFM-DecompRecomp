@@ -6,7 +6,7 @@ from pathlib import Path
 
 def install() -> None:
     from .common import (ATTRIBUTE_NAMES, QFile, QIODevice, QLineEdit,
-                         QListWidget, QListWidgetItem, QMessageBox, QPushButton,
+                         QListWidget, QListWidgetItem, QMessageBox, QPushButton, QCheckBox, QToolButton,
                          QUiLoader, Qt, TYPE_NAMES, decorate_attribute_items,
                          decorate_type_items)
     from .window import ModernEditor
@@ -17,6 +17,7 @@ def install() -> None:
     ModernEditor._equips_compat_installed = True
 
     original_build = ModernEditor._build_workspace_page
+    original_fill_monsters = ModernEditor._fill_equip_monsters
 
     def build(self, name, parent):
         result = original_build(self, name, parent)
@@ -29,9 +30,19 @@ def install() -> None:
         if advanced is None or clear is None:
             raise RuntimeError("Equips form is missing filter controls")
         self.equip_advanced_filters = {"types": set(), "attributes": set(), "bounds": {}}
+        self.equip_type_filter = None
+        controls["type_toggles"] = [page.findChild(QCheckBox, f"equipTypeToggle{typ}")
+                                    for typ in range(20)]
+        controls["type_counts"] = [page.findChild(QToolButton, f"equipTypeCount{typ}")
+                                   for typ in range(20)]
+        if any(widget is None for widget in (*controls["type_toggles"], *controls["type_counts"])):
+            raise RuntimeError("Equips form is missing type-targeting controls")
         advanced.clicked.connect(self._open_equip_advanced_filter)
         clear.clicked.connect(self._clear_equip_advanced_filters)
         controls["monsters"].itemSelectionChanged.connect(self._sync_selected_equip_action)
+        for typ, toggle in enumerate(controls["type_toggles"]):
+            toggle.stateChanged.connect(lambda state, typ=typ: self._toggle_equip_type(typ, state))
+            controls["type_counts"][typ].clicked.connect(lambda _checked=False, typ=typ: self._show_equip_type(typ))
         self._sync_selected_equip_action()
         return result
 
@@ -50,7 +61,7 @@ def install() -> None:
         if not selected or equip not in self.project.cards:
             button.setText("Add selected")
             return
-        targets = self.project.equips.setdefault(equip, self.project.equip_targets(equip))
+        targets = self.project.equip_targets(equip)
         button.setText("Remove selected" if selected.issubset(targets) else "Add selected")
 
     def toggle_selected(self):
@@ -99,11 +110,66 @@ def install() -> None:
         if not controls:
             return
         table = controls["monsters"]
+        only_type = getattr(self, "equip_type_filter", None)
         for row in range(table.rowCount()):
             item = table.item(row, 0)
             cid = item.data(Qt.ItemDataRole.UserRole) if item else None
-            table.setRowHidden(row, cid is None or not self._equip_filter_wanted(cid, text))
+            wanted = cid is not None and self._equip_filter_wanted(cid, text)
+            if wanted and only_type is not None:
+                wanted = self.project.cards[cid].type == only_type
+            table.setRowHidden(row, not wanted)
         self._sync_selected_equip_action()
+
+    def fill_monsters(self):
+        original_fill_monsters(self)
+        controls = self.workspace_controls.get("Equips", {})
+        toggles = controls.get("type_toggles", ())
+        counts = controls.get("type_counts", ())
+        equip = getattr(self, "equip_current", None)
+        editable = equip in self.project.cards and self.project.cards[equip].type == 23
+        targets = self.project.equip_targets(equip) if editable else set()
+        monsters = self.project.monsters() if editable else []
+        for typ, (toggle, count) in enumerate(zip(toggles, counts)):
+            members = {cid for cid in monsters if self.project.cards[cid].type == typ}
+            have = len(targets & members)
+            toggle.blockSignals(True)
+            toggle.setEnabled(editable and bool(members))
+            toggle.setCheckState(Qt.CheckState.Checked if members and have == len(members)
+                                 else Qt.CheckState.PartiallyChecked if have else Qt.CheckState.Unchecked)
+            toggle.blockSignals(False)
+            count.setEnabled(editable and bool(members))
+            count.setText(f"{have}/{len(members)}" if editable else "")
+            count.setDown(getattr(self, "equip_type_filter", None) == typ)
+
+    def toggle_type(self, typ, state):
+        if self._loading_workspace or getattr(self, "_restoring", False):
+            return
+        self._equip_by_type(state != Qt.CheckState.Unchecked.value, typ)
+
+    def show_type(self, typ):
+        self.equip_type_filter = None if getattr(self, "equip_type_filter", None) == typ else typ
+        controls = self.workspace_controls.get("Equips", {})
+        search = controls.get("monster_search")
+        if search is not None:
+            self._filter_equip_monsters(search.text())
+        self._sync_equip_type_controls()
+
+    def sync_type_controls(self):
+        self._fill_equip_monsters()
+
+    def equip_by_type(self, allow, typ=None):
+        equip = getattr(self, "equip_current", None)
+        if equip not in self.project.cards or self.project.cards[equip].type != 23:
+            return
+        typ = 0 if typ is None else typ
+        members = {cid for cid in self.project.monsters() if self.project.cards[cid].type == typ}
+        targets = self.project.equips.setdefault(equip, self.project.equip_targets(equip))
+        if allow:
+            targets.update(members)
+        else:
+            targets.difference_update(members)
+        self._mark_dirty()
+        self._refresh_equips()
 
     def load_filter_form(parent):
         source = QFile(str(Path(__file__).with_name("equip_filter_compat.ui")))
@@ -181,4 +247,9 @@ def install() -> None:
     ModernEditor._clear_equip_advanced_filters = clear_filters
     ModernEditor._equip_filter_wanted = wanted
     ModernEditor._filter_equip_monsters = filter_monsters
+    ModernEditor._fill_equip_monsters = fill_monsters
+    ModernEditor._toggle_equip_type = toggle_type
+    ModernEditor._show_equip_type = show_type
+    ModernEditor._sync_equip_type_controls = sync_type_controls
+    ModernEditor._equip_by_type = equip_by_type
     ModernEditor._open_equip_advanced_filter = open_advanced

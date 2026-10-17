@@ -1758,8 +1758,8 @@ class CardsTest(unittest.TestCase):
         c['equips'].selectRow(row)
         w._select_equip()
         monsters = c['monsters']
-        added = next(r for r in range(monsters.rowCount()) if monsters.item(r, 4).text() == 'Added')
-        removed = next(r for r in range(monsters.rowCount()) if monsters.item(r, 4).text() == 'Removed')
+        added = next(r for r in range(monsters.rowCount()) if monsters.item(r, 5).text() == 'Added')
+        removed = next(r for r in range(monsters.rowCount()) if monsters.item(r, 5).text() == 'Removed')
         self.assertEqual(monsters.item(added, 1).foreground().color().name(), '#7fd49b')
         self.assertEqual(monsters.item(removed, 1).foreground().color().name(), '#ff8f87')
 
@@ -1776,13 +1776,100 @@ class CardsTest(unittest.TestCase):
         monsters.item(row, 0).setCheckState(Qt.CheckState.Checked)
         self.assertIn(monster, w.project.equips[equip])
         self.assertTrue(w.dirty)
-        c['type'].setCurrentIndex(0)
-        w._equip_by_type(True)
-        self.assertTrue(any(w.project.cards[m].type == 0 for m in w.project.equips[equip]))
-        w._equip_by_type(False)
-        self.assertFalse(any(w.project.cards[m].type == 0 for m in w.project.equips[equip]))
+        typ = next(t for t in range(20)
+                   if any(card.type == t for card in w.project.cards.values() if card.is_monster()))
+        members = {cid for cid in w.project.monsters() if w.project.cards[cid].type == typ}
+        c['type_toggles'][typ].setCheckState(Qt.CheckState.Checked)
+        self.assertTrue(members.issubset(w.project.equip_targets(equip)))
+        self.assertEqual(c['type_counts'][typ].text(), f"{len(members)}/{len(members)}")
+        c['type_toggles'][typ].setCheckState(Qt.CheckState.Unchecked)
+        self.assertFalse(members & w.project.equip_targets(equip))
         w._revert_equip()
         self.assertEqual(w.project.equips[equip], w.project.equip_baseline(equip))
+
+    def test_selecting_equip_monsters_does_not_create_a_target_override(self):
+        """Changing table selection is read-only, including for inherited targets."""
+        w = self.window
+        c = self.equips_page()
+        equip = w.equip_current
+        w.project.equips.pop(equip)
+        before = manifest.build(w.project)
+        w._fill_equip_monsters()
+        c['monsters'].selectRow(0)
+        self.qt.processEvents()
+        self.assertNotIn(equip, w.project.equips)
+        self.assertEqual(manifest.build(w.project), before)
+
+    def test_equip_type_controls_show_partial_counts_and_filter_the_table(self):
+        from PySide6.QtCore import Qt
+        w = self.window
+        c = self.equips_page()
+        equip = w.equip_current
+        typ = next(t for t in range(20)
+                   if len([cid for cid in w.project.monsters() if w.project.cards[cid].type == t]) >= 2)
+        members = {cid for cid in w.project.monsters() if w.project.cards[cid].type == typ}
+        w.project.equips[equip] = {next(iter(members))}
+        w._refresh_equips()
+        toggle, count = c['type_toggles'][typ], c['type_counts'][typ]
+        self.assertEqual(toggle.checkState(), Qt.CheckState.PartiallyChecked)
+        self.assertEqual(count.text(), f"1/{len(members)}")
+        count.click()
+        self.assertTrue(all(c['monsters'].isRowHidden(row) ==
+                            (c['monsters'].item(row, 0).data(Qt_UserRole()) not in members)
+                            for row in range(c['monsters'].rowCount())))
+        count.click()
+        self.assertFalse(any(c['monsters'].isRowHidden(row) for row in range(c['monsters'].rowCount())))
+
+    def test_equip_targets_persist_through_save_reopen_and_history(self):
+        w = self.window
+        c = self.equips_page()
+        equip = w.equip_current
+        before = set(w.project.equip_targets(equip))
+        typ = w.project.cards[next(iter(before))].type
+        w._equip_by_type(False, typ)
+        after = set(w.project.equip_targets(equip))
+        self.assertNotEqual(after, before)
+        w._flush_history()
+        w.undo()
+        self.assertEqual(w.project.equip_targets(equip), before)
+        w.redo()
+        self.assertEqual(w.project.equip_targets(equip), after)
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp) / 'mod'
+            manifest.save_mod(w.project, folder)
+            reopened, messages = manifest.open_mod(w.retail, folder)
+        self.assertFalse(messages)
+        self.assertEqual(reopened.equip_targets(equip), after)
+
+    def test_added_equip_and_copied_monster_keep_their_explicit_targets(self):
+        from PySide6.QtCore import Qt
+        w = self.window
+        c = self.equips_page()
+        base_equip = w.equip_current
+        base_target = next(iter(w.project.equip_targets(base_equip)))
+        added_equip = w.project.add_card(base_equip)
+        copied_target = w.project.add_card(base_target)
+        self.assertIn(copied_target, w.project.equip_targets(base_equip))
+        self.assertIn(copied_target, w.project.equip_targets(added_equip))
+        w.equip_current = added_equip
+        w._fill_equip_monsters()
+        row = next(row for row in range(c['monsters'].rowCount())
+                   if c['monsters'].item(row, 0).data(Qt_UserRole()) == copied_target)
+        c['monsters'].item(row, 0).setCheckState(Qt.CheckState.Unchecked)
+        self.assertNotIn(copied_target, w.project.equip_targets(added_equip))
+        self.assertIn(copied_target, w.project.equip_targets(base_equip))
+
+    def test_an_equip_changed_to_another_type_has_no_active_target_controls(self):
+        from fm_editor import gamedata
+        w = self.window
+        c = self.equips_page()
+        equip = w.equip_current
+        w.project.cards[equip].type = gamedata.TYPE_MAGIC
+        w._refresh_equips()
+        listed = {c['equips'].item(row, 0).data(Qt_UserRole())
+                  for row in range(c['equips'].rowCount())}
+        self.assertNotIn(equip, listed)
+        self.assertTrue(all(w.project.cards[cid].type == gamedata.TYPE_EQUIP for cid in listed))
 
     # --- Duelists ---------------------------------------------------------
 
