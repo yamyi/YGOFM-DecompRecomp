@@ -2067,6 +2067,47 @@ class CardsTest(unittest.TestCase):
         self.assertIsNone(fixed_decks.deck_of(fixed_reopened, base))
         self.assertEqual(fixed_reopened.pools[base]['deck'], retail_deck)
 
+    def test_duelist_duplicate_is_exposed_and_keeps_an_independent_subject(self):
+        """The Designer controls expose roster.duplicate() without sharing
+        the source duelist's pools or fixed deck."""
+        from fm_editor import fixed_decks, roster
+        w = self.window
+        c = self.duelists_page()
+        for name in ("duelistRulesButton", "duelistBustButton", "duelistRevertPortraitButton", "duplicateDuelistButton"):
+            self.assertIsNotNone(w.workspace_forms["Duelists"].findChild(type(c["remove"]), name))
+        c['name'].setText('Duplicate Source')
+        c['id'].setText('duplicate-source')
+        c['base'].setCurrentIndex(c['base'].findData(1))
+        c['position'].setCurrentIndex(c['position'].findData(None))
+        w._save_duelist(adding=True)
+        source = w._selected_duelist_subject()
+        c['fixed_radio'].setChecked(True)
+        source_deck = fixed_decks.deck_of(w.project, source)
+        self.assertIsNotNone(source_deck)
+        w._duplicate_duelist()
+        duplicate = w._selected_duelist_subject()
+        self.assertIsNot(duplicate, source)
+        self.assertEqual(duplicate.base, source.base)
+        self.assertEqual(fixed_decks.deck_of(w.project, duplicate).cards, source_deck.cards)
+        duplicate.pools['pow'].clear()
+        self.assertNotEqual(duplicate.pools['pow'], source.pools['pow'])
+        self.assertEqual(len(roster.copies(w.project)), 2)
+
+    def test_duelist_rules_and_bust_dialogs_construct_from_designer_forms(self):
+        """Both data-driven dialogs use their Designer shells and can open
+        for a retail duelist without creating a roster override on cancel."""
+        from PySide6.QtCore import QTimer
+        from PySide6.QtWidgets import QApplication
+        from fm_editor import roster
+        w = self.window
+        self.duelists_page()
+        subject = w._selected_duelist_subject()
+        self.assertIsInstance(subject, int)
+        for open_dialog in (w._open_duelist_rules, w._open_duelist_bust):
+            QTimer.singleShot(0, lambda: QApplication.activeModalWidget().reject())
+            open_dialog()
+        self.assertIsNone(roster.replacement(w.project, subject))
+
     def test_switching_back_to_weighted_keeps_the_fixed_deck_to_hand(self):
         from fm_editor import fixed_decks
         w = self.window

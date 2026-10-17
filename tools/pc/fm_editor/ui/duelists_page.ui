@@ -217,6 +217,30 @@
              </widget>
             </item>
             <item>
+             <widget class="QPushButton" name="duelistRulesButton">
+              <property name="toolTip"><string>Configure AI behavior and duel rank scoring.</string></property>
+              <property name="text"><string>AI &amp;&amp; ranks…</string></property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="duelistBustButton">
+              <property name="toolTip"><string>Edit the duelist's dialogue bust and expressions.</string></property>
+              <property name="text"><string>Bust…</string></property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="duelistRevertPortraitButton">
+              <property name="toolTip"><string>Remove this duelist's portrait override.</string></property>
+              <property name="text"><string>Revert portrait</string></property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="duplicateDuelistButton">
+              <property name="toolTip"><string>Create an independent copy of this custom duelist.</string></property>
+              <property name="text"><string>Duplicate</string></property>
+             </widget>
+            </item>
+            <item>
              <widget class="QPushButton" name="addDuelistButton">
               <property name="text">
                <string>Add duelist</string>

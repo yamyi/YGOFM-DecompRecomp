@@ -4,10 +4,23 @@ from __future__ import annotations
 from .common import *      # noqa: F401,F403
 from .common import (_qimage, _line_count, _pairs_text, _parse_pairs, _whole,
                      _card_image)      # noqa: F401
-from .. import roster
+from .. import roster, duelist_rules, bust as bustm
+from ..gamedata import AI_FIELD_LABELS, RANK_RULES, RANK_STEPS, RANK_ABOVE
 
 
 class DuelistsMixin:
+    def _load_duelist_dialog(self, filename):
+        """Load the Designer-defined dialog shells; Python supplies only the
+        selected roster data and generated rows."""
+        source = QFile(str(Path(__file__).resolve().parents[1] / "ui" / filename))
+        if not source.open(QIODevice.OpenModeFlag.ReadOnly):
+            raise RuntimeError(f"Could not open {filename}: {source.errorString()}")
+        dialog = QUiLoader().load(source, self)
+        source.close()
+        if not isinstance(dialog, QDialog):
+            raise RuntimeError(f"Could not load {filename}")
+        return dialog
+
     ADDED_DUELISTS_DESCRIPTION = re.compile(r"^Adds \d+ duelists to the free duel$")
 
     def _sync_added_duelists_description(self):
@@ -829,6 +842,273 @@ QPushButton#ruleDrop:hover { color: #ffffff; }
         self.statusBar().showMessage(
             f"{record['name']} is unlocked by {', '.join(sorted(unlock))}." if unlock
             else f"{record['name']} is there from the start.", 8000)
+
+    def _duelist_record_or_notice(self, title):
+        slot = getattr(self, "duelist_selected_slot", None)
+        record = self.duelist_slots.get(slot) if slot is not None else None
+        if not record or slot == 0:
+            QMessageBox.information(self, title, "Choose a duelist first.")
+            return None
+        return record
+
+    def _duplicate_duelist(self):
+        """Duplicate an added duelist with its independent pools, bust,
+        portrait and fixed deck through the shared roster model."""
+        record = self._duelist_record_or_notice("Duplicate duelist")
+        if record is None:
+            return
+        subject = record.get("subject")
+        if isinstance(subject, int):
+            QMessageBox.information(
+                self, "Duplicate duelist",
+                "Apply edits to this retail duelist first, then duplicate its custom entry. "
+                "Retail duelists themselves stay part of the game.")
+            return
+        copy = roster.duplicate(self.project, subject)
+        copy.origin = self._roster_origin()
+        self._mark_dirty()
+        self._sync_added_duelists_description()
+        slot = roster.slot_of(self.project, copy)
+        if slot is not None:
+            self.duelist_selected_slot = slot
+            self.workspace_controls["Duelists"]["page"].setCurrentIndex(slot // 40)
+        self._refresh_duelists()
+        self.statusBar().showMessage(f"Duplicated {record['name']} as {roster.shown_name(self.project, copy)}.", 8000)
+
+    def _revert_duelist_portrait(self):
+        record = self._duelist_record_or_notice("Revert portrait")
+        if record is None:
+            return
+        subject = record.get("subject", record["base"])
+        if not roster.has_portrait(self.project, subject):
+            self.statusBar().showMessage("This duelist already uses its inherited portrait.", 5000)
+            return
+        roster.revert_portrait(self.project, subject)
+        self._duelist_portrait_pending = None
+        self._mark_dirty()
+        self._refresh_duelists()
+        self.statusBar().showMessage(f"Restored {record['name']}'s inherited portrait.", 8000)
+
+    def _open_duelist_rules(self):
+        """Edit the game's existing AI and rank-rule records.  The controls
+        are intentionally a dialog: all fields belong to the selected roster
+        subject and write through duelist_rules rather than a Qt-only format."""
+        record = self._duelist_record_or_notice("AI and rank scoring")
+        if record is None:
+            return
+        subject = record.get("subject", record["base"])
+        existing = roster.replacement(self.project, subject) if isinstance(subject, int) else subject
+        view = existing or SimpleNamespace(extra={})
+        ai = duelist_rules.ai_of(view)
+        ranks = duelist_rules.ranks_of(view)
+
+        dialog = self._load_duelist_dialog("duelist_rules_dialog.ui")
+        dialog.setWindowTitle(f"AI and rank scoring — {record['name']}")
+        dialog.findChild(QLabel, "rulesDescription").setText(
+            "Configure this duelist's behaviour and scoring overrides. Unticked values inherit from "
+            "the selected AI source or the retail base.")
+        ai_form = dialog.findChild(QFormLayout, "rulesAiForm")
+        ai_copy = QComboBox()
+        ai_copy.addItem("Retail base", "")
+        for name in self._roster_names():
+            if name != record["name"]:
+                ai_copy.addItem(name, name)
+        ai_copy.setCurrentIndex(max(0, ai_copy.findData(ai["copy"])))
+        ai_form.addRow("AI inheritance", ai_copy)
+        sight = QComboBox()
+        sight.addItem("Inherit retail/base visibility", None)
+        sight.addItem("Can see face-down cards", True)
+        sight.addItem("Cannot see face-down cards", False)
+        sight.setCurrentIndex(max(0, sight.findData(ai["sight"])))
+        ai_form.addRow("Face-down visibility", sight)
+        values_box = QGroupBox("AI values")
+        values_grid = QGridLayout(values_box)
+        ai_widgets = []
+        for row, label in enumerate(AI_FIELD_LABELS):
+            enabled = QCheckBox("Override")
+            number = QSpinBox()
+            number.setRange(-128, 127)
+            current = ai["values"][row]
+            inherited = duelist_rules.under_row(self.project, subject, ai["copy"])[row]
+            number.setValue(inherited if current is None else current)
+            number.setEnabled(current is not None)
+            enabled.setChecked(current is not None)
+            enabled.toggled.connect(number.setEnabled)
+            values_grid.addWidget(QLabel(label), row, 0)
+            values_grid.addWidget(enabled, row, 1)
+            values_grid.addWidget(number, row, 2)
+            ai_widgets.append((enabled, number))
+        ai_form.addRow(values_box)
+
+        rank_layout = dialog.findChild(QVBoxLayout, "rulesRankLayout")
+        rank_layout.setContentsMargins(4, 4, 4, 4)
+        rank_groups = {}
+        for rule, label in enumerate(RANK_RULES):
+            group = QGroupBox(label.title())
+            group.setCheckable(True)
+            group.setChecked(rule in ranks)
+            grid = QGridLayout(group)
+            grid.addWidget(QLabel("Threshold"), 0, 1)
+            grid.addWidget(QLabel("Score change"), 0, 2)
+            current = ranks.get(rule, duelist_rules.retail_rank(rule))
+            pairs = []
+            for step in range(RANK_STEPS):
+                grid.addWidget(QLabel("And above" if step == RANK_STEPS - 1 else f"Step {step + 1}"), step + 1, 0)
+                threshold, change = QSpinBox(), QSpinBox()
+                threshold.setRange(-32768, 32767)
+                change.setRange(-32768, 32767)
+                threshold.setValue(current[step][0])
+                change.setValue(current[step][1])
+                threshold.setEnabled(step != RANK_STEPS - 1)
+                if step == RANK_STEPS - 1:
+                    threshold.setValue(RANK_ABOVE)
+                    threshold.setToolTip("The game always uses 32767 for the final range.")
+                grid.addWidget(threshold, step + 1, 1)
+                grid.addWidget(change, step + 1, 2)
+                pairs.append((threshold, change))
+            rank_layout.addWidget(group)
+            rank_groups[rule] = (group, pairs)
+        rank_layout.addStretch(1)
+
+        restore = dialog.findChild(QPushButton, "rulesRestoreButton")
+        def restore_defaults():
+            ai_copy.setCurrentIndex(0); sight.setCurrentIndex(0)
+            for enabled, number in ai_widgets:
+                enabled.setChecked(False)
+            for rule, (group, pairs) in rank_groups.items():
+                group.setChecked(False)
+                retail = duelist_rules.retail_rank(rule)
+                for step, (threshold, change) in enumerate(pairs):
+                    threshold.setValue(retail[step][0])
+                    change.setValue(retail[step][1])
+        restore.clicked.connect(restore_defaults)
+        cancel = dialog.findChild(QPushButton, "rulesCancelButton")
+        save = dialog.findChild(QPushButton, "rulesSaveButton")
+        save.setObjectName("primary")
+        cancel.clicked.connect(dialog.reject)
+        save.clicked.connect(dialog.accept)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        copy_name = ai_copy.currentData() or ""
+        values = [number.value() if enabled.isChecked() else None for enabled, number in ai_widgets]
+        written_ai = duelist_rules.ai_value(view, copy=copy_name, values=values,
+                                            sight=sight.currentData(),
+                                            under=duelist_rules.under_row(self.project, subject, copy_name))
+        written_ranks = {}
+        for rule, (group, pairs) in rank_groups.items():
+            if group.isChecked():
+                written_ranks[rule] = tuple((RANK_ABOVE if step == RANK_STEPS - 1 else threshold.value(), change.value())
+                                            for step, (threshold, change) in enumerate(pairs))
+        written_ranks = duelist_rules.ranks_value(view, written_ranks)
+        old_unlock = view.extra.get("unlock")
+        duelist_rules.set_rules(self.project, subject, unlock=old_unlock, ai=written_ai, ranks=written_ranks)
+        self._mark_dirty()
+        self._refresh_duelists()
+        self.statusBar().showMessage(f"Saved AI and rank rules for {record['name']}.", 8000)
+
+    def _open_duelist_bust(self):
+        """A compact PySide editor for the existing bust model.  It supports
+        all expression pictures, talking/blink frames, ordering and campaign
+        replacement without inventing a second serialization layer."""
+        record = self._duelist_record_or_notice("Bust editor")
+        if record is None:
+            return
+        subject = record.get("subject", record["base"])
+        dialog = self._load_duelist_dialog("duelist_bust_dialog.ui")
+        dialog.setWindowTitle(f"Bust editor — {record['name']}")
+        listing = dialog.findChild(QListWidget, "bustExpressionList")
+        preview = dialog.findChild(QLabel, "bustPreview")
+        mode = dialog.findChild(QComboBox, "bustFrameMode")
+        side = dialog.findChild(QComboBox, "bustSide")
+        button_names = {"add": "bustAddButton", "rename": "bustRenameButton", "remove": "bustRemoveButton",
+                        "default": "bustDefaultButton", "up": "bustUpButton", "down": "bustDownButton",
+                        "picture": "bustPictureButton", "talk": "bustTalkButton", "untalk": "bustUntalkButton",
+                        "blink": "bustBlinkButton", "unblink": "bustUnblinkButton", "drop": "bustDropButton"}
+        buttons = {key: dialog.findChild(QPushButton, name) for key, name in button_names.items()}
+        replace = dialog.findChild(QCheckBox, "bustReplaceCheck")
+        note = dialog.findChild(QLabel, "bustNote")
+
+        def bust(): return roster.bust_of(self.project, subject)
+        def selected():
+            b = bust(); item = listing.currentItem()
+            return next((e for e in (b.expressions if b else []) if item and item.data(Qt.ItemDataRole.UserRole) is e), None)
+        def png_from_dialog(title):
+            path, _ = QFileDialog.getOpenFileName(dialog, title, "", "PNG images (*.png)")
+            if not path: return None
+            try: return Path(path).read_bytes() if pngio.decode(Path(path).read_bytes()) else None
+            except (OSError, pngio.PngError) as problem:
+                QMessageBox.warning(dialog, "Invalid PNG", str(problem)); return None
+        def changed():
+            self._mark_dirty(); self._refresh_duelists(); refresh()
+        def refresh(*_):
+            b, keep = bust(), selected()
+            listing.blockSignals(True)
+            listing.clear()
+            if b is not None:
+                for number, expr in enumerate(bustm.order(b)):
+                    frames = f" · talk {len(expr.talk)}" if expr.talk else ""
+                    if expr.blink is not None: frames += " · blink"
+                    item = QListWidgetItem(f"{number}. {expr.name}{frames}")
+                    item.setData(Qt.ItemDataRole.UserRole, expr); listing.addItem(item)
+                    if expr is keep: listing.setCurrentItem(item)
+                if listing.currentRow() < 0 and listing.count(): listing.setCurrentRow(0)
+            listing.blockSignals(False)
+            expr = selected()
+            selected_mode = mode.currentData()
+            selected_mode = (("talk", int(selected_mode[-1])) if isinstance(selected_mode, str) and selected_mode.startswith("talk") else selected_mode)
+            image = bustm.frame(expr, selected_mode) if expr is not None else None
+            stage = bustm.preview(image, side.currentData())
+            preview.setPixmap(QPixmap.fromImage(_qimage(stage.width, stage.height, stage.rgba)))
+            can_edit = b is not None and not b.unread and expr is not None
+            for key in ("rename", "remove", "default", "up", "down", "picture", "talk", "blink"):
+                buttons[key].setEnabled(can_edit)
+            buttons["untalk"].setEnabled(can_edit and bool(expr.talk))
+            buttons["unblink"].setEnabled(can_edit and expr.blink is not None)
+            buttons["drop"].setEnabled(b is not None)
+            buttons["add"].setEnabled(subject != 0 and not (b and b.unread))
+            replace.setVisible(isinstance(subject, int)); replace.setEnabled(isinstance(subject, int) and b is not None)
+            entry = roster.replacement(self.project, subject) if isinstance(subject, int) else subject
+            replace.blockSignals(True); replace.setChecked(bool(entry and entry.replace_bust)); replace.blockSignals(False)
+            note.setText("Use a bust replacement only when the campaign should show it too." if isinstance(subject, int) else
+                         "An added duelist's bust is used whenever a story names it.")
+        def edit_expr(action):
+            expr = selected(); b = bust()
+            if action == "add":
+                data = png_from_dialog("Choose expression picture")
+                if not data: return
+                name, ok = QInputDialog.getText(dialog, "Expression name", "Name:", text="default" if b is None else "expression")
+                if ok:
+                    try:
+                        target = roster.give_bust(self.project, subject, data, name) if b is None else b
+                        if b is not None: bustm.add(target, name, data)
+                    except ValueError as problem: QMessageBox.warning(dialog, "Expression", str(problem)); return
+                    changed()
+            elif expr is None: return
+            elif action == "rename":
+                name, ok = QInputDialog.getText(dialog, "Rename expression", "Name:", text=expr.name)
+                if ok:
+                    try: bustm.rename(b, expr, name)
+                    except ValueError as problem: QMessageBox.warning(dialog, "Expression", str(problem)); return
+                    changed()
+            elif action == "remove": bustm.remove(b, expr); changed()
+            elif action == "default": b.default = expr.name; changed()
+            elif action in ("up", "down"): bustm.move(b, expr, -1 if action == "up" else 1); changed()
+            elif action in ("picture", "talk", "blink"):
+                data = png_from_dialog("Choose bust frame")
+                if not data: return
+                if action == "picture": expr.image, expr.image_path = data, None
+                elif action == "talk": expr.talk.append(data); expr.talk_paths.append(None)
+                else: expr.blink, expr.blink_path = data, None
+                changed()
+            elif action == "untalk": expr.talk, expr.talk_paths = [], []; changed()
+            elif action == "unblink": expr.blink, expr.blink_path = None, None; changed()
+            elif action == "drop": roster.drop_bust(self.project, subject); changed()
+        for key, button in buttons.items(): button.clicked.connect(lambda _=False, key=key: edit_expr(key))
+        listing.currentItemChanged.connect(refresh); mode.currentIndexChanged.connect(refresh); side.currentIndexChanged.connect(refresh)
+        replace.toggled.connect(lambda on: (roster.set_replace_bust(self.project, subject, on), changed()) if isinstance(subject, int) and bust() is not None else None)
+        dialog.findChild(QPushButton, "bustCloseButton").clicked.connect(dialog.accept)
+        refresh(); dialog.exec()
 
     def _remove_duelist(self):
         slot = getattr(self, "duelist_selected_slot", None)
