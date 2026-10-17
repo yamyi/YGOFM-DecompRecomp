@@ -1671,6 +1671,8 @@ class CardsTest(unittest.TestCase):
         self.assertFalse(c['cards'].isRowHidden(row))
 
     def test_inactive_ritual_recipes_remain_visible_for_inspection(self):
+        from PySide6.QtWidgets import QPushButton
+
         from fm_editor import gamedata
         w = self.window
         ritual, c, _row = self.a_ritual()
@@ -1684,6 +1686,12 @@ class CardsTest(unittest.TestCase):
         self.assertFalse(c['cards'].isRowHidden(row))
         c['cards'].selectRow(row)
         w._select_ritual()
+        self.assertFalse(c['result'].isEnabled())
+        self.assertFalse(c['conditions'].isEnabled())
+        self.assertFalse(c['page'].findChild(QPushButton, 'applyRitualButton').isEnabled())
+        draft_before = [dict(requirement) for requirement in w._ritual_draft(ritual)['tributes']]
+        w._select_or_add_tribute(3)
+        self.assertEqual(w._ritual_draft(ritual)['tributes'], draft_before)
         w._apply_ritual_selector_recipe()
         self.assertEqual(w.project.rituals[ritual], before)
 

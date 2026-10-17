@@ -542,11 +542,26 @@ def install() -> None:
         labels["ruleBasedSummary"].setVisible(not specific)
         for control in (specific_preview, specific_combo, specific_change):
             control.setVisible(specific)
-        controls["conditions"].setEnabled(not specific)
-        widget(page, QPushButton, "clearConditionsButton").setEnabled(not specific)
+        controls["conditions"].setEnabled(not specific and not inactive)
+        widget(page, QPushButton, "clearConditionsButton").setEnabled(not specific and not inactive)
         labels["recipeSentenceLabel"].setText(
             f"Play {self.project.cards[ritual].name} with {len(tributes)} tribute{'s' if len(tributes) != 1 else ''} {origin} to summon {self.project.card_label(result)}.")
         self._refresh_ritual_conditions()
+        # A retained recipe for a card that no longer has the Ritual type is
+        # inspectable but cannot be applied by the game.  Leave navigation
+        # available while making every mutating control explicitly read-only.
+        for control in (controls["result"], controls["specific"], controls["condition_type"],
+                        controls["condition_group"], controls["condition_number"],
+                        widget(page, QCheckBox, "conditionDefenseAboveAttackCheck")):
+            control.setEnabled(not inactive)
+        for name in ("specificCardModeRadio", "ruleBasedModeRadio",
+                     "originFieldRadio", "originHandRadio", "originBothRadio",
+                     "removeSelectedTributeButton", "addConditionButton",
+                     "clearConditionsButton", "applyRitualButton", "giveOwnRecipeButton",
+                     "removeRecipeButton", "revertRitualButton", "addRitualButton",
+                     "duplicateRitualButton", "deleteRitualButton", "changeRitualResultButton",
+                     "chooseSpecificTributeCardButton", "chooseConditionCardButton"):
+            widget(page, QPushButton if name.endswith("Button") else QRadioButton, name).setEnabled(not inactive)
 
     def _ritual_tribute_text(self, requirement):
         parts = []
@@ -562,7 +577,9 @@ def install() -> None:
 
     def _select_or_add_tribute(self, index):
         ritual = getattr(self, "ritual_current", None)
-        draft = self._ritual_draft(ritual) if ritual in self.project.cards else None
+        if ritual not in self.project.cards or not self.project.is_ritual(ritual):
+            return
+        draft = self._ritual_draft(ritual)
         if draft is None: return
         if index >= len(draft["tributes"]):
             if len(draft["tributes"]) >= 5: return
