@@ -2607,6 +2607,57 @@ class CardsTest(unittest.TestCase):
         self.assertNotIn(1, w.project.card_extra)
         self.assertEqual(w.effects_table.rowCount(), 0)
 
+    def test_copy_effect_edit_overrides_inheritance_without_changing_its_base(self):
+        """Editing a copied card's effect creates an isolated override."""
+        w = self.window
+        source = {'when': 'summon', 'do': 'boost', 'target': 'self', 'attack': 500}
+        w.project.set_monster_effects(1, [source])
+        copied = w.project.add_card(1)
+
+        w.show_card(copied)
+        self.assertEqual(w.project.monster_effects_of(copied), ([source], True))
+        self.assertEqual(w.effects_table.rowCount(), 1)
+        w.effects_table.selectRow(0)
+        editor = w._inline_effect_editor
+        editor['attack'].setValue(800)
+        editor['save'].click()
+
+        expected = {'when': 'summon', 'do': 'boost', 'target': 'self', 'attack': 800}
+        self.assertEqual(w.project.monster_effects_of(copied), ([expected], False))
+        self.assertEqual(w.project.monster_effects_of(1), ([source], False))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest.save_mod(w.project, Path(tmp) / 'mod')
+            reopened, _ = manifest.open_mod(w.retail, Path(tmp) / 'mod')
+        self.assertEqual(reopened.monster_effects_of(1), ([source], False))
+        self.assertEqual(reopened.monster_effects_of(copied), ([expected], False))
+
+    def test_effect_add_and_edit_undo_and_redo_independently(self):
+        """Each effect change has its own reversible history entry."""
+        w = self.window
+        w.show_card(1)
+        w._add_card_effect()
+        editor = w._inline_effect_editor
+        editor['save'].click()
+        w._flush_history()
+        self.assertEqual(w.project.monster_effects_of(1)[0][0]['attack'], 500)
+
+        w.undo()
+        self.assertEqual(w.project.monster_effects_of(1), ([], False))
+        w.redo()
+        self.assertEqual(w.project.monster_effects_of(1)[0][0]['attack'], 500)
+
+        w.show_card(1)
+        w.effects_table.selectRow(0)
+        editor['attack'].setValue(800)
+        editor['save'].click()
+        w._flush_history()
+        self.assertEqual(w.project.monster_effects_of(1)[0][0]['attack'], 800)
+        w.undo()
+        self.assertEqual(w.project.monster_effects_of(1)[0][0]['attack'], 500)
+        w.redo()
+        self.assertEqual(w.project.monster_effects_of(1)[0][0]['attack'], 800)
+
     def test_monster_effect_for_each_round_trips_through_inline_editor(self):
         """Editing a multiplier retains it; Designer controls can add or remove it."""
         w = self.window
