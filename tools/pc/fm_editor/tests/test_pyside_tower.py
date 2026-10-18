@@ -20,7 +20,7 @@ try:
     from fm_editor.pyside_app import ModernEditor
 except ImportError:
     QApplication = None
-from fm_editor import manifest, roster, tower
+from fm_editor import bust as bustm, manifest, roster, tower
 from fm_editor.tests.test_data import fixture
 
 
@@ -287,6 +287,44 @@ class TowerTest(unittest.TestCase):
         c['only_list'].item(index).setCheckState(Qt.CheckState.Unchecked)
         self.assertEqual(tower.tower_only(w.project), [])
 
+    def test_a_bust_change_on_duelists_reflects_back_in_the_stage_picker(self):
+        """A tower-only duelist's own bust is shared, live, with the
+        Duelists page: adding an expression there must show up in the
+        Stage's duelist/expression pickers on returning to Tower, and
+        undo/redo must follow the same bust state the page displays."""
+        from fm_editor.tests.test_bust import ANGRY, CALM, figure
+        w = self.window
+        added = roster.add_copy(w.project, 1, 'Ghost')
+        b = roster.give_bust(w.project, added, figure(CALM), 'calm')
+        tower.set_tower_only(w.project, added.key, True)
+        c = self.tower_page()
+        c['enabled'].setChecked(True)
+        w._mark_dirty()
+        w._flush_history()      # a baseline snapshot: undo must stop here, not at the empty project
+        identity = roster.identity(w.project, added)
+        self.assertIn(identity, [c['stage_duelist'].itemText(i) for i in range(c['stage_duelist'].count())])
+        c['stage_duelist'].setCurrentText(identity)
+        self.assertEqual([c['stage_bust_expression'].itemText(i) for i in range(c['stage_bust_expression'].count())],
+                         ['calm'])
+        # "Switch to Duelists and modify the bust": the Duelists page itself
+        # writes through bust.add on the same shared Bust object.
+        w.select_workspace('Duelists')
+        bustm.add(b, 'angry', figure(ANGRY))
+        w._mark_dirty()
+        w._flush_history()
+        w.select_workspace('Tower')
+        c = self.tower_page()
+        self.assertEqual([c['stage_bust_expression'].itemText(i) for i in range(c['stage_bust_expression'].count())],
+                         ['calm', 'angry'])
+        w.undo()
+        c = self.tower_page()
+        self.assertEqual([c['stage_bust_expression'].itemText(i) for i in range(c['stage_bust_expression'].count())],
+                         ['calm'])
+        w.redo()
+        c = self.tower_page()
+        self.assertEqual([c['stage_bust_expression'].itemText(i) for i in range(c['stage_bust_expression'].count())],
+                         ['calm', 'angry'])
+
     # --- validation and mod info -----------------------------------------------------
 
     def test_the_status_line_reports_tower_check_problems(self):
@@ -296,6 +334,17 @@ class TowerTest(unittest.TestCase):
         c['floor_opponent'].setCurrentText('No Such Duelist At All')
         self.assertTrue(c['status'].text())
         self.assertIn('No Such Duelist At All', c['status'].text())
+        self.assertIn('#ff8f87', c['status'].styleSheet())      # an error: red
+
+    def test_a_warning_only_tower_colors_its_status_line_differently_from_an_error(self):
+        w = self.window
+        c = self.tower_page()
+        c['enabled'].setChecked(True)
+        c['music'].setText('not a song id')      # tower.check(): a warning, not an error
+        self.assertIn('warning', c['status'].text())
+        self.assertNotIn('error', c['status'].text())
+        self.assertIn('#f2c04c', c['status'].styleSheet())      # a warning only: amber, not red
+        self.assertNotIn('#ff8f87', c['status'].styleSheet())
 
     def test_mod_info_does_not_show_or_overwrite_the_tower(self):
         w = self.window
@@ -557,6 +606,31 @@ class TowerTest(unittest.TestCase):
                 reopened, notes2 = manifest.open_mod(w.retail, str(out))
             self.assertEqual(notes2, [])
             self.assertEqual(reopened.other['tower'], hand_tower)
+
+    def test_a_malformed_floor_is_preserved_and_reported(self):
+        """A floor that is not an object (bad imported data) must survive
+        unedited -- the floor list shows it as "(not an object)" rather than
+        discarding it -- and the shared validator must flag it."""
+        w = self.window
+        hand_tower = {'floors': [{'duelist': 'Seto'}, 'not an object at all', 42]}
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / 'source'
+            source.mkdir()
+            (source / 'mod.json').write_text(json.dumps({
+                'id': 'malformed-tower', 'name': 'Malformed', 'tower': hand_tower,
+            }), encoding='utf-8')
+            project, notes = manifest.open_mod(w.retail, str(source))
+            self.assertEqual(notes, [])
+        w.project = project
+        w._reload_pages()
+        c = self.tower_page()
+        self.assertEqual(c['floor_tree'].topLevelItemCount(), 3)
+        self.assertEqual(c['floor_tree'].topLevelItem(1).text(1), '(not an object)')
+        self.assertEqual(c['floor_tree'].topLevelItem(2).text(1), '(not an object)')
+        self.assertTrue(any('floors[1]' in line or 'floors[2]' in line
+                            for line in c['status'].text().splitlines()))
+        w.select_workspace('Mod info')     # commits Tower on the way out, untouched
+        self.assertEqual(w.project.other['tower'], hand_tower)
 
     def test_save_and_reopen_round_trips_the_tower(self):
         w = self.window

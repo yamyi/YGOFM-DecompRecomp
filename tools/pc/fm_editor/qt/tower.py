@@ -1,7 +1,6 @@
-"""The Tower page (a port of tower_tab.TowerTab's configuration, floors and
-tower-only duelists; the Stage picker and story artwork are not wired up in
-this build yet -- use the [scene: ...]/[left: ...]/[right: ...] syntax in the
-story boxes directly)."""
+"""The Tower page: a port of tower_tab.TowerTab's configuration, floors,
+tower-only duelists, and the Stage toolbar (scene/character/bust directives,
+live previews and PNG import)."""
 from __future__ import annotations
 
 from contextlib import contextmanager
@@ -397,7 +396,11 @@ class TowerMixin:
                                lambda name: roster.bust_of(self.project, roster.named(self.project, name)),
                                lambda name: roster.shows_bust(self.project, roster.named(self.project, name)))
         c["status"].setText("\n".join(f"{level}: {where}: {message}" for level, where, message in problems))
-        c["status"].setStyleSheet("color:#ff8f87" if problems else "color:#7fd49b")
+        # The Tk tab's own status line is plainly styled "Error.TLabel"
+        # throughout; the Problems page's summary tells error from warning
+        # by color (_refresh_problems), which reads better here too.
+        errors = any(level == "error" for level, _, _ in problems)
+        c["status"].setStyleSheet("color:#ff8f87" if errors else "color:#f2c04c" if problems else "color:#7fd49b")
         tree = c["floor_tree"]
         for index in range(tree.topLevelItemCount()):
             item = tree.topLevelItem(index)
