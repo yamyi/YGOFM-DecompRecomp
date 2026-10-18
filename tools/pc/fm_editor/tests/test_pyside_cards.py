@@ -475,7 +475,7 @@ class CardsTest(unittest.TestCase):
         w.select_workspace('Assets')
         c = w.workspace_controls['Assets']['frames']
         self.assertEqual(c['form'].objectName(), 'FramesTab')
-        self.assertEqual(c['style'].currentText(), 'custom')
+        self.assertEqual(c['style'].currentItem().text(), 'custom')
 
         # Select Artwork through the tree model exactly as a user does, then
         # edit its game-pixel position through the Designer spin boxes.
@@ -491,9 +491,9 @@ class CardsTest(unittest.TestCase):
         w.show()
         self.qt.processEvents()
         canvas, box = c['preview'], c['boxes']['art']
-        scale = min(canvas.width() / 320, canvas.height() / 240)
-        point = QPoint(round((canvas.width() - 320 * scale) / 2 + (box[0] + box[2] / 2) * scale),
-                       round((canvas.height() - 240 * scale) / 2 + (box[1] + box[3] / 2) * scale))
+        scale = min(canvas.width() / 140, canvas.height() / 196)
+        point = QPoint(round((canvas.width() - 140 * scale) / 2 + (box[0] + box[2] / 2) * scale),
+                       round((canvas.height() - 196 * scale) / 2 + (box[1] + box[3] / 2) * scale))
         QTest.mousePress(canvas, Qt.MouseButton.LeftButton, pos=point)
         QTest.mouseMove(canvas, QPoint(point.x() + round(5 * scale), point.y() + round(3 * scale)))
         QTest.mouseRelease(canvas, Qt.MouseButton.LeftButton, pos=QPoint(point.x() + round(5 * scale), point.y() + round(3 * scale)))
