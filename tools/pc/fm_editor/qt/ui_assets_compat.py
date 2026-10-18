@@ -5,7 +5,7 @@ This compatibility module stays separate from master-tracked editor files.
 from __future__ import annotations
 
 from .common import *  # noqa: F401,F403
-from .common import _qimage
+from .common import _qimage, _card_frame_background
 from PySide6.QtCore import QObject, QEvent
 from .. import art, board_art, board_model, card_text, duel_screen, gamedata, packs, pngio, ttf, ui_assets, ui_rules
 import contextlib
@@ -656,6 +656,9 @@ _FRAME_SPEC = {item[0]: item for item in _FRAME_PARTS}
 _FRAME_DIRECT = {"frame", "back", "hand", "field", "field_back", "library"}
 _FRAME_IMAGE = {"digits", "atk_label", "dfd_label", "magic_label", "equip_label", "ritual_label", "trap_label"}
 _FRAME_MOVABLE = {part[0] for part in _FRAME_PARTS if part[0] not in _FRAME_DIRECT}
+# gamedata.FRAME_NAMES order (cards.c frame_names): equip draws as magic,
+# the same rule gamedata.type_frame uses for a card's own shown_frame().
+_FRAME_INDEX = {"monster": 0, "magic": 1, "equip": 1, "trap": 2, "ritual": 3}
 
 # Retail card-view sprites live in WA_MRG.MRG.  These three extractors are
 # copied from card_icons.py instead of importing it: card_icons also imports
@@ -714,6 +717,23 @@ def _hand_sprite(wa, u, v, width=8, height=8):
         return None
     source = ("frame-hand-sprite", u, v, width, height)
     return sheet._cached(source, lambda: sheet.vram.sprite(896, 256, 8, 256, 241, u, v, width, height))
+
+
+def _hand_frame_background(wa, frame_index):
+    """The plain 52x60 hand-card plate (duel_screen.HAND_FRAME/HAND_CLUT),
+    the same disc pixels hand_card() composes a duel hand with."""
+    if not wa:
+        return None
+    key = id(wa)
+    sheet = _HAND_SHEETS.get(key)
+    if sheet is None:
+        sheet = _HAND_SHEETS[key] = ui_assets.DuelArt(wa)
+    if not sheet.ok:
+        return None
+    page_x, page_y, bits, u, v, w, h = duel_screen.HAND_FRAME
+    clut_x, clut_y = duel_screen.HAND_CLUT
+    source = ("frame-hand-plate", frame_index)
+    return sheet._cached(source, lambda: sheet.vram.sprite(page_x, page_y, bits, clut_x, clut_y + frame_index, u, v, w, h))
 
 
 def _frame_sized(image, width, height):
@@ -1162,6 +1182,7 @@ def _draw_frames(editor):
         painter.end(); _set_preview_pixmap(c["preview"], QPixmap.fromImage(image)); return
     face = _frames_widget(c["form"], QRadioButton, "frontRadio").isChecked()
     kind = _frame_preview_kind(c)
+    wa = getattr(getattr(editor, "files", None), "wa", None)
     painter.fillRect(0, 0, 140, 196, QColor("#06080d")); c["boxes"] = {}
     base = "frame" if face else "back"
     bx, by, bw, bh = _frame_rect(editor, base)
@@ -1169,6 +1190,10 @@ def _draw_frames(editor):
     frame_image = _ui_image(editor, _frame_asset(editor, base))
     if frame_image is not None:
         _frame_draw_picture(painter, frame_image, QRect(bx, by, bw, bh))
+    elif base == "frame" and wa:
+        plate = _card_frame_background(editor.project, wa, _FRAME_INDEX[kind], kind == "monster",
+                                       c.setdefault("retail_frame_cache", {}), _FRAME_RENDER_SCALE)
+        painter.drawImage(QRect(bx, by, bw, bh), plate)
     else:
         painter.fillRect(bx, by, bw, bh, QColor("#35415b")); painter.setPen(QColor("#9da9bf")); painter.drawRect(bx, by, bw, bh)
     if not face:
@@ -1177,7 +1202,6 @@ def _draw_frames(editor):
     # This is the same 140×196 card-view composition as the classic Frames
     # page: retail art, VRAM star/attribute/caption sprites, the game font,
     # and its title plate.  It deliberately does not use generic Qt text.
-    wa = getattr(getattr(editor, "files", None), "wa", None)
     try: font = card_text.RetailFont(wa) if wa else None
     except ValueError: font = None
     retail_art = art.in_game(editor.project, wa, _frame_card_id(editor) or 1, "art", _FRAME_RENDER_SCALE) if wa else None
@@ -1247,10 +1271,14 @@ def _draw_hand_template(editor, painter, c):
     c["boxes"] = {}
     box = QRect(left, top, width, height)
     c["boxes"]["hand"] = (box.x(), box.y(), box.width(), box.height())
-    hand_asset = _ui_image(editor, _frame_asset(editor, "hand"))
-    if hand_asset is not None: _frame_draw_picture(painter, hand_asset, box)
-    else: painter.fillRect(box, QColor("#665328"))
     wa = getattr(getattr(editor, "files", None), "wa", None)
+    hand_asset = _ui_image(editor, _frame_asset(editor, "hand"))
+    if hand_asset is not None:
+        _frame_draw_picture(painter, hand_asset, box)
+    else:
+        plate = _hand_frame_background(wa, _FRAME_INDEX[_frame_preview_kind(c)])
+        if plate is not None: _frame_draw_picture(painter, plate, box)
+        else: painter.fillRect(box, QColor("#665328"))
     retail_art = art.in_game(editor.project, wa, _frame_card_id(editor) or 1, "art", _FRAME_RENDER_SCALE) if wa else None
     ax, ay, aw, ah = _frame_rect(editor, "hand_art")
     art_box = QRect(left + ax, top + ay, aw, ah)

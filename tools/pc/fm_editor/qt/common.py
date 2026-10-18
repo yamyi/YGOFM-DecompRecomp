@@ -794,10 +794,12 @@ def _draw_card_details(painter: QPainter, project: Project, wa: bytes, cid: int,
     painter.restore()
 
 
-def _card_image(project: Project, wa: bytes, cid: int, frame_cache: dict, scale: int = 1) -> QPixmap:
-    """Compose the full 140x196 card sprite from its atlas fragments."""
-    card = project.cards[cid]
-    frame_index = card.shown_frame()
+def _card_frame_background(project: Project, wa: bytes, frame_index: int, is_monster: bool,
+                           frame_cache: dict, scale: int = 1) -> QImage:
+    """The plain 140x196 frame plate (card_icons' Library atlas, row 8 +
+    frame_index), before any art/title/stats are drawn over it.  Shared by
+    the card preview (_card_image) and the Frames editor's own retail
+    fallback, so both show the same disc pixels for the same frame_index."""
     scale = 4 if scale >= 4 else 1
     project_key = id(getattr(project, "retail", project))
     texture_key = (frame_index, id(wa), project_key, scale, "texture")
@@ -820,7 +822,6 @@ def _card_image(project: Project, wa: bytes, cid: int, frame_cache: dict, scale:
                 wa, 0xEE6800 + 16 * image_extract.SECTOR, 64, 256, 8, palette)
             frame_cache[texture_key] = (face, _qimage(right_width, right_height, right_rgba), 1)
 
-    is_monster = card.is_monster()
     frame_key = (frame_index, id(wa), project_key, scale, "monster" if is_monster else "non-monster")
     if frame_key not in frame_cache:
         atlas, right_atlas, texture_scale = frame_cache[texture_key]
@@ -851,12 +852,21 @@ def _card_image(project: Project, wa: bytes, cid: int, frame_cache: dict, scale:
                                 64 * texture_scale, 4 * texture_scale), bottom_middle)
         painter.end()
         frame_cache[frame_key] = frame
+    return frame_cache[frame_key]
+
+
+def _card_image(project: Project, wa: bytes, cid: int, frame_cache: dict, scale: int = 1) -> QPixmap:
+    """Compose the full 140x196 card sprite from its atlas fragments."""
+    card = project.cards[cid]
+    frame_index = card.shown_frame()
+    scale = 4 if scale >= 4 else 1
+    plate = _card_frame_background(project, wa, frame_index, card.is_monster(), frame_cache, scale)
 
     out = QImage(140 * scale, 196 * scale, QImage.Format.Format_ARGB32_Premultiplied)
     out.fill(QColor(0, 0, 0, 0))
     p = QPainter(out)
     p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
-    p.drawImage(QRect(0, 0, 140 * scale, 196 * scale), frame_cache[frame_key])
+    p.drawImage(QRect(0, 0, 140 * scale, 196 * scale), plate)
 
     try:
         picture = art.in_game(project, wa, cid, "art", scale)
