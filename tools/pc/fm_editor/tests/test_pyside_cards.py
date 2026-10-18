@@ -413,9 +413,9 @@ class CardsTest(unittest.TestCase):
         from fm_editor import manifest
 
         w = self.window
-        w.select_workspace('Assets')
-        c = w.workspace_controls['Assets']
-        self.assertIs(c['shell'], w.workspace_forms['Assets'])
+        w.select_workspace('UI')
+        c = w.workspace_controls['UI']
+        self.assertIs(c['shell'], w.workspace_forms['UI'])
         self.assertFalse(any(item['name'].startswith('card_frames/') for item in c['catalog']))
         self.assertFalse(any('modified asset' in label.text()
                              for label in c['assets_tab'].findChildren(QLabel)))
@@ -490,10 +490,10 @@ class CardsTest(unittest.TestCase):
         from fm_editor import manifest
 
         w = self.window
-        w.select_workspace('Assets')
-        c = w.workspace_controls['Assets']['frames']
+        w.select_workspace('UI')
+        c = w.workspace_controls['UI']['frames']
         self.assertEqual(c['form'].objectName(), 'FramesPage')
-        self.assertIs(w.workspace_controls['Assets']['frames_tab'], c['form'])
+        self.assertIs(w.workspace_controls['UI']['frames_tab'], c['form'])
         self.assertEqual(c['style'].currentItem().text(), 'custom')
         # The preview retains the game renderer's 4x internal card texture,
         # while its placement and hit-testing remain in 140×196 game pixels.
@@ -511,7 +511,7 @@ class CardsTest(unittest.TestCase):
         c['y'].setValue(55)
         # The preview uses the same game-pixel values as its spin boxes; a
         # direct drag must select and move the part, not only redraw it.
-        w.workspace_controls['Assets']['tabs'].setCurrentWidget(c['form'])
+        w.workspace_controls['UI']['tabs'].setCurrentWidget(c['form'])
         w.show()
         self.qt.processEvents()
         form_width, canvas_width = c['form'].width(), c['preview'].width()
@@ -532,6 +532,31 @@ class CardsTest(unittest.TestCase):
         art_position = (w.project.other['card_layout']['frame_styles']['custom']['art']['x'],
                         w.project.other['card_layout']['frame_styles']['custom']['art']['y'])
         self.assertNotEqual(art_position, (27, 55))
+
+        # Frame images can be imported and exported through the Designer
+        # controls, with the exact replacement saved in frames/.
+        source = self.pack_png(16, 16)
+        with mock.patch('fm_editor.qt.ui_assets_compat.QFileDialog.getOpenFileName', return_value=(source, '')):
+            c['form'].findChild(QPushButton, 'chooseImageButton').click()
+        export = c['form'].findChild(QPushButton, 'exportImageButton')
+        self.assertTrue(export.isEnabled())
+        with tempfile.TemporaryDirectory() as folder:
+            destination = Path(folder) / 'art.png'
+            with mock.patch('fm_editor.qt.ui_assets_compat.QFileDialog.getSaveFileName', return_value=(str(destination), '')):
+                export.click()
+            self.assertTrue(destination.is_file())
+
+        # Retail comparison is render-only.  Holding it or leaving the
+        # workspace cannot temporarily remove card_layout from the project.
+        before_hold = json.loads(json.dumps(w.project.other['card_layout']))
+        hold = c['form'].findChild(QPushButton, 'showRetailButton')
+        hold.pressed.emit()
+        self.assertTrue(c['retail_preview'])
+        self.assertEqual(w.project.other['card_layout'], before_hold)
+        w.select_workspace('Cards')
+        self.assertFalse(c['retail_preview'])
+        self.assertEqual(w.project.other['card_layout'], before_hold)
+        w.select_workspace('UI')
         c['form'].findChild(QPushButton, 'setGlobalDefaultButton').click()
         c['kind_rule'].setCurrentIndex(c['kind_rule'].findData('monster'))
         c['form'].findChild(QPushButton, 'applyKindButton').click()
@@ -567,8 +592,8 @@ class CardsTest(unittest.TestCase):
         from fm_editor import manifest
 
         w = self.window
-        w.select_workspace('Assets')
-        c = w.workspace_controls['Assets']
+        w.select_workspace('UI')
+        c = w.workspace_controls['UI']
         source = self.pack_png(48, 48)
         with mock.patch('fm_editor.pyside_app.QFileDialog.getOpenFileName', return_value=(source, '')):
             c['shell'].findChild(QPushButton, 'addTitlePictureButton').click()
@@ -601,8 +626,8 @@ class CardsTest(unittest.TestCase):
         from fm_editor import board_art, manifest
 
         w = self.window
-        w.select_workspace('Assets')
-        c = w.workspace_controls['Assets']
+        w.select_workspace('UI')
+        c = w.workspace_controls['UI']
         board_art.set_tint(w.project, ['normal'], [board_art.BY_KEY['wall_middle']], 0x4080C0)
         original = w.project.board_art
         expected = dict(original.tints)

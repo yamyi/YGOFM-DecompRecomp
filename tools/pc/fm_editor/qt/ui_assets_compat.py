@@ -88,7 +88,7 @@ def install():
     def duel(self): return _object(_object(self.project.other, "ui"), "duel")
 
     def _load(self):
-        c = self.workspace_controls.get("Assets", {}); root = self.project.other
+        c = self.workspace_controls.get("UI", {}); root = self.project.other
         if not c: return
         title = root.get("title") if isinstance(root.get("title"), dict) else {}; menu = root.get("menu") if isinstance(root.get("menu"), dict) else {}; value = self._ui_duel().get(c["element"].currentData(), {}); value = value if isinstance(value, dict) else {}
         keys = ("title_background", "title_intro", "title_song", "menu_scale", "menu_tint", "x", "y", "scale", "tint", "hide", "label", "digits", "image", "width", "height")
@@ -103,7 +103,7 @@ def install():
         _load_part(self)
 
     def _load_part(self):
-        c = self.workspace_controls.get("Assets", {})
+        c = self.workspace_controls.get("UI", {})
         if not c: return
         element = self._ui_duel().get(c["element"].currentData(), {}); value = element.get(c["part"].currentData(), {}) if isinstance(element, dict) else {}; value = value if isinstance(value, dict) else {}
         for key in ("part_x", "part_y", "part_spacing", "part_tint", "part_hide"): c[key].blockSignals(True)
@@ -111,7 +111,7 @@ def install():
         for key in ("part_x", "part_y", "part_spacing", "part_tint", "part_hide"): c[key].blockSignals(False)
 
     def _write(self):
-        c = self.workspace_controls["Assets"]; root = self.project.other; title = _object(root, "title")
+        c = self.workspace_controls["UI"]; root = self.project.other; title = _object(root, "title")
         for key, field in (("background", "title_background"), ("intro", "title_intro"), ("song", "title_song")): _put(title, key, c[field].text().strip())
         if not title: root.pop("title", None)
         menu = _object(root, "menu"); _put(menu, "scale", c["menu_scale"].value(), 100); _put(menu, "tint", c["menu_tint"].text().strip())
@@ -128,7 +128,7 @@ def install():
         if not element: duel.pop(c["element"].currentData(), None)
         if not root.get("ui", {}).get("duel"): root.pop("ui", None)
 
-    def _reset(self): self._ui_duel().pop(self.workspace_controls["Assets"]["element"].currentData(), None); _load(self); self._mark_dirty()
+    def _reset(self): self._ui_duel().pop(self.workspace_controls["UI"]["element"].currentData(), None); _load(self); self._mark_dirty()
     def _revert(self):
         for key in ("ui", "title", "menu"): self.project.other.pop(key, None)
         _load(self); self._mark_dirty()
@@ -299,7 +299,7 @@ def _preview_key(boxes, point):
 
 
 def _preview_press(editor, kind, label, position):
-    c = editor.workspace_controls.get("Assets", {})
+    c = editor.workspace_controls.get("UI", {})
     point, key = _preview_point(label, position), _preview_key(c.get(f"{kind}_boxes", {}), _preview_point(label, position))
     if key is None: return
     if kind == "title":
@@ -327,7 +327,7 @@ def _queue_preview_redraw(editor, kind):
     Canvas moves a cached item immediately; these previews compose a complete
     image, so drawing each raw event starves subsequent pointer events.
     """
-    c = editor.workspace_controls.get("Assets", {})
+    c = editor.workspace_controls.get("UI", {})
     timers = c.setdefault("preview_render_timers", {})
     timer = timers.get(kind)
     if timer is None:
@@ -342,7 +342,7 @@ def _queue_preview_redraw(editor, kind):
 
 
 def _preview_drag(editor, kind, label, position):
-    c, drag = editor.workspace_controls.get("Assets", {}), editor.workspace_controls.get("Assets", {}).get("preview_drag")
+    c, drag = editor.workspace_controls.get("UI", {}), editor.workspace_controls.get("UI", {}).get("preview_drag")
     if not isinstance(drag, dict) or drag.get("kind") != kind: return
     x, y = _preview_point(label, position); start_x, start_y = drag["point"]
     dx, dy = round(x - start_x), round(y - start_y)
@@ -378,7 +378,7 @@ def _preview_drag(editor, kind, label, position):
 def _preview_nudge(editor, kind, key, amount):
     directions = {Qt.Key.Key_Left: (-amount, 0), Qt.Key.Key_Right: (amount, 0), Qt.Key.Key_Up: (0, -amount), Qt.Key.Key_Down: (0, amount)}
     if key not in directions: return False
-    dx, dy = directions[key]; c = editor.workspace_controls.get("Assets", {})
+    dx, dy = directions[key]; c = editor.workspace_controls.get("UI", {})
     if kind == "title":
         chosen = c.get("title_selected", "")
         if chosen == "background": return True
@@ -402,7 +402,7 @@ def _preview_nudge(editor, kind, key, amount):
 
 
 def _preview_wheel(editor, delta):
-    c = editor.workspace_controls.get("Assets", {}); name, part = _duel_path(c.get("duel_selected", ""))
+    c = editor.workspace_controls.get("UI", {}); name, part = _duel_path(c.get("duel_selected", ""))
     if part is not None or name not in ui_rules.SIZED or not delta: return
     target = _duel_target(editor, True); step = 10 if delta > 0 else -10
     target["scale"] = max(25, min(ui_rules.element_scale_max(name, target), _as_int(target.get("scale"), 100) + step))
@@ -410,7 +410,7 @@ def _preview_wheel(editor, delta):
 
 
 def _preview_release(editor, kind):
-    c = editor.workspace_controls.get("Assets", {})
+    c = editor.workspace_controls.get("UI", {})
     drag = c.pop("preview_drag", None)
     timer = c.get("preview_render_timers", {}).get(kind)
     if timer is not None and timer.isActive():
@@ -439,7 +439,7 @@ def _comparing_view(editor):
     "menu" and "ui" keys out of the way, so a page's normal draw shows the
     game's retail look (ui_tab.py's retail_view/draw_compared -- one shared
     flag here too, since only one page's preview is ever drawn at a time)."""
-    c = editor.workspace_controls.get("Assets", {})
+    c = editor.workspace_controls.get("UI", {})
     if not c.get("comparing"):
         yield False
         return
@@ -467,7 +467,7 @@ def _hold_compare(editor, held):
     """Any page's "Hold: the game's" button: show the game's own look while
     held, back to the mod's when let go. One flag for the whole workspace,
     since the classic editor's button is a single one shared by every page."""
-    c = editor.workspace_controls["Assets"]
+    c = editor.workspace_controls["UI"]
     if held == c.get("comparing", False): return
     c["comparing"] = held
     if held:
@@ -634,7 +634,7 @@ _FRAME_PARTS = (
     ("library", "Library icon", ("library_icon",), (0, 0, 24, 32), False, False, True),
     ("digits", "Digit strip", ("digits",), (0, 0, 10, 12), False, True, True),
     ("title", "Card name", ("title",), (12, 14, 96, 14), True, False, False),
-    ("art", "Artwork", ("art",), (19, 50, 102, 96), True, True, False),
+    ("art", "Artwork", ("art",), (19, 50, 102, 96), True, True, True),
     ("stars", "Level stars", ("stars",), (119, 32, 56, 9), True, False, False),
     ("attribute", "Attribute icon", ("attribute",), (110, 13, 16, 16), True, True, False),
     ("atk", "ATK value", ("digits", "atk"), (97, 169, 10, 12), True, True, False),
@@ -654,7 +654,7 @@ _FRAME_PARTS = (
 )
 _FRAME_SPEC = {item[0]: item for item in _FRAME_PARTS}
 _FRAME_DIRECT = {"frame", "back", "hand", "field", "field_back", "library"}
-_FRAME_IMAGE = {"digits", "atk_label", "dfd_label", "magic_label", "equip_label", "ritual_label", "trap_label"}
+_FRAME_IMAGE = {"art", "digits", "atk_label", "dfd_label", "magic_label", "equip_label", "ritual_label", "trap_label"}
 _FRAME_MOVABLE = {part[0] for part in _FRAME_PARTS if part[0] not in _FRAME_DIRECT}
 
 # Retail card-view sprites live in WA_MRG.MRG.  These three extractors are
@@ -801,6 +801,11 @@ def _frame_draw_picture(painter, image, box):
 
 
 def _frame_layout(editor, create=False):
+    # Holding the retail-comparison button affects preview rendering only.  It
+    # must never temporarily remove card_layout from the live project.
+    frames = editor.workspace_controls.get("UI", {}).get("frames", {})
+    if frames.get("retail_preview") and not create:
+        return {}
     value = editor.project.other.get("card_layout")
     if isinstance(value, dict):
         return value
@@ -836,7 +841,7 @@ def _frame_style(editor, create=False):
 
 
 def _frame_style_name(editor):
-    c = editor.workspace_controls["Assets"]["frames"]
+    c = editor.workspace_controls["UI"]["frames"]
     item = c["style"].currentItem()
     return (item.text().strip() if item is not None else c.get("style_name", "custom")) or "custom"
 
@@ -910,7 +915,7 @@ def _drop_frame_orphans(editor):
 
 def _queue_frame_redraw(editor):
     """Limit drag repainting to the display cadence instead of every event."""
-    c = editor.workspace_controls["Assets"]["frames"]
+    c = editor.workspace_controls["UI"]["frames"]
     timer = c.get("drag_render_timer")
     if timer is None:
         timer = c["drag_render_timer"] = QTimer(c["preview"])
@@ -927,16 +932,16 @@ class _FramePreviewEvents(QObject):
     def eventFilter(self, watched, event):
         if event.type() == QEvent.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton:
             point = _frame_preview_point(watched, event.position())
-            key = _preview_key(self.editor.workspace_controls["Assets"]["frames"].get("boxes", {}), point)
+            key = _preview_key(self.editor.workspace_controls["UI"]["frames"].get("boxes", {}), point)
             if key:
-                c = self.editor.workspace_controls["Assets"]["frames"]
+                c = self.editor.workspace_controls["UI"]["frames"]
                 x, y, _, _ = _frame_rect(self.editor, key)
                 c["selected"] = key
                 c["drag"] = {"key": key, "origin": point, "x": x, "y": y, "moved": False}
                 _refresh_frames_tab(self.editor)
             return True
         if event.type() == QEvent.Type.MouseMove and event.buttons() & Qt.MouseButton.LeftButton:
-            c = self.editor.workspace_controls["Assets"]["frames"]; drag = c.get("drag")
+            c = self.editor.workspace_controls["UI"]["frames"]; drag = c.get("drag")
             if not drag: return True
             key = drag["key"]
             if key not in _FRAME_MOVABLE: return True
@@ -951,13 +956,13 @@ class _FramePreviewEvents(QObject):
             _queue_frame_redraw(self.editor)
             return True
         if event.type() == QEvent.Type.MouseButtonRelease and event.button() == Qt.MouseButton.LeftButton:
-            c = self.editor.workspace_controls["Assets"]["frames"]; drag = c.pop("drag", None)
+            c = self.editor.workspace_controls["UI"]["frames"]; drag = c.pop("drag", None)
             timer = c.get("drag_render_timer")
             if timer is not None and timer.isActive(): timer.stop()
             if drag and drag["moved"]: _frame_commit(self.editor)
             return True
         if event.type() == QEvent.Type.Wheel:
-            c = self.editor.workspace_controls["Assets"]["frames"]; key = c.get("selected", "frame")
+            c = self.editor.workspace_controls["UI"]["frames"]; key = c.get("selected", "frame")
             if _FRAME_SPEC[key][5]:
                 owner = _frame_size_owner(self.editor, key, True); _, _, width, height = _frame_rect(self.editor, key); default = _FRAME_SPEC[key][3]
                 step = 4 if event.angleDelta().y() > 0 else -4
@@ -1032,6 +1037,7 @@ def _wire_frames_tab(editor, form, controls):
     _frames_widget(form, QPushButton, "newStyleButton").clicked.connect(lambda: _frame_new_style(editor))
     _frames_widget(form, QPushButton, "deleteStyleButton").clicked.connect(lambda: _frame_delete_style(editor))
     _frames_widget(form, QPushButton, "chooseImageButton").clicked.connect(lambda: _frame_import(editor))
+    _frames_widget(form, QPushButton, "exportImageButton").clicked.connect(lambda: _frame_export(editor))
     _frames_widget(form, QPushButton, "removeImageButton").clicked.connect(lambda: _frame_clear_image(editor))
     _frames_widget(form, QPushButton, "resetElementButton").clicked.connect(lambda: _frame_reset_part(editor))
     _frames_widget(form, QPushButton, "setGlobalDefaultButton").clicked.connect(lambda: _frame_assign(editor, "default", True))
@@ -1046,20 +1052,23 @@ def _wire_frames_tab(editor, form, controls):
     _frames_widget(form, QPushButton, "revertRetailButton").clicked.connect(lambda: _frame_revert_all(editor))
     hold = _frames_widget(form, QPushButton, "showRetailButton")
     hold.pressed.connect(lambda: _frame_hold(editor, True)); hold.released.connect(lambda: _frame_hold(editor, False))
+    # A workspace switch also ends visual comparison if the platform does not
+    # deliver a mouse-release event to the hold button.
+    editor.pages.currentChanged.connect(lambda _: _frame_hold(editor, False))
     _refresh_frames_tab(editor)
 
 
 def _frame_select(editor, item):
-    if item is None or editor.workspace_controls["Assets"]["frames"].get("loading"):
+    if item is None or editor.workspace_controls["UI"]["frames"].get("loading"):
         return
     key = item.data(0, Qt.ItemDataRole.UserRole)
     if key in _FRAME_SPEC:
-        editor.workspace_controls["Assets"]["frames"]["selected"] = key
+        editor.workspace_controls["UI"]["frames"]["selected"] = key
         _refresh_frames_tab(editor)
 
 
 def _frame_style_changed(editor, item):
-    c = editor.workspace_controls["Assets"]["frames"]
+    c = editor.workspace_controls["UI"]["frames"]
     if item is not None:
         c["style_name"] = item.text()
     if not c.get("loading"):
@@ -1067,7 +1076,7 @@ def _frame_style_changed(editor, item):
 
 
 def _refresh_frames_tab(editor):
-    c = editor.workspace_controls.get("Assets", {}).get("frames")
+    c = editor.workspace_controls.get("UI", {}).get("frames")
     if not c or c.get("loading"):
         return
     c["loading"] = True
@@ -1099,8 +1108,10 @@ def _refresh_frames_tab(editor):
         c["visible"].blockSignals(True); c["visible"].setChecked(bool(part.get("hide", False))); c["visible"].setEnabled(spec[4]); c["visible"].blockSignals(False)
         c["image"].setText(_frame_asset(editor, key) or "Uses the game's artwork")
         c["image"].setEnabled(spec[6])
-        for name in ("chooseImageButton", "removeImageButton"):
-            button = _frames_widget(c["form"], QPushButton, name); button.setEnabled(spec[6] and (name != "removeImageButton" or _frame_asset(editor, key) is not None))
+        has_image = _frame_asset(editor, key) is not None
+        _frames_widget(c["form"], QPushButton, "chooseImageButton").setEnabled(spec[6])
+        for name in ("exportImageButton", "removeImageButton"):
+            _frames_widget(c["form"], QPushButton, name).setEnabled(spec[6] and has_image)
         _frames_widget(c["form"], QLabel, "elementName").setText(spec[1])
         _frames_widget(c["form"], QLabel, "styleProperty").setText(current)
         _draw_frames(editor)
@@ -1109,7 +1120,7 @@ def _refresh_frames_tab(editor):
 
 
 def _draw_frames(editor):
-    c = editor.workspace_controls.get("Assets", {}).get("frames")
+    c = editor.workspace_controls.get("UI", {}).get("frames")
     if not c: return
     # Frames are composed at the same four-times internal resolution that the
     # game uses for HD card names.  Logical coordinates remain console pixels,
@@ -1233,7 +1244,7 @@ def _draw_frame_template(editor, painter, controls, size, keys, colour):
 
 
 def _frame_geometry_changed(editor):
-    c = editor.workspace_controls["Assets"]["frames"]
+    c = editor.workspace_controls["UI"]["frames"]
     if c.get("loading"): return
     key, spec = c["selected"], _FRAME_SPEC[c["selected"]]
     part = _frame_part(editor, key, True); owner = _frame_size_owner(editor, key, True); default = spec[3]
@@ -1246,7 +1257,7 @@ def _frame_geometry_changed(editor):
 
 
 def _frame_new_style(editor):
-    c = editor.workspace_controls["Assets"]["frames"]
+    c = editor.workspace_controls["UI"]["frames"]
     name, accepted = QInputDialog.getText(editor, "New frame style", "Style name (for mod.json):")
     name = re.sub(r"[^A-Za-z0-9_-]+", "_", name).strip("_")
     if not accepted or not name: return
@@ -1254,7 +1265,7 @@ def _frame_new_style(editor):
 
 
 def _frame_delete_style(editor):
-    c = editor.workspace_controls["Assets"]["frames"]; name = _frame_style_name(editor); styles = _frame_styles(editor)
+    c = editor.workspace_controls["UI"]["frames"]; name = _frame_style_name(editor); styles = _frame_styles(editor)
     if name not in styles: return
     if QMessageBox.question(editor, "Delete frame style", f'Delete frame style "{name}"? Its assignments will be cleared.') != QMessageBox.StandardButton.Yes: return
     layout = _frame_layout(editor, True); styles.pop(name, None)
@@ -1271,7 +1282,7 @@ def _frame_delete_style(editor):
 
 
 def _frame_import(editor):
-    key = editor.workspace_controls["Assets"]["frames"]["selected"]
+    key = editor.workspace_controls["UI"]["frames"]["selected"]
     if not _FRAME_SPEC[key][6]: return
     path, _ = QFileDialog.getOpenFileName(editor, "Import frame image", "", "PNG images (*.png)")
     if not path: return
@@ -1284,23 +1295,23 @@ def _frame_import(editor):
 
 
 def _frame_export(editor):
-    key = editor.workspace_controls["Assets"]["frames"]["selected"]; image = _ui_image(editor, _frame_asset(editor, key))
+    key = editor.workspace_controls["UI"]["frames"]["selected"]; image = _ui_image(editor, _frame_asset(editor, key))
     _export_ui_png(editor, image, f"{key}.png")
 
 
 def _frame_clear_image(editor):
-    key = editor.workspace_controls["Assets"]["frames"]["selected"]; _set_frame_asset(editor, key, None); _frame_commit(editor)
+    key = editor.workspace_controls["UI"]["frames"]["selected"]; _set_frame_asset(editor, key, None); _frame_commit(editor)
 
 
 def _frame_reset_part(editor):
-    key = editor.workspace_controls["Assets"]["frames"]["selected"]
+    key = editor.workspace_controls["UI"]["frames"]["selected"]
     if key in _FRAME_DIRECT: _frame_style(editor, True).pop(_FRAME_SPEC[key][2][0], None)
     else: _frame_part(editor, key, True).clear()
     _frame_commit(editor)
 
 
 def _frame_card_id(editor):
-    text = editor.workspace_controls["Assets"]["frames"]["card_rule"].text().strip()
+    text = editor.workspace_controls["UI"]["frames"]["card_rule"].text().strip()
     match = re.match(r"(\d+)(?:\s|$)", text)
     if match:
         return int(match.group(1))
@@ -1312,11 +1323,11 @@ def _frame_browse_card(editor):
     choices = [f"{card_id} {card.name}" for card_id, card in sorted(editor.project.cards.items())]
     chosen, accepted = QInputDialog.getItem(editor, "Specific card", "Card:", choices, editable=False)
     if accepted and chosen:
-        editor.workspace_controls["Assets"]["frames"]["card_rule"].setText(chosen)
+        editor.workspace_controls["UI"]["frames"]["card_rule"].setText(chosen)
 
 
 def _frame_assign(editor, level, enabled):
-    c = editor.workspace_controls["Assets"]["frames"]; style = _frame_style_name(editor); layout = _frame_layout(editor, enabled)
+    c = editor.workspace_controls["UI"]["frames"]; style = _frame_style_name(editor); layout = _frame_layout(editor, enabled)
     if level == "default":
         if enabled: layout["default_style"] = style
         else: layout.pop("default_style", None)
@@ -1348,13 +1359,12 @@ def _frame_revert_all(editor):
 
 
 def _frame_hold(editor, held):
-    c = editor.workspace_controls["Assets"]["frames"]
-    if held:
-        c["saved_layout"] = editor.project.other.pop("card_layout", None)
-    elif "saved_layout" in c:
-        saved = c.pop("saved_layout")
-        if saved is not None: editor.project.other["card_layout"] = saved
-    _refresh_frames_tab(editor)
+    c = editor.workspace_controls["UI"]["frames"]
+    held = bool(held)
+    if c.get("retail_preview", False) == held:
+        return
+    c["retail_preview"] = held
+    _draw_frames(editor)
 
 
 def _wire_ui_tabs(editor, shell, controls):
@@ -1480,7 +1490,7 @@ def _wire_ui_tabs(editor, shell, controls):
 
 
 def _refresh_ui_tabs(editor):
-    c = editor.workspace_controls.get("Assets", {})
+    c = editor.workspace_controls.get("UI", {})
     if not c.get("shell") or c.get("ui_loading"):
         return
     c["ui_loading"] = True
@@ -1491,7 +1501,7 @@ def _refresh_ui_tabs(editor):
 
 
 def _title_target(editor, create=False):
-    c, chosen = editor.workspace_controls["Assets"], editor.workspace_controls["Assets"].get("title_selected", "background")
+    c, chosen = editor.workspace_controls["UI"], editor.workspace_controls["UI"].get("title_selected", "background")
     title = _ui_section(editor, "title", create)
     if chosen == "background":
         return title.get("background", {}) if not create else title.setdefault("background", {})
@@ -1506,7 +1516,7 @@ def _title_target(editor, create=False):
 
 def _refresh_title(editor):
     from PySide6.QtWidgets import QTreeWidgetItem
-    c, tree = editor.workspace_controls["Assets"], editor.workspace_controls["Assets"]["title_tree"]
+    c, tree = editor.workspace_controls["UI"], editor.workspace_controls["UI"]["title_tree"]
     title, selected = _ui_section(editor, "title"), c.get("title_selected", "background")
     valid = {"background", *(f"layer:{name}" for name in ("logo", "copyright", "prompt"))}
     images = title.get("images") if isinstance(title.get("images"), list) else []
@@ -1548,22 +1558,22 @@ def _refresh_title(editor):
 
 
 def _title_target_by(editor, chosen):
-    current = editor.workspace_controls["Assets"].get("title_selected")
-    editor.workspace_controls["Assets"]["title_selected"] = chosen
+    current = editor.workspace_controls["UI"].get("title_selected")
+    editor.workspace_controls["UI"]["title_selected"] = chosen
     value = _title_target(editor, False)
-    editor.workspace_controls["Assets"]["title_selected"] = current
+    editor.workspace_controls["UI"]["title_selected"] = current
     return value
 
 
 def _title_select(editor, item):
-    if editor.workspace_controls["Assets"].get("ui_loading") or item is None:
+    if editor.workspace_controls["UI"].get("ui_loading") or item is None:
         return
     key = item.data(0, Qt.ItemDataRole.UserRole)
-    if isinstance(key, str): editor.workspace_controls["Assets"]["title_selected"] = key; _refresh_title(editor)
+    if isinstance(key, str): editor.workspace_controls["UI"]["title_selected"] = key; _refresh_title(editor)
 
 
 def _fill_title_form(editor):
-    c, selected = editor.workspace_controls["Assets"], editor.workspace_controls["Assets"].get("title_selected")
+    c, selected = editor.workspace_controls["UI"], editor.workspace_controls["UI"].get("title_selected")
     value = _title_target(editor)
     if selected == "background":
         c["title_stack"].setCurrentIndex(1)
@@ -1579,7 +1589,7 @@ def _fill_title_form(editor):
 
 
 def _title_art(editor):
-    c = editor.workspace_controls["Assets"]
+    c = editor.workspace_controls["UI"]
     key = id(getattr(editor, "files", None))
     if c.get("title_art_key") != key:
         c["title_art_key"] = key
@@ -1730,7 +1740,7 @@ def _menu_label_frame(text, selected):
 
 
 def _render_title(editor, menu=None):
-    c = editor.workspace_controls["Assets"]
+    c = editor.workspace_controls["UI"]
     with _comparing_view(editor) as comparing:
         base, background, art = _title_background(editor, menu)
         dim = max(0, min(128, _as_int(background.get("dim"), 128))) if menu is not None else 0
@@ -1803,12 +1813,12 @@ def _render_title(editor, menu=None):
 
 
 def _draw_title(editor):
-    c = editor.workspace_controls["Assets"]
+    c = editor.workspace_controls["UI"]
     _render_title(editor, c.get("menu_number", 0) if c["title_menu_up"].isChecked() else None)
 
 
 def _draw_menu(editor):
-    c = editor.workspace_controls["Assets"]
+    c = editor.workspace_controls["UI"]
     # The original menu page is the title screen with its first or second menu up.
     image = _render_title(editor, c.get("menu_number", 0))
     _png_preview(c["menu_preview"], image, "Load game files to preview the menu")
@@ -1817,7 +1827,7 @@ def _draw_menu(editor):
 
 
 def _title_generic_changed(editor):
-    c = editor.workspace_controls["Assets"]
+    c = editor.workspace_controls["UI"]
     if c.get("ui_loading") or c.get("title_selected") == "background" or c.get("title_selected", "").startswith("text:"): return
     target = _title_target(editor, True)
     _put(target, "x", c["title_x"].value(), 160 if c["title_selected"].startswith("picture:") else 0); _put(target, "y", c["title_y"].value(), 120 if c["title_selected"].startswith("picture:") else 0)
@@ -1825,29 +1835,29 @@ def _title_generic_changed(editor):
 
 
 def _title_background_changed(editor):
-    c = editor.workspace_controls["Assets"]
+    c = editor.workspace_controls["UI"]
     if c.get("ui_loading"): return
     target = _title_target(editor, True); _put(target, "color", _colour(c["title_bg_color"].text(), "#000000"), None); _put(target, "picture", c["title_bg_picture"].isChecked(), True); _commit_ui(editor)
 
 
 def _title_text_changed(editor):
-    c = editor.workspace_controls["Assets"]
+    c = editor.workspace_controls["UI"]
     if c.get("ui_loading") or not c.get("title_selected", "").startswith("text:"): return
     target = _title_target(editor, True); _put(target, "text", c["title_text"].text().strip(), None); _put(target, "color", _colour(c["title_text_color"].text()), "#FFFFFF"); _put(target, "size", c["title_text_size"].value(), 1); _commit_ui(editor)
 
 
 def _title_add_text(editor):
-    title = _ui_section(editor, "title", True); values = title.setdefault("text", []); values.append({"text": "Words", "x": 160, "y": 220}); editor.workspace_controls["Assets"]["title_selected"] = f"text:{len(values) - 1}"; _commit_ui(editor)
+    title = _ui_section(editor, "title", True); values = title.setdefault("text", []); values.append({"text": "Words", "x": 160, "y": 220}); editor.workspace_controls["UI"]["title_selected"] = f"text:{len(values) - 1}"; _commit_ui(editor)
 
 
 def _title_add_picture(editor):
     image = _store_ui_png(editor, "title-picture")
     if image:
-        title = _ui_section(editor, "title", True); values = title.setdefault("images", []); values.append({"image": image, "x": 160, "y": 120}); editor.workspace_controls["Assets"]["title_selected"] = f"picture:{len(values) - 1}"; _commit_ui(editor)
+        title = _ui_section(editor, "title", True); values = title.setdefault("images", []); values.append({"image": image, "x": 160, "y": 120}); editor.workspace_controls["UI"]["title_selected"] = f"picture:{len(values) - 1}"; _commit_ui(editor)
 
 
 def _title_choose_image(editor):
-    selected = editor.workspace_controls["Assets"].get("title_selected", "")
+    selected = editor.workspace_controls["UI"].get("title_selected", "")
     if selected in ("background",) or selected.startswith("text:"): return
     image = _store_ui_png(editor, f"title-{selected.replace(':', '-')}")
     if image: _title_target(editor, True)["image"] = image; _commit_ui(editor)
@@ -1863,7 +1873,7 @@ def _title_background_image(editor):
 
 
 def _title_export(editor):
-    c, selected = editor.workspace_controls["Assets"], editor.workspace_controls["Assets"].get("title_selected", "background")
+    c, selected = editor.workspace_controls["UI"], editor.workspace_controls["UI"].get("title_selected", "background")
     if selected == "background":
         image, _data, _art = _title_background(editor)
     elif selected.startswith("layer:"):
@@ -1882,7 +1892,7 @@ def _title_export(editor):
 
 
 def _title_remove(editor):
-    c, selected = editor.workspace_controls["Assets"], editor.workspace_controls["Assets"].get("title_selected", "")
+    c, selected = editor.workspace_controls["UI"], editor.workspace_controls["UI"].get("title_selected", "")
     title = _ui_section(editor, "title", True)
     kind, _, index = selected.partition(":")
     if kind in ("picture", "text") and index.isdigit():
@@ -1895,7 +1905,7 @@ def _title_remove(editor):
 
 
 def _title_revert_element(editor):
-    c, selected = editor.workspace_controls["Assets"], editor.workspace_controls["Assets"].get("title_selected", "")
+    c, selected = editor.workspace_controls["UI"], editor.workspace_controls["UI"].get("title_selected", "")
     title = _ui_section(editor, "title")
     if selected == "background": title.pop("background", None)
     elif selected.startswith("layer:"): title.pop(selected.split(":", 1)[1], None)
@@ -1909,7 +1919,7 @@ def _title_revert_page(editor):
     keep = {key: value for key, value in title.items() if key in ("entries", "spacing")}
     if keep: editor.project.other["title"] = keep
     else: editor.project.other.pop("title", None)
-    editor.workspace_controls["Assets"]["title_selected"] = "background"; _commit_ui(editor)
+    editor.workspace_controls["UI"]["title_selected"] = "background"; _commit_ui(editor)
 
 
 
@@ -2003,7 +2013,7 @@ def _menu_short(editor, name):
 
 
 def _menu_item(editor, name=None):
-    name = name or editor.workspace_controls["Assets"].get("menu_selected")
+    name = name or editor.workspace_controls["UI"].get("menu_selected")
     if not isinstance(name, str) or name == "background": return None
     return next((item for item in _menu_scene(editor).items() if item["name"] == name), None)
 
@@ -2032,7 +2042,7 @@ def _menu_target(editor, create=False):
 
 def _menu_target_for(editor, item):
     """Read a menu item's mod entry without changing the selected row."""
-    c, current = editor.workspace_controls["Assets"], editor.workspace_controls["Assets"].get("menu_selected")
+    c, current = editor.workspace_controls["UI"], editor.workspace_controls["UI"].get("menu_selected")
     c["menu_selected"] = item["name"]
     value = _menu_target(editor)
     c["menu_selected"] = current
@@ -2057,7 +2067,7 @@ def _menu_list_image(editor, item):
 def _refresh_menu(editor):
     from PySide6.QtGui import QIcon
     from PySide6.QtWidgets import QHeaderView, QTreeWidgetItem
-    c, tree = editor.workspace_controls["Assets"], editor.workspace_controls["Assets"]["menu_tree"]
+    c, tree = editor.workspace_controls["UI"], editor.workspace_controls["UI"]["menu_tree"]
     scene, selected = _menu_scene(editor), c.get("menu_selected", "new_game")
     valid = {"background", *(item["name"] for item in scene.items())}
     if selected not in valid: selected = c["menu_selected"] = "new_game"
@@ -2088,7 +2098,7 @@ def _refresh_menu(editor):
 
 
 def _menu_select(editor, item):
-    c = editor.workspace_controls["Assets"]
+    c = editor.workspace_controls["UI"]
     if c.get("ui_loading") or item is None: return
     key = item.data(0, Qt.ItemDataRole.UserRole)
     if isinstance(key, str):
@@ -2103,7 +2113,7 @@ def _menu_select(editor, item):
 
 
 def _fill_menu_form(editor):
-    c, item = editor.workspace_controls["Assets"], _menu_item(editor)
+    c, item = editor.workspace_controls["UI"], _menu_item(editor)
     enabled = item is not None
     for key in ("menu_words", "menu_action", "menu_tint", "menu_x", "menu_y", "menu_scale", "menu_hidden"):
         c[key].setEnabled(enabled)
@@ -2122,7 +2132,7 @@ def _fill_menu_form(editor):
 
 
 def _menu_switch(editor):
-    c = editor.workspace_controls["Assets"]
+    c = editor.workspace_controls["UI"]
     if c.get("ui_loading"): return
     c["menu_number"] = c["menu_mode"].currentData()
     scene = _menu_scene(editor)
@@ -2132,13 +2142,13 @@ def _menu_switch(editor):
 
 
 def _menu_global_changed(editor):
-    c = editor.workspace_controls["Assets"]
+    c = editor.workspace_controls["UI"]
     if c.get("ui_loading"): return
     menu = _ui_section(editor, "menu", True); _put(menu, "spacing", c["menu_spacing"].value(), _MENU_SPACING); _put(menu, "scale", c["menu_all_scale"].value(), 100); _commit_ui(editor)
 
 
 def _menu_item_changed(editor):
-    c = editor.workspace_controls["Assets"]
+    c = editor.workspace_controls["UI"]
     if c.get("ui_loading") or not _menu_item(editor): return
     target, item = _menu_target(editor, True), _menu_item(editor)
     _put(target, "label", c["menu_words"].text().strip(), None); _put(target, "tint", _colour(c["menu_tint"].text()), "#FFFFFF"); _put(target, "x", c["menu_x"].value(), 0)
@@ -2152,8 +2162,8 @@ def _menu_add(editor):
     menu = _ui_section(editor, "menu", True); buttons = menu.setdefault("buttons", []); taken = {row.get("id") for row in buttons if isinstance(row, dict)}; number = 1
     while f"button{number}" in taken: number += 1
     row = {"id": f"button{number}", "label": f"BUTTON {number}", "action": "notice", "notice": {"title": f"Button {number}", "text": "Words of your own."}}
-    if editor.workspace_controls["Assets"].get("menu_number") == 1: row["menu"] = "second"
-    buttons.append(row); editor.workspace_controls["Assets"]["menu_selected"] = f"{editor.project.info.id or 'mod'}:button{number}"; _commit_ui(editor)
+    if editor.workspace_controls["UI"].get("menu_number") == 1: row["menu"] = "second"
+    buttons.append(row); editor.workspace_controls["UI"]["menu_selected"] = f"{editor.project.info.id or 'mod'}:button{number}"; _commit_ui(editor)
 
 
 def _menu_toggle_hidden(editor):
@@ -2163,7 +2173,7 @@ def _menu_toggle_hidden(editor):
 
 
 def _menu_move(editor, step):
-    c, item = editor.workspace_controls["Assets"], _menu_item(editor)
+    c, item = editor.workspace_controls["UI"], _menu_item(editor)
     if not item: return
     scene, number = _menu_scene(editor), item.get("menu", 0)
     names = [_menu_short(editor, row["name"]) for row, _ in scene.order(number)]
@@ -2193,7 +2203,7 @@ def _menu_clear_images(editor):
 
 
 def _menu_export(editor):
-    c, selected = editor.workspace_controls["Assets"], editor.workspace_controls["Assets"].get("menu_selected", "background")
+    c, selected = editor.workspace_controls["UI"], editor.workspace_controls["UI"].get("menu_selected", "background")
     if selected == "background":
         image, _data, _art = _title_background(editor, c.get("menu_number", 0))
     else:
@@ -2206,7 +2216,7 @@ def _menu_remove(editor):
     if not item or item.get("entry") or not item.get("own"): return
     menu = _ui_section(editor, "menu", True); short = _menu_short(editor, item["name"]); menu["buttons"] = [row for row in menu.get("buttons", []) if not isinstance(row, dict) or row.get("id") != short]
     if not menu["buttons"]: menu.pop("buttons")
-    editor.workspace_controls["Assets"]["menu_selected"] = "new_game"; _commit_ui(editor)
+    editor.workspace_controls["UI"]["menu_selected"] = "new_game"; _commit_ui(editor)
 
 
 def _menu_revert_item(editor):
@@ -2226,7 +2236,7 @@ def _menu_revert_page(editor):
     if isinstance(title, dict):
         title.pop("entries", None); title.pop("spacing", None)
         if not title: editor.project.other.pop("title", None)
-    editor.workspace_controls["Assets"]["menu_selected"] = "new_game"; _commit_ui(editor)
+    editor.workspace_controls["UI"]["menu_selected"] = "new_game"; _commit_ui(editor)
 
 
 _DUEL_DESCRIPTIONS = {
@@ -2243,7 +2253,7 @@ def _duel_path(key): return key.split(".", 1) if "." in key else (key, None)
 
 
 def _duel_target(editor, create=False):
-    key = editor.workspace_controls["Assets"].get("duel_selected", "lp_player")
+    key = editor.workspace_controls["UI"].get("duel_selected", "lp_player")
     name, part = _duel_path(key); root = _ui_section(editor, "ui", create)
     duel = root.get("duel") if isinstance(root.get("duel"), dict) else None
     if duel is None:
@@ -2259,7 +2269,7 @@ def _duel_target(editor, create=False):
 
 
 def _duel_target_by(editor, key):
-    c, current = editor.workspace_controls["Assets"], editor.workspace_controls["Assets"].get("duel_selected")
+    c, current = editor.workspace_controls["UI"], editor.workspace_controls["UI"].get("duel_selected")
     c["duel_selected"] = key; value = _duel_target(editor); c["duel_selected"] = current
     return value
 
@@ -2267,7 +2277,7 @@ def _duel_target_by(editor, key):
 def _refresh_duel(editor):
     from PySide6.QtGui import QIcon
     from PySide6.QtWidgets import QHeaderView, QTreeWidgetItem
-    c, tree = editor.workspace_controls["Assets"], editor.workspace_controls["Assets"]["duel_tree"]
+    c, tree = editor.workspace_controls["UI"], editor.workspace_controls["UI"]["duel_tree"]
     chosen = c.get("duel_selected", "lp_player")
     valid = {name for name, _label in ELEMENTS} | {f"card_bar.{part}" for part, _label in PARTS}
     if chosen not in valid: chosen = c["duel_selected"] = "lp_player"
@@ -2298,14 +2308,14 @@ def _refresh_duel(editor):
 
 
 def _duel_select(editor, item):
-    c = editor.workspace_controls["Assets"]
+    c = editor.workspace_controls["UI"]
     if c.get("ui_loading") or item is None: return
     key = item.data(0, Qt.ItemDataRole.UserRole)
     if isinstance(key, str): c["duel_selected"] = key; _refresh_duel(editor)
 
 
 def _fill_duel_form(editor):
-    c, key = editor.workspace_controls["Assets"], editor.workspace_controls["Assets"].get("duel_selected", "lp_player")
+    c, key = editor.workspace_controls["UI"], editor.workspace_controls["UI"].get("duel_selected", "lp_player")
     name, part = _duel_path(key); value = _duel_target(editor)
     c["duel_name"].setText(dict(PARTS).get(part, part) if part else dict(ELEMENTS).get(name, name))
     c["duel_description"].setPlainText(f"Card-bar {dict(PARTS).get(part, part).casefold()}; it moves independently on the bar." if part else _DUEL_DESCRIPTIONS.get(name, ""))
@@ -2318,7 +2328,7 @@ def _fill_duel_form(editor):
 
 
 def _duel_art(editor):
-    c = editor.workspace_controls["Assets"]
+    c = editor.workspace_controls["UI"]
     key = id(getattr(editor, "files", None))
     if c.get("duel_art_key") != key:
         c["duel_art_key"] = key
@@ -2328,7 +2338,7 @@ def _duel_art(editor):
 
 def _duel_font(editor):
     """The same retail font and icons used by the classic duel preview."""
-    c = editor.workspace_controls["Assets"]
+    c = editor.workspace_controls["UI"]
     files = getattr(editor, "files", None)
     key = id(files)
     if c.get("duel_font_key") != key:
@@ -2342,7 +2352,7 @@ def _duel_font(editor):
 
 def _duel_asset_image(editor, key=None):
     """A standalone picture for a Duel tree row or its Export action."""
-    c = editor.workspace_controls["Assets"]
+    c = editor.workspace_controls["UI"]
     key = key or c.get("duel_selected", "lp_player")
     name, part = _duel_path(key)
     duel, art = _ui_section(editor, "ui").get("duel", {}), _duel_art(editor)
@@ -2384,7 +2394,7 @@ def _duel_element_at(name, value, rect):
 
 
 def _draw_duel(editor):
-    c = editor.workspace_controls["Assets"]
+    c = editor.workspace_controls["UI"]
     with _comparing_view(editor) as comparing:
         duel = _ui_section(editor, "ui").get("duel", {})
         if not isinstance(duel, dict): duel = {}
@@ -2446,7 +2456,7 @@ def _draw_duel(editor):
 
 
 def _duel_changed(editor):
-    c = editor.workspace_controls["Assets"]
+    c = editor.workspace_controls["UI"]
     if c.get("ui_loading"): return
     key = c.get("duel_selected", "lp_player"); name, part = _duel_path(key); target = _duel_target(editor, True)
     if part:
@@ -2466,19 +2476,19 @@ def _duel_changed(editor):
 
 
 def _duel_image(editor):
-    key = editor.workspace_controls["Assets"].get("duel_selected", "duel")
+    key = editor.workspace_controls["UI"].get("duel_selected", "duel")
     if "." in key: return
     image = _store_ui_png(editor, f"duel-{key.replace('_', '-')}")
     if image: _duel_target(editor, True)["image"] = image; _commit_ui(editor)
 
 
 def _duel_export(editor):
-    selected = editor.workspace_controls["Assets"].get("duel_selected", "lp_player")
+    selected = editor.workspace_controls["UI"].get("duel_selected", "lp_player")
     _export_ui_png(editor, _duel_asset_image(editor, selected), f"duel-{selected.replace('.', '-')}.png")
 
 
 def _duel_revert_element(editor):
-    key = editor.workspace_controls["Assets"].get("duel_selected", "lp_player"); name, part = _duel_path(key); root = _ui_section(editor, "ui")
+    key = editor.workspace_controls["UI"].get("duel_selected", "lp_player"); name, part = _duel_path(key); root = _ui_section(editor, "ui")
     duel = root.get("duel") if isinstance(root.get("duel"), dict) else {}
     if part:
         bar = duel.get("card_bar") if isinstance(duel.get("card_bar"), dict) else {}; bar.pop(part, None)
@@ -2520,7 +2530,7 @@ def _board_outline_keys(c):
 def _board_refresh(editor, force=False):
     from PySide6.QtGui import QIcon
     from PySide6.QtWidgets import QTreeWidgetItem
-    c = editor.workspace_controls["Assets"]
+    c = editor.workspace_controls["UI"]
     field = c["board_field"]
     # The .ui form ships the combo pre-populated with plain-text items (no
     # itemData), so "already has rows" is not "already has the right rows":
@@ -2581,7 +2591,7 @@ def _board_camera(c):
 def _board_redisplay(editor):
     """Redraw the cached render after the outline toggle changes, with no
     new 3D render needed."""
-    c = editor.workspace_controls.get("Assets", {})
+    c = editor.workspace_controls.get("UI", {})
     if c.get("board_picture") is not None:
         _board_display(editor, c["board_picture"])
 
@@ -2589,7 +2599,7 @@ def _board_redisplay(editor):
 def _board_display(editor, picture, full_size=True):
     """The cached 3D render redrawn with the current part(s) outlined, no
     re-render needed (a part picked, or a selection made elsewhere)."""
-    c = editor.workspace_controls.get("Assets", {})
+    c = editor.workspace_controls.get("UI", {})
     show_outlines = c.get("board_show_outlines") is None or c["board_show_outlines"].isChecked()
     shown = board_model.outline(picture, _board_outline_keys(c) if show_outlines else [], 2)
     _png_preview(c["board_preview"], shown, "Game board unavailable")
@@ -2602,7 +2612,7 @@ def _board_display(editor, picture, full_size=True):
 
 def _queue_board_render(editor, terrain, force=False, size=None):
     """Render board geometry off the GUI thread; disc decoding can be slow."""
-    c = editor.workspace_controls.get("Assets", {})
+    c = editor.workspace_controls.get("UI", {})
     size = size or _BOARD_SIZE
     version = board_art.state(editor.project).version
     camera = _board_camera(c)
@@ -2629,7 +2639,7 @@ def _queue_board_render(editor, terrain, force=False, size=None):
     def finish():
         if worker.is_alive():
             QTimer.singleShot(15 if size != _BOARD_SIZE else 30, finish); return
-        controls = editor.workspace_controls.get("Assets", {})
+        controls = editor.workspace_controls.get("UI", {})
         if controls.get("board_render_key") != key or controls.get("board_preview") is None:
             return
         if result["picture"] is not None:
@@ -2648,7 +2658,7 @@ def _board_request_render(editor, full_size=False):
     """Coalesce a flurry of drag/wheel moves into one render at a time: a
     small, fast picture while the camera is actively moving (ui_board.py's
     DRAG_SCALE), the real size once it settles (_board_release)."""
-    c = editor.workspace_controls.get("Assets", {})
+    c = editor.workspace_controls.get("UI", {})
     if c.get("board_render_pending"):
         return
     c["board_render_pending"] = True
@@ -2669,7 +2679,7 @@ def _board_point(label, position):
 
 
 def _board_press(editor, label, event):
-    c = editor.workspace_controls.get("Assets", {})
+    c = editor.workspace_controls.get("UI", {})
     point = _board_point(label, event.position())
     if event.button() == Qt.MouseButton.MiddleButton:
         kind = "pan" if event.modifiers() & (Qt.KeyboardModifier.ShiftModifier | Qt.KeyboardModifier.ControlModifier) else "turn"
@@ -2679,7 +2689,7 @@ def _board_press(editor, label, event):
 
 
 def _board_motion(editor, label, event):
-    c = editor.workspace_controls.get("Assets", {})
+    c = editor.workspace_controls.get("UI", {})
     drag = c.get("board_drag")
     if not isinstance(drag, dict): return
     point = _board_point(label, event.position())
@@ -2692,7 +2702,7 @@ def _board_motion(editor, label, event):
 
 
 def _board_release(editor, label, event):
-    c = editor.workspace_controls.get("Assets", {})
+    c = editor.workspace_controls.get("UI", {})
     if event.button() == Qt.MouseButton.MiddleButton:
         was_dragging = c.pop("board_drag", None) is not None
         if was_dragging: _board_request_render(editor, full_size=True)
@@ -2703,21 +2713,21 @@ def _board_release(editor, label, event):
 
 def _board_wheel(editor, delta):
     if not delta: return
-    c = editor.workspace_controls.get("Assets", {})
+    c = editor.workspace_controls.get("UI", {})
     c["board_camera"] = board_model.zoom(_board_camera(c), 1 if delta > 0 else -1)
     _board_request_render(editor)
 
 
 def _board_reset_view(editor):
     """The duel's own camera again (ui_board.py's reset_camera)."""
-    c = editor.workspace_controls.get("Assets", {})
+    c = editor.workspace_controls.get("UI", {})
     c["board_camera"] = board_model.CAMERA
     _board_request_render(editor)
 
 
 def _board_pick(editor, point):
     """A click on the 3D preview itself chooses the part under it."""
-    c = editor.workspace_controls.get("Assets", {})
+    c = editor.workspace_controls.get("UI", {})
     picture = c.get("board_picture")
     if picture is None: return
     key = picture.part_at(int(point[0]), int(point[1]))
@@ -2728,7 +2738,7 @@ def _board_pick(editor, point):
 
 
 def _board_select(editor, item):
-    c = editor.workspace_controls["Assets"]
+    c = editor.workspace_controls["UI"]
     if c.get("ui_loading") or item is None:
         return
     key = item.data(0, Qt.ItemDataRole.UserRole)
@@ -2738,8 +2748,8 @@ def _board_select(editor, item):
 
 
 def _board_filter(editor):
-    query = editor.workspace_controls["Assets"]["board_search"].text().strip().casefold()
-    tree = editor.workspace_controls["Assets"]["board_tree"]
+    query = editor.workspace_controls["UI"]["board_search"].text().strip().casefold()
+    tree = editor.workspace_controls["UI"]["board_tree"]
     for index in range(tree.topLevelItemCount()):
         parent = tree.topLevelItem(index); visible = not query or query in parent.text(0).casefold()
         for child_index in range(parent.childCount()):
@@ -2750,7 +2760,7 @@ def _board_filter(editor):
 
 
 def _board_tint(editor):
-    c = editor.workspace_controls["Assets"]
+    c = editor.workspace_controls["UI"]
     if c.get("ui_loading"):
         return
     value = _colour(c["board_tint"].text(), "")
@@ -2762,7 +2772,7 @@ def _board_tint(editor):
 
 
 def _board_replace(editor):
-    c = editor.workspace_controls["Assets"]
+    c = editor.workspace_controls["UI"]
     path, _ = QFileDialog.getOpenFileName(editor, "Replace board texture", "", "PNG images (*.png)")
     if not path:
         return
@@ -2779,7 +2789,7 @@ def _board_replace(editor):
 
 
 def _board_export(editor):
-    c = editor.workspace_controls["Assets"]
+    c = editor.workspace_controls["UI"]
     terrain, part = (_board_terrains(c)[0], _board_parts(c))
     image = board_art.floor_image(editor.project, terrain) if c.get("board_selected") == "floor" else board_art.shown(editor.project, terrain, part[0])
     if image is None:
@@ -2795,7 +2805,7 @@ def _board_export(editor):
 
 
 def _board_revert(editor):
-    c = editor.workspace_controls["Assets"]
+    c = editor.workspace_controls["UI"]
     board_art.revert(editor.project, _board_terrains(c), _board_parts(c))
     editor._mark_dirty(); _board_refresh(editor, force=True)
 
@@ -2893,7 +2903,7 @@ def _legacy_pack_entries(self):
     this index when the Assets page opens avoids repeatedly scanning that
     manifest while filters, selections, and page refreshes run.
     """
-    c = self.workspace_controls.get("Assets", {})
+    c = self.workspace_controls.get("UI", {})
     st = art.state(self.project)
     # ``or []`` made a fresh empty list for every catalogue row when a mod
     # has no texture manifest.  The identity cache below then missed 233
@@ -3032,7 +3042,7 @@ def _show_asset_help(self):
 
 def _asset_goto_tab(self, label):
     """Switch the UI/Graphics tabs to the one titled ``label``, if any."""
-    tabs = self.workspace_controls.get("Assets", {}).get("tabs")
+    tabs = self.workspace_controls.get("UI", {}).get("tabs")
     if tabs is None:
         return
     for i in range(tabs.count()):
@@ -3045,7 +3055,7 @@ def _asset_goto_duel_element(self, key):
     """Jump to the Duel tab with ``key`` (a duel_assets.ELEMENTS name)
     selected, as if its row in the element tree had been clicked."""
     _asset_goto_tab(self, "Duel")
-    c = self.workspace_controls.get("Assets", {})
+    c = self.workspace_controls.get("UI", {})
     if "duel_tree" in c:
         c["duel_selected"] = key
         _refresh_duel(self)
@@ -3062,8 +3072,7 @@ def _build_framework(self, page, controls, layout):
     catalog = _catalog()
     categories = sorted({item["name"].split("/", 1)[0] for item in catalog}, key=str.casefold)
     controls.clear(); controls.update(page=page, catalog=catalog, category=categories[0] if categories else "", selected=None)
-    self.workspace_controls["Assets"] = controls
-    if hasattr(self, "nav_buttons") and "Assets" in self.nav_buttons: self.nav_buttons["Assets"].setText("UI")
+    self.workspace_controls["UI"] = controls
     root = QSplitter(Qt.Orientation.Horizontal); root.setChildrenCollapsible(False); layout.addWidget(root, 1)
     category_box = QGroupBox("Asset Categories")
     category_layout = QVBoxLayout(category_box); category_layout.setContentsMargins(8, 12, 8, 8)
@@ -3097,7 +3106,7 @@ def _build_framework(self, page, controls, layout):
 
 
 def _set_category(self, category):
-    self.workspace_controls["Assets"]["category"] = category; _refresh_framework(self)
+    self.workspace_controls["UI"]["category"] = category; _refresh_framework(self)
 
 
 def _preview(label, image, fallback):
@@ -3107,7 +3116,7 @@ def _preview(label, image, fallback):
 
 
 def _refresh_framework(self):
-    c = self.workspace_controls.get("Assets", {})
+    c = self.workspace_controls.get("UI", {})
     if "grid" not in c: return
     query = c["search"].text().strip().lower(); category = c["category"]
     values = sorted(
@@ -3139,7 +3148,7 @@ def _load_thumbnail_batch(self, generation, start=0):
     all of them before Qt can paint made selecting a category look like a
     freeze, even though only the first few thumbnails were initially visible.
     """
-    c = self.workspace_controls.get("Assets", {})
+    c = self.workspace_controls.get("UI", {})
     if c.get("thumb_generation") != generation:
         return
     pending = c.get("thumb_pending", [])
@@ -3160,7 +3169,7 @@ def _load_thumbnail_batch(self, generation, start=0):
 
 
 def _select_framework(self, asset):
-    c = self.workspace_controls["Assets"]; c["selected"] = asset
+    c = self.workspace_controls["UI"]; c["selected"] = asset
     if asset is None:
         c["name"].setText("No asset selected"); c["description"].setText("No named assets match this category or search."); _preview(c["retail"], None, "Retail preview"); _preview(c["replacement"], None, "Replacement preview"); c["remove"].setEnabled(False); return
     entry = _entry_for(self, asset); retail = self._asset_retail_image(asset); replacement = _named_image(self, entry)
@@ -3169,7 +3178,7 @@ def _select_framework(self, asset):
 
 
 def _import_framework(self):
-    c = self.workspace_controls["Assets"]; asset = c.get("selected")
+    c = self.workspace_controls["UI"]; asset = c.get("selected")
     if asset is None: return
     path, _ = QFileDialog.getOpenFileName(self, "Replace UI asset", "", "PNG images (*.png)")
     if not path: return
@@ -3183,7 +3192,7 @@ def _import_framework(self):
 
 
 def _export_framework(self):
-    asset = self.workspace_controls["Assets"].get("selected")
+    asset = self.workspace_controls["UI"].get("selected")
     if asset is None: return
     image = _named_image(self, _entry_for(self, asset)) or self._asset_retail_image(asset)
     if image is None: QMessageBox.warning(self, "Export UI asset", "The retail texture cannot be decoded."); return
@@ -3192,7 +3201,7 @@ def _export_framework(self):
 
 
 def _remove_framework(self):
-    c = self.workspace_controls["Assets"]; asset = c.get("selected"); path = _entry_for(self, asset) if asset else None
+    c = self.workspace_controls["UI"]; asset = c.get("selected"); path = _entry_for(self, asset) if asset else None
     if path is None: return
     self.project.files.pop(path, None)
     folder = self.project.other.get("assets")
@@ -3218,9 +3227,7 @@ def _build_template_framework(self, page, controls):
     controls.clear()
     controls.update(page=page, form=form, catalog=catalog, category="__all__",
                     selected=None, filter_mode="all", preview_scale=2)
-    self.workspace_controls["Assets"] = controls
-    if hasattr(self, "nav_buttons") and "Assets" in self.nav_buttons:
-        self.nav_buttons["Assets"].setText("UI")
+    self.workspace_controls["UI"] = controls
 
     tree = _asset_widget(form, QTreeWidget, "assetCategoryTree")
     tree.clear()
@@ -3310,12 +3317,12 @@ def _build_template_framework(self, page, controls):
 
 
 def _set_template_category(self, category):
-    self.workspace_controls["Assets"]["category"] = category
+    self.workspace_controls["UI"]["category"] = category
     _refresh_template(self)
 
 
 def _filter_template_categories(self, text):
-    tree = self.workspace_controls["Assets"]["tree"]
+    tree = self.workspace_controls["UI"]["tree"]
     wanted = text.strip().casefold()
     def filter_item(item):
         own = wanted in item.text(0).casefold()
@@ -3327,7 +3334,7 @@ def _filter_template_categories(self, text):
 
 
 def _set_template_filter(self, mode):
-    c = self.workspace_controls["Assets"]
+    c = self.workspace_controls["UI"]
     c["filter_mode"] = mode
     for key in ("all", "modified", "retail"):
         c[key].setChecked(key == mode)
@@ -3335,7 +3342,7 @@ def _set_template_filter(self, mode):
 
 
 def _set_template_scale(self, scale):
-    c = self.workspace_controls["Assets"]
+    c = self.workspace_controls["UI"]
     c["preview_scale"] = scale
     form = c["form"]
     for value, name in ((1, "preview1xButton"), (2, "preview2xButton"), (4, "preview4xButton")):
@@ -3344,7 +3351,7 @@ def _set_template_scale(self, scale):
 
 
 def _template_values(self):
-    c = self.workspace_controls.get("Assets", {})
+    c = self.workspace_controls.get("UI", {})
     mode, category = c.get("filter_mode", "all"), c.get("category")
     values = []
     for asset in c.get("catalog", []):
@@ -3360,7 +3367,7 @@ def _template_values(self):
 
 
 def _refresh_template(self):
-    c = self.workspace_controls.get("Assets", {})
+    c = self.workspace_controls.get("UI", {})
     table = c.get("table")
     if table is None:
         return
@@ -3393,7 +3400,7 @@ def _refresh_template(self):
 
 
 def _select_template_row(self):
-    table = self.workspace_controls["Assets"]["table"]
+    table = self.workspace_controls["UI"]["table"]
     item = table.item(table.currentRow(), 0) if table.currentRow() >= 0 else None
     _select_template(self, item.data(Qt.ItemDataRole.UserRole) if item else None)
 
@@ -3438,7 +3445,7 @@ def _template_preview(label, image, fallback, scale, asset=None):
 
 
 def _select_template(self, asset):
-    c = self.workspace_controls["Assets"]; c["selected"] = asset
+    c = self.workspace_controls["UI"]; c["selected"] = asset
     if asset is None:
         c["name"].setText("No UI asset selected")
         c["description"].setText("Choose an asset from the selected catalog category.")
@@ -3495,7 +3502,7 @@ def _select_template(self, asset):
 
 def _load_preview_image(self, entry, asset):
     """Decode a potentially multi-megabyte replacement away from the UI."""
-    c = self.workspace_controls.get("Assets", {})
+    c = self.workspace_controls.get("UI", {})
     pending = c.setdefault("preview_image_loading", set())
     if entry in pending:
         return
@@ -3524,7 +3531,7 @@ def _load_preview_image(self, entry, asset):
         if thread.is_alive():
             QTimer.singleShot(15, complete)
             return
-        current = self.workspace_controls.get("Assets", {})
+        current = self.workspace_controls.get("UI", {})
         cache = current.setdefault("preview_image_cache", {})
         current.setdefault("preview_image_loading", set()).discard(entry)
         cache[entry] = result.get("image")
@@ -3550,7 +3557,7 @@ def _load_retail_preview_image(self, asset):
     screen elements are not.  Decoding either side of a comparison in a
     table-selection signal makes the editor feel unresponsive on HD mods.
     """
-    c = self.workspace_controls.get("Assets", {})
+    c = self.workspace_controls.get("UI", {})
     key = asset["name"]
     pending = c.setdefault("retail_preview_loading", set())
     if key in pending:
@@ -3571,7 +3578,7 @@ def _load_retail_preview_image(self, asset):
         if thread.is_alive():
             QTimer.singleShot(15, complete)
             return
-        current = self.workspace_controls.get("Assets", {})
+        current = self.workspace_controls.get("UI", {})
         cache = current.setdefault("retail_preview_cache", {})
         current.setdefault("retail_preview_loading", set()).discard(key)
         cache[key] = result.get("image")
@@ -3607,7 +3614,7 @@ def _remember_asset_removal(project, path):
 
 
 def _import_template(self):
-    c = self.workspace_controls["Assets"]; asset = c.get("selected")
+    c = self.workspace_controls["UI"]; asset = c.get("selected")
     if asset is None: return
     path, _ = QFileDialog.getOpenFileName(self, "Replace UI asset", "", "PNG images (*.png)")
     if not path: return
@@ -3647,7 +3654,7 @@ def _import_template(self):
 
 
 def _export_template(self):
-    asset = self.workspace_controls["Assets"].get("selected")
+    asset = self.workspace_controls["UI"].get("selected")
     if asset is None: return
     path, origin, manifest_entry = _entry_origin(self, asset)
     image = _named_image(self, path)
@@ -3668,7 +3675,7 @@ def _export_template(self):
 
 
 def _remove_template(self):
-    c = self.workspace_controls["Assets"]; asset = c.get("selected")
+    c = self.workspace_controls["UI"]; asset = c.get("selected")
     path, origin, manifest_entry = _entry_origin(self, asset)
     if path is None: return
     if origin == "pack" and manifest_entry is not None:
@@ -3768,7 +3775,7 @@ def _build_build_deck_tab(self, page, controls):
 
 
 def _build_deck_values(self):
-    c = self.workspace_controls.get("Assets", {}); bd = c.get("build_deck", {})
+    c = self.workspace_controls.get("UI", {}); bd = c.get("build_deck", {})
     mode = bd.get("filter_mode", "all"); wanted = bd.get("search", "").strip().casefold() if isinstance(bd.get("search"), str) else ""
     values = []
     for asset in bd.get("catalog", []):
@@ -3781,13 +3788,13 @@ def _build_deck_values(self):
 
 
 def _filter_build_deck(self, text):
-    c = self.workspace_controls["Assets"]; bd = c["build_deck"]
+    c = self.workspace_controls["UI"]; bd = c["build_deck"]
     bd["search"] = text
     _refresh_build_deck(self)
 
 
 def _refresh_build_deck(self):
-    c = self.workspace_controls.get("Assets", {}); bd = c.get("build_deck", {})
+    c = self.workspace_controls.get("UI", {}); bd = c.get("build_deck", {})
     table = bd.get("table")
     if table is None: return
     previous = bd.get("selected")
@@ -3813,20 +3820,20 @@ def _refresh_build_deck(self):
 
 
 def _select_build_deck_row(self):
-    bd = self.workspace_controls["Assets"]["build_deck"]; table = bd["table"]
+    bd = self.workspace_controls["UI"]["build_deck"]; table = bd["table"]
     item = table.item(table.currentRow(), 0) if table.currentRow() >= 0 else None
     _select_build_deck(self, item.data(Qt.ItemDataRole.UserRole) if item else None)
 
 
 def _set_build_deck_filter(self, mode):
-    bd = self.workspace_controls["Assets"]["build_deck"]
+    bd = self.workspace_controls["UI"]["build_deck"]
     bd["filter_mode"] = mode
     for key in ("all", "modified", "retail"): bd[key].setChecked(key == mode)
     _refresh_build_deck(self)
 
 
 def _set_build_deck_scale(self, scale):
-    bd = self.workspace_controls["Assets"]["build_deck"]
+    bd = self.workspace_controls["UI"]["build_deck"]
     bd["preview_scale"] = scale
     for value, name in ((1, "buildDeckPreview1xButton"), (2, "buildDeckPreview2xButton"), (4, "buildDeckPreview4xButton")):
         bd["form"].findChild(QPushButton, name).setChecked(value == scale)
@@ -3834,7 +3841,7 @@ def _set_build_deck_scale(self, scale):
 
 
 def _select_build_deck(self, asset):
-    bd = self.workspace_controls["Assets"]["build_deck"]; bd["selected"] = asset
+    bd = self.workspace_controls["UI"]["build_deck"]; bd["selected"] = asset
     if asset is None:
         bd["name"].setText("No texture selected")
         bd["description"].setText("Choose a texture from the list.")
@@ -3879,7 +3886,7 @@ def _select_build_deck(self, asset):
 
 
 def _load_build_deck_preview_image(self, entry, asset):
-    bd = self.workspace_controls.get("Assets", {}).get("build_deck", {})
+    bd = self.workspace_controls.get("UI", {}).get("build_deck", {})
     pending = bd.setdefault("preview_image_loading", set())
     if entry in pending: return
     pending.add(entry); result = {}
@@ -3897,7 +3904,7 @@ def _load_build_deck_preview_image(self, entry, asset):
 
     def complete():
         if thread.is_alive(): QTimer.singleShot(15, complete); return
-        current = self.workspace_controls.get("Assets", {}).get("build_deck", {})
+        current = self.workspace_controls.get("UI", {}).get("build_deck", {})
         cache = current.setdefault("preview_image_cache", {})
         current.setdefault("preview_image_loading", set()).discard(entry)
         cache[entry] = result.get("image")
@@ -3909,7 +3916,7 @@ def _load_build_deck_preview_image(self, entry, asset):
 
 
 def _load_build_deck_retail_preview_image(self, asset):
-    bd = self.workspace_controls.get("Assets", {}).get("build_deck", {})
+    bd = self.workspace_controls.get("UI", {}).get("build_deck", {})
     key = asset["name"]; pending = bd.setdefault("retail_preview_loading", set())
     if key in pending: return
     pending.add(key); result = {}
@@ -3922,7 +3929,7 @@ def _load_build_deck_retail_preview_image(self, asset):
 
     def complete():
         if thread.is_alive(): QTimer.singleShot(15, complete); return
-        current = self.workspace_controls.get("Assets", {}).get("build_deck", {})
+        current = self.workspace_controls.get("UI", {}).get("build_deck", {})
         cache = current.setdefault("retail_preview_cache", {})
         current.setdefault("retail_preview_loading", set()).discard(key)
         cache[key] = result.get("image")
@@ -3934,7 +3941,7 @@ def _load_build_deck_retail_preview_image(self, asset):
 
 
 def _import_build_deck(self):
-    bd = self.workspace_controls["Assets"]["build_deck"]; asset = bd.get("selected")
+    bd = self.workspace_controls["UI"]["build_deck"]; asset = bd.get("selected")
     if asset is None: return
     path, _ = QFileDialog.getOpenFileName(self, "Replace Build Deck texture", "", "PNG images (*.png)")
     if not path: return
@@ -3969,7 +3976,7 @@ def _import_build_deck(self):
 
 
 def _export_build_deck(self):
-    asset = self.workspace_controls["Assets"]["build_deck"].get("selected")
+    asset = self.workspace_controls["UI"]["build_deck"].get("selected")
     if asset is None: return
     path, origin, manifest_entry = _entry_origin(self, asset)
     image = _named_image(self, path)
@@ -3987,7 +3994,7 @@ def _export_build_deck(self):
 
 
 def _remove_build_deck(self):
-    bd = self.workspace_controls["Assets"]["build_deck"]; asset = bd.get("selected")
+    bd = self.workspace_controls["UI"]["build_deck"]; asset = bd.get("selected")
     path, origin, manifest_entry = _entry_origin(self, asset)
     if path is None: return
     if origin == "pack" and manifest_entry is not None:
@@ -4010,7 +4017,7 @@ def _remove_build_deck(self):
             _remember_asset_removal(self.project, path)
         st.entries = [entry for entry in st.entries or [] if entry is not manifest_entry]
         st.changed = True
-        self.workspace_controls["Assets"].pop("legacy_pack_index", None)
+        self.workspace_controls["UI"].pop("legacy_pack_index", None)
         self._mark_dirty(); _refresh_build_deck(self); return
     _remember_asset_removal(self.project, path)
     bd.get("preview_image_cache", {}).pop(path, None)
@@ -4021,7 +4028,7 @@ def _remove_build_deck(self):
 
 def _revert_build_deck_all(self):
     """Only the build_deck/* entries -- not every named asset in the mod."""
-    bd = self.workspace_controls["Assets"]["build_deck"]
+    bd = self.workspace_controls["UI"]["build_deck"]
     names_in_scope = {a["name"] for a in bd.get("catalog", [])}
     for asset in bd.get("catalog", []):
         path, origin, manifest_entry = _entry_origin(self, asset)
@@ -4046,11 +4053,11 @@ def _revert_build_deck_all(self):
                 _remember_asset_removal(self.project, path)
             st.entries = [entry for entry in st.entries or [] if entry is not manifest_entry]
             st.changed = True
-            self.workspace_controls["Assets"].pop("legacy_pack_index", None)
+            self.workspace_controls["UI"].pop("legacy_pack_index", None)
         else:
             _remember_asset_removal(self.project, path)
     bd.get("preview_image_cache", {}).clear()
-    self.workspace_controls["Assets"].pop("legacy_pack_index", None)
+    self.workspace_controls["UI"].pop("legacy_pack_index", None)
     folder = self.project.other.get("assets")
     if not _asset_paths(self.project, folder): self.project.other.pop("assets", None)
     self._mark_dirty(); _refresh_build_deck(self)

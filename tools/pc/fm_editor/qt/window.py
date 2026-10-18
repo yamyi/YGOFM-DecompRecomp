@@ -22,7 +22,7 @@ from .starter import StarterMixin
 
 class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixin, LimitsMixin, MapMixin, ModinfoMixin, PacksMixin, ProblemsMixin, RitualsMixin, StarsMixin, StarterMixin, QMainWindow):
     FILTERS = ["All cards", "Changed", "Added by the mod", "With notes", "Monsters", "Non-monsters"] + TYPE_NAMES
-    NAV = ["Cards", "Art", "Assets", "Campaign", "Fusions", "Equips", "Rituals", "Duelists", "Starter decks",
+    NAV = ["Cards", "Art", "UI", "Campaign", "Fusions", "Equips", "Rituals", "Duelists", "Starter decks",
            "Limits", "Guardian Stars", "Packs", "Mod info", "Problems"]
     # Kept built and loadable while the asset-replacement page is refined.
     HIDDEN_WORKSPACES = frozenset()
@@ -257,7 +257,7 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
         if name == "Packs":
             self._build_packs_page(parent)
             return
-        filenames = {"Assets": "assets_page.ui", "Campaign": "campaign_page.ui", "Fusions": "fusions_page.ui",
+        filenames = {"UI": "assets_page.ui", "Campaign": "campaign_page.ui", "Fusions": "fusions_page.ui",
                      "Equips": "equips_page.ui", "Rituals": "rituals_page.ui",
                      "Duelists": "duelists_page.ui", "Starter decks": "starter_decks_page.ui",
                      "Limits": "limits_page.ui",
@@ -278,7 +278,7 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
         controls = {"page": page}
         self.workspace_forms[name] = page
         self.workspace_controls[name] = controls
-        if name == "Assets":
+        if name == "UI":
             self._build_assets_page(page, controls)
         if name == "Rituals":
             splitter=page.findChild(QSplitter,"ritualSplit")
@@ -662,7 +662,7 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
         if not hasattr(self, "workspace_controls") or name not in self.workspace_controls:
             return
         c, p = self.workspace_controls[name], self.project
-        if name == "Assets":
+        if name == "UI":
             self._refresh_assets()
         elif name == "Campaign":
             self._refresh_map()

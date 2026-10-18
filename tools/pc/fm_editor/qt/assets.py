@@ -69,7 +69,7 @@ class AssetsMixin:
             button.clicked.connect(lambda _=False, value=scale: self._set_asset_scale(value))
 
     def _set_asset_scale(self, scale):
-        c = self.workspace_controls["Assets"]
+        c = self.workspace_controls["UI"]
         c["scale"] = scale
         for value in (1, 2, 4):
             c[f"scale_{value}"].setChecked(value == scale)
@@ -88,11 +88,11 @@ class AssetsMixin:
         return [entry for entry in st.entries or [] if self._asset_entry(entry)]
 
     def _asset_category_clicked(self, item, _column):
-        self.workspace_controls["Assets"]["category"] = item.text(0).lower()
+        self.workspace_controls["UI"]["category"] = item.text(0).lower()
         self._refresh_assets()
 
     def _set_asset_mode(self, mode):
-        c = self.workspace_controls["Assets"]
+        c = self.workspace_controls["UI"]
         c["mode"] = mode
         for key in ("all", "modified", "retail"):
             c[key].setChecked(key == mode)
@@ -119,9 +119,9 @@ class AssetsMixin:
         return any(word in text for prefix, group in words.items() if category.startswith(prefix) for word in group)
 
     def _refresh_assets(self):
-        if "Assets" not in self.workspace_controls:
+        if "UI" not in self.workspace_controls:
             return
-        c = self.workspace_controls["Assets"]
+        c = self.workspace_controls["UI"]
         table = c["table"]
         chosen = self._selected_asset()
         query = c["search"].text().strip().lower()
@@ -152,7 +152,7 @@ class AssetsMixin:
         self._select_asset()
 
     def _selected_asset(self):
-        c = self.workspace_controls.get("Assets", {})
+        c = self.workspace_controls.get("UI", {})
         table = c.get("table")
         if table is None or not table.selectionModel().hasSelection():
             return None
@@ -211,7 +211,7 @@ class AssetsMixin:
                                       Qt.TransformationMode.FastTransformation))
 
     def _select_asset(self):
-        c = self.workspace_controls.get("Assets", {})
+        c = self.workspace_controls.get("UI", {})
         page, entry = c.get("page"), self._selected_asset()
         if page is None:
             return
