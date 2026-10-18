@@ -795,6 +795,36 @@ def _card_back_background(wa, frame_index):
     return frame
 
 
+_LIBRARY_ICON_SHEETS = {}
+# Library_DrawCardGrid's own retail fallback (func_80029EC4.c) reads a fixed
+# 12x14-ish cell, tinted per card kind by its own 16-entry (4bpp) palette
+# row; the row index was found empirically, not from a documented table --
+# each one visually confirmed against the kind it names (monster gold+red,
+# magic green, trap pink, ritual blue), not assumed from their spacing.
+_LIBRARY_ICON_OFFSET, _LIBRARY_ICON_CLUT = 17713152, 17733120
+_LIBRARY_ICON_ROW = {0: 3, 1: 6, 2: 8, 3: 10}   # monster, magic, trap, ritual
+
+
+def _library_icon_background(wa, frame_index):
+    """The plain Library-grid card icon, tinted for `frame_index`."""
+    if not wa:
+        return None
+    row = _LIBRARY_ICON_ROW.get(frame_index)
+    if row is None:
+        return None
+    key = (id(wa), frame_index)
+    if key in _LIBRARY_ICON_SHEETS:
+        return _LIBRARY_ICON_SHEETS[key]
+    try:
+        palette = image_extract.read_palette(wa, _LIBRARY_ICON_CLUT + row * 0x20, 16)
+        w, h, rgba = image_extract.decode(wa, _LIBRARY_ICON_OFFSET, 64, 128, 4, palette)
+    except (IndexError, ValueError, struct.error):
+        return None
+    icon = pngio.crop(pngio.Image(w, h, rgba), 97, 112, 13, 15)
+    _LIBRARY_ICON_SHEETS[key] = icon
+    return icon
+
+
 def _frame_sized(image, width, height):
     return pngio.scale_to(image, width, height) if image is not None and image.size != (width, height) else image
 
@@ -1237,7 +1267,7 @@ def _draw_frames(editor):
         _draw_field_template(editor, painter, c, selected)
         painter.end(); _set_preview_pixmap(c["preview"], QPixmap.fromImage(image)); return
     if selected == "library":
-        _draw_frame_template(editor, painter, c, (24, 32), ("library",), "#55446f")
+        _draw_library_template(editor, painter, c)
         painter.end(); _set_preview_pixmap(c["preview"], QPixmap.fromImage(image)); return
     face = _frames_widget(c["form"], QRadioButton, "frontRadio").isChecked()
     kind = _frame_preview_kind(c)
@@ -1392,24 +1422,27 @@ def _draw_hand_template(editor, painter, c):
         painter.setPen(QPen(QColor("#1686ff"), 2)); painter.drawRect(QRect(*c["boxes"][chosen]))
 
 
-def _draw_frame_template(editor, painter, controls, size, keys, colour):
-    """Preview the independent Library render target at its game dimensions.
-    This placement is not an alias of the 140×196 card, which is why the
-    original Frames page switches templates on selection."""
-    width, height = size; left, top = (140 - width) // 2, (196 - height) // 2
-    painter.fillRect(left, top, width, height, QColor(colour)); controls["boxes"] = {}
-    for key in keys:
-        part = _frame_part(editor, key)
-        if _FRAME_SPEC[key][4] and part.get("hide") is True: continue
-        x, y, part_width, part_height = _frame_rect(editor, key)
-        box = QRect(left + x, top + y, part_width, part_height)
-        controls["boxes"][key] = (box.x(), box.y(), box.width(), box.height())
-        asset = _ui_image(editor, _frame_asset(editor, key))
-        if asset is not None: painter.drawImage(box, _qimage(asset.width, asset.height, asset.rgba))
+def _draw_library_template(editor, painter, c):
+    """Preview the independent 24x32 Library grid icon at its game size.
+    With no custom replacement, fall back to the real grid plate: the same
+    disc pixels Library_DrawCardGrid's own retail fallback draws
+    (func_80029EC4.c), one per card kind."""
+    width, height = 24, 32
+    left, top = (140 - width) // 2, (196 - height) // 2
+    painter.fillRect(left, top, width, height, QColor("#55446f")); c["boxes"] = {}
+    box = QRect(left, top, width, height)
+    c["boxes"]["library"] = (box.x(), box.y(), box.width(), box.height())
+    asset = _ui_image(editor, _frame_asset(editor, "library"))
+    if asset is not None:
+        painter.drawImage(box, _qimage(asset.width, asset.height, asset.rgba))
+    else:
+        wa = getattr(getattr(editor, "files", None), "wa", None)
+        plate = _library_icon_background(wa, _FRAME_INDEX[_frame_preview_kind(c)])
+        if plate is not None: _frame_draw_picture(painter, plate, box)
         else: painter.setPen(QColor("#9ab2cf")); painter.drawRect(box)
-    chosen = controls.get("selected")
-    if chosen in controls["boxes"]:
-        painter.setPen(QPen(QColor("#1686ff"), 2)); painter.drawRect(QRect(*controls["boxes"][chosen]))
+    chosen = c.get("selected")
+    if chosen in c["boxes"]:
+        painter.setPen(QPen(QColor("#1686ff"), 2)); painter.drawRect(QRect(*c["boxes"][chosen]))
 
 
 def _draw_field_template(editor, painter, c, key):
