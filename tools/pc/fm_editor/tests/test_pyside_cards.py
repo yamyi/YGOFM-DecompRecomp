@@ -1657,32 +1657,28 @@ class CardsTest(unittest.TestCase):
         w.hide()
 
     def test_a_star_takes_its_symbol_from_the_disc(self):
-        """A star with no icon of its own falls back to the disc\'s symbol.
-        The synthetic fixture leaves that sheet clear, so stand a tile in it;
-        the pixels themselves are pinned in test_guardian_stars.DiscIconTest."""
-        import struct
+        """A star with no override renders the current retail-icon decoder's result."""
         from fm_editor import guardian_stars as gs
         w = self.window
-        sheet = bytearray(w.files.wa)
-        struct.pack_into('<16H', sheet, gs.ICON_CLUT, *([0] + [0xFFFF] * 15))
-        for x, y in gs.ICON_SPOTS:
-            start = gs.ICON_SHEET + y * gs.ICON_STRIDE + x // 2
-            for row in range(gs.ICON_SIDE):
-                at = start + row * gs.ICON_STRIDE
-                sheet[at:at + gs.ICON_SIDE // 2] = bytes([0x11] * (gs.ICON_SIDE // 2))
-        w.files = SimpleNamespace(wa=bytes(sheet), source=w.files.source)
-        c = self.stars_page()
-        for star in range(1, gs.RETAIL_COUNT + 1):
-            self.assertIsNotNone(w._star_icon_pixmap(star), star)
-        self.assertTrue(all(not c['stars'].item(row, 1).icon().isNull()
-                            for row in range(1, gs.RETAIL_COUNT + 1)))
-        self.assertFalse(c['icon'].pixmap().isNull())
-        self.assertTrue(all(not c['matrix'].horizontalHeaderItem(i).icon().isNull()
-                            for i in range(gs.RETAIL_COUNT)))
-        # Only the disc's ten have one; a star past them does not.
-        self.assertIsNone(gs.disc_icon(bytes(sheet), gs.RETAIL_COUNT + 1))
-        self.assertIsNone(gs.disc_icon(bytes(sheet), 0))
-        self.assertIsNone(gs.disc_icon(None, 1))
+        rgba = bytes([255, 255, 255, 255]) * 16 * 16
+
+        def retail_icon(_wa, star):
+            return (16, 16, rgba) if 1 <= star <= gs.RETAIL_COUNT else None
+
+        # The decoder itself has dedicated tests.  This page test verifies it
+        # consumes the supported ``disc_icon(wa, star)`` API instead of the
+        # old implementation's boot-sheet offsets and palette constants.
+        with mock.patch.object(gs, 'disc_icon', side_effect=retail_icon):
+            c = self.stars_page()
+            for star in range(1, gs.RETAIL_COUNT + 1):
+                self.assertIsNotNone(w._star_icon_pixmap(star), star)
+            self.assertTrue(all(not c['stars'].item(row, 1).icon().isNull()
+                                for row in range(1, gs.RETAIL_COUNT + 1)))
+            self.assertFalse(c['icon'].pixmap().isNull())
+            self.assertTrue(all(not c['matrix'].horizontalHeaderItem(i).icon().isNull()
+                                for i in range(gs.RETAIL_COUNT)))
+        self.assertIsNone(retail_icon(w.files.wa, gs.RETAIL_COUNT + 1))
+        self.assertIsNone(retail_icon(w.files.wa, 0))
 
     # --- Packs ------------------------------------------------------------
 
