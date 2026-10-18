@@ -500,15 +500,15 @@ class CardsTest(unittest.TestCase):
         retail_preview = c['preview'].property('_fullPixmap')
         self.assertEqual((retail_preview.width(), retail_preview.height()), (560, 784))
 
-        # The main card's stat components retain the retail viewer's mixed
-        # coordinate convention: labels are top-left positions, while values
-        # are the centre of their four game-font digit cells.  These values
-        # are deliberately not derived from the Frame image rectangle.
+        # The main card's stat components preserve the retail card-view
+        # sprites: 24x12 labels and 6x13 digit cells.  Values are stored at
+        # the centre of their four-cell run, so their rendered rows start at
+        # (97, 157) and (97, 171), not at the Frame image rectangle.
         from fm_editor.qt.ui_assets_compat import _frame_rect
-        self.assertEqual(_frame_rect(w, 'atk_label'), (12, 171, 16, 8))
-        self.assertEqual(_frame_rect(w, 'atk'), (97, 169, 10, 12))
-        self.assertEqual(_frame_rect(w, 'dfd_label'), (12, 184, 16, 8))
-        self.assertEqual(_frame_rect(w, 'def'), (97, 184, 10, 12))
+        self.assertEqual(_frame_rect(w, 'atk_label'), (74, 162, 24, 12))
+        self.assertEqual(_frame_rect(w, 'atk'), (109, 163, 6, 13))
+        self.assertEqual(_frame_rect(w, 'dfd_label'), (74, 173, 24, 12))
+        self.assertEqual(_frame_rect(w, 'def'), (109, 177, 6, 13))
 
         # Select Artwork through the tree model exactly as a user does, then
         # edit its game-pixel position through the Designer spin boxes.

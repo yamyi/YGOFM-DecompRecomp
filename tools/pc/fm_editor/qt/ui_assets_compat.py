@@ -637,14 +637,14 @@ _FRAME_PARTS = (
     ("art", "Artwork", ("art",), (19, 50, 102, 96), True, True, False),
     ("stars", "Level stars", ("stars",), (119, 32, 56, 9), True, False, False),
     ("attribute", "Attribute icon", ("attribute",), (110, 13, 16, 16), True, True, False),
-    # These are the native card-view coordinates.  The game records a stat's
-    # position at the centre of its four-digit run, while labels use their
-    # top-left corner.  Keeping the two conventions is necessary for the
-    # preview and exported frame layout to agree with the retail viewer.
-    ("atk", "ATK value", ("digits", "atk"), (97, 169, 10, 12), True, True, False),
-    ("def", "DEF value", ("digits", "def"), (97, 184, 10, 12), True, True, False),
-    ("atk_label", "ATK label", ("atk_label",), (12, 171, 16, 8), True, True, True),
-    ("dfd_label", "DFD label", ("dfd_label",), (12, 184, 16, 8), True, True, True),
+    # ``func_80028B08`` draws one 6x13 digit at (97, 157)/(97, 171).
+    # The editor stores a stat value at the centre of its four-digit run, so
+    # these centres resolve to those native game positions.  ATK/DFD use
+    # distinct 24x12 sprites from the card-view sheet, rather than HUD text.
+    ("atk", "ATK value", ("digits", "atk"), (109, 163, 6, 13), True, True, False),
+    ("def", "DEF value", ("digits", "def"), (109, 177, 6, 13), True, True, False),
+    ("atk_label", "ATK label", ("atk_label",), (74, 162, 24, 12), True, True, True),
+    ("dfd_label", "DFD label", ("dfd_label",), (74, 173, 24, 12), True, True, True),
     ("magic_label", "Magic-card caption", ("type_label", "magic"), (84, 35, 56, 16), True, True, True),
     ("equip_label", "Equip-card caption", ("type_label", "equip"), (84, 35, 56, 16), True, True, True),
     ("ritual_label", "Ritual-card caption", ("type_label", "ritual"), (84, 35, 56, 16), True, True, True),
@@ -708,6 +708,39 @@ def _frame_caption(wa, kind):
 # 8x8 sprites from the duel boot texture page. Keep a small decoded VRAM
 # cache so the Hand preview uses the same digits, sword and shield as game.
 _HAND_SHEETS = {}
+_CARD_STAT_SHEETS = {}
+
+
+def _frame_card_stat_sprite(wa, part):
+    """Return a retail card-view stat sprite.
+
+    The HD-text renderer treats these as a separate atlas: ATK/DFD are not
+    glyphs from the normal 8x12 HUD font.  Decoding the original cells here
+    keeps the preview's fallback faithful to the same source geometry and
+    palette as the game.
+    """
+    if not wa:
+        return None
+    if part == "atk_label":
+        cell = (0, 206, 24, 12)
+    elif part == "dfd_label":
+        cell = (0, 218, 24, 12)
+    elif isinstance(part, int) and 0 <= part <= 9:
+        cell = (16 + part * 6, 144, 6, 13)
+    else:
+        return None
+    key = id(wa)
+    sheet = _CARD_STAT_SHEETS.get(key)
+    if sheet is None:
+        sheet = _CARD_STAT_SHEETS[key] = ui_assets.DuelArt(wa)
+    if not sheet.ok:
+        return None
+    u, v, width, height = cell
+    source = ("frame-card-stat", part)
+    return sheet._cached(
+        source,
+        lambda: sheet.vram.sprite(960, 256, 4, 496, 248, u, v, width, height),
+    )
 
 
 def _hand_sprite(wa, u, v, width=8, height=8):
@@ -1341,11 +1374,21 @@ def _draw_frames(editor):
             glyph_w, glyph_h = _frame_rect(editor, key)[2:]
             for number, character in enumerate(text):
                 _frame_draw_picture(painter, _frame_digit_cell(digits_image, int(character)), QRect(x + number * step, y, glyph_w, glyph_h))
+        elif key in ("atk", "def"):
+            # HD text replaces this card-view sprite sheet separately from the
+            # normal HUD font.  Its original cells are still the authoritative
+            # fallback for shape, palette, advance and baseline.
+            step = _as_int(_frame_part(editor, "digits").get("step"), _frame_rect(editor, key)[2])
+            glyph_w, glyph_h = _frame_rect(editor, key)[2:]
+            for number, character in enumerate(text):
+                glyph = _frame_card_stat_sprite(wa, int(character))
+                if glyph is not None:
+                    _frame_draw_picture(painter, glyph, QRect(x + number * step, y, glyph_w, glyph_h))
+        elif key in ("atk_label", "dfd_label") and _frame_card_stat_sprite(wa, key) is not None:
+            _frame_draw_picture(painter, _frame_card_stat_sprite(wa, key), box)
         else:
-            # The unmodified card uses the game's 8×12 text atlas for both
-            # stat labels and values.  A replacement PNG is handled above;
-            # otherwise rasterising this exact atlas keeps its native glyph
-            # proportions instead of substituting a desktop serif font.
+            # Other labels use the game's 8x12 text atlas.  Card-view stats
+            # are handled above from their own source sheet.
             picture = _frame_title_picture(text, box.width(), box.height(), color) if key == "title" else _frame_text_picture(font, text, box.width(), box.height(), color)
             if picture is not None:
                 _frame_draw_picture(painter, picture, box)
