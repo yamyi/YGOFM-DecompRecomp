@@ -24,6 +24,9 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
     FILTERS = ["All cards", "Changed", "Added by the mod", "With notes", "Monsters", "Non-monsters"] + TYPE_NAMES
     NAV = ["Cards", "Art", "UI", "Campaign", "Fusions", "Equips", "Rituals", "Duelists", "Starter decks",
            "Limits", "Guardian Stars", "Packs", "Mod info", "Problems"]
+    # Internal workspace keys stay stable for controllers and existing mods;
+    # this map supplies their user-facing navigation label.
+    NAV_LABELS = {"Limits": "Game Rules"}
     # Kept built and loadable while the asset-replacement page is refined.
     HIDDEN_WORKSPACES = frozenset()
     def __init__(self, game=None, mod=None, ask=False):
@@ -160,7 +163,7 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
         for name in self.NAV:
             if name in self.HIDDEN_WORKSPACES:
                 continue
-            b = QPushButton(name)
+            b = QPushButton(self.NAV_LABELS.get(name, name))
             b.setFlat(True)
             b.setCheckable(True)
             b.setMinimumHeight(38)

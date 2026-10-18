@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Limits</string>
+   <string>Game Rules</string>
   </property>
   <layout class="QVBoxLayout" name="pageLayout">
    <property name="spacing">
@@ -26,7 +26,7 @@
       </sizepolicy>
      </property>
      <property name="text">
-      <string>Limits</string>
+      <string>Game Rules</string>
      </property>
     </widget>
    </item>
@@ -39,7 +39,7 @@
       </sizepolicy>
      </property>
      <property name="text">
-      <string>Edit global game limits, starting LP, maximum values and gameplay restrictions.</string>
+      <string>Edit game rules, starting LP, maximum values and gameplay restrictions.</string>
      </property>
      <property name="wordWrap">
       <bool>true</bool>
@@ -2648,10 +2648,10 @@
      <item>
       <widget class="QPushButton" name="resetAllLimitsButton">
        <property name="toolTip">
-        <string>Leave every limit at the game's own number</string>
+        <string>Leave every game rule at the game's own number</string>
        </property>
        <property name="text">
-        <string>⟲  Reset all limits</string>
+        <string>⟲  Reset all game rules</string>
        </property>
       </widget>
      </item>
@@ -2671,7 +2671,7 @@
      <item>
       <widget class="QPushButton" name="revertLimitsButton">
        <property name="toolTip">
-        <string>Put every limit back as the mod was opened with it</string>
+        <string>Put every game rule back as the mod was opened with it</string>
        </property>
        <property name="text">
         <string>⟲  Revert to retail</string>

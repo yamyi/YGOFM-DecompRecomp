@@ -16,9 +16,9 @@ except ImportError:
 from fm_editor import art, card_uses, manifest, gamedata
 from fm_editor.gamedata import DUELIST_NAMES
 try:
-    from PySide6.QtWidgets import QGridLayout, QPlainTextEdit, QMessageBox
+    from PySide6.QtWidgets import QGridLayout, QLabel, QPlainTextEdit, QMessageBox
 except ImportError:
-    QGridLayout = QPlainTextEdit = QMessageBox = None
+    QGridLayout = QLabel = QPlainTextEdit = QMessageBox = None
 
 
 def Qt_UserRole():
@@ -1289,6 +1289,12 @@ class CardsTest(unittest.TestCase):
     def limits_page(self):
         self.window.select_workspace('Limits')
         return self.window.workspace_controls['Limits']
+
+    def test_game_rules_is_the_visible_limits_workspace_name(self):
+        from PySide6.QtWidgets import QLabel
+        c = self.limits_page()
+        self.assertEqual(self.window.nav_buttons["Limits"].text(), "Game Rules")
+        self.assertEqual(c["page"].findChild(QLabel, "pageTitleLabel").text(), "Game Rules")
 
     def test_limits_builds_a_field_for_every_limit(self):
         from fm_editor import values as limits
