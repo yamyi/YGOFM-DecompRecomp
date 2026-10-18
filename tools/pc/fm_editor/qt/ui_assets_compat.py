@@ -634,7 +634,7 @@ _FRAME_PARTS = (
     ("library", "Library icon", ("library_icon",), (0, 0, 24, 32), False, False, True),
     ("digits", "Digit strip", ("digits",), (0, 0, 10, 12), False, True, True),
     ("title", "Card name", ("title",), (12, 14, 96, 14), True, False, False),
-    ("art", "Artwork", ("art",), (19, 50, 102, 96), True, True, True),
+    ("art", "Artwork", ("art",), (19, 50, 102, 96), True, True, False),
     ("stars", "Level stars", ("stars",), (119, 32, 56, 9), True, False, False),
     ("attribute", "Attribute icon", ("attribute",), (110, 13, 16, 16), True, True, False),
     ("atk", "ATK value", ("digits", "atk"), (97, 169, 10, 12), True, True, False),
@@ -654,7 +654,7 @@ _FRAME_PARTS = (
 )
 _FRAME_SPEC = {item[0]: item for item in _FRAME_PARTS}
 _FRAME_DIRECT = {"frame", "back", "hand", "field", "field_back", "library"}
-_FRAME_IMAGE = {"art", "digits", "atk_label", "dfd_label", "magic_label", "equip_label", "ritual_label", "trap_label"}
+_FRAME_IMAGE = {"digits", "atk_label", "dfd_label", "magic_label", "equip_label", "ritual_label", "trap_label"}
 _FRAME_MOVABLE = {part[0] for part in _FRAME_PARTS if part[0] not in _FRAME_DIRECT}
 
 # Retail card-view sprites live in WA_MRG.MRG.  These three extractors are
@@ -695,6 +695,25 @@ def _frame_caption(wa, kind):
     row = {"magic": 158, "trap": 174, "ritual": 158, "equip": 190}.get(kind)
     return _frame_vram_picture(wa, _CARD_SHEET, 0, row, 56, 16,
                                _CARD_PALETTES + _LABEL_PALETTE) if row is not None else None
+
+
+# The hand's stat overlay is not text: duel_card_frame_draw.c samples these
+# 8x8 sprites from the duel boot texture page. Keep a small decoded VRAM
+# cache so the Hand preview uses the same digits, sword and shield as game.
+_HAND_SHEETS = {}
+
+
+def _hand_sprite(wa, u, v, width=8, height=8):
+    if not wa:
+        return None
+    key = id(wa)
+    sheet = _HAND_SHEETS.get(key)
+    if sheet is None:
+        sheet = _HAND_SHEETS[key] = ui_assets.DuelArt(wa)
+    if not sheet.ok:
+        return None
+    source = ("frame-hand-sprite", u, v, width, height)
+    return sheet._cached(source, lambda: sheet.vram.sprite(896, 256, 8, 256, 241, u, v, width, height))
 
 
 def _frame_sized(image, width, height):
@@ -1133,7 +1152,7 @@ def _draw_frames(editor):
     painter.scale(_FRAME_RENDER_SCALE, _FRAME_RENDER_SCALE)
     selected = c.get("selected", "frame")
     if selected == "hand" or selected.startswith("hand_"):
-        _draw_frame_template(editor, painter, c, (52, 60), ("hand", "hand_art", "hand_atk", "hand_def", "hand_atk_label", "hand_dfd_label"), "#665328")
+        _draw_hand_template(editor, painter, c)
         painter.end(); _set_preview_pixmap(c["preview"], QPixmap.fromImage(image)); return
     if selected in {"field", "field_back"}:
         _draw_frame_template(editor, painter, c, (40, 56), (selected,), "#305273")
@@ -1220,23 +1239,72 @@ def _draw_frame_selected_outline(painter, controls):
         painter.setPen(QPen(QColor("#1686ff"), 2)); painter.drawRect(QRect(*controls["boxes"][chosen]))
 
 
+def _draw_hand_template(editor, painter, c):
+    """Preview the duel hand's 52x60 sprite as duel_card_frame_draw.c composes
+    it: retail artwork, and the game's own sword/shield/digit-row sprites,
+    rather than the 140x196 main-card layout or generic placeholder shapes."""
+    left, top, width, height = (140 - 52) // 2, (196 - 60) // 2, 52, 60
+    c["boxes"] = {}
+    box = QRect(left, top, width, height)
+    c["boxes"]["hand"] = (box.x(), box.y(), box.width(), box.height())
+    hand_asset = _ui_image(editor, _frame_asset(editor, "hand"))
+    if hand_asset is not None: _frame_draw_picture(painter, hand_asset, box)
+    else: painter.fillRect(box, QColor("#665328"))
+    wa = getattr(getattr(editor, "files", None), "wa", None)
+    retail_art = art.in_game(editor.project, wa, _frame_card_id(editor) or 1, "art", _FRAME_RENDER_SCALE) if wa else None
+    ax, ay, aw, ah = _frame_rect(editor, "hand_art")
+    art_box = QRect(left + ax, top + ay, aw, ah)
+    c["boxes"]["hand_art"] = (art_box.x(), art_box.y(), art_box.width(), art_box.height())
+    if _frame_part(editor, "hand_art").get("hide") is True:
+        painter.setPen(QPen(QColor("#999999"), 1, Qt.PenStyle.DashLine)); painter.drawRect(art_box)
+    elif retail_art is not None:
+        _frame_draw_picture(painter, retail_art, art_box)
+    else:
+        painter.fillRect(art_box, QColor("#245175")); painter.setPen(QColor("#b9c7da")); painter.drawRect(art_box)
+    # The hand's ATK/DEF markers are the duel screen's own sword, shield, and
+    # digit-row sprites (8x8/8x16 source cells), not generic text or icons.
+    for key, (u, v) in (("hand_atk_label", (120, 112)), ("hand_dfd_label", (120, 120))):
+        bx, by, bw, bh = _frame_rect(editor, key)
+        key_box = QRect(left + bx, top + by, bw, bh)
+        c["boxes"][key] = (key_box.x(), key_box.y(), key_box.width(), key_box.height())
+        if _frame_part(editor, key).get("hide") is True:
+            painter.setPen(QPen(QColor("#999999"), 1, Qt.PenStyle.DashLine)); painter.drawRect(key_box); continue
+        icon = _hand_sprite(wa, u, v)
+        if icon is not None: _frame_draw_picture(painter, icon, key_box)
+        else:
+            painter.fillRect(key_box, QColor("#9da9bf")); painter.setPen(QColor("#dfe8f6")); painter.drawRect(key_box)
+    for key, text in (("hand_atk", "3000"), ("hand_def", "2500")):
+        bx, by, bw, bh = _frame_rect(editor, key)
+        if _frame_part(editor, key).get("hide") is True:
+            key_box = QRect(left + bx, top + by, bw * len(text), bh)
+            painter.setPen(QPen(QColor("#999999"), 1, Qt.PenStyle.DashLine)); painter.drawRect(key_box)
+            c["boxes"][key] = (key_box.x(), key_box.y(), key_box.width(), key_box.height())
+            continue
+        for index, character in enumerate(text):
+            digit = _hand_sprite(wa, 8 * int(character), 88)
+            cell = QRect(left + bx + index * bw, top + by, bw, bh)
+            if digit is not None: _frame_draw_picture(painter, digit, cell)
+            else: painter.fillRect(cell, QColor("#ffffff"))
+        c["boxes"][key] = (left + bx, top + by, bw * len(text), bh)
+    chosen = c.get("selected")
+    if chosen in c["boxes"]:
+        painter.setPen(QPen(QColor("#1686ff"), 2)); painter.drawRect(QRect(*c["boxes"][chosen]))
+
+
 def _draw_frame_template(editor, painter, controls, size, keys, colour):
-    """Preview the independent hand/field/library render targets at their
-    game dimensions.  These placements are not aliases of the 140×196 card,
-    which is why the original Frames page switches templates on selection."""
+    """Preview the independent field/library render targets at their game
+    dimensions.  These placements are not aliases of the 140×196 card, which
+    is why the original Frames page switches templates on selection."""
     width, height = size; left, top = (140 - width) // 2, (196 - height) // 2
     painter.fillRect(left, top, width, height, QColor(colour)); controls["boxes"] = {}
     for key in keys:
         part = _frame_part(editor, key)
         if _FRAME_SPEC[key][4] and part.get("hide") is True: continue
         x, y, part_width, part_height = _frame_rect(editor, key)
-        if key == "hand": x = y = 0
         box = QRect(left + x, top + y, part_width, part_height)
         controls["boxes"][key] = (box.x(), box.y(), box.width(), box.height())
         asset = _ui_image(editor, _frame_asset(editor, key))
         if asset is not None: painter.drawImage(box, _qimage(asset.width, asset.height, asset.rgba))
-        elif key.endswith("art"): painter.fillRect(box, QColor("#315d8a"))
-        elif key in {"hand_atk", "hand_def"}: painter.setPen(QColor("#ffffff")); painter.drawText(box, Qt.AlignmentFlag.AlignCenter, "3000" if key.endswith("atk") else "2500")
         else: painter.setPen(QColor("#9ab2cf")); painter.drawRect(box)
     chosen = controls.get("selected")
     if chosen in controls["boxes"]:
