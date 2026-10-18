@@ -757,6 +757,44 @@ def _field_frame_background(wa, frame_index, is_monster):
     return _duel_cell(wa, 0 if is_monster else 56, 192, frame_index)
 
 
+_BACK_SHEETS = {}
+
+
+def _card_back_background(wa, frame_index):
+    """The plain 140x192 card-back plate: the Library atlas' "right" page
+    (0xEE6800 + 16 sectors, the same page _card_frame_background crops the
+    front's own 12px right-edge trim from) holds the back's right edge and
+    the top half of its swirl body in its lower half; the next page over
+    (+32 sectors) continues that same swirl, cut off at its own top edge,
+    for the bottom half. Confirmed by stacking the two: the spiral lines up
+    exactly across the page boundary."""
+    if not wa:
+        return None
+    key = (id(wa), frame_index)
+    if key in _BACK_SHEETS:
+        return _BACK_SHEETS[key]
+    clut_offset = 0xF06800 + (8 + frame_index) * 0x200
+    try:
+        palette = image_extract.read_palette(wa, clut_offset, 256)
+        right_w, right_h, right_rgba = image_extract.decode(wa, 0xEE6800 + 16 * image_extract.SECTOR, 64, 256, 8, palette)
+        foot_w, foot_h, foot_rgba = image_extract.decode(wa, 0xEE6800 + 32 * image_extract.SECTOR, 64, 256, 8, palette)
+    except (IndexError, ValueError, struct.error):
+        return None
+    right, foot = pngio.Image(right_w, right_h, right_rgba), pngio.Image(foot_w, foot_h, foot_rgba)
+    main_top, main_bottom = pngio.crop(right, 0, 128, 128, 128), pngio.crop(foot, 0, 0, 128, 64)
+    edge_top, edge_bottom = pngio.crop(right, 16, 0, 12, 128), pngio.crop(right, 48, 0, 12, 64)
+    frame = QImage(140, 192, QImage.Format.Format_ARGB32_Premultiplied)
+    frame.fill(QColor(0, 0, 0, 0))
+    painter = QPainter(frame)
+    painter.drawImage(QRect(0, 0, 128, 128), _qimage(main_top.width, main_top.height, main_top.rgba))
+    painter.drawImage(QRect(0, 128, 128, 64), _qimage(main_bottom.width, main_bottom.height, main_bottom.rgba))
+    painter.drawImage(QRect(128, 0, 12, 128), _qimage(edge_top.width, edge_top.height, edge_top.rgba))
+    painter.drawImage(QRect(128, 128, 12, 64), _qimage(edge_bottom.width, edge_bottom.height, edge_bottom.rgba))
+    painter.end()
+    _BACK_SHEETS[key] = frame
+    return frame
+
+
 def _frame_sized(image, width, height):
     return pngio.scale_to(image, width, height) if image is not None and image.size != (width, height) else image
 
@@ -1215,6 +1253,8 @@ def _draw_frames(editor):
         plate = _card_frame_background(editor.project, wa, _FRAME_INDEX[kind], kind == "monster",
                                        c.setdefault("retail_frame_cache", {}), _FRAME_RENDER_SCALE)
         painter.drawImage(QRect(bx, by, bw, bh), plate)
+    elif base == "back" and _card_back_background(wa, _FRAME_INDEX[kind]) is not None:
+        painter.drawImage(QRect(bx, by, bw, bh), _card_back_background(wa, _FRAME_INDEX[kind]))
     else:
         painter.fillRect(bx, by, bw, bh, QColor("#35415b")); painter.setPen(QColor("#9da9bf")); painter.drawRect(bx, by, bw, bh)
     if not face:
