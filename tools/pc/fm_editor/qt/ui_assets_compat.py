@@ -62,7 +62,7 @@ def install():
     def build(self, page, controls):
         """Build the supplied UI shell and retain the complete asset editor.
 
-        The scene-oriented tabs come from ``ui_page_all_tabs_compat.ui``.
+        All scene-oriented tabs are declared in ``ui/assets_page.ui``.
         The catalogue editor remains a visible tab after Build Deck, rather
         than being replaced by a static mock-up.  This keeps the modern UI
         independent of the classic editor while preserving every existing
@@ -74,28 +74,15 @@ def install():
         shell = _all_tabs_form(page)
         layout.addWidget(shell)
         tabs = _asset_widget(shell, QTabWidget, "uiPageTabs")
-        frames_form = _frames_form(tabs)
-        frames_tab = frames_form
-        board_tab = _asset_widget(shell, QWidget, "duelBoardTab")
-        tabs.insertTab(tabs.indexOf(board_tab), frames_tab, "Frames")
-        assets_tab = QWidget(tabs)
-        assets_tab.setObjectName("assetsTab")
-        assets_layout = QVBoxLayout(assets_tab)
-        assets_layout.setContentsMargins(0, 0, 0, 0)
-        tabs.addTab(assets_tab, "Assets")
-        _build_template_framework(self, assets_tab, controls, assets_layout)
-        build_deck_tab = QWidget(tabs)
-        build_deck_tab.setObjectName("buildDeckTab")
-        build_deck_layout = QVBoxLayout(build_deck_tab)
-        build_deck_layout.setContentsMargins(0, 0, 0, 0)
-        # Keep Build Deck with the screen-specific editors and leave the
-        # catalogue visible directly after it.
-        tabs.insertTab(tabs.indexOf(assets_tab), build_deck_tab, "Build Deck")
-        _build_build_deck_tab(self, build_deck_tab, controls, build_deck_layout)
+        frames_tab = _asset_widget(shell, QWidget, "FramesPage")
+        build_deck_tab = _asset_widget(shell, QWidget, "BuildDeckAssetsTab")
+        assets_tab = _asset_widget(shell, QWidget, "AssetsPage")
+        _build_template_framework(self, assets_tab, controls)
+        _build_build_deck_tab(self, build_deck_tab, controls)
         controls.update(shell=shell, tabs=tabs, assets_tab=assets_tab, frames_tab=frames_tab)
         _apply_reference_skin(shell, tabs, assets_tab)
         _wire_ui_tabs(self, shell, controls)
-        _wire_frames_tab(self, frames_form, controls)
+        _wire_frames_tab(self, frames_tab, controls)
         tabs.setCurrentIndex(0)
         return shell
 
@@ -995,19 +982,6 @@ def _frame_preview_kind(controls):
         if _frames_widget(controls["form"], QRadioButton, name).isChecked():
             return key
     return "monster"
-
-
-def _frames_form(parent):
-    source = QFile(str(Path(__file__).with_name("frames_tab_compat.ui")))
-    if not source.open(QIODevice.OpenModeFlag.ReadOnly):
-        raise RuntimeError(f"Could not load Frames form: {source.errorString()}")
-    try:
-        form = QUiLoader().load(source, parent)
-    finally:
-        source.close()
-    if form is None:
-        raise RuntimeError("Could not load Frames compatibility form")
-    return form
 
 
 def _frames_widget(form, kind, name):
@@ -3227,25 +3201,9 @@ def _remove_framework(self):
     self._mark_dirty(); _select_framework(self, asset)
 
 
-# A verbatim copy of the original Assets Designer form is kept beside this
-# compatibility module.  Loading the copy lets the modern editor reuse that
-# page without changing the master-tracked source form.
-def _compat_form(parent):
-    source = QFile(str(Path(__file__).with_name("original_assets_page_compat.ui")))
-    if not source.open(QIODevice.OpenModeFlag.ReadOnly):
-        raise RuntimeError(f"Could not load Assets form: {source.errorString()}")
-    try:
-        form = QUiLoader().load(source, parent)
-    finally:
-        source.close()
-    if form is None:
-        raise RuntimeError("Could not load the compatibility Assets form")
-    return form
-
-
 def _all_tabs_form(parent):
-    """Load the user-provided UI Assets shell kept in the Qt compatibility layer."""
-    source = QFile(str(Path(__file__).with_name("ui_page_all_tabs_compat.ui")))
+    """Load the complete UI workspace form, including all of its tab pages."""
+    source = QFile(str(UI_DIR / "assets_page.ui"))
     if not source.open(QIODevice.OpenModeFlag.ReadOnly):
         raise RuntimeError(f"Could not load UI Assets tabs form: {source.errorString()}")
     try:
@@ -3264,12 +3222,9 @@ def _asset_widget(form, kind, name):
     return value
 
 
-def _build_template_framework(self, page, controls, layout):
+def _build_template_framework(self, page, controls):
     from PySide6.QtWidgets import QTreeWidget, QTreeWidgetItem
-    _clear(layout)
-    form = _compat_form(page)
-    layout.setContentsMargins(0, 0, 0, 0)
-    layout.addWidget(form)
+    form = page
     catalog = _catalog()
     categories = sorted({_category(item["name"]) for item in catalog}, key=str.casefold)
     controls.clear()
@@ -3781,15 +3736,8 @@ def _build_deck_catalog():
     return [asset for asset in _catalog() if asset["name"].startswith("build_deck/")]
 
 
-def _build_build_deck_tab(self, page, controls, layout):
-    _clear(layout)
-    source = QFile(str(UI_DIR / "build_deck_assets_tab.ui"))
-    if not source.open(QIODevice.OpenModeFlag.ReadOnly):
-        raise RuntimeError(f"Could not open Build Deck assets form: {source.errorString()}")
-    loader = QUiLoader(); form = loader.load(source, page); source.close()
-    if form is None:
-        raise RuntimeError(f"Could not load Build Deck assets form: {loader.errorString()}")
-    layout.addWidget(form)
+def _build_build_deck_tab(self, page, controls):
+    form = page
 
     def widget(kind, name):
         value = form.findChild(kind, name)

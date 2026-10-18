@@ -79,12 +79,6 @@ def main() -> int:
                "--add-data", f"{identity}{os.pathsep}fm_editor",
                # The Qt window loads these standard forms at run time.
                "--add-data", f"{HERE / 'ui'}{os.pathsep}fm_editor/ui"]
-    # Compatibility forms live beside their Python modules, so they are not
-    # included by the standard ui-directory bundle above.
-    for form in sorted((HERE / "qt").glob("*.ui")):
-        if form.name == "assets_page_compat.ui":
-            continue
-        program += ["--add-data", f"{form}{os.pathsep}fm_editor/qt"]
     # The Assets/Build Deck catalogue is read beside the compatibility code.
     catalog = ROOT / "docs" / "asset-catalog.json"
     if catalog.is_file():

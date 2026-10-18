@@ -175,7 +175,7 @@ def install() -> None:
         self._refresh_equips()
 
     def load_filter_form(parent):
-        source = QFile(str(Path(__file__).with_name("equip_filter_compat.ui")))
+        source = QFile(str(Path(__file__).resolve().parents[1] / "ui" / "equip_filter_dialog.ui"))
         if not source.open(QIODevice.OpenModeFlag.ReadOnly):
             raise RuntimeError(f"Could not open Equip filter form: {source.errorString()}")
         try:

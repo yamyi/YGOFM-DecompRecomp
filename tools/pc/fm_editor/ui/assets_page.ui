@@ -1,899 +1,286 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <ui version="4.0">
- <class>AssetsPage</class>
- <widget class="QWidget" name="AssetsPage">
+ <class>UiAssetsPage</class>
+ <widget class="QWidget" name="UiAssetsPage">
   <property name="geometry">
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1306</width>
-    <height>727</height>
+    <width>1500</width>
+    <height>900</height>
    </rect>
   </property>
   <property name="windowTitle">
-   <string>UI / Graphics</string>
+   <string>UI Assets</string>
   </property>
-  <layout class="QVBoxLayout" name="assetsPageLayout">
+  <layout class="QVBoxLayout" name="uiAssetsPageLayout">
+   <property name="spacing">
+    <number>10</number>
+   </property>
    <property name="leftMargin">
-    <number>2</number>
+    <number>6</number>
    </property>
    <property name="topMargin">
-    <number>2</number>
+    <number>6</number>
    </property>
    <property name="rightMargin">
-    <number>2</number>
+    <number>6</number>
    </property>
    <property name="bottomMargin">
-    <number>2</number>
+    <number>6</number>
    </property>
    <item>
-    <layout class="QHBoxLayout" name="assetsTitleLayout" stretch="3,1,0">
-     <item>
-      <layout class="QVBoxLayout" name="assetsTitleTextLayout" stretch="0,0">
-       <property name="spacing">
-        <number>2</number>
-       </property>
-       <item>
-        <widget class="QLabel" name="assetsTitle">
-         <property name="styleSheet">
-          <string notr="true">font-size: 20px; font-weight: 700;</string>
-         </property>
-         <property name="text">
-          <string>UI / Graphics</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QLabel" name="assetsIntro">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-           <horstretch>2</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
-         <property name="maximumSize">
-          <size>
-           <width>16777215</width>
-           <height>16777215</height>
-          </size>
-         </property>
-         <property name="text">
-          <string>Replace screens, menus, card UI, icons, portraits and other visual assets supported by the mod system.</string>
-         </property>
-         <property name="wordWrap">
-          <bool>true</bool>
-         </property>
-        </widget>
-       </item>
-      </layout>
-     </item>
-     <item>
-      <spacer name="assetsTitleSpacer">
-       <property name="orientation">
-        <enum>Qt::Orientation::Horizontal</enum>
-       </property>
-       <property name="sizeHint" stdset="0">
-        <size>
-         <width>40</width>
-         <height>20</height>
-        </size>
-       </property>
-      </spacer>
-     </item>
-     <item>
-      <widget class="QPushButton" name="uiModGuideButton">
-       <property name="text">
-        <string>UI mod guide...</string>
-       </property>
-      </widget>
-     </item>
-    </layout>
-   </item>
-   <item>
-    <layout class="QHBoxLayout" name="assetsBodyLayout">
-     <property name="spacing">
-      <number>12</number>
+    <widget class="QTabWidget" name="uiPageTabs">
+     <property name="currentIndex">
+      <number>0</number>
      </property>
-     <item>
-      <widget class="QGroupBox" name="assetCategoriesGroup">
-       <property name="title">
-        <string>Asset categories</string>
+     <widget class="QWidget" name="titleScreenTab">
+      <attribute name="title">
+       <string>Title screen</string>
+      </attribute>
+      <layout class="QHBoxLayout" name="titleScreenLayout">
+       <property name="spacing">
+        <number>12</number>
        </property>
-       <layout class="QVBoxLayout" name="assetCategoriesLayout">
-        <item>
-         <widget class="QLineEdit" name="assetCategorySearch">
-          <property name="placeholderText">
-           <string>Search UI assets...</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QTreeWidget" name="assetCategoryTree">
-          <property name="minimumSize">
-           <size>
-            <width>235</width>
-            <height>0</height>
-           </size>
-          </property>
-          <property name="rootIsDecorated">
-           <bool>false</bool>
-          </property>
-          <property name="headerHidden">
-           <bool>true</bool>
-          </property>
-          <column>
-           <property name="text">
-            <string notr="true">1</string>
-           </property>
-          </column>
+       <item>
+        <widget class="QFrame" name="titlePreviewPanel">
+         <property name="frameShape">
+          <enum>QFrame::Shape::StyledPanel</enum>
+         </property>
+         <layout class="QVBoxLayout" name="titlePreviewLayout" stretch="0,1,0">
           <item>
-           <property name="text">
-            <string>Screens / UI Sheets</string>
-           </property>
-           <property name="toolTip">
-            <string>48 groups</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>Title &amp; Menus</string>
-           </property>
-           <property name="toolTip">
-            <string>Declarative</string>
-           </property>
+           <layout class="QHBoxLayout" name="titlePreviewHeader">
+            <item>
+             <widget class="QLabel" name="titlePreviewTitle">
+              <property name="text">
+               <string>Title screen preview</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="titlePreviewHeaderSpacer">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>20</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item>
+             <widget class="QCheckBox" name="titleWithMenuCheck">
+              <property name="text">
+               <string>Show menu</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
           </item>
           <item>
-           <property name="text">
-            <string>Card UI</string>
-           </property>
-           <property name="toolTip">
-            <string>Frames, icons</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>Guardian Stars</string>
-           </property>
-           <property name="toolTip">
-            <string>Icons 1-15</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>Portraits</string>
-           </property>
-           <property name="toolTip">
-            <string>Campaign / Free Duel</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>Story Scenes</string>
-           </property>
-           <property name="toolTip">
-            <string>Backgrounds / cutscenes</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>Map UI</string>
-           </property>
-           <property name="toolTip">
-            <string>Marker / arrows / panel</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>Fonts &amp; Text Colors</string>
-           </property>
-           <property name="toolTip">
-            <string>TTF / OT ramps</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>API Overlay</string>
-           </property>
-           <property name="toolTip">
-            <string>Code mod</string>
-           </property>
-          </item>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="revertAllUiButton">
-          <property name="text">
-           <string>Revert all UI</string>
-          </property>
-         </widget>
-        </item>
-       </layout>
-      </widget>
-     </item>
-     <item>
-      <widget class="QGroupBox" name="assetListGroup">
-       <property name="title">
-        <string>Card UI assets</string>
-       </property>
-       <layout class="QVBoxLayout" name="assetListLayout">
-        <item>
-         <widget class="QLabel" name="assetListIntro">
-          <property name="text">
-           <string>Texture-pack replacements used across card view, Library, Build Deck and duels.</string>
-          </property>
-          <property name="wordWrap">
-           <bool>true</bool>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <layout class="QHBoxLayout" name="assetFiltersLayout">
-          <item>
-           <widget class="QPushButton" name="allAssetsFilterButton">
-            <property name="text">
-             <string>All card UI</string>
-            </property>
-            <property name="checkable">
-             <bool>true</bool>
-            </property>
-            <property name="checked">
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="modifiedAssetsFilterButton">
-            <property name="text">
-             <string>Modified</string>
-            </property>
-            <property name="checkable">
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="retailAssetsFilterButton">
-            <property name="text">
-             <string>Retail</string>
-            </property>
-            <property name="checkable">
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-         </layout>
-        </item>
-        <item>
-         <widget class="QTableWidget" name="assetTable">
-          <property name="minimumSize">
-           <size>
-            <width>390</width>
-            <height>0</height>
-           </size>
-          </property>
-          <property name="rowCount">
-           <number>15</number>
-          </property>
-          <property name="columnCount">
-           <number>3</number>
-          </property>
-          <row/>
-          <row/>
-          <row/>
-          <row/>
-          <row/>
-          <row/>
-          <row/>
-          <row/>
-          <row/>
-          <row/>
-          <row/>
-          <row/>
-          <row/>
-          <row/>
-          <row/>
-          <column>
-           <property name="text">
-            <string>Asset</string>
-           </property>
-          </column>
-          <column>
-           <property name="text">
-            <string>Method</string>
-           </property>
-          </column>
-          <column>
-           <property name="text">
-            <string>State</string>
-           </property>
-          </column>
-          <item row="0" column="0">
-           <property name="text">
-            <string>Monster frame</string>
-           </property>
-          </item>
-          <item row="0" column="1">
-           <property name="text">
-            <string>Texture pack</string>
-           </property>
-          </item>
-          <item row="0" column="2">
-           <property name="text">
-            <string>Modified</string>
-           </property>
-          </item>
-          <item row="1" column="0">
-           <property name="text">
-            <string>Magic frame</string>
-           </property>
-          </item>
-          <item row="1" column="1">
-           <property name="text">
-            <string>Texture pack</string>
-           </property>
-          </item>
-          <item row="1" column="2">
-           <property name="text">
-            <string>Retail</string>
-           </property>
-          </item>
-          <item row="2" column="0">
-           <property name="text">
-            <string>Trap frame</string>
-           </property>
-          </item>
-          <item row="2" column="1">
-           <property name="text">
-            <string>Texture pack</string>
-           </property>
-          </item>
-          <item row="2" column="2">
-           <property name="text">
-            <string>Retail</string>
-           </property>
-          </item>
-          <item row="3" column="0">
-           <property name="text">
-            <string>Ritual frame</string>
-           </property>
-          </item>
-          <item row="3" column="1">
-           <property name="text">
-            <string>Texture pack</string>
-           </property>
-          </item>
-          <item row="3" column="2">
-           <property name="text">
-            <string>Retail</string>
-           </property>
-          </item>
-          <item row="4" column="0">
-           <property name="text">
-            <string>Card back</string>
-           </property>
-          </item>
-          <item row="4" column="1">
-           <property name="text">
-            <string>Texture pack</string>
-           </property>
-          </item>
-          <item row="4" column="2">
-           <property name="text">
-            <string>Retail</string>
-           </property>
-          </item>
-          <item row="5" column="0">
-           <property name="text">
-            <string>Attribute: Light</string>
-           </property>
-          </item>
-          <item row="5" column="1">
-           <property name="text">
-            <string>Texture pack</string>
-           </property>
-          </item>
-          <item row="5" column="2">
-           <property name="text">
-            <string>Modified</string>
-           </property>
-          </item>
-          <item row="6" column="0">
-           <property name="text">
-            <string>Attribute: Dark</string>
-           </property>
-          </item>
-          <item row="6" column="1">
-           <property name="text">
-            <string>Texture pack</string>
-           </property>
-          </item>
-          <item row="6" column="2">
-           <property name="text">
-            <string>Retail</string>
-           </property>
-          </item>
-          <item row="7" column="0">
-           <property name="text">
-            <string>Attribute: Earth</string>
-           </property>
-          </item>
-          <item row="7" column="1">
-           <property name="text">
-            <string>Texture pack</string>
-           </property>
-          </item>
-          <item row="7" column="2">
-           <property name="text">
-            <string>Retail</string>
-           </property>
-          </item>
-          <item row="8" column="0">
-           <property name="text">
-            <string>Attribute: Water</string>
-           </property>
-          </item>
-          <item row="8" column="1">
-           <property name="text">
-            <string>Texture pack</string>
-           </property>
-          </item>
-          <item row="8" column="2">
-           <property name="text">
-            <string>Retail</string>
-           </property>
-          </item>
-          <item row="9" column="0">
-           <property name="text">
-            <string>Attribute: Fire</string>
-           </property>
-          </item>
-          <item row="9" column="1">
-           <property name="text">
-            <string>Texture pack</string>
-           </property>
-          </item>
-          <item row="9" column="2">
-           <property name="text">
-            <string>Retail</string>
-           </property>
-          </item>
-          <item row="10" column="0">
-           <property name="text">
-            <string>Attribute: Wind</string>
-           </property>
-          </item>
-          <item row="10" column="1">
-           <property name="text">
-            <string>Texture pack</string>
-           </property>
-          </item>
-          <item row="10" column="2">
-           <property name="text">
-            <string>Retail</string>
-           </property>
-          </item>
-          <item row="11" column="0">
-           <property name="text">
-            <string>Level star</string>
-           </property>
-          </item>
-          <item row="11" column="1">
-           <property name="text">
-            <string>Texture pack</string>
-           </property>
-          </item>
-          <item row="11" column="2">
-           <property name="text">
-            <string>Modified</string>
-           </property>
-          </item>
-          <item row="12" column="0">
-           <property name="text">
-            <string>Monster type icons</string>
-           </property>
-          </item>
-          <item row="12" column="1">
-           <property name="text">
-            <string>Screen sheet</string>
-           </property>
-          </item>
-          <item row="12" column="2">
-           <property name="text">
-            <string>Retail</string>
-           </property>
-          </item>
-          <item row="13" column="0">
-           <property name="text">
-            <string>ATK / DEF digits</string>
-           </property>
-          </item>
-          <item row="13" column="1">
-           <property name="text">
-            <string>Texture pack</string>
-           </property>
-          </item>
-          <item row="13" column="2">
-           <property name="text">
-            <string>Retail</string>
-           </property>
-          </item>
-          <item row="14" column="0">
-           <property name="text">
-            <string>Card labels</string>
-           </property>
-          </item>
-          <item row="14" column="1">
-           <property name="text">
-            <string>Texture pack</string>
-           </property>
-          </item>
-          <item row="14" column="2">
-           <property name="text">
-            <string>Retail</string>
-           </property>
-          </item>
-         </widget>
-        </item>
-        <item>
-         <layout class="QHBoxLayout" name="assetListActionsLayout">
-          <item>
-           <widget class="QPushButton" name="importAssetButton">
-            <property name="text">
-             <string>Import PNG...</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="exportAssetButton">
-            <property name="text">
-             <string>Export...</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="revertAssetButton">
-            <property name="text">
-             <string>Revert</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="openAssetFileButton">
-            <property name="text">
-             <string>Open file</string>
-            </property>
-           </widget>
-          </item>
-         </layout>
-        </item>
-       </layout>
-      </widget>
-     </item>
-     <item>
-      <widget class="QGroupBox" name="selectedAssetGroup">
-       <property name="title">
-        <string>Selected asset</string>
-       </property>
-       <layout class="QVBoxLayout" name="selectedAssetLayout">
-        <item>
-         <widget class="QLabel" name="selectedAssetName">
-          <property name="styleSheet">
-           <string notr="true">font-size: 18px; font-weight: 700;</string>
-          </property>
-          <property name="text">
-           <string>Monster frame</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QLabel" name="selectedAssetUse">
-          <property name="text">
-           <string>Used by card view, Library, Password, Build Deck and all seven duel terrains.</string>
-          </property>
-          <property name="wordWrap">
-           <bool>true</bool>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <layout class="QHBoxLayout" name="selectedAssetSummaryLayout">
-          <item>
-           <widget class="QGroupBox" name="selectedAssetMetadataGroup">
-            <property name="title">
-             <string>Replacement details</string>
-            </property>
-            <layout class="QFormLayout" name="selectedAssetMetadataLayout">
-             <item row="0" column="0">
-              <widget class="QLabel" name="assetMethodLabel">
-               <property name="text">
-                <string>Replacement method</string>
-               </property>
-              </widget>
-             </item>
-             <item row="0" column="1">
-              <widget class="QLabel" name="assetMethodValue">
-               <property name="text">
-                <string>Texture pack</string>
-               </property>
-              </widget>
-             </item>
-             <item row="1" column="0">
-              <widget class="QLabel" name="assetKeyLabel">
-               <property name="text">
-                <string>mod.json key</string>
-               </property>
-              </widget>
-             </item>
-             <item row="1" column="1">
-              <widget class="QLabel" name="assetKeyValue">
-               <property name="text">
-                <string>textures: &quot;textures&quot;</string>
-               </property>
-              </widget>
-             </item>
-             <item row="2" column="0">
-              <widget class="QLabel" name="assetFilenameLabel">
-               <property name="text">
-                <string>Asset</string>
-               </property>
-              </widget>
-             </item>
-             <item row="2" column="1">
-              <widget class="QLabel" name="assetFilenameValue">
-               <property name="text">
-                <string>frame_monster.png</string>
-               </property>
-              </widget>
-             </item>
-             <item row="3" column="0">
-              <widget class="QLabel" name="assetSizeLabel">
-               <property name="text">
-                <string>Native size</string>
-               </property>
-              </widget>
-             </item>
-             <item row="3" column="1">
-              <widget class="QLabel" name="assetSizeValue">
-               <property name="text">
-                <string>256 x 256 sheet</string>
-               </property>
-              </widget>
-             </item>
-             <item row="4" column="0">
-              <widget class="QLabel" name="assetScaleLabel">
-               <property name="text">
-                <string>Higher resolution</string>
-               </property>
-              </widget>
-             </item>
-             <item row="4" column="1">
-              <widget class="QLabel" name="assetScaleValue">
-               <property name="text">
-                <string>Internal 2x / 4x</string>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </widget>
-          </item>
-          <item>
-           <widget class="QGroupBox" name="selectedAssetStatusGroup">
-            <property name="title">
-             <string>Replacement status</string>
-            </property>
-            <layout class="QVBoxLayout" name="selectedAssetStatusLayout">
-             <item>
-              <widget class="QLabel" name="assetStatus">
-               <property name="styleSheet">
-                <string notr="true">color: #2dc9a1; font-size: 15px;</string>
-               </property>
-               <property name="text">
-                <string>Modified by this mod</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="assetStatusNote">
-               <property name="text">
-                <string>Retail source is preserved; revert restores it.</string>
-               </property>
-               <property name="wordWrap">
-                <bool>true</bool>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <layout class="QHBoxLayout" name="assetStatusActions">
-               <item>
-                <widget class="QPushButton" name="replaceSelectedAssetButton">
-                 <property name="text">
-                  <string>Replace PNG...</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QPushButton" name="revertSelectedAssetButton">
-                 <property name="text">
-                  <string>Revert</string>
-                 </property>
-                </widget>
-               </item>
-              </layout>
-             </item>
-            </layout>
-           </widget>
-          </item>
-         </layout>
-        </item>
-        <item>
-         <layout class="QHBoxLayout" name="previewHeadingLayout">
-          <item>
-           <widget class="QLabel" name="assetPreviewTitle">
-            <property name="styleSheet">
-             <string notr="true">font-size: 16px; font-weight: 700;</string>
-            </property>
-            <property name="text">
-             <string>Preview</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <spacer name="previewHeadingSpacer">
-            <property name="orientation">
-             <enum>Qt::Orientation::Horizontal</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
+           <widget class="QLabel" name="titlePreviewCanvas">
+            <property name="minimumSize">
              <size>
-              <width>40</width>
-              <height>20</height>
+              <width>640</width>
+              <height>480</height>
              </size>
             </property>
-           </spacer>
-          </item>
-          <item>
-           <widget class="QPushButton" name="preview1xButton">
             <property name="text">
-             <string>1x</string>
+             <string>320 × 240 title-screen preview</string>
             </property>
-            <property name="checkable">
-             <bool>true</bool>
+            <property name="alignment">
+             <set>Qt::AlignmentFlag::AlignCenter</set>
             </property>
            </widget>
           </item>
           <item>
-           <widget class="QPushButton" name="preview2xButton">
-            <property name="text">
-             <string>2x</string>
-            </property>
-            <property name="checkable">
-             <bool>true</bool>
-            </property>
-            <property name="checked">
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="preview4xButton">
-            <property name="text">
-             <string>4x</string>
-            </property>
-            <property name="checkable">
-             <bool>true</bool>
-            </property>
-           </widget>
+           <layout class="QHBoxLayout" name="titlePreviewTools">
+            <item>
+             <widget class="QLabel" name="titleZoomCaption">
+              <property name="text">
+               <string>Zoom</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QComboBox" name="titleZoomCombo">
+              <item>
+               <property name="text">
+                <string>1×</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>2×</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>3×</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Fit</string>
+               </property>
+              </item>
+             </widget>
+            </item>
+            <item>
+             <spacer name="titlePreviewToolsSpacer">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>20</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item>
+             <widget class="QLabel" name="titleCursorPositionLabel">
+              <property name="text">
+               <string>x 0  y 0</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
           </item>
          </layout>
-        </item>
-        <item>
-         <widget class="QGroupBox" name="assetPreviewGroup">
-          <property name="title">
-           <string/>
+        </widget>
+       </item>
+       <item>
+        <widget class="QSplitter" name="titleRightSplitter">
+         <property name="orientation">
+          <enum>Qt::Orientation::Vertical</enum>
+         </property>
+         <widget class="QFrame" name="titleElementsPanel">
+          <property name="frameShape">
+           <enum>QFrame::Shape::StyledPanel</enum>
           </property>
-          <layout class="QHBoxLayout" name="assetPreviewLayout">
+          <layout class="QVBoxLayout" name="titleElementsLayout">
            <item>
-            <layout class="QVBoxLayout" name="retailPreviewColumn">
+            <layout class="QHBoxLayout" name="titleElementsHeader">
              <item>
-              <widget class="QLabel" name="retailPreviewCaption">
-               <property name="styleSheet">
-                <string notr="true">font-weight: 600; color: #aebfd6;</string>
-               </property>
+              <widget class="QLabel" name="titleElementsTitle">
                <property name="text">
-                <string>Retail</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignmentFlag::AlignCenter</set>
+                <string>Title screen assets</string>
                </property>
               </widget>
              </item>
              <item>
-              <widget class="QLabel" name="retailPreview">
-               <property name="minimumSize">
+              <spacer name="titleElementsHeaderSpacer">
+               <property name="orientation">
+                <enum>Qt::Orientation::Horizontal</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
                 <size>
-                 <width>150</width>
-                 <height>200</height>
+                 <width>20</width>
+                 <height>20</height>
                 </size>
                </property>
-               <property name="frameShape">
-                <enum>QFrame::Shape::StyledPanel</enum>
-               </property>
+              </spacer>
+             </item>
+             <item>
+              <widget class="QPushButton" name="holdGameTitleButton">
                <property name="text">
-                <string>Retail preview</string>
+                <string>Show Retail (Hold)</string>
                </property>
-               <property name="alignment">
-                <set>Qt::AlignmentFlag::AlignCenter</set>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="revertTitlePageButton">
+               <property name="text">
+                <string>Revert page</string>
                </property>
               </widget>
              </item>
             </layout>
            </item>
            <item>
-            <layout class="QVBoxLayout" name="modPreviewColumn">
+            <widget class="QTreeWidget" name="titleElementsTree">
+             <property name="columnCount">
+              <number>2</number>
+             </property>
+             <column>
+              <property name="text">
+               <string>Element</string>
+              </property>
+             </column>
+             <column>
+              <property name="text">
+               <string>Changed</string>
+              </property>
+             </column>
              <item>
-              <widget class="QLabel" name="modPreviewCaption">
-               <property name="styleSheet">
-                <string notr="true">font-weight: 600; color: #aebfd6;</string>
-               </property>
+              <property name="text">
+               <string>The screen</string>
+              </property>
+              <item>
                <property name="text">
-                <string>Mod</string>
+                <string>Background</string>
                </property>
-               <property name="alignment">
-                <set>Qt::AlignmentFlag::AlignCenter</set>
+              </item>
+              <item>
+               <property name="text">
+                <string>Logo</string>
                </property>
-              </widget>
+              </item>
+              <item>
+               <property name="text">
+                <string>Copyright line</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>PUSH START BUTTON</string>
+               </property>
+              </item>
              </item>
              <item>
-              <widget class="QLabel" name="modPreview">
-               <property name="minimumSize">
-                <size>
-                 <width>150</width>
-                 <height>200</height>
-                </size>
-               </property>
-               <property name="frameShape">
-                <enum>QFrame::Shape::StyledPanel</enum>
-               </property>
-               <property name="text">
-                <string>Mod preview</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignmentFlag::AlignCenter</set>
-               </property>
-              </widget>
+              <property name="text">
+               <string>Added layers</string>
+              </property>
              </item>
-            </layout>
+            </widget>
            </item>
            <item>
-            <layout class="QVBoxLayout" name="gamePreviewColumn">
+            <layout class="QHBoxLayout" name="titleElementActions">
              <item>
-              <widget class="QLabel" name="gamePreviewCaption">
-               <property name="styleSheet">
-                <string notr="true">font-weight: 600; color: #aebfd6;</string>
-               </property>
+              <widget class="QPushButton" name="addTitlePictureButton">
                <property name="text">
-                <string>In game</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignmentFlag::AlignCenter</set>
+                <string>＋ Picture</string>
                </property>
               </widget>
              </item>
              <item>
-              <widget class="QLabel" name="gamePreview">
-               <property name="minimumSize">
+              <widget class="QPushButton" name="addTitleTextButton">
+               <property name="text">
+                <string>＋ Words</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <spacer name="titleElementActionsSpacer">
+               <property name="orientation">
+                <enum>Qt::Orientation::Horizontal</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
                 <size>
-                 <width>150</width>
-                 <height>200</height>
+                 <width>20</width>
+                 <height>20</height>
                 </size>
                </property>
-               <property name="frameShape">
-                <enum>QFrame::Shape::StyledPanel</enum>
-               </property>
+              </spacer>
+             </item>
+             <item>
+              <widget class="QPushButton" name="removeTitleElementButton">
                <property name="text">
-                <string>In-game preview</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignmentFlag::AlignCenter</set>
+                <string>Remove</string>
                </property>
               </widget>
              </item>
@@ -901,127 +288,4169 @@
            </item>
           </layout>
          </widget>
-        </item>
-        <item>
-         <widget class="QLabel" name="assetAppearsTitle">
-          <property name="styleSheet">
-           <string notr="true">font-size: 14px; font-weight: 700;</string>
+         <widget class="QFrame" name="titlePropertiesPanel">
+          <property name="frameShape">
+           <enum>QFrame::Shape::StyledPanel</enum>
           </property>
-          <property name="text">
-           <string>Where this asset appears</string>
-          </property>
+          <layout class="QVBoxLayout" name="titlePropertiesLayout">
+           <item>
+            <layout class="QHBoxLayout" name="titlePropertiesHeader">
+             <item>
+              <widget class="QLabel" name="titlePropertiesTitle">
+               <property name="text">
+                <string>Asset properties</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <spacer name="titlePropertiesHeaderSpacer">
+               <property name="orientation">
+                <enum>Qt::Orientation::Horizontal</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>20</width>
+                 <height>20</height>
+                </size>
+               </property>
+              </spacer>
+             </item>
+             <item>
+              <widget class="QPushButton" name="exportTitleElementButton">
+               <property name="text">
+                <string>Export...</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="revertTitleElementButton">
+               <property name="text">
+                <string>Back to game's</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <widget class="QStackedWidget" name="titlePropertiesStack">
+             <property name="currentIndex">
+              <number>0</number>
+             </property>
+             <widget class="QWidget" name="titleGenericPropertiesPage">
+              <layout class="QFormLayout" name="titleGenericPropertiesLayout">
+               <item row="0" column="0">
+                <widget class="QLabel" name="titlePositionLabel">
+                 <property name="text">
+                  <string>Position</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="0" column="1">
+                <layout class="QHBoxLayout" name="titlePositionLayout">
+                 <item>
+                  <widget class="QLabel" name="titleXLabel">
+                   <property name="text">
+                    <string>X</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QSpinBox" name="titleXSpin">
+                   <property name="minimum">
+                    <number>-999</number>
+                   </property>
+                   <property name="maximum">
+                    <number>999</number>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QLabel" name="titleYLabel">
+                   <property name="text">
+                    <string>Y</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QSpinBox" name="titleYSpin">
+                   <property name="minimum">
+                    <number>-999</number>
+                   </property>
+                   <property name="maximum">
+                    <number>999</number>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </item>
+               <item row="1" column="0">
+                <widget class="QLabel" name="titleTintLabel">
+                 <property name="text">
+                  <string>Color / tint</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="1">
+                <widget class="QLineEdit" name="titleTintEdit">
+                 <property name="text">
+                  <string>#FFFFFF</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="2" column="0">
+                <widget class="QLabel" name="titleShownLabel">
+                 <property name="text">
+                  <string>Shown</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="2" column="1">
+                <widget class="QComboBox" name="titleShownCombo">
+                 <item>
+                  <property name="text">
+                   <string>Always</string>
+                  </property>
+                 </item>
+                 <item>
+                  <property name="text">
+                   <string>With menu</string>
+                  </property>
+                 </item>
+                 <item>
+                  <property name="text">
+                   <string>Without menu</string>
+                  </property>
+                 </item>
+                </widget>
+               </item>
+               <item row="3" column="0">
+                <widget class="QLabel" name="titleImageLabel">
+                 <property name="text">
+                  <string>Picture</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="3" column="1">
+                <layout class="QHBoxLayout" name="titleImageLayout">
+                 <item>
+                  <widget class="QLineEdit" name="titleImagePathEdit">
+                   <property name="readOnly">
+                    <bool>true</bool>
+                   </property>
+                   <property name="placeholderText">
+                    <string>Game's own</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QPushButton" name="chooseTitleImageButton">
+                   <property name="text">
+                    <string>Choose PNG...</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QPushButton" name="useGameTitleImageButton">
+                   <property name="text">
+                    <string>Game's</string>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </item>
+               <item row="4" column="0">
+                <widget class="QLabel" name="titleHiddenLabel">
+                 <property name="text">
+                  <string>Hidden</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="4" column="1">
+                <widget class="QCheckBox" name="titleHiddenCheck" />
+               </item>
+              </layout>
+             </widget>
+             <widget class="QWidget" name="titleBackgroundPropertiesPage">
+              <layout class="QFormLayout" name="titleBackgroundPropertiesLayout">
+               <item row="0" column="0">
+                <widget class="QLabel" name="titleBackgroundColorLabel">
+                 <property name="text">
+                  <string>Background color</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="0" column="1">
+                <widget class="QLineEdit" name="titleBackgroundColorEdit">
+                 <property name="text">
+                  <string>#000000</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="0">
+                <widget class="QLabel" name="titleBackgroundPictureLabel">
+                 <property name="text">
+                  <string>Game picture</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="1">
+                <widget class="QCheckBox" name="titleBackgroundPictureCheck">
+                 <property name="text">
+                  <string>Use game's title background</string>
+                 </property>
+                 <property name="checked">
+                  <bool>true</bool>
+                 </property>
+                </widget>
+               </item>
+               <item row="2" column="0">
+                <widget class="QLabel" name="titleBackgroundImageLabel">
+                 <property name="text">
+                  <string>Replacement</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="2" column="1">
+                <widget class="QPushButton" name="titleBackgroundImportButton">
+                 <property name="text">
+                  <string>Import PNG...</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+             <widget class="QWidget" name="titleTextPropertiesPage">
+              <layout class="QFormLayout" name="titleTextPropertiesLayout">
+               <item row="0" column="0">
+                <widget class="QLabel" name="titleTextTextLabel">
+                 <property name="text">
+                  <string>Text</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="0" column="1">
+                <widget class="QLineEdit" name="titleTextEdit" />
+               </item>
+               <item row="1" column="0">
+                <widget class="QLabel" name="titleTextColorLabel">
+                 <property name="text">
+                  <string>Color</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="1">
+                <widget class="QLineEdit" name="titleTextColorEdit">
+                 <property name="text">
+                  <string>#FFFFFF</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="2" column="0">
+                <widget class="QLabel" name="titleTextSizeLabel">
+                 <property name="text">
+                  <string>Size</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="2" column="1">
+                <widget class="QSpinBox" name="titleTextSizeSpin">
+                 <property name="minimum">
+                  <number>6</number>
+                 </property>
+                 <property name="maximum">
+                  <number>96</number>
+                 </property>
+                 <property name="value">
+                  <number>16</number>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </widget>
+           </item>
+          </layout>
          </widget>
-        </item>
-        <item>
-         <layout class="QHBoxLayout" name="assetLocationsLayout">
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="menusTab">
+      <attribute name="title">
+       <string>Menus</string>
+      </attribute>
+      <layout class="QHBoxLayout" name="menusLayout">
+       <property name="spacing">
+        <number>12</number>
+       </property>
+       <item>
+        <widget class="QFrame" name="menuPreviewPanel">
+         <property name="frameShape">
+          <enum>QFrame::Shape::StyledPanel</enum>
+         </property>
+         <layout class="QVBoxLayout" name="menuPreviewLayout" stretch="0,1,0">
           <item>
-           <widget class="QPushButton" name="locationCardView">
+           <layout class="QHBoxLayout" name="menuPreviewHeader">
+            <item>
+             <widget class="QLabel" name="menuPreviewTitle">
+              <property name="text">
+               <string>Menu preview</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="menuPreviewHeaderSpacer">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>20</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item>
+             <widget class="QLabel" name="menuPreviewModeLabel">
+              <property name="text">
+               <string>Preview</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QComboBox" name="menuPreviewModeCombo">
+              <item>
+               <property name="text">
+                <string>First menu</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Second menu</string>
+               </property>
+              </item>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <widget class="QLabel" name="menuPreviewCanvas">
+            <property name="minimumSize">
+             <size>
+              <width>640</width>
+              <height>480</height>
+             </size>
+            </property>
             <property name="text">
-             <string>Card View</string>
+             <string>320 × 240 menu preview</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignmentFlag::AlignCenter</set>
             </property>
            </widget>
           </item>
           <item>
-           <widget class="QPushButton" name="locationLibrary">
+           <layout class="QHBoxLayout" name="menuPreviewTools">
+            <item>
+             <widget class="QLabel" name="menuSpacingLabel">
+              <property name="text">
+               <string>Spacing</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="menuSpacingSpin">
+              <property name="minimum">
+               <number>0</number>
+              </property>
+              <property name="maximum">
+               <number>128</number>
+              </property>
+              <property name="value">
+               <number>32</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="menuAllScaleLabel">
+              <property name="text">
+               <string>All buttons</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="menuAllScaleSpin">
+              <property name="suffix">
+               <string>%</string>
+              </property>
+              <property name="minimum">
+               <number>25</number>
+              </property>
+              <property name="maximum">
+               <number>400</number>
+              </property>
+              <property name="value">
+               <number>100</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="menuPreviewToolsSpacer">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>20</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item>
+             <widget class="QLabel" name="menuCursorPositionLabel">
+              <property name="text">
+               <string>x 0  y 0</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QSplitter" name="menuRightSplitter">
+         <property name="orientation">
+          <enum>Qt::Orientation::Vertical</enum>
+         </property>
+         <widget class="QFrame" name="menuStructurePanel">
+          <property name="frameShape">
+           <enum>QFrame::Shape::StyledPanel</enum>
+          </property>
+          <layout class="QVBoxLayout" name="menuStructureLayout">
+           <item>
+            <layout class="QHBoxLayout" name="menuStructureHeader">
+             <item>
+              <widget class="QLabel" name="menuStructureTitle">
+               <property name="text">
+                <string>Menu structure</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <spacer name="menuStructureHeaderSpacer">
+               <property name="orientation">
+                <enum>Qt::Orientation::Horizontal</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>20</width>
+                 <height>20</height>
+                </size>
+               </property>
+              </spacer>
+             </item>
+             <item>
+              <widget class="QPushButton" name="holdGameMenuButton">
+               <property name="text">
+                <string>Show Retail (Hold)</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="revertMenuPageButton">
+               <property name="text">
+                <string>Revert page</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <widget class="QTreeWidget" name="menuStructureTree">
+             <property name="columnCount">
+              <number>2</number>
+             </property>
+             <column>
+              <property name="text">
+               <string>Button / menu item</string>
+              </property>
+             </column>
+             <column>
+              <property name="text">
+               <string>Does</string>
+              </property>
+             </column>
+             <item>
+              <property name="text">
+               <string>First menu</string>
+              </property>
+              <item>
+               <property name="text">
+                <string>NEW GAME</string>
+               </property>
+               <property name="text">
+                <string>New Game</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>LOAD</string>
+               </property>
+               <property name="text">
+                <string>Load</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>2P DUEL</string>
+               </property>
+               <property name="text">
+                <string>2P Duel</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>TRADE</string>
+               </property>
+               <property name="text">
+                <string>Trade</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>OPTION</string>
+               </property>
+               <property name="text">
+                <string>Option</string>
+               </property>
+              </item>
+             </item>
+             <item>
+              <property name="text">
+               <string>Second menu (game loaded)</string>
+              </property>
+              <item>
+               <property name="text">
+                <string>CAMPAIGN</string>
+               </property>
+               <property name="text">
+                <string>Campaign</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>FREE DUEL</string>
+               </property>
+               <property name="text">
+                <string>Free Duel</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>BUILD DECK</string>
+               </property>
+               <property name="text">
+                <string>Build Deck</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>LIBRARY</string>
+               </property>
+               <property name="text">
+                <string>Library</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>PASSWORD</string>
+               </property>
+               <property name="text">
+                <string>Password</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>SAVE</string>
+               </property>
+               <property name="text">
+                <string>Save</string>
+               </property>
+              </item>
+             </item>
+            </widget>
+           </item>
+           <item>
+            <layout class="QHBoxLayout" name="menuStructureActions">
+             <item>
+              <widget class="QPushButton" name="addMenuButtonButton">
+               <property name="text">
+                <string>＋ Button</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="hideMenuButton">
+               <property name="text">
+                <string>Hide</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="removeMenuButton">
+               <property name="text">
+                <string>Remove</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <spacer name="menuStructureActionsSpacer">
+               <property name="orientation">
+                <enum>Qt::Orientation::Horizontal</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>20</width>
+                 <height>20</height>
+                </size>
+               </property>
+              </spacer>
+             </item>
+             <item>
+              <widget class="QPushButton" name="moveMenuUpButton">
+               <property name="text">
+                <string>↑</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="moveMenuDownButton">
+               <property name="text">
+                <string>↓</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+          </layout>
+         </widget>
+         <widget class="QFrame" name="menuPropertiesPanel">
+          <property name="frameShape">
+           <enum>QFrame::Shape::StyledPanel</enum>
+          </property>
+          <layout class="QVBoxLayout" name="menuPropertiesLayout">
+           <item>
+            <layout class="QHBoxLayout" name="menuPropertiesHeader">
+             <item>
+              <widget class="QLabel" name="menuPropertiesTitle">
+               <property name="text">
+                <string>Button properties</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <spacer name="menuPropertiesHeaderSpacer">
+               <property name="orientation">
+                <enum>Qt::Orientation::Horizontal</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>20</width>
+                 <height>20</height>
+                </size>
+               </property>
+              </spacer>
+             </item>
+             <item>
+              <widget class="QPushButton" name="exportMenuButtonButton">
+               <property name="text">
+                <string>Export...</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="revertMenuButtonButton">
+               <property name="text">
+                <string>Back to game's</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QFormLayout" name="menuPropertiesForm">
+             <item row="0" column="0">
+              <widget class="QLabel" name="menuWordsLabel">
+               <property name="text">
+                <string>Words</string>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="1">
+              <widget class="QLineEdit" name="menuWordsEdit" />
+             </item>
+             <item row="1" column="0">
+              <widget class="QLabel" name="menuActionLabel">
+               <property name="text">
+                <string>Does</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="1">
+              <widget class="QComboBox" name="menuActionCombo" />
+             </item>
+             <item row="2" column="0">
+              <widget class="QLabel" name="menuTextColorLabel">
+               <property name="text">
+                <string>Color</string>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="1">
+              <widget class="QLineEdit" name="menuTextColorEdit">
+               <property name="text">
+                <string>#FFFFFF</string>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="0">
+              <widget class="QLabel" name="menuPictureLabel">
+               <property name="text">
+                <string>Picture</string>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="1">
+              <layout class="QHBoxLayout" name="menuPictureLayout">
+               <item>
+                <widget class="QPushButton" name="chooseMenuPictureButton">
+                 <property name="text">
+                  <string>Choose PNG...</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="useMenuCursorPictureButton">
+                 <property name="text">
+                  <string>With cursor...</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="clearMenuPictureButton">
+                 <property name="text">
+                  <string>None</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item row="4" column="0">
+              <widget class="QLabel" name="menuPositionLabel">
+               <property name="text">
+                <string>Middle at</string>
+               </property>
+              </widget>
+             </item>
+             <item row="4" column="1">
+              <layout class="QHBoxLayout" name="menuPositionLayout">
+               <item>
+                <widget class="QLabel" name="menuXLabel">
+                 <property name="text">
+                  <string>X</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QSpinBox" name="menuXSpin">
+                 <property name="minimum">
+                  <number>-999</number>
+                 </property>
+                 <property name="maximum">
+                  <number>999</number>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="menuYLabel">
+                 <property name="text">
+                  <string>Y</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QSpinBox" name="menuYSpin">
+                 <property name="minimum">
+                  <number>-999</number>
+                 </property>
+                 <property name="maximum">
+                  <number>999</number>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="menuInlineButton">
+                 <property name="text">
+                  <string>In line</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item row="5" column="0">
+              <widget class="QLabel" name="menuSizeLabel">
+               <property name="text">
+                <string>Size</string>
+               </property>
+              </widget>
+             </item>
+             <item row="5" column="1">
+              <widget class="QSpinBox" name="menuScaleSpin">
+               <property name="suffix">
+                <string>%</string>
+               </property>
+               <property name="minimum">
+                <number>25</number>
+               </property>
+               <property name="maximum">
+                <number>400</number>
+               </property>
+               <property name="value">
+                <number>100</number>
+               </property>
+              </widget>
+             </item>
+             <item row="6" column="0">
+              <widget class="QLabel" name="menuHiddenLabel">
+               <property name="text">
+                <string>Hidden</string>
+               </property>
+              </widget>
+             </item>
+             <item row="6" column="1">
+              <widget class="QCheckBox" name="menuHiddenCheck" />
+             </item>
+            </layout>
+           </item>
+          </layout>
+         </widget>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="duelTab">
+      <attribute name="title">
+       <string>Duel</string>
+      </attribute>
+      <layout class="QHBoxLayout" name="duelLayout">
+       <property name="spacing">
+        <number>12</number>
+       </property>
+       <item>
+        <widget class="QFrame" name="duelPreviewPanel">
+         <property name="frameShape">
+          <enum>QFrame::Shape::StyledPanel</enum>
+         </property>
+         <layout class="QVBoxLayout" name="duelPreviewLayout" stretch="0,1,0">
+          <item>
+           <layout class="QHBoxLayout" name="duelPreviewHeader">
+            <item>
+             <widget class="QLabel" name="duelPreviewTitle">
+              <property name="text">
+               <string>Duel screen preview</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="duelPreviewHeaderSpacer">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>20</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item>
+             <widget class="QPushButton" name="holdGameDuelButton">
+              <property name="text">
+               <string>Show Retail (Hold)</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="revertDuelPageButton">
+              <property name="text">
+               <string>Revert page</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <widget class="QLabel" name="duelPreviewCanvas">
+            <property name="minimumSize">
+             <size>
+              <width>640</width>
+              <height>480</height>
+             </size>
+            </property>
             <property name="text">
-             <string>Library</string>
+             <string>320 × 240 duel HUD preview</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignmentFlag::AlignCenter</set>
             </property>
            </widget>
           </item>
           <item>
-           <widget class="QPushButton" name="locationPassword">
+           <layout class="QHBoxLayout" name="duelPreviewTools">
+            <item>
+             <widget class="QCheckBox" name="duelOpponentTurnCheck">
+              <property name="text">
+               <string>Opponent's turn</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="duelCardBarShowsLabel">
+              <property name="text">
+               <string>Card bar shows</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QComboBox" name="duelCardBarShowsCombo">
+              <item>
+               <property name="text">
+                <string>Monster</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Magic</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Trap</string>
+               </property>
+              </item>
+             </widget>
+            </item>
+            <item>
+             <spacer name="duelPreviewToolsSpacer">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>20</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item>
+             <widget class="QLabel" name="duelCursorPositionLabel">
+              <property name="text">
+               <string>x 0  y 0</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QSplitter" name="duelRightSplitter">
+         <property name="orientation">
+          <enum>Qt::Orientation::Vertical</enum>
+         </property>
+         <widget class="QFrame" name="duelElementsPanel">
+          <property name="frameShape">
+           <enum>QFrame::Shape::StyledPanel</enum>
+          </property>
+          <layout class="QVBoxLayout" name="duelElementsLayout">
+           <item>
+            <widget class="QLineEdit" name="duelElementSearchEdit">
+             <property name="placeholderText">
+              <string>Search UI elements...</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QTreeWidget" name="duelElementsTree">
+             <property name="columnCount">
+              <number>2</number>
+             </property>
+             <column>
+              <property name="text">
+               <string>Element</string>
+              </property>
+             </column>
+             <column>
+              <property name="text">
+               <string>Changed</string>
+              </property>
+             </column>
+             <item>
+              <property name="text">
+               <string>Life points</string>
+              </property>
+              <item>
+               <property name="text">
+                <string>Opponent's LP</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Your LP</string>
+               </property>
+              </item>
+             </item>
+             <item>
+              <property name="text">
+               <string>Field</string>
+              </property>
+              <item>
+               <property name="text">
+                <string>FIELD box</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Field cursor</string>
+               </property>
+              </item>
+             </item>
+             <item>
+              <property name="text">
+               <string>Hand</string>
+              </property>
+              <item>
+               <property name="text">
+                <string>Card bar</string>
+               </property>
+               <item>
+                <property name="text">
+                 <string>Name</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>ATK</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>DEF</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Type icon</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Guardian stars</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Magic/trap word</string>
+                </property>
+               </item>
+              </item>
+              <item>
+               <property name="text">
+                <string>Hand cursor</string>
+               </property>
+              </item>
+             </item>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+         <widget class="QFrame" name="duelPropertiesPanel">
+          <property name="frameShape">
+           <enum>QFrame::Shape::StyledPanel</enum>
+          </property>
+          <layout class="QVBoxLayout" name="duelPropertiesLayout">
+           <item>
+            <layout class="QHBoxLayout" name="duelPropertiesHeader">
+             <item>
+              <widget class="QLabel" name="duelPropertiesTitle">
+               <property name="text">
+                <string>Element properties</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <spacer name="duelPropertiesHeaderSpacer">
+               <property name="orientation">
+                <enum>Qt::Orientation::Horizontal</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>20</width>
+                 <height>20</height>
+                </size>
+               </property>
+              </spacer>
+             </item>
+             <item>
+              <widget class="QPushButton" name="exportDuelElementButton">
+               <property name="text">
+                <string>Export...</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="revertDuelElementButton">
+               <property name="text">
+                <string>Reset</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QFormLayout" name="duelPropertiesForm">
+             <item row="0" column="0">
+              <widget class="QLabel" name="duelElementNameLabel">
+               <property name="text">
+                <string>Name</string>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="1">
+              <widget class="QLineEdit" name="duelElementNameEdit">
+               <property name="readOnly">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="0">
+              <widget class="QLabel" name="duelElementDescriptionLabel">
+               <property name="text">
+                <string>Description</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="1">
+              <widget class="QPlainTextEdit" name="duelElementDescriptionEdit">
+               <property name="maximumSize">
+                <size>
+                 <width>16777215</width>
+                 <height>80</height>
+                </size>
+               </property>
+               <property name="readOnly">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="0">
+              <widget class="QLabel" name="duelElementTintLabel">
+               <property name="text">
+                <string>Color / tint</string>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="1">
+              <widget class="QLineEdit" name="duelElementTintEdit">
+               <property name="text">
+                <string>#FFFFFF</string>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="0">
+              <widget class="QLabel" name="duelElementDigitsLabel">
+               <property name="text">
+                <string>Digits color</string>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="1">
+              <widget class="QLineEdit" name="duelElementDigitsEdit">
+               <property name="text">
+                <string>#FFFFFF</string>
+               </property>
+              </widget>
+             </item>
+             <item row="4" column="0">
+              <widget class="QLabel" name="duelElementImageLabel">
+               <property name="text">
+                <string>Picture</string>
+               </property>
+              </widget>
+             </item>
+             <item row="4" column="1">
+              <layout class="QHBoxLayout" name="duelElementImageLayout">
+               <item>
+                <widget class="QLineEdit" name="duelElementImagePathEdit">
+                 <property name="readOnly">
+                  <bool>true</bool>
+                 </property>
+                 <property name="placeholderText">
+                  <string>Game's own</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="duelElementImportButton">
+                 <property name="text">
+                  <string>Import PNG...</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item row="5" column="0">
+              <widget class="QLabel" name="duelElementVisibleLabel">
+               <property name="text">
+                <string>Hidden</string>
+               </property>
+              </widget>
+             </item>
+             <item row="5" column="1">
+              <widget class="QCheckBox" name="duelElementHiddenCheck" />
+             </item>
+             <item row="6" column="0">
+              <widget class="QLabel" name="duelElementPositionLabel">
+               <property name="text">
+                <string>Position</string>
+               </property>
+              </widget>
+             </item>
+             <item row="6" column="1">
+              <layout class="QHBoxLayout" name="duelElementPositionLayout">
+               <item>
+                <widget class="QLabel" name="duelElementXLabel">
+                 <property name="text">
+                  <string>X</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QSpinBox" name="duelElementXSpin">
+                 <property name="minimum">
+                  <number>-999</number>
+                 </property>
+                 <property name="maximum">
+                  <number>999</number>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="duelElementYLabel">
+                 <property name="text">
+                  <string>Y</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QSpinBox" name="duelElementYSpin">
+                 <property name="minimum">
+                  <number>-999</number>
+                 </property>
+                 <property name="maximum">
+                  <number>999</number>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item row="7" column="0">
+              <widget class="QLabel" name="duelElementScaleLabel">
+               <property name="text">
+                <string>Scale</string>
+               </property>
+              </widget>
+             </item>
+             <item row="7" column="1">
+              <widget class="QSpinBox" name="duelElementScaleSpin">
+               <property name="suffix">
+                <string>%</string>
+               </property>
+               <property name="minimum">
+                <number>25</number>
+               </property>
+               <property name="maximum">
+                <number>400</number>
+               </property>
+               <property name="value">
+                <number>100</number>
+               </property>
+              </widget>
+             </item>
+             <item row="8" column="0">
+              <widget class="QLabel" name="duelElementLabelCaption">
+               <property name="text">
+                <string>Label</string>
+               </property>
+              </widget>
+             </item>
+             <item row="8" column="1">
+              <widget class="QLineEdit" name="duelElementLabelEdit" />
+             </item>
+             <item row="9" column="0">
+              <widget class="QLabel" name="duelElementSpacingLabel">
+               <property name="text">
+                <string>Text spacing</string>
+               </property>
+              </widget>
+             </item>
+             <item row="9" column="1">
+              <widget class="QSpinBox" name="duelElementSpacingSpin">
+               <property name="minimum">
+                <number>-16</number>
+               </property>
+               <property name="maximum">
+                <number>32</number>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+          </layout>
+         </widget>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="FramesPage">
+      <attribute name="title">
+       <string>Frames</string>
+      </attribute>
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>1280</width>
+        <height>820</height>
+       </rect>
+      </property>
+      <property name="windowTitle">
+       <string>Card frames — FM Editor</string>
+      </property>
+      <property name="styleSheet">
+       <string>QWidget#FramesPage { background:#071525; color:#dce9fa; font-family: "DejaVu Sans", "Segoe UI"; font-size:12px; }
+QFrame { background:#091f36; border:1px solid #1a456e; border-radius:7px; }
+QFrame#cardCanvas { background:#071222; border:1px solid #173857; }
+QFrame#cardSurface { background:#374563; border:2px solid #7c94b4; border-radius:0px; }
+QFrame#artPlace { background:#254d70; border:1px dashed #7ca3c9; border-radius:0px; }
+QFrame#cardTop,#cardStat { background:#3b506d; border:none; border-radius:0px; }
+QLabel { background:transparent; border:none; color:#dce9fa; }
+QLabel#titleHeading {font-size:18px;font-weight:bold;color:white;}
+QLabel#cardName {font-family:serif;font-size:20px;color:white;}
+QLabel#cardStats {font-weight:bold;font-size:19px;color:white;}
+QLabel#helpText {color:#9fb3c9;font-size:11px;}
+QPushButton {background:#102f50;border:1px solid #27547d;border-radius:5px;padding:4px 8px;color:#e6f0fe;}
+QPushButton:hover {background:#17568f;} QPushButton:pressed {background:#176cc8;}
+QLineEdit,QComboBox,QSpinBox,QListWidget,QTreeWidget {background:#06192b;border:1px solid #2b587d;border-radius:4px;color:#e3edf9;padding:2px;selection-background-color:#1164d0;}
+QTreeWidget::item {height:20px;} QCheckBox,QRadioButton {color:#dce9fa;background:transparent;} QGroupBox {color:#a9c8ee;border:1px solid #214868;border-radius:7px;margin-top:12px;padding-top:10px;font-weight:bold;} QGroupBox::title {subcontrol-origin:margin;left:10px;}</string>
+      </property>
+      <layout class="QVBoxLayout" name="framesPageLayout">
+       <property name="spacing">
+        <number>10</number>
+       </property>
+       <property name="leftMargin">
+        <number>12</number>
+       </property>
+       <property name="topMargin">
+        <number>8</number>
+       </property>
+       <property name="rightMargin">
+        <number>12</number>
+       </property>
+       <property name="bottomMargin">
+        <number>12</number>
+       </property>
+       <item>
+        <layout class="QHBoxLayout" name="framesHeaderLayout">
+         <property name="spacing">
+          <number>6</number>
+         </property>
+         <item>
+          <widget class="QLabel" name="titleHeading">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>Card frames</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLabel" name="subtitle">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>Edit card-viewer and duel-hand frame styles. Choose an element; drag, resize or hide it.</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="showRetailButton">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>Hold: the game's</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="revertRetailButton">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>Revert to retail...</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QSplitter" name="framesContentSplitter">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+           <horstretch>0</horstretch>
+           <verstretch>1</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="orientation">
+          <enum>Qt::Orientation::Horizontal</enum>
+         </property>
+         <property name="childrenCollapsible">
+          <bool>false</bool>
+         </property>
+         <widget class="QFrame" name="stylesPanel">
+          <property name="minimumSize">
+           <size>
+            <width>278</width>
+            <height>0</height>
+           </size>
+          </property>
+          <layout class="QGridLayout" name="gridLayout" columnstretch="0,0,0,0,0">
+           <item row="0" column="0" colspan="5">
+            <widget class="QLabel" name="stylesHeader">
+             <property name="text">
+              <string>Frame styles</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0" colspan="5">
+            <widget class="QListWidget" name="frameStyleList">
+             <item>
+              <property name="text">
+               <string>custom</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+           <item row="3" column="0" colspan="5">
+            <widget class="QLabel" name="applyTitle">
+             <property name="text">
+              <string>Apply this style</string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="0" colspan="3">
+            <widget class="QPushButton" name="setGlobalDefaultButton">
+             <property name="text">
+              <string>Set as global default</string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="3" colspan="2">
+            <widget class="QPushButton" name="resetGlobalDefaultButton">
+             <property name="text">
+              <string>Reset to retail</string>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="0" colspan="4">
+            <widget class="QLabel" name="kindHeading">
+             <property name="text">
+              <string>Default for kind</string>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="0" colspan="5">
+            <widget class="QComboBox" name="kindCombo">
+             <item>
+              <property name="text">
+               <string>monster</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>effect_monster</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>magic</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>equip</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>ritual</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>trap</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+           <item row="7" column="0" colspan="2">
+            <widget class="QPushButton" name="applyKindButton">
+             <property name="text">
+              <string>Apply to kind</string>
+             </property>
+            </widget>
+           </item>
+           <item row="7" column="2" colspan="3">
+            <widget class="QPushButton" name="resetKindButton">
+             <property name="text">
+              <string>Reset to retail</string>
+             </property>
+            </widget>
+           </item>
+           <item row="8" column="0" colspan="5">
+            <widget class="QLabel" name="typeHeading">
+             <property name="text">
+              <string>Default for printed type</string>
+             </property>
+            </widget>
+           </item>
+           <item row="9" column="0" colspan="5">
+            <widget class="QComboBox" name="typeCombo">
+             <item>
+              <property name="text">
+               <string>Dragon</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Spellcaster</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Warrior</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Machine</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Fiend</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Beast</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Fairy</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Zombie</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Aqua</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Pyro</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Rock</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Thunder</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Insect</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Plant</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Reptile</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Fish</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Sea Serpent</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Dinosaur</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Winged Beast</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+           <item row="10" column="0" colspan="2">
+            <widget class="QPushButton" name="applyTypeButton">
+             <property name="text">
+              <string>Apply to type</string>
+             </property>
+            </widget>
+           </item>
+           <item row="10" column="2" colspan="3">
+            <widget class="QPushButton" name="resetTypeButton">
+             <property name="text">
+              <string>Reset to retail</string>
+             </property>
+            </widget>
+           </item>
+           <item row="11" column="0" colspan="5">
+            <widget class="QLabel" name="specificCardHeading">
+             <property name="text">
+              <string>Specific card</string>
+             </property>
+            </widget>
+           </item>
+           <item row="12" column="0" colspan="4">
+            <widget class="QLineEdit" name="specificCardInput">
+             <property name="text">
+              <string />
+             </property>
+            </widget>
+           </item>
+           <item row="12" column="4">
+            <widget class="QPushButton" name="browseCardButton">
+             <property name="text">
+              <string>...</string>
+             </property>
+            </widget>
+           </item>
+           <item row="13" column="0" colspan="2">
+            <widget class="QPushButton" name="applyCardButton">
+             <property name="text">
+              <string>Apply to card</string>
+             </property>
+            </widget>
+           </item>
+           <item row="13" column="2" colspan="3">
+            <widget class="QPushButton" name="resetCardButton">
+             <property name="text">
+              <string>Reset to retail</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0" colspan="2">
+            <widget class="QPushButton" name="newStyleButton">
+             <property name="text">
+              <string>New...</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="3" colspan="2">
+            <widget class="QPushButton" name="deleteStyleButton">
+             <property name="text">
+              <string>Delete</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+         <widget class="QFrame" name="previewPanel">
+          <property name="minimumSize">
+           <size>
+            <width>360</width>
+            <height>0</height>
+           </size>
+          </property>
+          <layout class="QVBoxLayout" name="previewLayout">
+           <property name="spacing">
+            <number>8</number>
+           </property>
+           <property name="leftMargin">
+            <number>12</number>
+           </property>
+           <property name="topMargin">
+            <number>10</number>
+           </property>
+           <property name="rightMargin">
+            <number>12</number>
+           </property>
+           <property name="bottomMargin">
+            <number>10</number>
+           </property>
+           <item>
+            <widget class="QLabel" name="previewTitle">
+             <property name="text">
+              <string>Card preview</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLabel" name="cardCanvas">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <widget class="QFrame" name="cardSurface">
+              <property name="geometry">
+               <rect>
+                <x>196</x>
+                <y>25</y>
+                <width>379</width>
+                <height>659</height>
+               </rect>
+              </property>
+              <property name="visible">
+               <bool>false</bool>
+              </property>
+              <widget class="QLabel" name="cardName">
+               <property name="geometry">
+                <rect>
+                 <x>20</x>
+                 <y>21</y>
+                 <width>295</width>
+                 <height>40</height>
+                </rect>
+               </property>
+               <property name="text">
+                <string>Blue-eyes White Dragon</string>
+               </property>
+              </widget>
+              <widget class="QLabel" name="cardAttribute">
+               <property name="geometry">
+                <rect>
+                 <x>326</x>
+                 <y>21</y>
+                 <width>48</width>
+                 <height>44</height>
+                </rect>
+               </property>
+               <property name="text">
+                <string>◉</string>
+               </property>
+              </widget>
+              <widget class="QLabel" name="cardStars">
+               <property name="geometry">
+                <rect>
+                 <x>28</x>
+                 <y>70</y>
+                 <width>339</width>
+                 <height>33</height>
+                </rect>
+               </property>
+               <property name="text">
+                <string>★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★</string>
+               </property>
+              </widget>
+              <widget class="QFrame" name="artPlace">
+               <property name="geometry">
+                <rect>
+                 <x>39</x>
+                 <y>140</y>
+                 <width>302</width>
+                 <height>376</height>
+                </rect>
+               </property>
+               <widget class="QLabel" name="artPlaceholder">
+                <property name="geometry">
+                 <rect>
+                  <x>12</x>
+                  <y>115</y>
+                  <width>278</width>
+                  <height>95</height>
+                 </rect>
+                </property>
+                <property name="text">
+                 <string>Artwork preview
+
+Rendered by the application at runtime</string>
+                </property>
+               </widget>
+              </widget>
+              <widget class="QLabel" name="atkLabel">
+               <property name="geometry">
+                <rect>
+                 <x>30</x>
+                 <y>565</y>
+                 <width>90</width>
+                 <height>25</height>
+                </rect>
+               </property>
+               <property name="text">
+                <string>ATK</string>
+               </property>
+              </widget>
+              <widget class="QLabel" name="defLabel">
+               <property name="geometry">
+                <rect>
+                 <x>30</x>
+                 <y>608</y>
+                 <width>90</width>
+                 <height>25</height>
+                </rect>
+               </property>
+               <property name="text">
+                <string>DEF</string>
+               </property>
+              </widget>
+              <widget class="QLabel" name="cardStats">
+               <property name="geometry">
+                <rect>
+                 <x>244</x>
+                 <y>565</y>
+                 <width>116</width>
+                 <height>28</height>
+                </rect>
+               </property>
+               <property name="text">
+                <string>3000</string>
+               </property>
+              </widget>
+              <widget class="QLabel" name="cardDefense">
+               <property name="geometry">
+                <rect>
+                 <x>244</x>
+                 <y>608</y>
+                 <width>116</width>
+                 <height>29</height>
+                </rect>
+               </property>
+               <property name="text">
+                <string>2500</string>
+               </property>
+              </widget>
+             </widget>
+            </widget>
+           </item>
+           <item>
+            <layout class="QHBoxLayout" name="previewControlsLayout">
+             <item>
+              <widget class="QLabel" name="previewText">
+               <property name="text">
+                <string>Preview</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QRadioButton" name="frontRadio">
+               <property name="text">
+                <string>Front</string>
+               </property>
+               <property name="checked">
+                <bool>false</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QRadioButton" name="backRadio">
+               <property name="text">
+                <string>Back</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <spacer name="previewControlsSpacer">
+               <property name="orientation">
+                <enum>Qt::Orientation::Horizontal</enum>
+               </property>
+               <property name="sizeType">
+                <enum>QSizePolicy::Policy::Expanding</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>20</width>
+                 <height>20</height>
+                </size>
+               </property>
+              </spacer>
+             </item>
+             <item>
+              <widget class="QRadioButton" name="monsterRadio">
+               <property name="text">
+                <string>Monster</string>
+               </property>
+               <property name="checked">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QRadioButton" name="magicRadio">
+               <property name="text">
+                <string>Magic</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QRadioButton" name="equipRadio">
+               <property name="text">
+                <string>Equip</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QRadioButton" name="ritualRadio">
+               <property name="text">
+                <string>Ritual</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QRadioButton" name="trapRadio">
+               <property name="text">
+                <string>Trap</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+          </layout>
+         </widget>
+         <widget class="QFrame" name="inspectorPanel">
+          <property name="minimumSize">
+           <size>
+            <width>420</width>
+            <height>0</height>
+           </size>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_2">
+           <item row="0" column="0" colspan="7">
+            <widget class="QTreeWidget" name="partsTree">
+             <property name="headerHidden">
+              <bool>true</bool>
+             </property>
+             <column>
+              <property name="text">
+               <string notr="true">1</string>
+              </property>
+             </column>
+             <item>
+              <property name="text">
+               <string>Main</string>
+              </property>
+              <item>
+               <property name="text">
+                <string>Frame image</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Back image</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Digit strip</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Card name</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Artwork</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Level stars</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Attribute icon</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>ATK value</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>ATK label</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>DEF value</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>DEF label</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Magic-card caption</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Equip-card caption</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Ritual-card caption</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Trap-card caption</string>
+               </property>
+              </item>
+             </item>
+             <item>
+              <property name="text">
+               <string>Hand</string>
+              </property>
+              <item>
+               <property name="text">
+                <string>Hand image</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Artwork</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>ATK value</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>ATK label</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>DEF value</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>DEF label</string>
+               </property>
+              </item>
+             </item>
+             <item>
+              <property name="text">
+               <string>Field</string>
+              </property>
+              <item>
+               <property name="text">
+                <string>Field face-up image</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Field face-down image</string>
+               </property>
+              </item>
+             </item>
+             <item>
+              <property name="text">
+               <string>Library</string>
+              </property>
+              <item>
+               <property name="text">
+                <string>Library icon</string>
+               </property>
+              </item>
+             </item>
+            </widget>
+           </item>
+           <item row="1" column="6">
+            <widget class="QPushButton" name="revertPageButton">
+             <property name="text">
+              <string>Revert page</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0" colspan="7">
+            <widget class="QLabel" name="elementName">
+             <property name="text">
+              <string>Frame image</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0" colspan="7">
+            <widget class="QLabel" name="elementHelp">
+             <property name="text">
+              <string>Drag on the preview or use the fields. Wheel resizes elements that have a size.</string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="0">
+            <widget class="QLabel" name="stylePropertyLabel">
+             <property name="text">
+              <string>Style</string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="2" colspan="3">
+            <widget class="QLabel" name="styleProperty">
+             <property name="text">
+              <string>custom</string>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="0" colspan="2">
+            <widget class="QLabel" name="xLabel">
+             <property name="text">
+              <string>X</string>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="2">
+            <widget class="QSpinBox" name="xSpin">
+             <property name="minimum">
+              <number>-320</number>
+             </property>
+             <property name="maximum">
+              <number>320</number>
+             </property>
+             <property name="value">
+              <number>0</number>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="4" colspan="2">
+            <widget class="QLabel" name="yLabel">
+             <property name="text">
+              <string>Y</string>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="6">
+            <widget class="QSpinBox" name="ySpin">
+             <property name="minimum">
+              <number>-320</number>
+             </property>
+             <property name="maximum">
+              <number>320</number>
+             </property>
+             <property name="value">
+              <number>0</number>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="0">
+            <widget class="QLabel" name="widthLabel">
+             <property name="text">
+              <string>Width</string>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="1" colspan="2">
+            <widget class="QSpinBox" name="widthSpin">
+             <property name="minimum">
+              <number>0</number>
+             </property>
+             <property name="maximum">
+              <number>320</number>
+             </property>
+             <property name="value">
+              <number>140</number>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="3" colspan="2">
+            <widget class="QLabel" name="heightLabel">
+             <property name="text">
+              <string>Height</string>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="5" colspan="2">
+            <widget class="QSpinBox" name="heightSpin">
+             <property name="minimum">
+              <number>0</number>
+             </property>
+             <property name="maximum">
+              <number>320</number>
+             </property>
+             <property name="value">
+              <number>196</number>
+             </property>
+            </widget>
+           </item>
+           <item row="7" column="0" colspan="4">
+            <widget class="QLabel" name="imagePathLabel">
+             <property name="text">
+              <string>the game's artwork</string>
+             </property>
+            </widget>
+           </item>
+           <item row="7" column="4" rowspan="3" colspan="3">
+            <widget class="QCheckBox" name="hiddenCheck">
+             <property name="text">
+              <string>Hidden</string>
+             </property>
+            </widget>
+           </item>
+           <item row="8" column="0" colspan="4">
+            <widget class="QPushButton" name="chooseImageButton">
+             <property name="text">
+              <string>Choose PNG...</string>
+             </property>
+            </widget>
+           </item>
+           <item row="9" column="0">
+            <widget class="QLabel" name="imagePropertyLabel">
+             <property name="text">
+              <string>Image</string>
+             </property>
+            </widget>
+           </item>
+           <item row="11" column="0" colspan="4">
+            <widget class="QPushButton" name="removeImageButton">
+             <property name="text">
+              <string>Remove image</string>
+             </property>
+            </widget>
+           </item>
+           <item row="11" column="4" colspan="3">
+            <widget class="QPushButton" name="resetElementButton">
+             <property name="text">
+              <string>Back to the game's</string>
+             </property>
+            </widget>
+           </item>
+           <item row="12" column="0" colspan="7">
+            <widget class="QLabel" name="noteLabel">
+             <property name="text">
+              <string>Assets are saved in frames/. The first style becomes the layout default.</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="duelBoardTab">
+      <attribute name="title">
+       <string>Duel board</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="duelBoardLayout">
+       <property name="spacing">
+        <number>10</number>
+       </property>
+       <item>
+        <layout class="QHBoxLayout" name="boardFieldSelectorLayout">
+         <item>
+          <widget class="QLabel" name="boardFieldLabel">
+           <property name="text">
+            <string>Field</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QComboBox" name="boardFieldCombo">
+           <item>
             <property name="text">
-             <string>Password</string>
+             <string>Normal</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Forest</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Wasteland</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Mountain</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Sogen</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Umi</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Yami</string>
+            </property>
+           </item>
+          </widget>
+         </item>
+         <item>
+          <spacer name="boardFieldSelectorSpacer">
+           <property name="orientation">
+            <enum>Qt::Orientation::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>20</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+         <item>
+          <widget class="QPushButton" name="revertBoardPageButton">
+           <property name="text">
+            <string>Revert page</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="boardWorkspaceLayout" stretch="5,2,2">
+         <property name="spacing">
+          <number>12</number>
+         </property>
+         <item>
+          <widget class="QFrame" name="boardPreviewPanel">
+           <property name="frameShape">
+            <enum>QFrame::Shape::StyledPanel</enum>
+           </property>
+           <layout class="QVBoxLayout" name="boardPreviewLayout" stretch="0,1,0">
+            <item>
+             <layout class="QHBoxLayout" name="boardPreviewHeader">
+              <item>
+               <widget class="QLabel" name="boardPreviewTitle">
+                <property name="text">
+                 <string>3D Board Preview</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <spacer name="boardPreviewHeaderSpacer">
+                <property name="orientation">
+                 <enum>Qt::Orientation::Horizontal</enum>
+                </property>
+                <property name="sizeHint" stdset="0">
+                 <size>
+                  <width>20</width>
+                  <height>20</height>
+                 </size>
+                </property>
+               </spacer>
+              </item>
+              <item>
+               <widget class="QPushButton" name="boardGameViewButton">
+                <property name="text">
+                 <string>Game's view</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="holdGameBoardButton">
+                <property name="text">
+                 <string>Show Retail (Hold)</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QLabel" name="boardPreviewCanvas">
+              <property name="minimumSize">
+               <size>
+                <width>620</width>
+                <height>520</height>
+               </size>
+              </property>
+              <property name="text">
+               <string>Interactive 3D duel-board preview</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignmentFlag::AlignCenter</set>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <layout class="QHBoxLayout" name="boardPreviewTools" stretch="0,0,0">
+              <item>
+               <widget class="QLabel" name="boardPreviewHintLabel">
+                <property name="text">
+                 <string>Middle-drag: rotate · Shift+middle-drag: pan · Wheel: zoom</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <spacer name="boardPreviewToolsSpacer">
+                <property name="orientation">
+                 <enum>Qt::Orientation::Horizontal</enum>
+                </property>
+                <property name="sizeHint" stdset="0">
+                 <size>
+                  <width>20</width>
+                  <height>20</height>
+                 </size>
+                </property>
+               </spacer>
+              </item>
+              <item>
+               <widget class="QCheckBox" name="boardShowOutlinesCheck">
+                <property name="text">
+                 <string>Show selection outlines</string>
+                </property>
+                <property name="checked">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
+          <widget class="QFrame" name="boardPartsPanel">
+           <property name="frameShape">
+            <enum>QFrame::Shape::StyledPanel</enum>
+           </property>
+           <layout class="QVBoxLayout" name="boardPartsLayout">
+            <item>
+             <widget class="QLabel" name="boardPartsTitle">
+              <property name="text">
+               <string>Board parts</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLineEdit" name="boardPartSearchEdit">
+              <property name="placeholderText">
+               <string>Search board parts...</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QTreeWidget" name="boardPartsTree">
+              <property name="columnCount">
+               <number>1</number>
+              </property>
+              <column>
+               <property name="text">
+                <string>Part</string>
+               </property>
+              </column>
+              <item>
+               <property name="text">
+                <string>Floor</string>
+               </property>
+               <item>
+                <property name="text">
+                 <string>Opponent's back row</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Opponent's front row</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Centre strip</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Your front row</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Your back row</string>
+                </property>
+               </item>
+              </item>
+              <item>
+               <property name="text">
+                <string>Walls and trim</string>
+               </property>
+               <item>
+                <property name="text">
+                 <string>Wall, left wing</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Wall, right wing</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Wall, middle</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Wall corners</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Top trim</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Triangles</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Triangle edges</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Centre step</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Centre sides</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>Centre side ends</string>
+                </property>
+               </item>
+              </item>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
+          <widget class="QFrame" name="boardPropertiesPanel">
+           <property name="frameShape">
+            <enum>QFrame::Shape::StyledPanel</enum>
+           </property>
+           <layout class="QVBoxLayout" name="boardPropertiesLayout">
+            <item>
+             <widget class="QLabel" name="boardPropertiesTitle">
+              <property name="text">
+               <string>Part preview &amp; properties</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="boardSelectedPartLabel">
+              <property name="styleSheet">
+               <string notr="true">font-size: 17px; font-weight: 700;</string>
+              </property>
+              <property name="text">
+               <string>Floor</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="boardSelectedPartDescription">
+              <property name="text">
+               <string>All five floor rows as one picture, far to near.</string>
+              </property>
+              <property name="wordWrap">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="boardPartPreview">
+              <property name="minimumSize">
+               <size>
+                <width>220</width>
+                <height>220</height>
+               </size>
+              </property>
+              <property name="text">
+               <string>Texture preview</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignmentFlag::AlignCenter</set>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="boardPartResolutionLabel">
+              <property name="text">
+               <string>Original size / supported replacement sizes</string>
+              </property>
+              <property name="wordWrap">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <layout class="QHBoxLayout" name="boardPartActions">
+              <item>
+               <widget class="QPushButton" name="replaceBoardPartButton">
+                <property name="text">
+                 <string>Replace...</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="exportBoardPartButton">
+                <property name="text">
+                 <string>Export game's...</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="revertBoardPartButton">
+                <property name="text">
+                 <string>Revert</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <layout class="QHBoxLayout" name="boardTintLayout">
+              <item>
+               <widget class="QLabel" name="boardTintLabel">
+                <property name="text">
+                 <string>Tint</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QLineEdit" name="boardTintEdit">
+                <property name="text">
+                 <string>#FFFFFF</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QCheckBox" name="boardApplyAllFieldsCheck">
+              <property name="text">
+               <string>Apply to all seven fields</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="boardPartNoteLabel">
+              <property name="text">
+               <string>Some board textures are mirrored or reused in several places. A replacement can affect more than one visible section.</string>
+              </property>
+              <property name="wordWrap">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="boardPropertiesSpacer">
+              <property name="orientation">
+               <enum>Qt::Orientation::Vertical</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>20</width>
+                <height>40</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </widget>
+         </item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="BuildDeckAssetsTab">
+      <attribute name="title">
+       <string>Build Deck</string>
+      </attribute>
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>1200</width>
+        <height>760</height>
+       </rect>
+      </property>
+      <layout class="QHBoxLayout" name="buildDeckTabLayout">
+       <property name="spacing">
+        <number>12</number>
+       </property>
+       <item>
+        <widget class="QFrame" name="buildDeckListPanel">
+         <property name="frameShape">
+          <enum>QFrame::Shape::StyledPanel</enum>
+         </property>
+         <layout class="QVBoxLayout" name="buildDeckListLayout">
+          <item>
+           <widget class="QLabel" name="buildDeckListTitle">
+            <property name="text">
+             <string>Build Deck screen textures</string>
             </property>
            </widget>
           </item>
           <item>
-           <widget class="QPushButton" name="locationBuildDeck">
+           <widget class="QLabel" name="buildDeckListNote">
             <property name="text">
-             <string>Build Deck</string>
+             <string>Panels, digits, sort icons, and cursor bars drawn by the Build Deck (and Trade) screen. Texture replacement only -- no position, size, or color.</string>
+            </property>
+            <property name="wordWrap">
+             <bool>true</bool>
             </property>
            </widget>
           </item>
           <item>
-           <widget class="QPushButton" name="locationDuelHand">
-            <property name="text">
-             <string>Duel Hand</string>
+           <widget class="QLineEdit" name="buildDeckSearchEdit">
+            <property name="placeholderText">
+             <string>Search textures...</string>
             </property>
            </widget>
           </item>
           <item>
-           <widget class="QPushButton" name="locationDuelField">
+           <layout class="QHBoxLayout" name="buildDeckFilterRow">
+            <item>
+             <widget class="QPushButton" name="buildDeckAllButton">
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+              <property name="checked">
+               <bool>true</bool>
+              </property>
+              <property name="text">
+               <string>All</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="buildDeckModifiedButton">
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+              <property name="text">
+               <string>Modified</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="buildDeckRetailButton">
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+              <property name="text">
+               <string>Retail</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="buildDeckFilterSpacer">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>20</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item>
+             <widget class="QPushButton" name="buildDeckRevertAllButton">
+              <property name="text">
+               <string>Revert all</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <widget class="QTableWidget" name="buildDeckTable">
+            <property name="columnCount">
+             <number>3</number>
+            </property>
+            <column>
+             <property name="text">
+              <string>Asset</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>Method</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>State</string>
+             </property>
+            </column>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="buildDeckFooterLabel">
             <property name="text">
-             <string>Duel Field</string>
+             <string>0 modified assets</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QFrame" name="buildDeckDetailPanel">
+         <property name="frameShape">
+          <enum>QFrame::Shape::StyledPanel</enum>
+         </property>
+         <property name="minimumWidth">
+          <number>360</number>
+         </property>
+         <layout class="QVBoxLayout" name="buildDeckDetailLayout">
+          <item>
+           <widget class="QLabel" name="buildDeckSelectedName">
+            <property name="styleSheet">
+             <string notr="true">font-size: 16px; font-weight: 700;</string>
+            </property>
+            <property name="text">
+             <string>No texture selected</string>
             </property>
            </widget>
           </item>
           <item>
-           <spacer name="assetLocationsSpacer">
+           <widget class="QLabel" name="buildDeckSelectedUse">
+            <property name="text">
+             <string>Choose a texture from the list.</string>
+            </property>
+            <property name="wordWrap">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="buildDeckPreviewRow">
+            <item>
+             <layout class="QVBoxLayout" name="buildDeckRetailColumn">
+              <item>
+               <widget class="QLabel" name="buildDeckRetailCaption">
+                <property name="text">
+                 <string>Retail</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QLabel" name="buildDeckRetailPreview">
+                <property name="minimumSize">
+                 <size>
+                  <width>160</width>
+                  <height>160</height>
+                 </size>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignmentFlag::AlignCenter</set>
+                </property>
+                <property name="text">
+                 <string>Retail preview</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <layout class="QVBoxLayout" name="buildDeckReplacementColumn">
+              <item>
+               <widget class="QLabel" name="buildDeckReplacementCaption">
+                <property name="text">
+                 <string>Replacement</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QLabel" name="buildDeckReplacementPreview">
+                <property name="minimumSize">
+                 <size>
+                  <width>160</width>
+                  <height>160</height>
+                 </size>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignmentFlag::AlignCenter</set>
+                </property>
+                <property name="text">
+                 <string>Replacement preview</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="buildDeckScaleRow">
+            <item>
+             <widget class="QLabel" name="buildDeckScaleCaption">
+              <property name="text">
+               <string>Detail</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="buildDeckPreview1xButton">
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+              <property name="text">
+               <string>1x</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="buildDeckPreview2xButton">
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+              <property name="checked">
+               <bool>true</bool>
+              </property>
+              <property name="text">
+               <string>2x</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="buildDeckPreview4xButton">
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+              <property name="text">
+               <string>4x</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="buildDeckScaleSpacer">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>20</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <widget class="QLabel" name="buildDeckStatusNote">
+            <property name="text">
+             <string />
+            </property>
+            <property name="wordWrap">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <layout class="QFormLayout" name="buildDeckFieldsForm">
+            <item row="0" column="0">
+             <widget class="QLabel" name="buildDeckPathCaption">
+              <property name="text">
+               <string>Path</string>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="1">
+             <widget class="QLabel" name="buildDeckPathValue">
+              <property name="text">
+               <string>—</string>
+              </property>
+              <property name="wordWrap">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="0">
+             <widget class="QLabel" name="buildDeckSizeCaption">
+              <property name="text">
+               <string>Native size</string>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="1">
+             <widget class="QLabel" name="buildDeckSizeValue">
+              <property name="text">
+               <string>—</string>
+              </property>
+             </widget>
+            </item>
+            <item row="2" column="0">
+             <widget class="QLabel" name="buildDeckUsesCaption">
+              <property name="text">
+               <string>Category</string>
+              </property>
+             </widget>
+            </item>
+            <item row="2" column="1">
+             <widget class="QLabel" name="buildDeckUsesValue">
+              <property name="text">
+               <string>—</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="buildDeckActionsRow">
+            <item>
+             <widget class="QPushButton" name="buildDeckReplaceButton">
+              <property name="text">
+               <string>Replace...</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="buildDeckExportButton">
+              <property name="text">
+               <string>Export...</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="buildDeckRevertButton">
+              <property name="text">
+               <string>Revert</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <spacer name="buildDeckDetailSpacer">
             <property name="orientation">
-             <enum>Qt::Orientation::Horizontal</enum>
+             <enum>Qt::Orientation::Vertical</enum>
             </property>
             <property name="sizeHint" stdset="0">
              <size>
-              <width>40</width>
+              <width>20</width>
               <height>20</height>
              </size>
             </property>
            </spacer>
           </item>
          </layout>
-        </item>
-        <item>
-         <widget class="QLabel" name="assetHelpText">
-          <property name="frameShape">
-           <enum>QFrame::Shape::StyledPanel</enum>
-          </property>
-          <property name="text">
-           <string>Texture packs cover screen sheets and icons; direct mod.json handles title/menu images and Guardian Star icons. Code mods can draw custom overlays; keep those in the API Overlay category.</string>
-          </property>
-          <property name="wordWrap">
-           <bool>true</bool>
-          </property>
-         </widget>
-        </item>
-       </layout>
-      </widget>
-     </item>
-    </layout>
-   </item>
-   <item>
-    <layout class="QHBoxLayout" name="assetsFooterLayout">
-     <item>
-      <spacer name="assetsFooterSpacer">
-       <property name="orientation">
-        <enum>Qt::Orientation::Horizontal</enum>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="AssetsPage">
+      <attribute name="title">
+       <string>Assets</string>
+      </attribute>
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>1306</width>
+        <height>727</height>
+       </rect>
+      </property>
+      <property name="windowTitle">
+       <string>UI / Graphics</string>
+      </property>
+      <layout class="QVBoxLayout" name="assetsPageLayout">
+       <property name="leftMargin">
+        <number>2</number>
        </property>
-       <property name="sizeHint" stdset="0">
-        <size>
-         <width>40</width>
-         <height>20</height>
-        </size>
+       <property name="topMargin">
+        <number>2</number>
        </property>
-      </spacer>
-     </item>
-     <item>
-      <widget class="QPushButton" name="previewAssetsModButton">
-       <property name="text">
-        <string>Preview mod...</string>
+       <property name="rightMargin">
+        <number>2</number>
        </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="applyAssetsButton">
-       <property name="text">
-        <string>Apply changes</string>
+       <property name="bottomMargin">
+        <number>2</number>
        </property>
-      </widget>
-     </item>
-    </layout>
+       <item>
+        <layout class="QHBoxLayout" name="assetsTitleLayout" stretch="3,1,0">
+         <item>
+          <layout class="QVBoxLayout" name="assetsTitleTextLayout" stretch="0,0">
+           <property name="spacing">
+            <number>2</number>
+           </property>
+           <item>
+            <widget class="QLabel" name="assetsTitle">
+             <property name="styleSheet">
+              <string notr="true">font-size: 20px; font-weight: 700;</string>
+             </property>
+             <property name="text">
+              <string>UI / Graphics</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLabel" name="assetsIntro">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+               <horstretch>2</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="maximumSize">
+              <size>
+               <width>16777215</width>
+               <height>16777215</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>Replace screens, menus, card UI, icons, portraits and other visual assets supported by the mod system.</string>
+             </property>
+             <property name="wordWrap">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <spacer name="assetsTitleSpacer">
+           <property name="orientation">
+            <enum>Qt::Orientation::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>40</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+         <item>
+          <widget class="QPushButton" name="uiModGuideButton">
+           <property name="text">
+            <string>UI mod guide...</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="assetsBodyLayout">
+         <property name="spacing">
+          <number>12</number>
+         </property>
+         <item>
+          <widget class="QGroupBox" name="assetCategoriesGroup">
+           <property name="title">
+            <string>Asset categories</string>
+           </property>
+           <layout class="QVBoxLayout" name="assetCategoriesLayout">
+            <item>
+             <widget class="QLineEdit" name="assetCategorySearch">
+              <property name="placeholderText">
+               <string>Search UI assets...</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QTreeWidget" name="assetCategoryTree">
+              <property name="minimumSize">
+               <size>
+                <width>235</width>
+                <height>0</height>
+               </size>
+              </property>
+              <property name="rootIsDecorated">
+               <bool>false</bool>
+              </property>
+              <property name="headerHidden">
+               <bool>true</bool>
+              </property>
+              <column>
+               <property name="text">
+                <string notr="true">1</string>
+               </property>
+              </column>
+              <item>
+               <property name="text">
+                <string>Screens / UI Sheets</string>
+               </property>
+               <property name="toolTip">
+                <string>48 groups</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Title &amp; Menus</string>
+               </property>
+               <property name="toolTip">
+                <string>Declarative</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Card UI</string>
+               </property>
+               <property name="toolTip">
+                <string>Frames, icons</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Guardian Stars</string>
+               </property>
+               <property name="toolTip">
+                <string>Icons 1-15</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Portraits</string>
+               </property>
+               <property name="toolTip">
+                <string>Campaign / Free Duel</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Story Scenes</string>
+               </property>
+               <property name="toolTip">
+                <string>Backgrounds / cutscenes</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Map UI</string>
+               </property>
+               <property name="toolTip">
+                <string>Marker / arrows / panel</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Fonts &amp; Text Colors</string>
+               </property>
+               <property name="toolTip">
+                <string>TTF / OT ramps</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>API Overlay</string>
+               </property>
+               <property name="toolTip">
+                <string>Code mod</string>
+               </property>
+              </item>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="revertAllUiButton">
+              <property name="text">
+               <string>Revert all UI</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
+          <widget class="QGroupBox" name="assetListGroup">
+           <property name="title">
+            <string>Card UI assets</string>
+           </property>
+           <layout class="QVBoxLayout" name="assetListLayout">
+            <item>
+             <widget class="QLabel" name="assetListIntro">
+              <property name="text">
+               <string>Texture-pack replacements used across card view, Library, Build Deck and duels.</string>
+              </property>
+              <property name="wordWrap">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <layout class="QHBoxLayout" name="assetFiltersLayout">
+              <item>
+               <widget class="QPushButton" name="allAssetsFilterButton">
+                <property name="text">
+                 <string>All card UI</string>
+                </property>
+                <property name="checkable">
+                 <bool>true</bool>
+                </property>
+                <property name="checked">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="modifiedAssetsFilterButton">
+                <property name="text">
+                 <string>Modified</string>
+                </property>
+                <property name="checkable">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="retailAssetsFilterButton">
+                <property name="text">
+                 <string>Retail</string>
+                </property>
+                <property name="checkable">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QTableWidget" name="assetTable">
+              <property name="minimumSize">
+               <size>
+                <width>390</width>
+                <height>0</height>
+               </size>
+              </property>
+              <property name="rowCount">
+               <number>15</number>
+              </property>
+              <property name="columnCount">
+               <number>3</number>
+              </property>
+              <row />
+              <row />
+              <row />
+              <row />
+              <row />
+              <row />
+              <row />
+              <row />
+              <row />
+              <row />
+              <row />
+              <row />
+              <row />
+              <row />
+              <row />
+              <column>
+               <property name="text">
+                <string>Asset</string>
+               </property>
+              </column>
+              <column>
+               <property name="text">
+                <string>Method</string>
+               </property>
+              </column>
+              <column>
+               <property name="text">
+                <string>State</string>
+               </property>
+              </column>
+              <item row="0" column="0">
+               <property name="text">
+                <string>Monster frame</string>
+               </property>
+              </item>
+              <item row="0" column="1">
+               <property name="text">
+                <string>Texture pack</string>
+               </property>
+              </item>
+              <item row="0" column="2">
+               <property name="text">
+                <string>Modified</string>
+               </property>
+              </item>
+              <item row="1" column="0">
+               <property name="text">
+                <string>Magic frame</string>
+               </property>
+              </item>
+              <item row="1" column="1">
+               <property name="text">
+                <string>Texture pack</string>
+               </property>
+              </item>
+              <item row="1" column="2">
+               <property name="text">
+                <string>Retail</string>
+               </property>
+              </item>
+              <item row="2" column="0">
+               <property name="text">
+                <string>Trap frame</string>
+               </property>
+              </item>
+              <item row="2" column="1">
+               <property name="text">
+                <string>Texture pack</string>
+               </property>
+              </item>
+              <item row="2" column="2">
+               <property name="text">
+                <string>Retail</string>
+               </property>
+              </item>
+              <item row="3" column="0">
+               <property name="text">
+                <string>Ritual frame</string>
+               </property>
+              </item>
+              <item row="3" column="1">
+               <property name="text">
+                <string>Texture pack</string>
+               </property>
+              </item>
+              <item row="3" column="2">
+               <property name="text">
+                <string>Retail</string>
+               </property>
+              </item>
+              <item row="4" column="0">
+               <property name="text">
+                <string>Card back</string>
+               </property>
+              </item>
+              <item row="4" column="1">
+               <property name="text">
+                <string>Texture pack</string>
+               </property>
+              </item>
+              <item row="4" column="2">
+               <property name="text">
+                <string>Retail</string>
+               </property>
+              </item>
+              <item row="5" column="0">
+               <property name="text">
+                <string>Attribute: Light</string>
+               </property>
+              </item>
+              <item row="5" column="1">
+               <property name="text">
+                <string>Texture pack</string>
+               </property>
+              </item>
+              <item row="5" column="2">
+               <property name="text">
+                <string>Modified</string>
+               </property>
+              </item>
+              <item row="6" column="0">
+               <property name="text">
+                <string>Attribute: Dark</string>
+               </property>
+              </item>
+              <item row="6" column="1">
+               <property name="text">
+                <string>Texture pack</string>
+               </property>
+              </item>
+              <item row="6" column="2">
+               <property name="text">
+                <string>Retail</string>
+               </property>
+              </item>
+              <item row="7" column="0">
+               <property name="text">
+                <string>Attribute: Earth</string>
+               </property>
+              </item>
+              <item row="7" column="1">
+               <property name="text">
+                <string>Texture pack</string>
+               </property>
+              </item>
+              <item row="7" column="2">
+               <property name="text">
+                <string>Retail</string>
+               </property>
+              </item>
+              <item row="8" column="0">
+               <property name="text">
+                <string>Attribute: Water</string>
+               </property>
+              </item>
+              <item row="8" column="1">
+               <property name="text">
+                <string>Texture pack</string>
+               </property>
+              </item>
+              <item row="8" column="2">
+               <property name="text">
+                <string>Retail</string>
+               </property>
+              </item>
+              <item row="9" column="0">
+               <property name="text">
+                <string>Attribute: Fire</string>
+               </property>
+              </item>
+              <item row="9" column="1">
+               <property name="text">
+                <string>Texture pack</string>
+               </property>
+              </item>
+              <item row="9" column="2">
+               <property name="text">
+                <string>Retail</string>
+               </property>
+              </item>
+              <item row="10" column="0">
+               <property name="text">
+                <string>Attribute: Wind</string>
+               </property>
+              </item>
+              <item row="10" column="1">
+               <property name="text">
+                <string>Texture pack</string>
+               </property>
+              </item>
+              <item row="10" column="2">
+               <property name="text">
+                <string>Retail</string>
+               </property>
+              </item>
+              <item row="11" column="0">
+               <property name="text">
+                <string>Level star</string>
+               </property>
+              </item>
+              <item row="11" column="1">
+               <property name="text">
+                <string>Texture pack</string>
+               </property>
+              </item>
+              <item row="11" column="2">
+               <property name="text">
+                <string>Modified</string>
+               </property>
+              </item>
+              <item row="12" column="0">
+               <property name="text">
+                <string>Monster type icons</string>
+               </property>
+              </item>
+              <item row="12" column="1">
+               <property name="text">
+                <string>Screen sheet</string>
+               </property>
+              </item>
+              <item row="12" column="2">
+               <property name="text">
+                <string>Retail</string>
+               </property>
+              </item>
+              <item row="13" column="0">
+               <property name="text">
+                <string>ATK / DEF digits</string>
+               </property>
+              </item>
+              <item row="13" column="1">
+               <property name="text">
+                <string>Texture pack</string>
+               </property>
+              </item>
+              <item row="13" column="2">
+               <property name="text">
+                <string>Retail</string>
+               </property>
+              </item>
+              <item row="14" column="0">
+               <property name="text">
+                <string>Card labels</string>
+               </property>
+              </item>
+              <item row="14" column="1">
+               <property name="text">
+                <string>Texture pack</string>
+               </property>
+              </item>
+              <item row="14" column="2">
+               <property name="text">
+                <string>Retail</string>
+               </property>
+              </item>
+             </widget>
+            </item>
+            <item>
+             <layout class="QHBoxLayout" name="assetListActionsLayout">
+              <item>
+               <widget class="QPushButton" name="importAssetButton">
+                <property name="text">
+                 <string>Import PNG...</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="exportAssetButton">
+                <property name="text">
+                 <string>Export...</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="revertAssetButton">
+                <property name="text">
+                 <string>Revert</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="openAssetFileButton">
+                <property name="text">
+                 <string>Open file</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
+          <widget class="QGroupBox" name="selectedAssetGroup">
+           <property name="title">
+            <string>Selected asset</string>
+           </property>
+           <layout class="QVBoxLayout" name="selectedAssetLayout">
+            <item>
+             <widget class="QLabel" name="selectedAssetName">
+              <property name="styleSheet">
+               <string notr="true">font-size: 18px; font-weight: 700;</string>
+              </property>
+              <property name="text">
+               <string>Monster frame</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="selectedAssetUse">
+              <property name="text">
+               <string>Used by card view, Library, Password, Build Deck and all seven duel terrains.</string>
+              </property>
+              <property name="wordWrap">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <layout class="QHBoxLayout" name="selectedAssetSummaryLayout">
+              <item>
+               <widget class="QGroupBox" name="selectedAssetMetadataGroup">
+                <property name="title">
+                 <string>Replacement details</string>
+                </property>
+                <layout class="QFormLayout" name="selectedAssetMetadataLayout">
+                 <item row="0" column="0">
+                  <widget class="QLabel" name="assetMethodLabel">
+                   <property name="text">
+                    <string>Replacement method</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="0" column="1">
+                  <widget class="QLabel" name="assetMethodValue">
+                   <property name="text">
+                    <string>Texture pack</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="1" column="0">
+                  <widget class="QLabel" name="assetKeyLabel">
+                   <property name="text">
+                    <string>mod.json key</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="1" column="1">
+                  <widget class="QLabel" name="assetKeyValue">
+                   <property name="text">
+                    <string>textures: "textures"</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="2" column="0">
+                  <widget class="QLabel" name="assetFilenameLabel">
+                   <property name="text">
+                    <string>Asset</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="2" column="1">
+                  <widget class="QLabel" name="assetFilenameValue">
+                   <property name="text">
+                    <string>frame_monster.png</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="3" column="0">
+                  <widget class="QLabel" name="assetSizeLabel">
+                   <property name="text">
+                    <string>Native size</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="3" column="1">
+                  <widget class="QLabel" name="assetSizeValue">
+                   <property name="text">
+                    <string>256 x 256 sheet</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="4" column="0">
+                  <widget class="QLabel" name="assetScaleLabel">
+                   <property name="text">
+                    <string>Higher resolution</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="4" column="1">
+                  <widget class="QLabel" name="assetScaleValue">
+                   <property name="text">
+                    <string>Internal 2x / 4x</string>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </widget>
+              </item>
+              <item>
+               <widget class="QGroupBox" name="selectedAssetStatusGroup">
+                <property name="title">
+                 <string>Replacement status</string>
+                </property>
+                <layout class="QVBoxLayout" name="selectedAssetStatusLayout">
+                 <item>
+                  <widget class="QLabel" name="assetStatus">
+                   <property name="styleSheet">
+                    <string notr="true">color: #2dc9a1; font-size: 15px;</string>
+                   </property>
+                   <property name="text">
+                    <string>Modified by this mod</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QLabel" name="assetStatusNote">
+                   <property name="text">
+                    <string>Retail source is preserved; revert restores it.</string>
+                   </property>
+                   <property name="wordWrap">
+                    <bool>true</bool>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <layout class="QHBoxLayout" name="assetStatusActions">
+                   <item>
+                    <widget class="QPushButton" name="replaceSelectedAssetButton">
+                     <property name="text">
+                      <string>Replace PNG...</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item>
+                    <widget class="QPushButton" name="revertSelectedAssetButton">
+                     <property name="text">
+                      <string>Revert</string>
+                     </property>
+                    </widget>
+                   </item>
+                  </layout>
+                 </item>
+                </layout>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <layout class="QHBoxLayout" name="previewHeadingLayout">
+              <item>
+               <widget class="QLabel" name="assetPreviewTitle">
+                <property name="styleSheet">
+                 <string notr="true">font-size: 16px; font-weight: 700;</string>
+                </property>
+                <property name="text">
+                 <string>Preview</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <spacer name="previewHeadingSpacer">
+                <property name="orientation">
+                 <enum>Qt::Orientation::Horizontal</enum>
+                </property>
+                <property name="sizeHint" stdset="0">
+                 <size>
+                  <width>40</width>
+                  <height>20</height>
+                 </size>
+                </property>
+               </spacer>
+              </item>
+              <item>
+               <widget class="QPushButton" name="preview1xButton">
+                <property name="text">
+                 <string>1x</string>
+                </property>
+                <property name="checkable">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="preview2xButton">
+                <property name="text">
+                 <string>2x</string>
+                </property>
+                <property name="checkable">
+                 <bool>true</bool>
+                </property>
+                <property name="checked">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="preview4xButton">
+                <property name="text">
+                 <string>4x</string>
+                </property>
+                <property name="checkable">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QGroupBox" name="assetPreviewGroup">
+              <property name="title">
+               <string />
+              </property>
+              <layout class="QHBoxLayout" name="assetPreviewLayout">
+               <item>
+                <layout class="QVBoxLayout" name="retailPreviewColumn">
+                 <item>
+                  <widget class="QLabel" name="retailPreviewCaption">
+                   <property name="styleSheet">
+                    <string notr="true">font-weight: 600; color: #aebfd6;</string>
+                   </property>
+                   <property name="text">
+                    <string>Retail</string>
+                   </property>
+                   <property name="alignment">
+                    <set>Qt::AlignmentFlag::AlignCenter</set>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QLabel" name="retailPreview">
+                   <property name="minimumSize">
+                    <size>
+                     <width>150</width>
+                     <height>200</height>
+                    </size>
+                   </property>
+                   <property name="frameShape">
+                    <enum>QFrame::Shape::StyledPanel</enum>
+                   </property>
+                   <property name="text">
+                    <string>Retail preview</string>
+                   </property>
+                   <property name="alignment">
+                    <set>Qt::AlignmentFlag::AlignCenter</set>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </item>
+               <item>
+                <layout class="QVBoxLayout" name="modPreviewColumn">
+                 <item>
+                  <widget class="QLabel" name="modPreviewCaption">
+                   <property name="styleSheet">
+                    <string notr="true">font-weight: 600; color: #aebfd6;</string>
+                   </property>
+                   <property name="text">
+                    <string>Mod</string>
+                   </property>
+                   <property name="alignment">
+                    <set>Qt::AlignmentFlag::AlignCenter</set>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QLabel" name="modPreview">
+                   <property name="minimumSize">
+                    <size>
+                     <width>150</width>
+                     <height>200</height>
+                    </size>
+                   </property>
+                   <property name="frameShape">
+                    <enum>QFrame::Shape::StyledPanel</enum>
+                   </property>
+                   <property name="text">
+                    <string>Mod preview</string>
+                   </property>
+                   <property name="alignment">
+                    <set>Qt::AlignmentFlag::AlignCenter</set>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </item>
+               <item>
+                <layout class="QVBoxLayout" name="gamePreviewColumn">
+                 <item>
+                  <widget class="QLabel" name="gamePreviewCaption">
+                   <property name="styleSheet">
+                    <string notr="true">font-weight: 600; color: #aebfd6;</string>
+                   </property>
+                   <property name="text">
+                    <string>In game</string>
+                   </property>
+                   <property name="alignment">
+                    <set>Qt::AlignmentFlag::AlignCenter</set>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QLabel" name="gamePreview">
+                   <property name="minimumSize">
+                    <size>
+                     <width>150</width>
+                     <height>200</height>
+                    </size>
+                   </property>
+                   <property name="frameShape">
+                    <enum>QFrame::Shape::StyledPanel</enum>
+                   </property>
+                   <property name="text">
+                    <string>In-game preview</string>
+                   </property>
+                   <property name="alignment">
+                    <set>Qt::AlignmentFlag::AlignCenter</set>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="assetAppearsTitle">
+              <property name="styleSheet">
+               <string notr="true">font-size: 14px; font-weight: 700;</string>
+              </property>
+              <property name="text">
+               <string>Where this asset appears</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <layout class="QHBoxLayout" name="assetLocationsLayout">
+              <item>
+               <widget class="QPushButton" name="locationCardView">
+                <property name="text">
+                 <string>Card View</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="locationLibrary">
+                <property name="text">
+                 <string>Library</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="locationPassword">
+                <property name="text">
+                 <string>Password</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="locationBuildDeck">
+                <property name="text">
+                 <string>Build Deck</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="locationDuelHand">
+                <property name="text">
+                 <string>Duel Hand</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="locationDuelField">
+                <property name="text">
+                 <string>Duel Field</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <spacer name="assetLocationsSpacer">
+                <property name="orientation">
+                 <enum>Qt::Orientation::Horizontal</enum>
+                </property>
+                <property name="sizeHint" stdset="0">
+                 <size>
+                  <width>40</width>
+                  <height>20</height>
+                 </size>
+                </property>
+               </spacer>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QLabel" name="assetHelpText">
+              <property name="frameShape">
+               <enum>QFrame::Shape::StyledPanel</enum>
+              </property>
+              <property name="text">
+               <string>Texture packs cover screen sheets and icons; direct mod.json handles title/menu images and Guardian Star icons. Code mods can draw custom overlays; keep those in the API Overlay category.</string>
+              </property>
+              <property name="wordWrap">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="assetsFooterLayout">
+         <item>
+          <spacer name="assetsFooterSpacer">
+           <property name="orientation">
+            <enum>Qt::Orientation::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>40</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+         <item>
+          <widget class="QPushButton" name="previewAssetsModButton">
+           <property name="text">
+            <string>Preview mod...</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="applyAssetsButton">
+           <property name="text">
+            <string>Apply changes</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
+    </widget>
    </item>
   </layout>
  </widget>
- <resources/>
- <connections/>
+ <resources />
+ <connections />
 </ui>

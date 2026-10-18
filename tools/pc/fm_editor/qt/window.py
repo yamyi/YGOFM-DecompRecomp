@@ -253,39 +253,6 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
             button.setObjectName("primary" if page_name == name else "")
             button.style().unpolish(button)
             button.style().polish(button)
-    # A page's tabs are forms of their own, one file each, so a tab is read
-    # and changed without the rest of the page around it. The page's form
-    # keeps the empty tab widget; these fill it, in this order.
-    PAGE_TABS = {
-        "Campaign": ("campaignTabs", (("campaign_map.ui", "Map"),)),
-        "Fusions": ("fusionPages", (("fusions_fusion_list.ui", "Fusion list"),
-                                    ("fusions_generic_fusions.ui", "Generic fusions"))),
-        "Starter decks": ("starterTabs", (("starter_written_decks.ui", "Written decks"),
-                                          ("starter_weighted_pools.ui", "Weighted pools"))),
-    }
-
-    def _load_page_tabs(self, name, page):
-        """Put each tab's own form into the page's tab widget, before anything
-        is wired: the page is then the same object tree as one file would give."""
-        wanted = self.PAGE_TABS.get(name)
-        if wanted is None:
-            return
-        book_name, tabs = wanted
-        book = page.findChild(QTabWidget, book_name)
-        if book is None:
-            raise RuntimeError(f"{name} form is missing {book_name!r}")
-        loader = QUiLoader()
-        for filename, title in tabs:
-            path = UI_DIR / filename
-            source = QFile(str(path))
-            if not source.open(QIODevice.OpenModeFlag.ReadOnly):
-                raise RuntimeError(f"Could not open {title} form {path}: {source.errorString()}")
-            tab = loader.load(source, book)
-            source.close()
-            if tab is None:
-                raise RuntimeError(f"Could not load {title} form {path}: {loader.errorString()}")
-            book.addTab(tab, title)
-
     def _build_workspace_page(self, name, parent):
         if name == "Packs":
             self._build_packs_page(parent)
@@ -305,7 +272,6 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
         source.close()
         if page is None:
             raise RuntimeError(f"Could not load {name} form {path}: {loader.errorString()}")
-        self._load_page_tabs(name, page)
         wrapper = QVBoxLayout(parent)
         wrapper.setContentsMargins(0, 0, 0, 0)
         wrapper.addWidget(page)

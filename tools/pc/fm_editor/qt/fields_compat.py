@@ -113,7 +113,7 @@ def _duel_field_preview(editor, field_name):
 
 
 def _load_form(parent):
-    source = QFile(str(Path(__file__).with_name("fields_page_compat.ui")))
+    source = QFile(str(Path(__file__).resolve().parents[1] / "ui" / "fields_page.ui"))
     if not source.open(QIODevice.OpenModeFlag.ReadOnly):
         raise RuntimeError(f"Could not load Fields form: {source.errorString()}")
     try:
