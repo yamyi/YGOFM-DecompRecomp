@@ -787,8 +787,8 @@ def _frame_preview_point(label, position):
 
 
 def _frame_preview_kind(controls):
-    for key, name in (("magic", "frameMagicRadio"), ("equip", "frameEquipRadio"),
-                      ("ritual", "frameRitualRadio"), ("trap", "frameTrapRadio")):
+    for key, name in (("magic", "magicRadio"), ("equip", "equipRadio"),
+                      ("ritual", "ritualRadio"), ("trap", "trapRadio")):
         if _frames_widget(controls["form"], QRadioButton, name).isChecked():
             return key
     return "monster"
@@ -818,56 +818,57 @@ def _wire_frames_tab(editor, form, controls):
     from PySide6.QtWidgets import QListWidget, QTreeWidget
     c = {
         "form": form, "style": _frames_widget(form, QListWidget, "frameStyleList"),
-        "parts": _frames_widget(form, QTreeWidget, "framePartsTree"),
-        "preview": _frames_widget(form, QLabel, "framePreviewCanvas"),
-        "x": _frames_widget(form, QSpinBox, "frameXSpin"), "y": _frames_widget(form, QSpinBox, "frameYSpin"),
-        "width": _frames_widget(form, QSpinBox, "frameWidthSpin"), "height": _frames_widget(form, QSpinBox, "frameHeightSpin"),
-        "visible": _frames_widget(form, QCheckBox, "frameVisibleCheck"),
-        "image": _frames_widget(form, QLabel, "frameImagePathEdit"),
-        "kind_rule": _frames_widget(form, QComboBox, "frameKindCombo"),
-        "type_rule": _frames_widget(form, QComboBox, "frameTypeCombo"),
-        "card_rule": _frames_widget(form, QSpinBox, "frameCardIdSpin"),
+        "parts": _frames_widget(form, QTreeWidget, "partsTree"),
+        "preview": _frames_widget(form, QLabel, "cardCanvas"),
+        "x": _frames_widget(form, QSpinBox, "xSpin"), "y": _frames_widget(form, QSpinBox, "ySpin"),
+        "width": _frames_widget(form, QSpinBox, "widthSpin"), "height": _frames_widget(form, QSpinBox, "heightSpin"),
+        "visible": _frames_widget(form, QCheckBox, "hiddenCheck"),
+        "image": _frames_widget(form, QLabel, "imagePathLabel"),
+        "kind_rule": _frames_widget(form, QComboBox, "kindCombo"),
+        "type_rule": _frames_widget(form, QComboBox, "typeCombo"),
+        "card_rule": _frames_widget(form, QLineEdit, "specificCardInput"),
         "selected": "frame", "style_name": "custom", "loading": False, "boxes": {},
     }
     controls["frames"] = c
     c["face_group"] = QButtonGroup(form)
-    for name in ("frameFrontRadio", "frameBackRadio"):
+    for name in ("frontRadio", "backRadio"):
         c["face_group"].addButton(_frames_widget(form, QRadioButton, name))
     c["preview_kind_group"] = QButtonGroup(form)
-    for name in ("frameMonsterRadio", "frameMagicRadio", "frameEquipRadio", "frameRitualRadio", "frameTrapRadio"):
+    for name in ("monsterRadio", "magicRadio", "equipRadio", "ritualRadio", "trapRadio"):
         c["preview_kind_group"].addButton(_frames_widget(form, QRadioButton, name))
-    _frames_widget(form, QRadioButton, "frameFrontRadio").setChecked(True)
-    _frames_widget(form, QRadioButton, "frameMonsterRadio").setChecked(True)
+    _frames_widget(form, QRadioButton, "frontRadio").setChecked(True)
+    _frames_widget(form, QRadioButton, "monsterRadio").setChecked(True)
     for combo, values in ((c["kind_rule"], (("monster", "Monster"), ("effect_monster", "Effect monster"), ("magic", "Magic"), ("equip", "Equip"), ("ritual", "Ritual"), ("trap", "Trap"))),):
         combo.clear()
         for value, label in values: combo.addItem(label, value)
     c["type_rule"].clear()
     for type_id, name in enumerate(TYPE_NAMES):
         if name: c["type_rule"].addItem(name, name)
-    c["card_rule"].setMaximum(max(editor.project.cards, default=722))
     bridge = _FramePreviewEvents(editor, c["preview"])
     c["preview"].setMouseTracking(True); c["preview"].setFocusPolicy(Qt.FocusPolicy.StrongFocus); c["preview"].installEventFilter(bridge); c["events"] = bridge
     c["parts"].currentItemChanged.connect(lambda item, _: _frame_select(editor, item))
     c["style"].currentItemChanged.connect(lambda item, _: _frame_style_changed(editor, item))
-    for name in ("frameFrontRadio", "frameBackRadio", "frameMonsterRadio", "frameMagicRadio", "frameEquipRadio", "frameRitualRadio", "frameTrapRadio"):
+    for name in ("frontRadio", "backRadio", "monsterRadio", "magicRadio", "equipRadio", "ritualRadio", "trapRadio"):
         _frames_widget(form, QRadioButton, name).toggled.connect(lambda _: _draw_frames(editor))
     for field in (c["x"], c["y"], c["width"], c["height"]): field.valueChanged.connect(lambda _: _frame_geometry_changed(editor))
     c["visible"].toggled.connect(lambda _: _frame_geometry_changed(editor))
-    _frames_widget(form, QPushButton, "newFrameStyleButton").clicked.connect(lambda: _frame_new_style(editor))
-    _frames_widget(form, QPushButton, "deleteFrameStyleButton").clicked.connect(lambda: _frame_delete_style(editor))
-    _frames_widget(form, QPushButton, "importFrameImageButton").clicked.connect(lambda: _frame_import(editor))
-    _frames_widget(form, QPushButton, "exportFrameImageButton").clicked.connect(lambda: _frame_export(editor))
-    _frames_widget(form, QPushButton, "clearFrameImageButton").clicked.connect(lambda: _frame_clear_image(editor))
-    _frames_widget(form, QPushButton, "resetFramePartButton").clicked.connect(lambda: _frame_reset_part(editor))
-    _frames_widget(form, QPushButton, "setFrameDefaultButton").clicked.connect(lambda: _frame_assign(editor, "default", True))
-    _frames_widget(form, QPushButton, "clearFrameDefaultButton").clicked.connect(lambda: _frame_assign(editor, "default", False))
-    _frames_widget(form, QPushButton, "setFrameKindButton").clicked.connect(lambda: _frame_assign(editor, "kind", True))
-    _frames_widget(form, QPushButton, "clearFrameKindButton").clicked.connect(lambda: _frame_assign(editor, "kind", False))
-    _frames_widget(form, QPushButton, "setFrameTypeButton").clicked.connect(lambda: _frame_assign(editor, "type", True))
-    _frames_widget(form, QPushButton, "clearFrameTypeButton").clicked.connect(lambda: _frame_assign(editor, "type", False))
-    _frames_widget(form, QPushButton, "setFrameCardButton").clicked.connect(lambda: _frame_assign(editor, "card", True))
-    _frames_widget(form, QPushButton, "clearFrameCardButton").clicked.connect(lambda: _frame_assign(editor, "card", False))
-    _frames_widget(form, QPushButton, "revertFramesPageButton").clicked.connect(lambda: _frame_revert_all(editor))
+    _frames_widget(form, QPushButton, "newStyleButton").clicked.connect(lambda: _frame_new_style(editor))
+    _frames_widget(form, QPushButton, "deleteStyleButton").clicked.connect(lambda: _frame_delete_style(editor))
+    _frames_widget(form, QPushButton, "chooseImageButton").clicked.connect(lambda: _frame_import(editor))
+    _frames_widget(form, QPushButton, "removeImageButton").clicked.connect(lambda: _frame_clear_image(editor))
+    _frames_widget(form, QPushButton, "resetElementButton").clicked.connect(lambda: _frame_reset_part(editor))
+    _frames_widget(form, QPushButton, "setGlobalDefaultButton").clicked.connect(lambda: _frame_assign(editor, "default", True))
+    _frames_widget(form, QPushButton, "resetGlobalDefaultButton").clicked.connect(lambda: _frame_assign(editor, "default", False))
+    _frames_widget(form, QPushButton, "applyKindButton").clicked.connect(lambda: _frame_assign(editor, "kind", True))
+    _frames_widget(form, QPushButton, "resetKindButton").clicked.connect(lambda: _frame_assign(editor, "kind", False))
+    _frames_widget(form, QPushButton, "applyTypeButton").clicked.connect(lambda: _frame_assign(editor, "type", True))
+    _frames_widget(form, QPushButton, "resetTypeButton").clicked.connect(lambda: _frame_assign(editor, "type", False))
+    _frames_widget(form, QPushButton, "applyCardButton").clicked.connect(lambda: _frame_assign(editor, "card", True))
+    _frames_widget(form, QPushButton, "resetCardButton").clicked.connect(lambda: _frame_assign(editor, "card", False))
+    _frames_widget(form, QPushButton, "browseCardButton").clicked.connect(lambda: _frame_browse_card(editor))
+    _frames_widget(form, QPushButton, "revertRetailButton").clicked.connect(lambda: _frame_revert_all(editor))
+    hold = _frames_widget(form, QPushButton, "showRetailButton")
+    hold.pressed.connect(lambda: _frame_hold(editor, True)); hold.released.connect(lambda: _frame_hold(editor, False))
     _refresh_frames_tab(editor)
 
 
@@ -921,10 +922,10 @@ def _refresh_frames_tab(editor):
         c["visible"].blockSignals(True); c["visible"].setChecked(bool(part.get("hide", False))); c["visible"].setEnabled(spec[4]); c["visible"].blockSignals(False)
         c["image"].setText(_frame_asset(editor, key) or "Uses the game's artwork")
         c["image"].setEnabled(spec[6])
-        for name in ("importFrameImageButton", "exportFrameImageButton", "clearFrameImageButton"):
-            button = _frames_widget(c["form"], QPushButton, name); button.setEnabled(spec[6] and (name != "exportFrameImageButton" or _frame_asset(editor, key) is not None))
-        _frames_widget(c["form"], QLabel, "framePartTitle").setText(spec[1])
-        _frames_widget(c["form"], QLabel, "frameSelectedStyleLabel").setText(current)
+        for name in ("chooseImageButton", "removeImageButton"):
+            button = _frames_widget(c["form"], QPushButton, name); button.setEnabled(spec[6] and (name != "removeImageButton" or _frame_asset(editor, key) is not None))
+        _frames_widget(c["form"], QLabel, "elementName").setText(spec[1])
+        _frames_widget(c["form"], QLabel, "styleProperty").setText(current)
         _draw_frames(editor)
     finally:
         c["loading"] = False
@@ -945,7 +946,7 @@ def _draw_frames(editor):
     if selected == "library":
         _draw_frame_template(editor, painter, c, (24, 32), ("library",), "#55446f")
         painter.end(); _set_preview_pixmap(c["preview"], QPixmap.fromImage(image)); return
-    face = _frames_widget(c["form"], QRadioButton, "frameFrontRadio").isChecked()
+    face = _frames_widget(c["form"], QRadioButton, "frontRadio").isChecked()
     kind = _frame_preview_kind(c)
     painter.fillRect(0, 0, 140, 196, QColor("#b18a38" if face else "#423455"))
     c["boxes"] = {}
@@ -1065,6 +1066,22 @@ def _frame_reset_part(editor):
     _frame_commit(editor)
 
 
+def _frame_card_id(editor):
+    text = editor.workspace_controls["Assets"]["frames"]["card_rule"].text().strip()
+    match = re.match(r"(\d+)(?:\s|$)", text)
+    if match:
+        return int(match.group(1))
+    needle = text.casefold()
+    return next((card_id for card_id, card in editor.project.cards.items() if card.name.casefold() == needle), 0)
+
+
+def _frame_browse_card(editor):
+    choices = [f"{card_id} {card.name}" for card_id, card in sorted(editor.project.cards.items())]
+    chosen, accepted = QInputDialog.getItem(editor, "Specific card", "Card:", choices, editable=False)
+    if accepted and chosen:
+        editor.workspace_controls["Assets"]["frames"]["card_rule"].setText(chosen)
+
+
 def _frame_assign(editor, level, enabled):
     c = editor.workspace_controls["Assets"]["frames"]; style = _frame_style_name(editor); layout = _frame_layout(editor, enabled)
     if level == "default":
@@ -1078,7 +1095,7 @@ def _frame_assign(editor, level, enabled):
             if enabled: group[key] = style
             else: group.pop(key, None)
     else:
-        card_id = c["card_rule"].value()
+        card_id = _frame_card_id(editor)
         if card_id not in editor.project.cards: return
         if enabled:
             target = (editor.project.added[card_id].extra if card_id in editor.project.added

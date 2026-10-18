@@ -474,7 +474,7 @@ class CardsTest(unittest.TestCase):
         w = self.window
         w.select_workspace('Assets')
         c = w.workspace_controls['Assets']['frames']
-        self.assertEqual(c['form'].objectName(), 'FramesTab')
+        self.assertEqual(c['form'].objectName(), 'FramesPage')
         self.assertEqual(c['style'].currentItem().text(), 'custom')
 
         # Select Artwork through the tree model exactly as a user does, then
@@ -499,14 +499,14 @@ class CardsTest(unittest.TestCase):
         QTest.mouseRelease(canvas, Qt.MouseButton.LeftButton, pos=QPoint(point.x() + round(5 * scale), point.y() + round(3 * scale)))
         self.assertEqual((w.project.other['card_layout']['frame_styles']['custom']['art']['x'],
                           w.project.other['card_layout']['frame_styles']['custom']['art']['y']), (32, 58))
-        c['form'].findChild(QPushButton, 'setFrameDefaultButton').click()
+        c['form'].findChild(QPushButton, 'setGlobalDefaultButton').click()
         c['kind_rule'].setCurrentIndex(c['kind_rule'].findData('monster'))
-        c['form'].findChild(QPushButton, 'setFrameKindButton').click()
+        c['form'].findChild(QPushButton, 'applyKindButton').click()
         c['type_rule'].setCurrentIndex(0)
         selected_type = c['type_rule'].currentData()
-        c['form'].findChild(QPushButton, 'setFrameTypeButton').click()
-        c['card_rule'].setValue(1)
-        c['form'].findChild(QPushButton, 'setFrameCardButton').click()
+        c['form'].findChild(QPushButton, 'applyTypeButton').click()
+        c['card_rule'].setText('1 Blue-eyes White Dragon')
+        c['form'].findChild(QPushButton, 'applyCardButton').click()
         self.assertEqual(w.project.other['card_layout']['default_style'], 'custom')
         self.assertEqual(w.project.other['card_layout']['default_styles']['kinds']['monster'], 'custom')
         self.assertEqual(w.project.other['card_layout']['default_styles']['types'][selected_type], 'custom')
