@@ -11,26 +11,19 @@ class LimitsMixin:
         # Static controls live in limits_page.ui.  This page only binds their
         # names to the limits model and connects behavior.
         fields = {}
-        for group in (limits.FIELDS, limits.ADVANCED):
-            for key, _label, _retail, _low, _high, _storage in group:
-                spin = get(QSpinBox, f"limit_{key.replace('.', '_')}_spin")
-                spin.valueChanged.connect(self._limits_edited)
-                fields[key] = spin
-
-        advanced = get(QWidget, "advancedLimitsPanel")
-        advanced.setVisible(False)
-        toggle = get(QCheckBox, "showAdvancedCheck")
-        toggle.toggled.connect(advanced.setVisible)
+        for key, _label, _retail, _low, _high, _hint, _storage in limits.ALL_FIELDS:
+            spin = get(QSpinBox, f"limit_{key.replace('.', '_')}_spin")
+            spin.valueChanged.connect(self._limits_edited)
+            get(QPushButton, f"reset_{key.replace('.', '_')}_button").clicked.connect(
+                lambda _checked=False, field=spin: field.setValue(field.minimum()))
+            fields[key] = spin
 
         table = get(QTableWidget, "duelistLpTable")
         table.setColumnCount(4)
         scope = get(QComboBox, "lpScopeCombo")
         value = get(QSpinBox, "lpValueSpin")
-        value.setRange(1, limits.LIFE_POINTS_MAX)
-        value.setValue(8000)
         controls.update(limits=fields, table=table, scope=scope, value=value,
-                        status=get(QLabel, "limitsStatusLabel"), advanced=toggle,
-                        rows={})
+                        status=get(QLabel, "limitsStatusLabel"), rows={})
         for title in ("pageTitleLabel", "limitSettingsTitle", "startingLpTitle"):
             get(QLabel, title).setStyleSheet(
                 "font-size:20px;font-weight:650;color:#f3f7fc" if title == "pageTitleLabel"
@@ -69,13 +62,55 @@ class LimitsMixin:
         get(QPushButton, "applyLimitsButton").clicked.connect(self._apply_limits)
         self.limits_filling = False
         self.limits_opened = None       # "limits" as the mod was opened with it
+        self._limits_duelists = {}
+
     def _limit_names(self):
         """Every duelist a row is drawn for: the wildcard, the disc's forty, and
         any other name the mod's own "limits" already carries."""
-        known = list(DUELIST_NAMES[1:])
-        extra = [name for name in (self.limits_duelists or {})
+        from .. import duelist_rules
+        known = duelist_rules.references(self.project) if self.project else list(DUELIST_NAMES[1:])
+        extra = [name for name in self._limits_duelists
                  if name != "all" and name not in known]
         return ["all"] + known + sorted(extra)
+
+    def _fill_limit_duelists(self):
+        """Populate the dynamic LP rows; their controls cannot be static UI."""
+        c = self.workspace_controls["Limits"]
+        table = c["table"]
+        names = self._limit_names()
+        table.blockSignals(True)
+        wanted = 0
+        try:
+            table.clearContents()
+            table.setRowCount(len(names))
+            c["rows"] = {}
+            for row, name in enumerate(names):
+                number = "—" if name == "all" else str(DUELIST_NAMES.index(name)) if name in DUELIST_NAMES else "mod"
+                id_item = QTableWidgetItem(number)
+                name_item = QTableWidgetItem("All duelists" if name == "all" else name)
+                table.setItem(row, 0, id_item)
+                table.setItem(row, 1, name_item)
+                values = self._limits_duelists.get(name, (None, None))
+                spins = [id_item, name_item]
+                for column, value in enumerate(values, start=2):
+                    spin = QSpinBox(table)
+                    spin.setRange(0, limits.LIFE_POINTS_MAX)
+                    spin.setSpecialValueText("—")
+                    spin.setValue(value if isinstance(value, int) and value > 0 else 0)
+                    spin.valueChanged.connect(self._limits_edited)
+                    table.setCellWidget(row, column, spin)
+                    wanted = max(wanted, spin.sizeHint().height())
+                    spins.append(spin)
+                c["rows"][name] = spins
+        finally:
+            table.blockSignals(False)
+        table.verticalHeader().setDefaultSectionSize(max(36, wanted + 4))
+        header = table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        for column in (2, 3):
+            header.setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
+
     def _refresh_limits(self):
         c = self.workspace_controls.get("Limits")
         if not c:
@@ -118,9 +153,15 @@ class LimitsMixin:
         """Any field: store it at once, so nothing is lost by leaving the page."""
         if self.limits_filling or self.project is None:
             return
-        self._limits_duelists = self._read_limits_form()["duelists"]
+        flat = self._read_limits_form()
+        self._limits_duelists = flat["duelists"]
         before = self.project.other.get("limits")
-        after = limits.build(self._read_limits_form(), before)
+        after = limits.build(flat, before)
+        # Do not rewrite imported malformed or unknown members merely because
+        # the user visited this page.  ``values.build`` preserves them while
+        # still applying the edits the form can represent.
+        if after == limits.build(limits.flatten(before), before):
+            after = before
         if after == before:
             return
         if after is None:
@@ -131,7 +172,12 @@ class LimitsMixin:
         self._limits_report()
     def _limits_report(self):
         c = self.workspace_controls["Limits"]
-        problems = limits.check(self.project.other.get("limits")) if self.project else []
+        if self.project:
+            from .. import roster
+            problems = limits.check(self.project.other.get("limits"),
+                                    lambda name: roster.named(self.project, name))
+        else:
+            problems = []
         c["status"].setText("\n".join(f"{level}: {where}: {message}"
                                       for level, where, message in problems[:8]))
         c["status"].setStyleSheet("color:#ff7777" if any(p[0] == "error" for p in problems)
@@ -145,12 +191,30 @@ class LimitsMixin:
             for spin in c["limits"].values():
                 spin.setValue(spin.minimum())
             for spins in c["rows"].values():
-                for spin in spins.values():
-                    spin.setValue(0)
+                for spin in spins[2:]:
+                    spin.setValue(spin.minimum())
         finally:
             self.limits_filling = False
         self._limits_edited()
         self._refresh_limits()
+
+    def _set_duelist_lp(self, side):
+        """Set one side's starting LP for the selected scope row."""
+        c = self.workspace_controls["Limits"]
+        name = c["scope"].currentData()
+        row = c["rows"].get(name)
+        if row is None:
+            return
+        row[2 if side == "player" else 3].setValue(c["value"].value())
+
+    def _reset_duelist_lp(self):
+        """Remove both per-duelist LP overrides for the selected scope row."""
+        c = self.workspace_controls["Limits"]
+        row = c["rows"].get(c["scope"].currentData())
+        if row is None:
+            return
+        for spin in row[2:]:
+            spin.setValue(spin.minimum())
     def _revert_limits(self):
         """Back to the "limits" the mod was opened with."""
         if self.limits_opened is None:

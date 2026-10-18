@@ -33,7 +33,7 @@ from .. import art, disc, gamedata
 from .. import manifest, validate, pools as poolmath, bulk_fusions, guardian_stars, card_text, ttf, settings, importer, ygomods, packs as packmath, pngio
 from .. import card_uses, history, recovery
 from .. import campaign_map as cm
-from . import limits_model_compat as limits
+from .. import values as limits
 from .. import fixed_decks
 from .. import starter_pools
 from .. import map_art, pngio

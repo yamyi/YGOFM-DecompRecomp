@@ -1291,10 +1291,10 @@ class CardsTest(unittest.TestCase):
         return self.window.workspace_controls['Limits']
 
     def test_limits_builds_a_field_for_every_limit(self):
-        from fm_editor import limits
+        from fm_editor import values as limits
         c = self.limits_page()
         self.assertEqual(set(c['limits']), {key for key, *_ in limits.ALL_FIELDS})
-        for key, _label, _retail, low, high, _storage in limits.ALL_FIELDS:
+        for key, _label, _retail, low, high, *_ in limits.ALL_FIELDS:
             spin = c['limits'][key]
             self.assertEqual((spin.minimum(), spin.maximum()), (low - 1, high), key)
             self.assertEqual(spin.value(), low - 1, key)      # unset to start with
@@ -1317,6 +1317,44 @@ class CardsTest(unittest.TestCase):
         c = self.limits_page()
         c['limits']['life_points.start'].setValue(16000)
         self.assertEqual(w.project.other['limits'], {'life_points': 16000})
+
+    def test_expanded_limits_fields_save_and_reopen(self):
+        """Fields absent from the old compatibility model use the shared schema."""
+        from fm_editor import manifest
+        w = self.window
+        c = self.limits_page()
+        for key, value in {
+            'swords_turns': 6,
+            'deck_copies': 5,
+            'starchip_prize.S': 12,
+            'new_game_starchips': 150,
+            'card_drops': 3,
+            'rank_score.deck_out': -20,
+        }.items():
+            c['limits'][key].setValue(value)
+        self.assertEqual(w.project.other['limits']['swords_turns'], 6)
+        self.assertEqual(w.project.other['limits']['starchip_prize']['S'], 12)
+        self.assertEqual(w.project.other['limits']['rank_score']['deck_out'], -20)
+        with tempfile.TemporaryDirectory() as folder:
+            manifest.save_mod(w.project, Path(folder))
+            reopened, messages = manifest.open_mod(w.retail, Path(folder))
+        self.assertFalse(messages)
+        self.assertEqual(reopened.other['limits']['deck_copies'], 5)
+        self.assertEqual(reopened.other['limits']['card_drops'], 3)
+
+    def test_limits_edits_preserve_imported_unknown_and_invalid_values(self):
+        w = self.window
+        w.project.other['limits'] = {
+            'swords_turns': 'bad import',
+            'rank_score': {'start': 60, 'unknown_member': 7},
+            'unknown_top_level': {'keep': True},
+        }
+        w.limits_opened = None
+        c = self.limits_page()
+        c['limits']['deck_copies'].setValue(4)
+        self.assertEqual(w.project.other['limits']['swords_turns'], 'bad import')
+        self.assertEqual(w.project.other['limits']['rank_score']['unknown_member'], 7)
+        self.assertEqual(w.project.other['limits']['unknown_top_level'], {'keep': True})
 
     def test_per_duelist_lp_takes_both_shapes(self):
         w = self.window
