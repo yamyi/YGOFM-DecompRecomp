@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
  <class>UiAssetsPage</class>
  <widget class="QWidget" name="UiAssetsPage">
@@ -32,7 +32,7 @@
    <item>
     <widget class="QTabWidget" name="uiPageTabs">
      <property name="currentIndex">
-      <number>0</number>
+      <number>2</number>
      </property>
      <widget class="QWidget" name="titleScreenTab">
       <attribute name="title">
@@ -466,7 +466,7 @@
                 </widget>
                </item>
                <item row="4" column="1">
-                <widget class="QCheckBox" name="titleHiddenCheck" />
+                <widget class="QCheckBox" name="titleHiddenCheck"/>
                </item>
               </layout>
              </widget>
@@ -529,7 +529,7 @@
                 </widget>
                </item>
                <item row="0" column="1">
-                <widget class="QLineEdit" name="titleTextEdit" />
+                <widget class="QLineEdit" name="titleTextEdit"/>
                </item>
                <item row="1" column="0">
                 <widget class="QLabel" name="titleTextColorLabel">
@@ -990,7 +990,7 @@
               </widget>
              </item>
              <item row="0" column="1">
-              <widget class="QLineEdit" name="menuWordsEdit" />
+              <widget class="QLineEdit" name="menuWordsEdit"/>
              </item>
              <item row="1" column="0">
               <widget class="QLabel" name="menuActionLabel">
@@ -1000,7 +1000,7 @@
               </widget>
              </item>
              <item row="1" column="1">
-              <widget class="QComboBox" name="menuActionCombo" />
+              <widget class="QComboBox" name="menuActionCombo"/>
              </item>
              <item row="2" column="0">
               <widget class="QLabel" name="menuTextColorLabel">
@@ -1131,7 +1131,7 @@
               </widget>
              </item>
              <item row="6" column="1">
-              <widget class="QCheckBox" name="menuHiddenCheck" />
+              <widget class="QCheckBox" name="menuHiddenCheck"/>
              </item>
             </layout>
            </item>
@@ -1523,7 +1523,7 @@
               </widget>
              </item>
              <item row="5" column="1">
-              <widget class="QCheckBox" name="duelElementHiddenCheck" />
+              <widget class="QCheckBox" name="duelElementHiddenCheck"/>
              </item>
              <item row="6" column="0">
               <widget class="QLabel" name="duelElementPositionLabel">
@@ -1601,7 +1601,7 @@
               </widget>
              </item>
              <item row="8" column="1">
-              <widget class="QLineEdit" name="duelElementLabelEdit" />
+              <widget class="QLineEdit" name="duelElementLabelEdit"/>
              </item>
              <item row="9" column="0">
               <widget class="QLabel" name="duelElementSpacingLabel">
@@ -1629,22 +1629,11 @@
       </layout>
      </widget>
      <widget class="QWidget" name="FramesPage">
-      <attribute name="title">
-       <string>Frames</string>
-      </attribute>
-      <property name="geometry">
-       <rect>
-        <x>0</x>
-        <y>0</y>
-        <width>1280</width>
-        <height>820</height>
-       </rect>
-      </property>
       <property name="windowTitle">
        <string>Card frames — FM Editor</string>
       </property>
       <property name="styleSheet">
-       <string>QWidget#FramesPage { background:#071525; color:#dce9fa; font-family: "DejaVu Sans", "Segoe UI"; font-size:12px; }
+       <string>QWidget#FramesPage { background:#071525; color:#dce9fa; font-family: &quot;DejaVu Sans&quot;, &quot;Segoe UI&quot;; font-size:12px; }
 QFrame { background:#091f36; border:1px solid #1a456e; border-radius:7px; }
 QFrame#cardCanvas { background:#071222; border:1px solid #173857; }
 QFrame#cardSurface { background:#374563; border:2px solid #7c94b4; border-radius:0px; }
@@ -1660,6 +1649,9 @@ QPushButton:hover {background:#17568f;} QPushButton:pressed {background:#176cc8;
 QLineEdit,QComboBox,QSpinBox,QListWidget,QTreeWidget {background:#06192b;border:1px solid #2b587d;border-radius:4px;color:#e3edf9;padding:2px;selection-background-color:#1164d0;}
 QTreeWidget::item {height:20px;} QCheckBox,QRadioButton {color:#dce9fa;background:transparent;} QGroupBox {color:#a9c8ee;border:1px solid #214868;border-radius:7px;margin-top:12px;padding-top:10px;font-weight:bold;} QGroupBox::title {subcontrol-origin:margin;left:10px;}</string>
       </property>
+      <attribute name="title">
+       <string>Frames</string>
+      </attribute>
       <layout class="QVBoxLayout" name="framesPageLayout">
        <property name="spacing">
         <number>10</number>
@@ -1979,7 +1971,7 @@ QTreeWidget::item {height:20px;} QCheckBox,QRadioButton {color:#dce9fa;backgroun
            <item row="12" column="0" colspan="4">
             <widget class="QLineEdit" name="specificCardInput">
              <property name="text">
-              <string />
+              <string/>
              </property>
             </widget>
            </item>
@@ -3046,14 +3038,6 @@ Rendered by the application at runtime</string>
       <attribute name="title">
        <string>Build Deck</string>
       </attribute>
-      <property name="geometry">
-       <rect>
-        <x>0</x>
-        <y>0</y>
-        <width>1200</width>
-        <height>760</height>
-       </rect>
-      </property>
       <layout class="QHBoxLayout" name="buildDeckTabLayout">
        <property name="spacing">
         <number>12</number>
@@ -3092,34 +3076,34 @@ Rendered by the application at runtime</string>
            <layout class="QHBoxLayout" name="buildDeckFilterRow">
             <item>
              <widget class="QPushButton" name="buildDeckAllButton">
+              <property name="text">
+               <string>All</string>
+              </property>
               <property name="checkable">
                <bool>true</bool>
               </property>
               <property name="checked">
                <bool>true</bool>
               </property>
-              <property name="text">
-               <string>All</string>
-              </property>
              </widget>
             </item>
             <item>
              <widget class="QPushButton" name="buildDeckModifiedButton">
-              <property name="checkable">
-               <bool>true</bool>
-              </property>
               <property name="text">
                <string>Modified</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
               </property>
              </widget>
             </item>
             <item>
              <widget class="QPushButton" name="buildDeckRetailButton">
-              <property name="checkable">
-               <bool>true</bool>
-              </property>
               <property name="text">
                <string>Retail</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
               </property>
              </widget>
             </item>
@@ -3182,9 +3166,6 @@ Rendered by the application at runtime</string>
          <property name="frameShape">
           <enum>QFrame::Shape::StyledPanel</enum>
          </property>
-         <property name="minimumWidth">
-          <number>360</number>
-         </property>
          <layout class="QVBoxLayout" name="buildDeckDetailLayout">
           <item>
            <widget class="QLabel" name="buildDeckSelectedName">
@@ -3225,11 +3206,11 @@ Rendered by the application at runtime</string>
                   <height>160</height>
                  </size>
                 </property>
-                <property name="alignment">
-                 <set>Qt::AlignmentFlag::AlignCenter</set>
-                </property>
                 <property name="text">
                  <string>Retail preview</string>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignmentFlag::AlignCenter</set>
                 </property>
                </widget>
               </item>
@@ -3252,11 +3233,11 @@ Rendered by the application at runtime</string>
                   <height>160</height>
                  </size>
                 </property>
-                <property name="alignment">
-                 <set>Qt::AlignmentFlag::AlignCenter</set>
-                </property>
                 <property name="text">
                  <string>Replacement preview</string>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignmentFlag::AlignCenter</set>
                 </property>
                </widget>
               </item>
@@ -3275,34 +3256,34 @@ Rendered by the application at runtime</string>
             </item>
             <item>
              <widget class="QPushButton" name="buildDeckPreview1xButton">
-              <property name="checkable">
-               <bool>true</bool>
-              </property>
               <property name="text">
                <string>1x</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
               </property>
              </widget>
             </item>
             <item>
              <widget class="QPushButton" name="buildDeckPreview2xButton">
+              <property name="text">
+               <string>2x</string>
+              </property>
               <property name="checkable">
                <bool>true</bool>
               </property>
               <property name="checked">
                <bool>true</bool>
               </property>
-              <property name="text">
-               <string>2x</string>
-              </property>
              </widget>
             </item>
             <item>
              <widget class="QPushButton" name="buildDeckPreview4xButton">
-              <property name="checkable">
-               <bool>true</bool>
-              </property>
               <property name="text">
                <string>4x</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
               </property>
              </widget>
             </item>
@@ -3324,7 +3305,7 @@ Rendered by the application at runtime</string>
           <item>
            <widget class="QLabel" name="buildDeckStatusNote">
             <property name="text">
-             <string />
+             <string/>
             </property>
             <property name="wordWrap">
              <bool>true</bool>
@@ -3424,20 +3405,12 @@ Rendered by the application at runtime</string>
       </layout>
      </widget>
      <widget class="QWidget" name="AssetsPage">
-      <attribute name="title">
-       <string>Assets</string>
-      </attribute>
-      <property name="geometry">
-       <rect>
-        <x>0</x>
-        <y>0</y>
-        <width>1306</width>
-        <height>727</height>
-       </rect>
-      </property>
       <property name="windowTitle">
        <string>UI / Graphics</string>
       </property>
+      <attribute name="title">
+       <string>Assets</string>
+      </attribute>
       <layout class="QVBoxLayout" name="assetsPageLayout">
        <property name="leftMargin">
         <number>2</number>
@@ -3452,7 +3425,7 @@ Rendered by the application at runtime</string>
         <number>2</number>
        </property>
        <item>
-        <layout class="QHBoxLayout" name="assetsTitleLayout" stretch="3,1,0">
+        <layout class="QHBoxLayout" name="assetsTitleLayout" stretch="3,1,0,0">
          <item>
           <layout class="QVBoxLayout" name="assetsTitleTextLayout" stretch="0,0">
            <property name="spacing">
@@ -3504,6 +3477,13 @@ Rendered by the application at runtime</string>
             </size>
            </property>
           </spacer>
+         </item>
+         <item>
+          <widget class="QPushButton" name="applyAssetsButton">
+           <property name="text">
+            <string>Apply changes</string>
+           </property>
+          </widget>
          </item>
          <item>
           <widget class="QPushButton" name="uiModGuideButton">
@@ -3702,21 +3682,21 @@ Rendered by the application at runtime</string>
               <property name="columnCount">
                <number>3</number>
               </property>
-              <row />
-              <row />
-              <row />
-              <row />
-              <row />
-              <row />
-              <row />
-              <row />
-              <row />
-              <row />
-              <row />
-              <row />
-              <row />
-              <row />
-              <row />
+              <row/>
+              <row/>
+              <row/>
+              <row/>
+              <row/>
+              <row/>
+              <row/>
+              <row/>
+              <row/>
+              <row/>
+              <row/>
+              <row/>
+              <row/>
+              <row/>
+              <row/>
               <column>
                <property name="text">
                 <string>Asset</string>
@@ -4052,7 +4032,7 @@ Rendered by the application at runtime</string>
                  <item row="1" column="1">
                   <widget class="QLabel" name="assetKeyValue">
                    <property name="text">
-                    <string>textures: "textures"</string>
+                    <string>textures: &quot;textures&quot;</string>
                    </property>
                   </widget>
                  </item>
@@ -4213,7 +4193,7 @@ Rendered by the application at runtime</string>
             <item>
              <widget class="QGroupBox" name="assetPreviewGroup">
               <property name="title">
-               <string />
+               <string/>
               </property>
               <layout class="QHBoxLayout" name="assetPreviewLayout">
                <item>
@@ -4414,43 +4394,12 @@ Rendered by the application at runtime</string>
          </item>
         </layout>
        </item>
-       <item>
-        <layout class="QHBoxLayout" name="assetsFooterLayout">
-         <item>
-          <spacer name="assetsFooterSpacer">
-           <property name="orientation">
-            <enum>Qt::Orientation::Horizontal</enum>
-           </property>
-           <property name="sizeHint" stdset="0">
-            <size>
-             <width>40</width>
-             <height>20</height>
-            </size>
-           </property>
-          </spacer>
-         </item>
-         <item>
-          <widget class="QPushButton" name="previewAssetsModButton">
-           <property name="text">
-            <string>Preview mod...</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QPushButton" name="applyAssetsButton">
-           <property name="text">
-            <string>Apply changes</string>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </item>
       </layout>
      </widget>
     </widget>
    </item>
   </layout>
  </widget>
- <resources />
- <connections />
+ <resources/>
+ <connections/>
 </ui>

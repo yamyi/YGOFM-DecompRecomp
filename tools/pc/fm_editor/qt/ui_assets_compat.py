@@ -68,11 +68,10 @@ def install():
         independent of the classic editor while preserving every existing
         replacement workflow.
         """
-        layout = page.layout() or QVBoxLayout(page)
-        _clear(layout)
-        layout.setContentsMargins(0, 0, 0, 0)
-        shell = _all_tabs_form(page)
-        layout.addWidget(shell)
+        # ``window._build_workspace_page`` has already loaded this complete
+        # Designer form.  Reusing it avoids a second overlapping tab widget
+        # and leaves every position and control defined by assets_page.ui.
+        shell = page
         tabs = _asset_widget(shell, QTabWidget, "uiPageTabs")
         frames_tab = _asset_widget(shell, QWidget, "FramesPage")
         build_deck_tab = _asset_widget(shell, QWidget, "BuildDeckAssetsTab")
@@ -3200,19 +3199,6 @@ def _remove_framework(self):
     if isinstance(folder, str) and not any(name.startswith(folder.rstrip("/") + "/") for name in self.project.files): self.project.other.pop("assets", None)
     self._mark_dirty(); _select_framework(self, asset)
 
-
-def _all_tabs_form(parent):
-    """Load the complete UI workspace form, including all of its tab pages."""
-    source = QFile(str(UI_DIR / "assets_page.ui"))
-    if not source.open(QIODevice.OpenModeFlag.ReadOnly):
-        raise RuntimeError(f"Could not load UI Assets tabs form: {source.errorString()}")
-    try:
-        form = QUiLoader().load(source, parent)
-    finally:
-        source.close()
-    if form is None:
-        raise RuntimeError("Could not load the UI Assets tabs form")
-    return form
 
 
 def _asset_widget(form, kind, name):
