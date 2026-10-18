@@ -62,6 +62,7 @@ class LimitsMixin:
         get(QPushButton, "applyLimitsButton").clicked.connect(self._apply_limits)
         self.limits_filling = False
         self.limits_opened = None       # "limits" as the mod was opened with it
+        self._limits_opened_captured = False
         self._limits_duelists = {}
 
     def _limit_names(self):
@@ -116,8 +117,9 @@ class LimitsMixin:
         if not c:
             return
         stored = self.project.other.get("limits")
-        if self.limits_opened is None:
+        if not self._limits_opened_captured:
             self.limits_opened = copy.deepcopy(stored)
+            self._limits_opened_captured = True
         flat = limits.flatten(stored)
         self._limits_duelists = dict(flat.get("duelists", {}))
         self.limits_filling = True

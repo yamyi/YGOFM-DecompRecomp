@@ -1356,6 +1356,7 @@ class CardsTest(unittest.TestCase):
             'unknown_top_level': {'keep': True},
         }
         w.limits_opened = None
+        w._limits_opened_captured = False
         c = self.limits_page()
         c['limits']['deck_copies'].setValue(4)
         self.assertEqual(w.project.other['limits']['swords_turns'], 'bad import')
@@ -1394,10 +1395,19 @@ class CardsTest(unittest.TestCase):
         w._reset_all_limits()
         self.assertNotIn('limits', w.project.other)
 
+    def test_revert_removes_limits_after_revisiting_an_initially_empty_mod(self):
+        w = self.window
+        c = self.limits_page()
+        c["limits"]["stats"].setValue(30000)
+        w._refresh_limits()
+        w._revert_limits()
+        self.assertNotIn("limits", w.project.other)
+
     def test_revert_puts_back_what_the_mod_was_opened_with(self):
         w = self.window
         w.project.other['limits'] = {'stats': 12345}
         w.limits_opened = None
+        w._limits_opened_captured = False
         c = self.limits_page()
         self.assertEqual(c['limits']['stats'].value(), 12345)
         c['limits']['stats'].setValue(30000)
@@ -1408,6 +1418,7 @@ class CardsTest(unittest.TestCase):
         w = self.window
         w.project.other['limits'] = {'life_points': {'duelists': {'My Custom Guy': 5000}}}
         w.limits_opened = None
+        w._limits_opened_captured = False
         c = self.limits_page()
         self.assertIn('My Custom Guy', c['rows'])
         self.assertEqual(c['rows']['My Custom Guy'][3].value(), 5000)
