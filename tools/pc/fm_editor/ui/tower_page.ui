@@ -1,0 +1,674 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+  <class>WorkspacePage</class>
+  <widget class="QWidget" name="WorkspacePage">
+    <property name="windowTitle">
+      <string>Tower</string>
+    </property>
+    <property name="geometry">
+      <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>1450</width>
+        <height>940</height>
+      </rect>
+    </property>
+    <layout class="QVBoxLayout" name="mainLayout">
+      <property name="leftMargin">
+        <number>14</number>
+      </property>
+      <property name="topMargin">
+        <number>14</number>
+      </property>
+      <property name="rightMargin">
+        <number>14</number>
+      </property>
+      <property name="bottomMargin">
+        <number>14</number>
+      </property>
+      <property name="spacing">
+        <number>10</number>
+      </property>
+      <item>
+        <widget class="QLabel" name="pageTitleLabel">
+          <property name="text">
+            <string>Tower</string>
+          </property>
+          <property name="objectName">
+            <string>heading</string>
+          </property>
+        </widget>
+      </item>
+      <item>
+        <widget class="QWidget" name="header">
+          <layout class="QHBoxLayout" name="headerLayout">
+            <property name="leftMargin"><number>0</number></property>
+            <property name="topMargin"><number>0</number></property>
+            <property name="rightMargin"><number>0</number></property>
+            <property name="bottomMargin"><number>0</number></property>
+            <property name="spacing"><number>7</number></property>
+            <item>
+              <widget class="QLabel" name="towerHintLabel">
+                <property name="text">
+                  <string>Each floor is a duel; a save keeps how far it climbed. notes/tower-mode.md says the rest.</string>
+                </property>
+                <property name="wordWrap"><bool>true</bool></property>
+              </widget>
+            </item>
+            <item>
+              <spacer name="headerSpacer">
+                <property name="orientation"><enum>Qt::Horizontal</enum></property>
+                <property name="sizeHint" stdset="0"><size><width>30</width><height>15</height></size></property>
+              </spacer>
+            </item>
+            <item>
+              <widget class="QPushButton" name="guideButton">
+                <property name="text"><string>How to build a tower...</string></property>
+              </widget>
+            </item>
+            <item>
+              <widget class="QPushButton" name="exampleButton">
+                <property name="text"><string>Start from an example</string></property>
+                <property name="toolTip"><string>Fills in a small working tower of three floors (with stories, a reward and an unlock) to change as you like. It replaces the tower this mod has, after asking.</string></property>
+              </widget>
+            </item>
+          </layout>
+        </widget>
+      </item>
+      <item>
+        <widget class="QCheckBox" name="towerEnabledCheck">
+          <property name="text">
+            <string>This mod has a tower (a button in the title's second menu)</string>
+          </property>
+        </widget>
+      </item>
+      <item>
+        <widget class="QLabel" name="towerStatusLabel">
+          <property name="text"><string/></property>
+          <property name="wordWrap"><bool>true</bool></property>
+        </widget>
+      </item>
+      <item>
+        <widget class="QScrollArea" name="towerScrollArea">
+          <property name="widgetResizable"><bool>true</bool></property>
+          <property name="horizontalScrollBarPolicy"><enum>Qt::ScrollBarAlwaysOff</enum></property>
+          <widget class="QWidget" name="towerScrollContent">
+            <layout class="QHBoxLayout" name="towerColumnsLayout">
+              <property name="leftMargin"><number>2</number></property>
+              <property name="topMargin"><number>2</number></property>
+              <property name="rightMargin"><number>2</number></property>
+              <property name="bottomMargin"><number>2</number></property>
+              <property name="spacing"><number>12</number></property>
+              <item>
+                <widget class="QWidget" name="towerLeftColumn">
+                  <property name="minimumWidth"><number>520</number></property>
+                  <layout class="QVBoxLayout" name="towerLeftLayout">
+                    <property name="leftMargin"><number>0</number></property>
+                    <property name="topMargin"><number>0</number></property>
+                    <property name="rightMargin"><number>0</number></property>
+                    <property name="bottomMargin"><number>0</number></property>
+                    <property name="spacing"><number>10</number></property>
+                    <item>
+                      <widget class="QGroupBox" name="towerSettingsGroup">
+                        <property name="title"><string>The tower</string></property>
+                        <layout class="QVBoxLayout" name="towerSettingsGroupLayout">
+                          <property name="leftMargin"><number>12</number></property>
+                          <property name="topMargin"><number>12</number></property>
+                          <property name="rightMargin"><number>12</number></property>
+                          <property name="bottomMargin"><number>12</number></property>
+                          <property name="spacing"><number>7</number></property>
+                          <item>
+                            <widget class="QWidget" name="towerNameRow">
+                              <layout class="QHBoxLayout" name="towerNameRowLayout">
+                                <property name="leftMargin"><number>0</number></property>
+                                <property name="topMargin"><number>0</number></property>
+                                <property name="rightMargin"><number>0</number></property>
+                                <property name="bottomMargin"><number>0</number></property>
+                                <property name="spacing"><number>7</number></property>
+                                <item><widget class="QLabel" name="towerNameLabel"><property name="text"><string>Name</string></property></widget></item>
+                                <item><widget class="QLineEdit" name="towerNameEdit"/></item>
+                              </layout>
+                            </widget>
+                          </item>
+                          <item>
+                            <widget class="QWidget" name="towerMenuButtonRow">
+                              <layout class="QHBoxLayout" name="towerMenuButtonRowLayout">
+                                <property name="leftMargin"><number>0</number></property>
+                                <property name="topMargin"><number>0</number></property>
+                                <property name="rightMargin"><number>0</number></property>
+                                <property name="bottomMargin"><number>0</number></property>
+                                <property name="spacing"><number>7</number></property>
+                                <item><widget class="QLabel" name="towerMenuButtonLabel"><property name="text"><string>Menu button (31 letters max)</string></property></widget></item>
+                                <item><widget class="QLineEdit" name="towerMenuButtonEdit"/></item>
+                              </layout>
+                            </widget>
+                          </item>
+                          <item>
+                            <widget class="QWidget" name="towerMusicRow">
+                              <layout class="QHBoxLayout" name="towerMusicRowLayout">
+                                <property name="leftMargin"><number>0</number></property>
+                                <property name="topMargin"><number>0</number></property>
+                                <property name="rightMargin"><number>0</number></property>
+                                <property name="bottomMargin"><number>0</number></property>
+                                <property name="spacing"><number>7</number></property>
+                                <item><widget class="QLabel" name="towerMusicLabel"><property name="text"><string>Music (song ID, 0x000-0xFFF)</string></property></widget></item>
+                                <item><widget class="QLineEdit" name="towerMusicEdit"><property name="toolTip"><string>The song the tower's screen plays. Empty: the Free Duel screen's.</string></property></widget></item>
+                              </layout>
+                            </widget>
+                          </item>
+                          <item>
+                            <widget class="QWidget" name="towerUnlockRow">
+                              <layout class="QHBoxLayout" name="towerUnlockRowLayout">
+                                <property name="leftMargin"><number>0</number></property>
+                                <property name="topMargin"><number>0</number></property>
+                                <property name="rightMargin"><number>0</number></property>
+                                <property name="bottomMargin"><number>0</number></property>
+                                <property name="spacing"><number>7</number></property>
+                                <item><widget class="QLabel" name="towerUnlockLabel"><property name="text"><string>Opens</string></property></widget></item>
+                                <item>
+                                  <widget class="QComboBox" name="towerUnlockCombo">
+                                   <property name="toolTip"><string>after_ending: the ending seen. conditions: any of the kinds below, all of those given.</string></property>
+                                   <item><property name="text"><string>always</string></property></item>
+                                   <item><property name="text"><string>after_ending</string></property></item>
+                                   <item><property name="text"><string>conditions</string></property></item>
+                                  </widget>
+                                </item>
+                              </layout>
+                            </widget>
+                          </item>
+                          <item>
+                            <widget class="QWidget" name="unlockConditions">
+                              <layout class="QHBoxLayout" name="unlockConditionsLayout">
+                                <property name="leftMargin"><number>0</number></property>
+                                <property name="topMargin"><number>0</number></property>
+                                <property name="rightMargin"><number>0</number></property>
+                                <property name="bottomMargin"><number>0</number></property>
+                                <property name="spacing"><number>7</number></property>
+                                <item><widget class="QLabel" name="beatLabel"><property name="text"><string>beat</string></property></widget></item>
+                                <item><widget class="QLineEdit" name="unlockBeatEdit"/></item>
+                                <item><widget class="QLabel" name="winsLabel"><property name="text"><string>wins</string></property></widget></item>
+                                <item><widget class="QLineEdit" name="unlockWinsEdit"/></item>
+                                <item><widget class="QLabel" name="storyLabel"><property name="text"><string>story</string></property></widget></item>
+                                <item><widget class="QLineEdit" name="unlockStoryEdit"/></item>
+                              </layout>
+                            </widget>
+                          </item>
+                          <item>
+                            <widget class="QWidget" name="unlockConditions2">
+                              <layout class="QHBoxLayout" name="unlockConditions2Layout">
+                                <property name="leftMargin"><number>0</number></property>
+                                <property name="topMargin"><number>0</number></property>
+                                <property name="rightMargin"><number>0</number></property>
+                                <property name="bottomMargin"><number>0</number></property>
+                                <property name="spacing"><number>7</number></property>
+                                <item><widget class="QLabel" name="holdCardLabel"><property name="text"><string>hold card</string></property></widget></item>
+                                <item><widget class="QLineEdit" name="unlockCardEdit"/></item>
+                                <item><widget class="QLabel" name="copiesLabel"><property name="text"><string>copies</string></property></widget></item>
+                                <item>
+                                  <widget class="QSpinBox" name="unlockCopiesSpin">
+                                    <property name="minimum"><number>0</number></property>
+                                    <property name="maximum"><number>99</number></property>
+                                  </widget>
+                                </item>
+                              </layout>
+                            </widget>
+                          </item>
+                          <item>
+                            <widget class="QCheckBox" name="endingSeenCheck">
+                              <property name="text"><string>and the ending seen</string></property>
+                            </widget>
+                          </item>
+                          <item>
+                            <widget class="QWidget" name="onLoseRow">
+                              <layout class="QHBoxLayout" name="onLoseRowLayout">
+                                <property name="leftMargin"><number>0</number></property>
+                                <property name="topMargin"><number>0</number></property>
+                                <property name="rightMargin"><number>0</number></property>
+                                <property name="bottomMargin"><number>0</number></property>
+                                <property name="spacing"><number>7</number></property>
+                                <item><widget class="QLabel" name="onLoseLabel"><property name="text"><string>A loss</string></property></widget></item>
+                                <item>
+                                  <widget class="QComboBox" name="onLoseCombo">
+                                    <property name="toolTip"><string>last checkpoint, or floor 1</string></property>
+                                    <item><property name="text"><string>checkpoint</string></property></item>
+                                    <item><property name="text"><string>restart</string></property></item>
+                                  </widget>
+                                </item>
+                              </layout>
+                            </widget>
+                          </item>
+                          <item>
+                            <widget class="QWidget" name="defaultSceneRow">
+                              <layout class="QHBoxLayout" name="defaultSceneRowLayout">
+                                <property name="leftMargin"><number>0</number></property>
+                                <property name="topMargin"><number>0</number></property>
+                                <property name="rightMargin"><number>0</number></property>
+                                <property name="bottomMargin"><number>0</number></property>
+                                <property name="spacing"><number>7</number></property>
+                                <item><widget class="QLabel" name="defaultSceneLabel"><property name="text"><string>Scene</string></property></widget></item>
+                                <item>
+                                  <widget class="QComboBox" name="defaultSceneCombo">
+                                    <property name="editable"><bool>true</bool></property>
+                                    <property name="toolTip"><string>The background of a story that names no scene of its own. Empty: the torch corridor.</string></property>
+                                  </widget>
+                                </item>
+                              </layout>
+                            </widget>
+                          </item>
+                          <item>
+                            <widget class="QCheckBox" name="dimCharacterCheck">
+                              <property name="text"><string>Draw the character not speaking darker</string></property>
+                              <property name="toolTip"><string>The campaign only keeps the one not speaking still; ticked, the tower also draws it darker.</string></property>
+                            </widget>
+                          </item>
+                          <item>
+                            <widget class="QWidget" name="onLeaveRow">
+                              <layout class="QHBoxLayout" name="onLeaveRowLayout">
+                                <property name="leftMargin"><number>0</number></property>
+                                <property name="topMargin"><number>0</number></property>
+                                <property name="rightMargin"><number>0</number></property>
+                                <property name="bottomMargin"><number>0</number></property>
+                                <property name="spacing"><number>7</number></property>
+                                <item><widget class="QLabel" name="onLeaveLabel"><property name="text"><string>Leaving</string></property></widget></item>
+                                <item>
+                                  <widget class="QComboBox" name="onLeaveCombo">
+                                    <property name="toolTip"><string>What LEAVE (or any other way out) does to the climb. resume: back where the player was. checkpoint: the floor after the last checkpoint won. restart: floor 1. checkpoint/restart: no save keeps a floor past it.</string></property>
+                                    <item><property name="text"><string>resume</string></property></item>
+                                    <item><property name="text"><string>checkpoint</string></property></item>
+                                    <item><property name="text"><string>restart</string></property></item>
+                                  </widget>
+                                </item>
+                              </layout>
+                            </widget>
+                          </item>
+                          <item>
+                            <widget class="QWidget" name="cardDropsRow">
+                              <layout class="QHBoxLayout" name="cardDropsRowLayout">
+                                <property name="leftMargin"><number>0</number></property>
+                                <property name="topMargin"><number>0</number></property>
+                                <property name="rightMargin"><number>0</number></property>
+                                <property name="bottomMargin"><number>0</number></property>
+                                <property name="spacing"><number>7</number></property>
+                                <item><widget class="QLabel" name="cardDropsLabel"><property name="text"><string>Cards a win</string></property></widget></item>
+                                <item>
+                                  <widget class="QComboBox" name="cardDropsCombo">
+                                    <property name="editable"><bool>true</bool></property>
+                                    <property name="toolTip"><string>Up to 99; "player" follows Game &gt; Card drops. A floor's own reward is given as well.</string></property>
+                                    <item><property name="text"><string>1</string></property></item>
+                                    <item><property name="text"><string>2</string></property></item>
+                                    <item><property name="text"><string>3</string></property></item>
+                                    <item><property name="text"><string>5</string></property></item>
+                                    <item><property name="text"><string>10</string></property></item>
+                                    <item><property name="text"><string>player</string></property></item>
+                                  </widget>
+                                </item>
+                              </layout>
+                            </widget>
+                          </item>
+                          <item>
+                            <widget class="QCheckBox" name="allowSaveStatesCheck">
+                              <property name="text"><string>Allow save states in the tower</string></property>
+                              <property name="checked"><bool>true</bool></property>
+                            </widget>
+                          </item>
+                          <item>
+                            <widget class="QCheckBox" name="allowCheatsCheck">
+                              <property name="text"><string>Allow cheats in the tower</string></property>
+                              <property name="checked"><bool>true</bool></property>
+                            </widget>
+                          </item>
+                        </layout>
+                      </widget>
+                    </item>
+                    <item>
+                      <widget class="QGroupBox" name="stageGroup">
+                        <property name="title"><string>Stage - insert commands into selected story</string></property>
+                        <layout class="QVBoxLayout" name="stageGroupLayout">
+                          <property name="leftMargin"><number>12</number></property>
+                          <property name="topMargin"><number>12</number></property>
+                          <property name="rightMargin"><number>12</number></property>
+                          <property name="bottomMargin"><number>12</number></property>
+                          <property name="spacing"><number>7</number></property>
+                          <item>
+                            <widget class="QWidget" name="stageSceneRow">
+                              <layout class="QHBoxLayout" name="stageSceneRowLayout">
+                                <property name="leftMargin"><number>0</number></property>
+                                <property name="topMargin"><number>0</number></property>
+                                <property name="rightMargin"><number>0</number></property>
+                                <property name="bottomMargin"><number>0</number></property>
+                                <property name="spacing"><number>7</number></property>
+                                <item><widget class="QComboBox" name="stageSceneCombo"><property name="editable"><bool>true</bool></property></widget></item>
+                                <item><widget class="QPushButton" name="insertSceneButton"><property name="text"><string>Scene</string></property></widget></item>
+                                <item><widget class="QPushButton" name="scenePngButton"><property name="text"><string>Scene PNG...</string></property></widget></item>
+                              </layout>
+                            </widget>
+                          </item>
+                          <item>
+                            <widget class="QWidget" name="stageCharacterRow">
+                              <layout class="QHBoxLayout" name="stageCharacterRowLayout">
+                                <property name="leftMargin"><number>0</number></property>
+                                <property name="topMargin"><number>0</number></property>
+                                <property name="rightMargin"><number>0</number></property>
+                                <property name="bottomMargin"><number>0</number></property>
+                                <property name="spacing"><number>7</number></property>
+                                <item><widget class="QLabel" name="characterLabel"><property name="text"><string>Character</string></property></widget></item>
+                                <item><widget class="QComboBox" name="stageCharacterCombo"/></item>
+                                <item><widget class="QLabel" name="sideLabel"><property name="text"><string>Side</string></property></widget></item>
+                                <item>
+                                  <widget class="QComboBox" name="stageSideCombo">
+                                    <item><property name="text"><string>left</string></property></item>
+                                    <item><property name="text"><string>right</string></property></item>
+                                  </widget>
+                                </item>
+                                <item><widget class="QLabel" name="expressionLabel"><property name="text"><string>Expression</string></property></widget></item>
+                                <item>
+                                  <widget class="QSpinBox" name="stageExpressionSpin">
+                                    <property name="minimum"><number>0</number></property>
+                                    <property name="maximum"><number>3</number></property>
+                                  </widget>
+                                </item>
+                              </layout>
+                            </widget>
+                          </item>
+                          <item>
+                            <widget class="QWidget" name="characterActionsRow">
+                              <layout class="QHBoxLayout" name="characterActionsRowLayout">
+                                <property name="leftMargin"><number>0</number></property>
+                                <property name="topMargin"><number>0</number></property>
+                                <property name="rightMargin"><number>0</number></property>
+                                <property name="bottomMargin"><number>0</number></property>
+                                <property name="spacing"><number>7</number></property>
+                                <item><widget class="QPushButton" name="insertCharacterButton"><property name="text"><string>Character</string></property></widget></item>
+                                <item><widget class="QPushButton" name="insertOpponentButton"><property name="text"><string>The opponent</string></property></widget></item>
+                                <item><widget class="QPushButton" name="insertNobodyButton"><property name="text"><string>Nobody</string></property></widget></item>
+                              </layout>
+                            </widget>
+                          </item>
+                          <item>
+                            <widget class="QWidget" name="characterImageRow">
+                              <layout class="QHBoxLayout" name="characterImageRowLayout">
+                                <property name="leftMargin"><number>0</number></property>
+                                <property name="topMargin"><number>0</number></property>
+                                <property name="rightMargin"><number>0</number></property>
+                                <property name="bottomMargin"><number>0</number></property>
+                                <property name="spacing"><number>7</number></property>
+                                <item><widget class="QPushButton" name="characterPngButton"><property name="text"><string>Character PNG...</string></property></widget></item>
+                                <item><widget class="QCheckBox" name="stageFlipCheck"><property name="text"><string>flip</string></property></widget></item>
+                              </layout>
+                            </widget>
+                          </item>
+                          <item>
+                            <widget class="QWidget" name="bustRow">
+                              <layout class="QHBoxLayout" name="bustRowLayout">
+                                <property name="leftMargin"><number>0</number></property>
+                                <property name="topMargin"><number>0</number></property>
+                                <property name="rightMargin"><number>0</number></property>
+                                <property name="bottomMargin"><number>0</number></property>
+                                <property name="spacing"><number>7</number></property>
+                                <item><widget class="QLabel" name="stageDuelistLabel"><property name="text"><string>Duelist</string></property></widget></item>
+                                <item><widget class="QComboBox" name="stageDuelistCombo"/></item>
+                                <item><widget class="QLabel" name="stageBustExpressionLabel"><property name="text"><string>Expression</string></property></widget></item>
+                                <item><widget class="QComboBox" name="stageBustExpressionCombo"/></item>
+                                <item><widget class="QPushButton" name="insertBustButton"><property name="text"><string>Bust</string></property></widget></item>
+                              </layout>
+                            </widget>
+                          </item>
+                          <item>
+                            <widget class="QLabel" name="stagePreviewHint">
+                              <property name="text"><string>Inserted before the line the cursor is on, in the story last clicked.</string></property>
+                              <property name="wordWrap"><bool>true</bool></property>
+                            </widget>
+                          </item>
+                          <item>
+                            <layout class="QHBoxLayout" name="stagePreviewRowLayout">
+                              <property name="spacing"><number>8</number></property>
+                              <item>
+                                <widget class="QLabel" name="stageScenePreview">
+                                  <property name="minimumSize"><size><width>160</width><height>80</height></size></property>
+                                  <property name="maximumSize"><size><width>160</width><height>80</height></size></property>
+                                  <property name="alignment"><set>Qt::AlignCenter</set></property>
+                                  <property name="text"><string>(the scenes and characters show with the game's files)</string></property>
+                                  <property name="wordWrap"><bool>true</bool></property>
+                                  <property name="styleSheet"><string>background:#000000;border:1px solid #26374c;border-radius:4px</string></property>
+                                </widget>
+                              </item>
+                              <item>
+                                <widget class="QLabel" name="stageCharacterPreview">
+                                  <property name="minimumSize"><size><width>96</width><height>96</height></size></property>
+                                  <property name="maximumSize"><size><width>96</width><height>96</height></size></property>
+                                  <property name="alignment"><set>Qt::AlignCenter</set></property>
+                                  <property name="styleSheet"><string>background:#000000;border:1px solid #26374c;border-radius:4px</string></property>
+                                </widget>
+                              </item>
+                              <item>
+                                <spacer name="stagePreviewSpacer">
+                                  <property name="orientation"><enum>Qt::Horizontal</enum></property>
+                                  <property name="sizeHint" stdset="0"><size><width>20</width><height>20</height></size></property>
+                                </spacer>
+                              </item>
+                            </layout>
+                          </item>
+                        </layout>
+                      </widget>
+                    </item>
+                    <item>
+                      <widget class="QGroupBox" name="storyGroup">
+                        <property name="title"><string>Story</string></property>
+                        <layout class="QVBoxLayout" name="storyGroupLayout">
+                          <property name="leftMargin"><number>12</number></property>
+                          <property name="topMargin"><number>12</number></property>
+                          <property name="rightMargin"><number>12</number></property>
+                          <property name="bottomMargin"><number>12</number></property>
+                          <property name="spacing"><number>7</number></property>
+                          <item>
+                            <widget class="QLabel" name="storySyntaxHint">
+                              <property name="text"><string>A line a page. Before one, its stage in brackets: [scene: torch corridor] [left: 1] [right: opponent] [pan: 64 0 30 wait]. @left:/@right: that side, @Name: a duelist, @none: nobody's; #N: campaign portrait 0-24, #speaker: the speaker's own face. \n breaks a line inside the box; a backslash keeps the next letter as it is.</string></property>
+                              <property name="wordWrap"><bool>true</bool></property>
+                            </widget>
+                          </item>
+                          <item><widget class="QLabel" name="introLabel"><property name="text"><string>Before the first climb</string></property></widget></item>
+                          <item>
+                            <widget class="QPlainTextEdit" name="introStoryEdit">
+                              <property name="minimumHeight"><number>92</number></property>
+                              <property name="lineWrapMode"><enum>QPlainTextEdit::NoWrap</enum></property>
+                            </widget>
+                          </item>
+                          <item><widget class="QLabel" name="endingLabel"><property name="text"><string>At the top</string></property></widget></item>
+                          <item>
+                            <widget class="QPlainTextEdit" name="endingStoryEdit">
+                              <property name="minimumHeight"><number>92</number></property>
+                              <property name="lineWrapMode"><enum>QPlainTextEdit::NoWrap</enum></property>
+                            </widget>
+                          </item>
+                          <item><widget class="QLabel" name="loseLabel"><property name="text"><string>After a loss</string></property></widget></item>
+                          <item>
+                            <widget class="QPlainTextEdit" name="loseStoryEdit">
+                              <property name="minimumHeight"><number>92</number></property>
+                              <property name="lineWrapMode"><enum>QPlainTextEdit::NoWrap</enum></property>
+                            </widget>
+                          </item>
+                        </layout>
+                      </widget>
+                    </item>
+                    <item>
+                      <widget class="QGroupBox" name="towerOnlyGroup">
+                        <property name="title"><string>The tower's own duelists</string></property>
+                        <layout class="QVBoxLayout" name="towerOnlyGroupLayout">
+                          <property name="leftMargin"><number>12</number></property>
+                          <property name="topMargin"><number>12</number></property>
+                          <property name="rightMargin"><number>12</number></property>
+                          <property name="bottomMargin"><number>12</number></property>
+                          <property name="spacing"><number>7</number></property>
+                          <item>
+                            <widget class="QLabel" name="towerOnlyHint">
+                              <property name="text"><string>Checked: not in Free Duel until a won floor fights it or names it in its reward ("tower_only"). The mod's added duelists, from the Duelists page.</string></property>
+                              <property name="wordWrap"><bool>true</bool></property>
+                            </widget>
+                          </item>
+                          <item><widget class="QListWidget" name="towerOnlyDuelistsList"/></item>
+                        </layout>
+                      </widget>
+                    </item>
+                  </layout>
+                </widget>
+              </item>
+              <item>
+                <widget class="QWidget" name="towerRightColumn">
+                  <property name="minimumWidth"><number>575</number></property>
+                  <layout class="QVBoxLayout" name="towerRightLayout">
+                    <property name="leftMargin"><number>0</number></property>
+                    <property name="topMargin"><number>0</number></property>
+                    <property name="rightMargin"><number>0</number></property>
+                    <property name="bottomMargin"><number>0</number></property>
+                    <property name="spacing"><number>10</number></property>
+                    <item>
+                      <widget class="QGroupBox" name="floorsGroup">
+                        <property name="title"><string>Floors</string></property>
+                        <layout class="QVBoxLayout" name="floorsGroupLayout">
+                          <property name="leftMargin"><number>12</number></property>
+                          <property name="topMargin"><number>12</number></property>
+                          <property name="rightMargin"><number>12</number></property>
+                          <property name="bottomMargin"><number>12</number></property>
+                          <property name="spacing"><number>7</number></property>
+                          <item>
+                            <widget class="QTreeWidget" name="floorsTree">
+                              <property name="minimumHeight"><number>180</number></property>
+                              <property name="rootIsDecorated"><bool>false</bool></property>
+                              <column><property name="text"><string>#</string></property></column>
+                              <column><property name="text"><string>Opponent</string></property></column>
+                              <column><property name="text"><string>Field</string></property></column>
+                              <column><property name="text"><string>Rules</string></property></column>
+                            </widget>
+                          </item>
+                          <item>
+                            <layout class="QHBoxLayout" name="floorActionsRowLayout">
+                              <property name="spacing"><number>7</number></property>
+                              <item><widget class="QPushButton" name="addFloorButton"><property name="text"><string>Add floor</string></property></widget></item>
+                              <item><widget class="QPushButton" name="removeFloorButton"><property name="text"><string>Remove</string></property></widget></item>
+                              <item><widget class="QPushButton" name="moveFloorUpButton"><property name="text"><string>Up</string></property></widget></item>
+                              <item><widget class="QPushButton" name="moveFloorDownButton"><property name="text"><string>Down</string></property></widget></item>
+                            </layout>
+                          </item>
+                        </layout>
+                      </widget>
+                    </item>
+                    <item>
+                      <widget class="QGroupBox" name="floorSettingsGroup">
+                        <property name="title"><string>The floor</string></property>
+                        <layout class="QVBoxLayout" name="floorSettingsGroupLayout">
+                          <property name="leftMargin"><number>12</number></property>
+                          <property name="topMargin"><number>12</number></property>
+                          <property name="rightMargin"><number>12</number></property>
+                          <property name="bottomMargin"><number>12</number></property>
+                          <property name="spacing"><number>7</number></property>
+                          <item>
+                            <layout class="QHBoxLayout" name="floorOpponentRowLayout">
+                              <property name="spacing"><number>7</number></property>
+                              <item><widget class="QLabel" name="floorOpponentLabel"><property name="text"><string>Opponent</string></property></widget></item>
+                              <item><widget class="QComboBox" name="floorOpponentCombo"><property name="editable"><bool>true</bool></property></widget></item>
+                            </layout>
+                          </item>
+                          <item>
+                            <layout class="QHBoxLayout" name="floorFieldRowLayout">
+                              <property name="spacing"><number>7</number></property>
+                              <item><widget class="QLabel" name="floorFieldLabel"><property name="text"><string>Field</string></property></widget></item>
+                              <item>
+                                <widget class="QComboBox" name="floorFieldCombo">
+                                  <item><property name="text"><string>none</string></property></item>
+                                  <item><property name="text"><string>Forest</string></property></item>
+                                  <item><property name="text"><string>Wasteland</string></property></item>
+                                  <item><property name="text"><string>Mountain</string></property></item>
+                                  <item><property name="text"><string>Meadow</string></property></item>
+                                  <item><property name="text"><string>Sea</string></property></item>
+                                  <item><property name="text"><string>Dark</string></property></item>
+                                </widget>
+                              </item>
+                            </layout>
+                          </item>
+                          <item>
+                            <layout class="QHBoxLayout" name="floorLpRowLayout">
+                              <property name="spacing"><number>7</number></property>
+                              <item><widget class="QLabel" name="playerLpLabel"><property name="text"><string>Your LP</string></property></widget></item>
+                              <item><widget class="QLineEdit" name="playerLpEdit"><property name="placeholderText"><string>usual</string></property></widget></item>
+                              <item><widget class="QLabel" name="opponentLpLabel"><property name="text"><string>Its LP</string></property></widget></item>
+                              <item><widget class="QLineEdit" name="opponentLpEdit"><property name="placeholderText"><string>usual</string></property></widget></item>
+                            </layout>
+                          </item>
+                          <item>
+                            <layout class="QHBoxLayout" name="floorFlagsRowLayout">
+                              <property name="spacing"><number>7</number></property>
+                              <item><widget class="QCheckBox" name="noFusionsCheck"><property name="text"><string>No fusions</string></property></widget></item>
+                              <item><widget class="QCheckBox" name="noEquipsCheck"><property name="text"><string>No equips</string></property></widget></item>
+                              <item><widget class="QCheckBox" name="checkpointCheck"><property name="text"><string>Checkpoint (a loss after it comes back here)</string></property></widget></item>
+                            </layout>
+                          </item>
+                          <item>
+                            <widget class="QCheckBox" name="unlockOpponentCheck">
+                              <property name="text"><string>Unlock this opponent in Free Duel when beaten</string></property>
+                              <property name="toolTip"><string>Beaten for the first time, the floor's opponent appears on the Free Duel grid. A duelist the mod adds as the tower's own (tower_only) is hidden there until then; unticked, it stays hidden.</string></property>
+                            </widget>
+                          </item>
+                          <item><widget class="QLabel" name="unlockOpponentHint"><property name="text"><string/></property><property name="wordWrap"><bool>true</bool></property></widget></item>
+                          <item>
+                            <layout class="QHBoxLayout" name="rewardCardsRowLayout">
+                              <property name="spacing"><number>7</number></property>
+                              <item><widget class="QLabel" name="rewardCardsLabel"><property name="text"><string>Reward cards (names/IDs, a comma between)</string></property></widget></item>
+                              <item><widget class="QLineEdit" name="rewardCardsEdit"/></item>
+                            </layout>
+                          </item>
+                          <item>
+                            <layout class="QHBoxLayout" name="rewardStarchipsRowLayout">
+                              <property name="spacing"><number>7</number></property>
+                              <item><widget class="QLabel" name="rewardStarchipsLabel"><property name="text"><string>Starchips (first win only)</string></property></widget></item>
+                              <item><widget class="QLineEdit" name="rewardStarchipsEdit"/></item>
+                            </layout>
+                          </item>
+                          <item>
+                            <layout class="QHBoxLayout" name="unlockRewardRowLayout">
+                              <property name="spacing"><number>7</number></property>
+                              <item><widget class="QLabel" name="rewardUnlocksLabel"><property name="text"><string>Also unlocks</string></property></widget></item>
+                              <item><widget class="QLineEdit" name="rewardUnlocksEdit"><property name="readOnly"><bool>true</bool></property></widget></item>
+                            </layout>
+                          </item>
+                          <item>
+                            <layout class="QHBoxLayout" name="unlockRewardPickerRowLayout">
+                              <property name="spacing"><number>7</number></property>
+                              <item><widget class="QComboBox" name="rewardUnlockDuelistCombo"/></item>
+                              <item><widget class="QPushButton" name="addRewardUnlockButton"><property name="text"><string>Add</string></property></widget></item>
+                              <item><widget class="QPushButton" name="removeRewardUnlockButton"><property name="text"><string>Remove last</string></property></widget></item>
+                            </layout>
+                          </item>
+                          <item><widget class="QLabel" name="floorDeckLabel"><property name="text"><string>Its deck (one card per line, e.g. Card x3; 40 total; empty = own deck)</string></property><property name="wordWrap"><bool>true</bool></property></widget></item>
+                          <item>
+                            <widget class="QPlainTextEdit" name="floorDeckEdit">
+                              <property name="minimumHeight"><number>105</number></property>
+                              <property name="lineWrapMode"><enum>QPlainTextEdit::NoWrap</enum></property>
+                            </widget>
+                          </item>
+                          <item><widget class="QLabel" name="floorBeforeLabel"><property name="text"><string>Before the duel</string></property></widget></item>
+                          <item>
+                            <widget class="QPlainTextEdit" name="beforeDuelStoryEdit">
+                              <property name="minimumHeight"><number>92</number></property>
+                              <property name="lineWrapMode"><enum>QPlainTextEdit::NoWrap</enum></property>
+                            </widget>
+                          </item>
+                          <item><widget class="QLabel" name="floorAfterLabel"><property name="text"><string>After a win</string></property></widget></item>
+                          <item>
+                            <widget class="QPlainTextEdit" name="afterWinStoryEdit">
+                              <property name="minimumHeight"><number>92</number></property>
+                              <property name="lineWrapMode"><enum>QPlainTextEdit::NoWrap</enum></property>
+                            </widget>
+                          </item>
+                        </layout>
+                      </widget>
+                    </item>
+                  </layout>
+                </widget>
+              </item>
+            </layout>
+          </widget>
+        </widget>
+      </item>
+    </layout>
+  </widget>
+</ui>

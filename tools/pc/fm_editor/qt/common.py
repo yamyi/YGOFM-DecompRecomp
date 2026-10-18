@@ -20,11 +20,11 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, QSize, QRect, QPoint, QFile, QIODevice, QTimer, QEvent, QRegularExpression, Signal
 from PySide6.QtGui import (QColor, QCursor, QFont, QFontMetrics, QGuiApplication, QIcon, QImage, QPainter,
-                           QPainterPath, QPalette, QPen, QPixmap, QRegularExpressionValidator)
+                           QPainterPath, QPalette, QPen, QPixmap, QRegularExpressionValidator, QTextCursor)
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog, QHeaderView, QDialogButtonBox, QInputDialog,
     QButtonGroup, QDialog, QFormLayout, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMessageBox,
     QProgressDialog, QPushButton, QScrollArea, QSpinBox, QSplitter, QStackedWidget, QTableWidget, QTableWidgetItem,
-    QListWidget, QListWidgetItem, QListView, QTreeWidget, QStyledItemDelegate, QStyle, QStyleOptionViewItem, QTextEdit, QPlainTextEdit,
+    QListWidget, QListWidgetItem, QListView, QTreeWidget, QTreeWidgetItem, QStyledItemDelegate, QStyle, QStyleOptionViewItem, QTextEdit, QPlainTextEdit,
     QVBoxLayout, QWidget, QAbstractItemView, QRadioButton, QGroupBox, QTabBar, QTabWidget, QLayout, QSizePolicy, QMenu,
     QToolButton)
 from PySide6.QtUiTools import QUiLoader

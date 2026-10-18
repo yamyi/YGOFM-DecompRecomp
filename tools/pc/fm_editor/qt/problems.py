@@ -88,6 +88,17 @@ class ProblemsMixin:
             if self.current_workspace == "Campaign":
                 self.goto_map_place(target if isinstance(target, int) else 0)
             return
+        if area == "Tower":
+            # tower.check() carries no target (app.py's own go_to only
+            # selects the tab); the floor it is about, when there is one, is
+            # still in "where" ("tower.floors[2].deck"), so find the floor
+            # too -- an improvement Tkinter does not make, not a regression.
+            self.select_workspace("Tower")
+            if self.current_workspace == "Tower":
+                found = re.match(r"tower\.floors\[(\d+)\]", str(issue.where))
+                if found:
+                    self.goto_tower_floor(int(found.group(1)))
+            return
         if area not in self.workspace_indices:
             self.statusBar().showMessage(
                 f"{area}: {issue.where} — this page is not in the modern editor yet; "

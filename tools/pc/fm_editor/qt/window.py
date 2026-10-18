@@ -18,12 +18,13 @@ from .problems import ProblemsMixin
 from .rituals import RitualsMixin
 from .stars import StarsMixin
 from .starter import StarterMixin
+from .tower import TowerMixin
 
 
-class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixin, LimitsMixin, MapMixin, ModinfoMixin, PacksMixin, ProblemsMixin, RitualsMixin, StarsMixin, StarterMixin, QMainWindow):
+class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixin, LimitsMixin, MapMixin, ModinfoMixin, PacksMixin, ProblemsMixin, RitualsMixin, StarsMixin, StarterMixin, TowerMixin, QMainWindow):
     FILTERS = ["All cards", "Changed", "Added by the mod", "With notes", "Monsters", "Non-monsters"] + TYPE_NAMES
     NAV = ["Cards", "Art", "UI", "Campaign", "Fusions", "Equips", "Rituals", "Duelists", "Starter decks",
-           "Limits", "Guardian Stars", "Packs", "Mod info", "Problems"]
+           "Limits", "Guardian Stars", "Packs", "Tower", "Mod info", "Problems"]
     # Internal workspace keys stay stable for controllers and existing mods;
     # this map supplies their user-facing navigation label.
     NAV_LABELS = {"Limits": "Game Rules"}
@@ -243,6 +244,10 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
             if not self._commit_packs():
                 self._set_navigation_active(self.current_workspace)
                 return
+        if self.current_workspace == "Tower" and name != "Tower":
+            if not self._commit_tower():
+                self._set_navigation_active(self.current_workspace)
+                return
         self.pages.setCurrentIndex(self.workspace_indices[name])
         self.current_workspace = name
         self._set_navigation_active(name)
@@ -265,6 +270,7 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
                      "Duelists": "duelists_page.ui", "Starter decks": "starter_decks_page.ui",
                      "Limits": "limits_page.ui",
                      "Guardian Stars": "guardian_stars_page.ui",
+                     "Tower": "tower_page.ui",
                      "Mod info": "mod_info_page.ui", "Problems": "problems_page.ui"}
         path = UI_DIR / filenames[name]
         source = QFile(str(path))
@@ -538,6 +544,8 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
             self._build_limits_page(page, get, controls)
         elif name == "Guardian Stars":
             self._build_stars_page(page, get, controls)
+        elif name == "Tower":
+            self._build_tower_page(page, get, controls)
         elif name == "Mod info":
             controls.update(id=get(QLineEdit, "modIdEdit"), name=get(QLineEdit, "modNameEdit"),
                             version=get(QLineEdit, "modVersionEdit"), author=get(QLineEdit, "modAuthorEdit"),
@@ -687,6 +695,8 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
             self._refresh_stars()
         elif name == "Packs":
             self._refresh_packs()
+        elif name == "Tower":
+            self._refresh_tower()
         elif name == "Mod info":
             self._refresh_mod_info()
         elif name == "Problems":
@@ -806,6 +816,14 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
                         item.setCheckState(Qt.CheckState.Unchecked if item.checkState() == Qt.CheckState.Checked
                                            else Qt.CheckState.Checked)
                         return True
+        if event.type() == QEvent.Type.FocusIn:
+            # The Stage inserts into whichever story box the cursor was in
+            # last (tower_tab.py's own self.last_story, kept the same way).
+            tower_controls = getattr(self, "workspace_controls", {}).get("Tower", {})
+            for key in ("intro", "ending", "lose", "before_duel", "after_win"):
+                if watched is tower_controls.get(key):
+                    self.tower_last_story = key
+                    break
         return super().eventFilter(watched, event)
     @staticmethod
     def _populate_checkable_list(listing, names):
@@ -881,7 +899,7 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
                          ("DEF > ATK", "defense_gt_attack", None))
     LP_UNSET = "—"      # a field left at the side's own number
     STAR_CELL_COLOURS = {"plus": "#1f4d2c", "minus": "#5a2323", "zero": "#16212f"}
-    MOD_INFO_OWNED = ("limits", "guardian_stars", "starter_pools", "story")
+    MOD_INFO_OWNED = ("limits", "guardian_stars", "starter_pools", "story", "tower")
     MOD_INFO_RESERVED = frozenset(manifest.INFO_KEYS + manifest.TABLE_KEYS + MOD_INFO_OWNED)
     @staticmethod
     def _select_table_id(table, value, column=0):
@@ -1171,6 +1189,7 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
             return
         if self.current_workspace == "Mod info" and not self._apply_mod_info(): return
         if self.current_workspace == "Packs" and not self._commit_packs(): return
+        if self.current_workspace == "Tower" and not self._commit_tower(): return
         issues = validate.validate(self.project)
         errors = validate.errors(issues)
         warnings = [issue for issue in issues if issue.level == "warning"]
@@ -1186,6 +1205,8 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
         if self.current and not self.apply_card(quiet=True):
             return
         if self.current_workspace == "Mod info" and not self._apply_mod_info():
+            return
+        if self.current_workspace == "Tower" and not self._commit_tower():
             return
         dialog = QDialog(self)
         dialog.setWindowTitle("Preview mod.json")
@@ -1371,6 +1392,7 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
         if self.current and not self.apply_card(quiet=True): return
         if self.current_workspace == "Mod info" and not self._apply_mod_info(): return
         if self.current_workspace == "Packs" and not self._commit_packs(): return
+        if self.current_workspace == "Tower" and not self._commit_tower(): return
         folder = str(self.project.source_dir or "")
         # A recovered project starts in disposable recovery storage. Ordinary
         # Save must ask for a real folder before that storage is cleared.
@@ -1669,6 +1691,8 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
             return False
         if self.current_workspace == "Packs" and not self._commit_packs():
             return False
+        if self.current_workspace == "Tower" and not self._commit_tower():
+            return False
         return True
 
     def _reload_pages(self):
@@ -1705,6 +1729,7 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
         if self.current and not self.apply_card(quiet=True): return False
         if self.current_workspace == "Mod info" and not self._apply_mod_info(): return False
         if self.current_workspace == "Packs" and not self._commit_packs(): return False
+        if self.current_workspace == "Tower" and not self._commit_tower(): return False
         if not self.dirty: return True
         answer = QMessageBox.question(self, "Unsaved changes", "Save changes to this mod before continuing?",
             QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel,
