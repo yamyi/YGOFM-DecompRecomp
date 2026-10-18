@@ -325,6 +325,36 @@ def _preview_press(editor, kind, label, position):
     c["preview_drag"] = {"kind": kind, "key": key, "point": point, "moved": False}
 
 
+def _draw_preview_kind(editor, kind):
+    if kind == "title":
+        _draw_title(editor)
+    elif kind == "menu":
+        _draw_menu(editor)
+    else:
+        _draw_duel(editor)
+
+
+def _queue_preview_redraw(editor, kind):
+    """Coalesce mouse moves into one preview composition per display frame.
+
+    Qt delivers every pointer event on the GUI thread.  The original editor's
+    Canvas moves a cached item immediately; these previews compose a complete
+    image, so drawing each raw event starves subsequent pointer events.
+    """
+    c = editor.workspace_controls.get("Assets", {})
+    timers = c.setdefault("preview_render_timers", {})
+    timer = timers.get(kind)
+    if timer is None:
+        preview = c.get(f"{kind}_preview")
+        if preview is None:
+            return
+        timer = timers[kind] = QTimer(preview)
+        timer.setSingleShot(True)
+        timer.timeout.connect(lambda selected=kind: _draw_preview_kind(editor, selected))
+    if not timer.isActive():
+        timer.start(16)
+
+
 def _preview_drag(editor, kind, label, position):
     c, drag = editor.workspace_controls.get("Assets", {}), editor.workspace_controls.get("Assets", {}).get("preview_drag")
     if not isinstance(drag, dict) or drag.get("kind") != kind: return
@@ -338,7 +368,6 @@ def _preview_drag(editor, kind, label, position):
         default_x, default_y = (160, 220) if key.startswith("text:") else ((160, 120) if key.startswith("picture:") else (0, 0))
         target["x"] = _as_int(drag.setdefault("x", target.get("x", default_x)), default_x) + dx
         target["y"] = _as_int(drag.setdefault("y", target.get("y", default_y)), default_y) + dy
-        _draw_title(editor)
     elif kind == "menu":
         # Not "if not target" -- a fresh item's target is a real but empty
         # {} (entries.setdefault), so that check always aborted the drag.
@@ -346,7 +375,6 @@ def _preview_drag(editor, kind, label, position):
         target = _menu_target(editor, True)
         target["x"] = _as_int(drag.setdefault("x", target.get("x", 0))) + dx
         target["y"] = _as_int(drag.setdefault("y", target.get("y", 0))) + dy
-        _draw_menu(editor)
     else:
         name, part = _duel_path(key)
         target = _duel_target(editor, True)
@@ -357,8 +385,8 @@ def _preview_drag(editor, kind, label, position):
             moves = ui_rules.MOVES.get(name, "")
             if "x" in moves: target["x"] = _as_int(drag.setdefault("x", target.get("x", 0))) + dx
             if "y" in moves: target["y"] = _as_int(drag.setdefault("y", target.get("y", 0))) + dy
-        _draw_duel(editor)
     drag["moved"] = True
+    _queue_preview_redraw(editor, kind)
 
 
 def _preview_nudge(editor, kind, key, amount):
@@ -396,7 +424,11 @@ def _preview_wheel(editor, delta):
 
 
 def _preview_release(editor, kind):
-    c, drag = editor.workspace_controls.get("Assets", {}), editor.workspace_controls.get("Assets", {}).pop("preview_drag", None)
+    c = editor.workspace_controls.get("Assets", {})
+    drag = c.pop("preview_drag", None)
+    timer = c.get("preview_render_timers", {}).get(kind)
+    if timer is not None and timer.isActive():
+        timer.stop()
     if not isinstance(drag, dict) or not drag.get("moved"): return
     editor._mark_dirty()
     if kind == "title": _refresh_title(editor)

@@ -438,6 +438,20 @@ class CardsTest(unittest.TestCase):
         self.assertEqual((title_text['text'], title_text['x'], title_text['y']),
                          ('HELLO FM', 161, 220))
 
+        # Dragging updates the model immediately, coalesces visual rendering
+        # to the display rate, then produces a final exact preview on release.
+        box = c['title_boxes']['text:0']
+        point = QPoint(round((canvas.width() - 320 * scale) / 2 + (box[0] + box[2] / 2) * scale),
+                       round((canvas.height() - 240 * scale) / 2 + (box[1] + box[3] / 2) * scale))
+        before_drag = (title_text['x'], title_text['y'])
+        QTest.mousePress(canvas, Qt.MouseButton.LeftButton, pos=point)
+        QTest.mouseMove(canvas, QPoint(point.x() + round(7 * scale), point.y() + round(4 * scale)))
+        QTest.mouseRelease(canvas, Qt.MouseButton.LeftButton,
+                           pos=QPoint(point.x() + round(7 * scale), point.y() + round(4 * scale)))
+        self.qt.processEvents()
+        self.assertNotEqual((title_text['x'], title_text['y']), before_drag)
+        self.assertFalse(c['preview_render_timers']['title'].isActive())
+
         # A custom menu button, like its title counterpart, is configured by
         # the form and remains independent when its page is later reverted.
         c['tabs'].setCurrentIndex(1)
