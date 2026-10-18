@@ -415,6 +415,7 @@ class CardsTest(unittest.TestCase):
         w = self.window
         w.select_workspace('Assets')
         c = w.workspace_controls['Assets']
+        self.assertFalse(any(item['name'].startswith('card_frames/') for item in c['catalog']))
         self.assertEqual([c['tabs'].tabText(i) for i in range(c['tabs'].count())],
                          ['Title screen', 'Menus', 'Duel', 'Frames', 'Duel board',
                           'Build Deck', 'Assets'])

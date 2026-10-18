@@ -3225,7 +3225,9 @@ def _asset_widget(form, kind, name):
 def _build_template_framework(self, page, controls):
     from PySide6.QtWidgets import QTreeWidget, QTreeWidgetItem
     form = page
-    catalog = _catalog()
+    # Card frames have a dedicated editor tab.  Keep them out of the
+    # generic asset catalogue so the two workflows do not overlap.
+    catalog = [item for item in _catalog() if not item["name"].startswith("card_frames/")]
     categories = sorted({_category(item["name"]) for item in catalog}, key=str.casefold)
     controls.clear()
     controls.update(page=page, form=form, catalog=catalog, category="__all__",
@@ -3301,7 +3303,12 @@ def _build_template_framework(self, page, controls):
     _asset_widget(form, QPushButton, "uiModGuideButton").clicked.connect(lambda: _show_asset_help(self))
     _asset_widget(form, QPushButton, "revertAllUiButton").clicked.connect(lambda: _revert_template(self))
     _asset_widget(form, QPushButton, "applyAssetsButton").clicked.connect(self.save_mod)
-    _asset_widget(form, QPushButton, "previewAssetsModButton").clicked.connect(self.preview_manifest)
+    # The unified Designer form does not include the old optional preview
+    # action.  Bind it when a future form supplies it, without requiring
+    # Python to create a replacement control.
+    preview_button = form.findChild(QPushButton, "previewAssetsModButton")
+    if preview_button is not None:
+        preview_button.clicked.connect(self.preview_manifest)
     _asset_widget(form, QPushButton, "locationCardView").clicked.connect(lambda: self.select_workspace("Art"))
     _asset_widget(form, QPushButton, "locationBuildDeck").clicked.connect(lambda: _asset_goto_tab(self, "Build Deck"))
     _asset_widget(form, QPushButton, "locationDuelHand").clicked.connect(lambda: _asset_goto_duel_element(self, "hand_cursor"))
