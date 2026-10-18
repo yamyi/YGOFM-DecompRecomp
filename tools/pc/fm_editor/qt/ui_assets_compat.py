@@ -672,6 +672,7 @@ _CARD_SHEET, _CARD_PALETTES = 0xEFE800, 0xF06800
 _BALL_PALETTE, _STAR_PALETTE, _LABEL_PALETTE = 0x1E00, 0x1180, 0x11E0
 _frame_title_faces = {}
 _frame_title_images = {}
+_frame_stat_images = {}
 _FRAME_RENDER_SCALE = 4
 
 
@@ -711,7 +712,7 @@ _HAND_SHEETS = {}
 _CARD_STAT_SHEETS = {}
 
 
-def _frame_card_stat_sprite(wa, part):
+def _frame_card_stat_sprite(wa, part, palette=248):
     """Return a retail card-view stat sprite.
 
     The HD-text renderer treats these as a separate atlas: ATK/DFD are not
@@ -736,10 +737,10 @@ def _frame_card_stat_sprite(wa, part):
     if not sheet.ok:
         return None
     u, v, width, height = cell
-    source = ("frame-card-stat", part)
+    source = ("frame-card-stat", part, palette)
     return sheet._cached(
         source,
-        lambda: sheet.vram.sprite(960, 256, 4, 496, 248, u, v, width, height),
+        lambda: sheet.vram.sprite(960, 256, 4, 496, palette, u, v, width, height),
     )
 
 
@@ -921,6 +922,65 @@ def _frame_title_picture(text, width, height, color):
     picture = _frame_sized(pngio.Image(96 * factor, 14 * factor, bytes(rgba)),
                            max(1, width) * factor, max(1, height) * factor)
     _frame_title_images[key] = picture
+    return picture
+
+
+def _frame_hd_stat_picture(text, width, height, *, left, right, baseline, cap_height, color="#160D00"):
+    """Render one HD card-view stat sprite with the game's Times face.
+
+    ``hd_text.c:set_text`` measures these retail sprites and redraws them
+    through ``CardArt_SerifFace``.  The source cells provide the ink bounds
+    and baseline below; their exact geometry is more important than treating
+    the card's stats as ordinary desktop text.
+    """
+    key = (text, width, height, left, right, baseline, cap_height, color)
+    cached = _frame_stat_images.get(key)
+    if cached is not None:
+        return cached
+    try:
+        face = _frame_title_face()
+        if face is None:
+            return None
+        factor = _FRAME_RENDER_SCALE
+        canvas_width, canvas_height = width * factor, height * factor
+        cap = face.outline(ord("H"))
+        if not cap:
+            return None
+        cap_low = min(y for contour in cap for _x, y in contour)
+        cap_high = max(y for contour in cap for _x, y in contour)
+        if cap_high <= cap_low:
+            return None
+        sy = cap_height * factor / (cap_high - cap_low)
+        pen = 0.0
+        metrics = []
+        ink_left, ink_right = float("inf"), float("-inf")
+        for character in text:
+            outline = face.outline(ord(character))
+            if outline:
+                low = min(x for contour in outline for x, _y in contour)
+                high = max(x for contour in outline for x, _y in contour)
+                ink_left, ink_right = min(ink_left, pen + low), max(ink_right, pen + high)
+            metrics.append((pen, outline))
+            pen += face.advance(ord(character))
+        if ink_right <= ink_left:
+            return None
+        sx = min(sy * 1.25, ((right - left) * factor) / (ink_right - ink_left))
+        start = ((left + right) * factor - (ink_right - ink_left) * sx) / 2 - ink_left * sx
+        glyphs = []
+        for pen, outline in metrics:
+            if outline:
+                glyphs.extend([[(start + (pen + x) * sx, baseline * factor - y * sy)
+                                for x, y in contour] for contour in outline])
+        coverage = ttf.fill(glyphs, canvas_width, canvas_height)
+        rgb = tuple(int(color[index:index + 2], 16) for index in (1, 3, 5))
+        rgba = bytearray(canvas_width * canvas_height * 4)
+        for index, alpha in enumerate(coverage):
+            if alpha:
+                rgba[index * 4:index * 4 + 4] = bytes((*rgb, alpha))
+        picture = pngio.Image(canvas_width, canvas_height, bytes(rgba))
+    except (ttf.FontError, OSError, ValueError, IndexError, KeyError):
+        return None
+    _frame_stat_images[key] = picture
     return picture
 
 
@@ -1376,16 +1436,29 @@ def _draw_frames(editor):
                 _frame_draw_picture(painter, _frame_digit_cell(digits_image, int(character)), QRect(x + number * step, y, glyph_w, glyph_h))
         elif key in ("atk", "def"):
             # HD text replaces this card-view sprite sheet separately from the
-            # normal HUD font.  Its original cells are still the authoritative
-            # fallback for shape, palette, advance and baseline.
+            # normal HUD font.  Each 6x13 cell is redrawn with the game Times
+            # face, using the retail cell's baseline and ink width.
             step = _as_int(_frame_part(editor, "digits").get("step"), _frame_rect(editor, key)[2])
             glyph_w, glyph_h = _frame_rect(editor, key)[2:]
             for number, character in enumerate(text):
-                glyph = _frame_card_stat_sprite(wa, int(character))
+                glyph = _frame_hd_stat_picture(character, glyph_w, glyph_h,
+                                               left=0, right=6, baseline=10, cap_height=9)
+                if glyph is None:
+                    glyph = _frame_card_stat_sprite(wa, int(character), 248 if key == "atk" else 249)
                 if glyph is not None:
                     _frame_draw_picture(painter, glyph, QRect(x + number * step, y, glyph_w, glyph_h))
-        elif key in ("atk_label", "dfd_label") and _frame_card_stat_sprite(wa, key) is not None:
-            _frame_draw_picture(painter, _frame_card_stat_sprite(wa, key), box)
+        elif key in ("atk_label", "dfd_label"):
+            metrics = {
+                "atk_label": ("ATK", 1, 22, 9),
+                "dfd_label": ("DFD", 1, 21, 12),
+            }
+            stat_text, left, right, baseline = metrics[key]
+            glyph = _frame_hd_stat_picture(stat_text, width, height, left=left, right=right,
+                                           baseline=baseline, cap_height=7)
+            if glyph is None:
+                glyph = _frame_card_stat_sprite(wa, key, 248 if key == "atk_label" else 249)
+            if glyph is not None:
+                _frame_draw_picture(painter, glyph, box)
         else:
             # Other labels use the game's 8x12 text atlas.  Card-view stats
             # are handled above from their own source sheet.
