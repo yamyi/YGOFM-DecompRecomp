@@ -534,14 +534,21 @@ class CardsTest(unittest.TestCase):
         self.assertNotEqual(art_position, (27, 55))
 
         # Frame images can be imported and exported through the Designer
-        # controls, with the exact replacement saved in frames/.
+        # controls, with the exact replacement saved in frames/.  Artwork is
+        # retail-only (visual placement help, not a replaceable asset), so
+        # this exercises the ATK label, which is a real frames/ asset.
+        atk_label_row = next(c['parts'].topLevelItem(group).child(row)
+                             for group in range(c['parts'].topLevelItemCount())
+                             for row in range(c['parts'].topLevelItem(group).childCount())
+                             if c['parts'].topLevelItem(group).child(row).data(0, Qt_UserRole()) == 'atk_label')
+        c['parts'].setCurrentItem(atk_label_row)
         source = self.pack_png(16, 16)
         with mock.patch('fm_editor.qt.ui_assets_compat.QFileDialog.getOpenFileName', return_value=(source, '')):
             c['form'].findChild(QPushButton, 'chooseImageButton').click()
         export = c['form'].findChild(QPushButton, 'exportImageButton')
         self.assertTrue(export.isEnabled())
         with tempfile.TemporaryDirectory() as folder:
-            destination = Path(folder) / 'art.png'
+            destination = Path(folder) / 'atk_label.png'
             with mock.patch('fm_editor.qt.ui_assets_compat.QFileDialog.getSaveFileName', return_value=(str(destination), '')):
                 export.click()
             self.assertTrue(destination.is_file())
