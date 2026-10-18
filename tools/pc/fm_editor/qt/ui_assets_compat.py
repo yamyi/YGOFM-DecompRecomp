@@ -820,7 +820,7 @@ def _library_icon_background(wa, frame_index):
         w, h, rgba = image_extract.decode(wa, _LIBRARY_ICON_OFFSET, 64, 128, 4, palette)
     except (IndexError, ValueError, struct.error):
         return None
-    icon = pngio.crop(pngio.Image(w, h, rgba), 97, 112, 13, 15)
+    icon = pngio.crop(pngio.Image(w, h, rgba), 96, 112, 12, 14)
     _LIBRARY_ICON_SHEETS[key] = icon
     return icon
 
