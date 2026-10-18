@@ -637,10 +637,14 @@ _FRAME_PARTS = (
     ("art", "Artwork", ("art",), (19, 50, 102, 96), True, True, False),
     ("stars", "Level stars", ("stars",), (119, 32, 56, 9), True, False, False),
     ("attribute", "Attribute icon", ("attribute",), (110, 13, 16, 16), True, True, False),
-    ("atk", "ATK value", ("digits", "atk"), (117, 163, 10, 12), True, True, False),
-    ("def", "DEF value", ("digits", "def"), (117, 177, 10, 12), True, True, False),
-    ("atk_label", "ATK label", ("atk_label",), (74, 162, 16, 8), True, True, True),
-    ("dfd_label", "DFD label", ("dfd_label",), (74, 173, 16, 8), True, True, True),
+    # These are the native card-view coordinates.  The game records a stat's
+    # position at the centre of its four-digit run, while labels use their
+    # top-left corner.  Keeping the two conventions is necessary for the
+    # preview and exported frame layout to agree with the retail viewer.
+    ("atk", "ATK value", ("digits", "atk"), (97, 169, 10, 12), True, True, False),
+    ("def", "DEF value", ("digits", "def"), (97, 184, 10, 12), True, True, False),
+    ("atk_label", "ATK label", ("atk_label",), (12, 171, 16, 8), True, True, True),
+    ("dfd_label", "DFD label", ("dfd_label",), (12, 184, 16, 8), True, True, True),
     ("magic_label", "Magic-card caption", ("type_label", "magic"), (84, 35, 56, 16), True, True, True),
     ("equip_label", "Equip-card caption", ("type_label", "equip"), (84, 35, 56, 16), True, True, True),
     ("ritual_label", "Ritual-card caption", ("type_label", "ritual"), (84, 35, 56, 16), True, True, True),
@@ -1337,24 +1341,11 @@ def _draw_frames(editor):
             glyph_w, glyph_h = _frame_rect(editor, key)[2:]
             for number, character in enumerate(text):
                 _frame_draw_picture(painter, _frame_digit_cell(digits_image, int(character)), QRect(x + number * step, y, glyph_w, glyph_h))
-        elif key in ("atk_label", "dfd_label", "atk", "def"):
-            # Comparing the game's own HD-text-off vs HD-text-on card
-            # views: HD text is not a different typeface, it is the exact
-            # same glyph shapes reconstructed smooth and crisp at a larger
-            # size (hd_text.c's own header describes the same thing: a
-            # letter "measured" from the retail cell, redrawn with real
-            # anti-aliasing, not swapped out). Naively bilinear-scaling the
-            # retail font's tiny 8x12 cell up to this size (tried first)
-            # cannot reach that -- it just blurs. A bold vector serif gets
-            # closer to the crisp, generously-sized result HD text actually
-            # produces than either the blurry bitmap or the cramped retail
-            # cells at native size.
-            painter.setPen(QColor(color))
-            label_font = QFont("DejaVu Serif"); label_font.setBold(True)
-            label_font.setPixelSize(max(6, round(box.height() * 1.05)))
-            painter.setFont(label_font)
-            painter.drawText(box, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, text)
         else:
+            # The unmodified card uses the game's 8×12 text atlas for both
+            # stat labels and values.  A replacement PNG is handled above;
+            # otherwise rasterising this exact atlas keeps its native glyph
+            # proportions instead of substituting a desktop serif font.
             picture = _frame_title_picture(text, box.width(), box.height(), color) if key == "title" else _frame_text_picture(font, text, box.width(), box.height(), color)
             if picture is not None:
                 _frame_draw_picture(painter, picture, box)
