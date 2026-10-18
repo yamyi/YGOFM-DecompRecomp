@@ -639,8 +639,8 @@ _FRAME_PARTS = (
     ("attribute", "Attribute icon", ("attribute",), (110, 13, 16, 16), True, True, False),
     ("atk", "ATK value", ("digits", "atk"), (97, 169, 10, 12), True, True, False),
     ("def", "DEF value", ("digits", "def"), (97, 184, 10, 12), True, True, False),
-    ("atk_label", "ATK label", ("atk_label",), (12, 171, 16, 8), True, True, True),
-    ("dfd_label", "DFD label", ("dfd_label",), (12, 184, 16, 8), True, True, True),
+    ("atk_label", "ATK label", ("atk_label",), (54, 169, 16, 8), True, True, True),
+    ("dfd_label", "DFD label", ("dfd_label",), (54, 184, 16, 8), True, True, True),
     ("magic_label", "Magic-card caption", ("type_label", "magic"), (84, 35, 56, 16), True, True, True),
     ("equip_label", "Equip-card caption", ("type_label", "equip"), (84, 35, 56, 16), True, True, True),
     ("ritual_label", "Ritual-card caption", ("type_label", "ritual"), (84, 35, 56, 16), True, True, True),
@@ -1271,8 +1271,8 @@ def _draw_frames(editor):
     caption = _frame_caption(wa, kind) if caption_key else None
     parts = [("art", "#245175", "CARD ART"), ("title", "#ffffff", "Blue-eyes White Dragon")]
     if kind == "monster":
-        parts += [("stars", "#ffcf41", ""), ("attribute", "#ffe171", ""), ("atk", "#ffffff", "3000"),
-                  ("def", "#ffffff", "2500"), ("atk_label", "#cce7ff", "ATK"), ("dfd_label", "#cce7ff", "DFD")]
+        parts += [("stars", "#ffcf41", ""), ("attribute", "#ffe171", ""), ("atk", "#000000", "3000"),
+                  ("def", "#000000", "2500"), ("atk_label", "#000000", "ATK"), ("dfd_label", "#000000", "DFD")]
     else:
         label_text = {"magic_label": "Normal Magic Card", "equip_label": "Equip Magic Card",
                       "ritual_label": "Ritual Magic Card", "trap_label": "Trap Card"}[caption_key]
