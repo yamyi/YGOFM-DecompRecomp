@@ -719,9 +719,10 @@ def _hand_sprite(wa, u, v, width=8, height=8):
     return sheet._cached(source, lambda: sheet.vram.sprite(896, 256, 8, 256, 241, u, v, width, height))
 
 
-def _hand_frame_background(wa, frame_index):
-    """The plain 52x60 hand-card plate (duel_screen.HAND_FRAME/HAND_CLUT),
-    the same disc pixels hand_card() composes a duel hand with."""
+def _duel_cell(wa, u, v, frame_index, w=52, h=60):
+    """One 52x60 cell of the duel hand/field sprite page: the same VRAM page
+    and per-kind palette row scheme as duel_screen.HAND_FRAME/HAND_CLUT, just
+    a different (u, v) within it."""
     if not wa:
         return None
     key = id(wa)
@@ -730,10 +731,30 @@ def _hand_frame_background(wa, frame_index):
         sheet = _HAND_SHEETS[key] = ui_assets.DuelArt(wa)
     if not sheet.ok:
         return None
-    page_x, page_y, bits, u, v, w, h = duel_screen.HAND_FRAME
+    page_x, page_y, bits, _u, _v, _w, _h = duel_screen.HAND_FRAME
     clut_x, clut_y = duel_screen.HAND_CLUT
-    source = ("frame-hand-plate", frame_index)
+    source = ("frame-duel-cell", u, v, w, h, frame_index)
     return sheet._cached(source, lambda: sheet.vram.sprite(page_x, page_y, bits, clut_x, clut_y + frame_index, u, v, w, h))
+
+
+def _hand_frame_background(wa, frame_index):
+    """The plain 52x60 hand-card plate (duel_screen.HAND_FRAME/HAND_CLUT),
+    the same disc pixels hand_card() composes a duel hand with."""
+    page_x, page_y, bits, u, v, w, h = duel_screen.HAND_FRAME
+    return _duel_cell(wa, u, v, frame_index, w, h)
+
+
+# The face-down and face-up field cells sit one 52x60 cell away from the hand
+# on the same duel VRAM page: face-down at (56, 128), one cell right of the
+# hand and shared by every card kind; face-up at (0, 192) for a monster or
+# (56, 192) for anything else (a monster's cell keeps room for its own
+# ATK/DEF plaque, which a non-monster field card never shows).
+def _field_back_frame_background(wa, frame_index):
+    return _duel_cell(wa, 56, 128, frame_index)
+
+
+def _field_frame_background(wa, frame_index, is_monster):
+    return _duel_cell(wa, 0 if is_monster else 56, 192, frame_index)
 
 
 def _frame_sized(image, width, height):
@@ -1175,7 +1196,7 @@ def _draw_frames(editor):
         _draw_hand_template(editor, painter, c)
         painter.end(); _set_preview_pixmap(c["preview"], QPixmap.fromImage(image)); return
     if selected in {"field", "field_back"}:
-        _draw_frame_template(editor, painter, c, (40, 56), (selected,), "#305273")
+        _draw_field_template(editor, painter, c, selected)
         painter.end(); _set_preview_pixmap(c["preview"], QPixmap.fromImage(image)); return
     if selected == "library":
         _draw_frame_template(editor, painter, c, (24, 32), ("library",), "#55446f")
@@ -1320,9 +1341,9 @@ def _draw_hand_template(editor, painter, c):
 
 
 def _draw_frame_template(editor, painter, controls, size, keys, colour):
-    """Preview the independent field/library render targets at their game
-    dimensions.  These placements are not aliases of the 140×196 card, which
-    is why the original Frames page switches templates on selection."""
+    """Preview the independent Library render target at its game dimensions.
+    This placement is not an alias of the 140×196 card, which is why the
+    original Frames page switches templates on selection."""
     width, height = size; left, top = (140 - width) // 2, (196 - height) // 2
     painter.fillRect(left, top, width, height, QColor(colour)); controls["boxes"] = {}
     for key in keys:
@@ -1337,6 +1358,31 @@ def _draw_frame_template(editor, painter, controls, size, keys, colour):
     chosen = controls.get("selected")
     if chosen in controls["boxes"]:
         painter.setPen(QPen(QColor("#1686ff"), 2)); painter.drawRect(QRect(*controls["boxes"][chosen]))
+
+
+def _draw_field_template(editor, painter, c, key):
+    """Preview the independent 40x56 on-field render target (face-up or
+    face-down) at its game size.  With no custom replacement, fall back to
+    the real duel-board plate: a monster's own for "field" (a non-monster's
+    for anything else), the one shared plate for "field_back"."""
+    width, height = 40, 56
+    left, top = (140 - width) // 2, (196 - height) // 2
+    painter.fillRect(left, top, width, height, QColor("#305273")); c["boxes"] = {}
+    box = QRect(left, top, width, height)
+    c["boxes"][key] = (box.x(), box.y(), box.width(), box.height())
+    asset = _ui_image(editor, _frame_asset(editor, key))
+    if asset is not None:
+        painter.drawImage(box, _qimage(asset.width, asset.height, asset.rgba))
+    else:
+        wa = getattr(getattr(editor, "files", None), "wa", None)
+        kind = _frame_preview_kind(c)
+        plate = (_field_back_frame_background(wa, _FRAME_INDEX[kind]) if key == "field_back"
+                else _field_frame_background(wa, _FRAME_INDEX[kind], kind == "monster"))
+        if plate is not None: _frame_draw_picture(painter, plate, box)
+        else: painter.setPen(QColor("#9ab2cf")); painter.drawRect(box)
+    chosen = c.get("selected")
+    if chosen in c["boxes"]:
+        painter.setPen(QPen(QColor("#1686ff"), 2)); painter.drawRect(QRect(*c["boxes"][chosen]))
 
 
 def _frame_geometry_changed(editor):
