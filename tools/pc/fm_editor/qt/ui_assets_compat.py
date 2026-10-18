@@ -1267,6 +1267,18 @@ def _draw_frames(editor):
             glyph_w, glyph_h = _frame_rect(editor, key)[2:]
             for number, character in enumerate(text):
                 _frame_draw_picture(painter, _frame_digit_cell(digits_image, int(character)), QRect(x + number * step, y, glyph_w, glyph_h))
+        elif key in ("atk_label", "dfd_label", "atk", "def"):
+            # The retail font's 8x12 glyph cells, scaled down into this
+            # small a box, blur into unreadable blobs (three letters in
+            # 16x8, or four digits squeezed into one glyph's own width, are
+            # already tighter than the cell size on their own). Vector text
+            # stays crisp at any box size, the same reason the name gets its
+            # own HD plate instead of the retail font's cells.
+            painter.setPen(QColor(color))
+            label_font = QFont("DejaVu Sans"); label_font.setBold(True)
+            label_font.setPixelSize(max(5, box.height()))
+            painter.setFont(label_font)
+            painter.drawText(box, Qt.AlignmentFlag.AlignCenter, text)
         else:
             picture = _frame_title_picture(text, box.width(), box.height(), color) if key == "title" else _frame_text_picture(font, text, box.width(), box.height(), color)
             if picture is not None:
