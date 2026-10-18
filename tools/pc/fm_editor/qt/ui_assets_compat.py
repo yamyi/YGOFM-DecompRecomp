@@ -1338,19 +1338,20 @@ def _draw_frames(editor):
             for number, character in enumerate(text):
                 _frame_draw_picture(painter, _frame_digit_cell(digits_image, int(character)), QRect(x + number * step, y, glyph_w, glyph_h))
         elif key in ("atk_label", "dfd_label", "atk", "def"):
-            # The retail font's 8x12 glyph cells, scaled down into this
-            # small a box, blur into unreadable blobs (three letters in
-            # 16x8, or four digits squeezed into one glyph's own width, are
-            # already tighter than the cell size on their own). Vector text
-            # stays crisp at any box size, the same reason the name gets its
-            # own HD plate instead of the retail font's cells. The game's
-            # own HD path reproduces its serif pixel font's exact shape
-            # rather than substituting a system face; _draw_hd_card_title
-            # already approximates that with Times New Roman for the name,
-            # so match it here too instead of a generic sans-serif.
+            # Comparing the game's own HD-text-off vs HD-text-on card
+            # views: HD text is not a different typeface, it is the exact
+            # same glyph shapes reconstructed smooth and crisp at a larger
+            # size (hd_text.c's own header describes the same thing: a
+            # letter "measured" from the retail cell, redrawn with real
+            # anti-aliasing, not swapped out). Naively bilinear-scaling the
+            # retail font's tiny 8x12 cell up to this size (tried first)
+            # cannot reach that -- it just blurs. A bold vector serif gets
+            # closer to the crisp, generously-sized result HD text actually
+            # produces than either the blurry bitmap or the cramped retail
+            # cells at native size.
             painter.setPen(QColor(color))
-            label_font = QFont("Times New Roman"); label_font.setBold(True)
-            label_font.setPixelSize(max(5, round(box.height() * 0.85)))
+            label_font = QFont("DejaVu Serif"); label_font.setBold(True)
+            label_font.setPixelSize(max(6, round(box.height() * 1.05)))
             painter.setFont(label_font)
             painter.drawText(box, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, text)
         else:
