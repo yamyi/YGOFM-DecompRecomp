@@ -158,10 +158,14 @@ def _apply_reference_skin(shell, tabs, assets_tab):
     """Apply the four-tab UI Assets presentation from the supplied reference."""
     title = shell.findChild(QLabel, "pageTitleLabel")
     summary = shell.findChild(QLabel, "pageSummaryLabel")
-    title.setText("▣  UI Assets")
-    summary.setText("Replace named interface graphics used by menus, icons, and duel screens.")
-    title.setStyleSheet("font-size: 25px; font-weight: 700; color: #f3f8ff;")
-    summary.setStyleSheet("color: #aabbd2; font-size: 13px;")
+    # The supplied all-tabs form has no page-level heading.  Older versions
+    # did, so keep this optional instead of failing while the editor starts.
+    if title is not None:
+        title.setText("▣  UI Assets")
+        title.setStyleSheet("font-size: 25px; font-weight: 700; color: #f3f8ff;")
+    if summary is not None:
+        summary.setText("Replace named interface graphics used by menus, icons, and duel screens.")
+        summary.setStyleSheet("color: #aabbd2; font-size: 13px;")
     index = tabs.indexOf(assets_tab)
     tabs.tabBar().setTabVisible(index, True)
     tabs.setDocumentMode(False)
@@ -3010,7 +3014,7 @@ def _build_framework(self, page, controls, layout):
     categories = sorted({item["name"].split("/", 1)[0] for item in catalog}, key=str.casefold)
     controls.clear(); controls.update(page=page, catalog=catalog, category=categories[0] if categories else "", selected=None)
     self.workspace_controls["Assets"] = controls
-    if hasattr(self, "nav_buttons") and "Assets" in self.nav_buttons: self.nav_buttons["Assets"].setText("Assets")
+    if hasattr(self, "nav_buttons") and "Assets" in self.nav_buttons: self.nav_buttons["Assets"].setText("UI")
     root = QSplitter(Qt.Orientation.Horizontal); root.setChildrenCollapsible(False); layout.addWidget(root, 1)
     category_box = QGroupBox("Asset Categories")
     category_layout = QVBoxLayout(category_box); category_layout.setContentsMargins(8, 12, 8, 8)
@@ -3196,6 +3200,8 @@ def _build_template_framework(self, page, controls, layout):
     controls.update(page=page, form=form, catalog=catalog, category="__all__",
                     selected=None, filter_mode="all", preview_scale=2)
     self.workspace_controls["Assets"] = controls
+    if hasattr(self, "nav_buttons") and "Assets" in self.nav_buttons:
+        self.nav_buttons["Assets"].setText("UI")
 
     tree = _asset_widget(form, QTreeWidget, "assetCategoryTree")
     tree.clear()
