@@ -646,6 +646,8 @@ _FRAME_MOVABLE = {part[0] for part in _FRAME_PARTS if part[0] not in _FRAME_DIRE
 _CARD_SHEET, _CARD_PALETTES = 0xEFE800, 0xF06800
 _BALL_PALETTE, _STAR_PALETTE, _LABEL_PALETTE = 0x1E00, 0x1180, 0x11E0
 _frame_title_faces = {}
+_frame_title_images = {}
+_FRAME_RENDER_SCALE = 4
 
 
 def _frame_vram_picture(wa, base, u, v, width, height, palette):
@@ -703,13 +705,22 @@ def _frame_text_picture(font, text, width, height, color):
 
 
 def _frame_title_picture(text, width, height, color):
+    """CardArt_TitlePicture's four-times title plate for the Frames preview.
+
+    The original Frames page keeps this 4x plate until it is painted onto its
+    zoomed preview.  Reducing it to a 96x14 image first loses the game's
+    antialiasing and makes the title look like the 8x12 UI font.
+    """
     if not text:
         return None
+    key = (text, max(1, width), max(1, height), color)
+    if key in _frame_title_images:
+        return _frame_title_images[key]
     try:
         face = _frame_title_face()
         if face is None:
             return None
-        inks = packs.name_plate_inks(text, face, 4)
+        inks = packs.name_plate_inks(text, face, _FRAME_RENDER_SCALE)
     except (ttf.FontError, OSError, ValueError, IndexError, KeyError):
         return None
     if inks is None:
@@ -718,12 +729,16 @@ def _frame_title_picture(text, width, height, color):
         rgb = tuple(int(color[index:index + 2], 16) for index in (1, 3, 5))
     except (TypeError, ValueError):
         rgb = (255, 255, 255)
-    rgba = bytearray(96 * 4 * 14 * 4 * 4)
+    factor = _FRAME_RENDER_SCALE
+    rgba = bytearray(96 * factor * 14 * factor * 4)
     for index, ink in enumerate(inks):
         if ink:
             alpha = round(255 * art.INK_SHARE[ink]) if ink < len(art.INK_SHARE) else 0
             rgba[index * 4:index * 4 + 4] = bytes((*rgb, alpha))
-    return _frame_sized(pngio.Image(96 * 4, 14 * 4, bytes(rgba)), width, height)
+    picture = _frame_sized(pngio.Image(96 * factor, 14 * factor, bytes(rgba)),
+                           max(1, width) * factor, max(1, height) * factor)
+    _frame_title_images[key] = picture
+    return picture
 
 
 def _frame_title_face():
@@ -875,31 +890,53 @@ def _drop_frame_orphans(editor):
             editor.project.deleted_files.add(name)
 
 
+def _queue_frame_redraw(editor):
+    """Limit drag repainting to the display cadence instead of every event."""
+    c = editor.workspace_controls["Assets"]["frames"]
+    timer = c.get("drag_render_timer")
+    if timer is None:
+        timer = c["drag_render_timer"] = QTimer(c["preview"])
+        timer.setSingleShot(True)
+        timer.timeout.connect(lambda: _draw_frames(editor))
+    if not timer.isActive():
+        timer.start(16)
+
+
 class _FramePreviewEvents(QObject):
     def __init__(self, editor, parent):
         super().__init__(parent); self.editor = editor
 
     def eventFilter(self, watched, event):
         if event.type() == QEvent.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton:
-            point = _frame_preview_point(watched, event.position()); key = _preview_key(self.editor.workspace_controls["Assets"]["frames"].get("boxes", {}), point)
+            point = _frame_preview_point(watched, event.position())
+            key = _preview_key(self.editor.workspace_controls["Assets"]["frames"].get("boxes", {}), point)
             if key:
                 c = self.editor.workspace_controls["Assets"]["frames"]
-                c["selected"] = key; c["drag"] = (key, point, False); _refresh_frames_tab(self.editor)
+                x, y, _, _ = _frame_rect(self.editor, key)
+                c["selected"] = key
+                c["drag"] = {"key": key, "origin": point, "x": x, "y": y, "moved": False}
+                _refresh_frames_tab(self.editor)
             return True
         if event.type() == QEvent.Type.MouseMove and event.buttons() & Qt.MouseButton.LeftButton:
             c = self.editor.workspace_controls["Assets"]["frames"]; drag = c.get("drag")
             if not drag: return True
-            key, start, moved = drag; x, y = _frame_preview_point(watched, event.position()); dx, dy = round(x - start[0]), round(y - start[1])
-            if not dx and not dy: return True
-            if key in _FRAME_MOVABLE:
-                part = _frame_part(self.editor, key, True); rx, ry, _, _ = _frame_rect(self.editor, key)
-                default = _FRAME_SPEC[key][3]
-                _put(part, "x", rx + dx, default[0]); _put(part, "y", ry + dy, default[1])
-                c["drag"] = (key, start, True); _draw_frames(self.editor)
+            key = drag["key"]
+            if key not in _FRAME_MOVABLE: return True
+            x, y = _frame_preview_point(watched, event.position())
+            origin_x, origin_y = drag["origin"]
+            next_x, next_y = drag["x"] + round(x - origin_x), drag["y"] + round(y - origin_y)
+            current_x, current_y, _, _ = _frame_rect(self.editor, key)
+            if (next_x, next_y) == (current_x, current_y): return True
+            part, default = _frame_part(self.editor, key, True), _FRAME_SPEC[key][3]
+            _put(part, "x", next_x, default[0]); _put(part, "y", next_y, default[1])
+            drag["moved"] = True
+            _queue_frame_redraw(self.editor)
             return True
         if event.type() == QEvent.Type.MouseButtonRelease and event.button() == Qt.MouseButton.LeftButton:
             c = self.editor.workspace_controls["Assets"]["frames"]; drag = c.pop("drag", None)
-            if drag and drag[2]: _frame_commit(self.editor)
+            timer = c.get("drag_render_timer")
+            if timer is not None and timer.isActive(): timer.stop()
+            if drag and drag["moved"]: _frame_commit(self.editor)
             return True
         if event.type() == QEvent.Type.Wheel:
             c = self.editor.workspace_controls["Assets"]["frames"]; key = c.get("selected", "frame")
@@ -1069,8 +1106,15 @@ def _refresh_frames_tab(editor):
 def _draw_frames(editor):
     c = editor.workspace_controls.get("Assets", {}).get("frames")
     if not c: return
-    image = QImage(140, 196, QImage.Format.Format_RGBA8888); image.fill(QColor("#06111e"))
-    painter = QPainter(image); painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+    # Frames are composed at the same four-times internal resolution that the
+    # game uses for HD card names.  Logical coordinates remain console pixels,
+    # so the editor fields and hit-testing still exactly match the original.
+    image = QImage(140 * _FRAME_RENDER_SCALE, 196 * _FRAME_RENDER_SCALE,
+                   QImage.Format.Format_RGBA8888)
+    image.fill(QColor("#06111e"))
+    painter = QPainter(image)
+    painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+    painter.scale(_FRAME_RENDER_SCALE, _FRAME_RENDER_SCALE)
     selected = c.get("selected", "frame")
     if selected == "hand" or selected.startswith("hand_"):
         _draw_frame_template(editor, painter, c, (52, 60), ("hand", "hand_art", "hand_atk", "hand_def", "hand_atk_label", "hand_dfd_label"), "#665328")
@@ -1101,7 +1145,7 @@ def _draw_frames(editor):
     wa = getattr(getattr(editor, "files", None), "wa", None)
     try: font = card_text.RetailFont(wa) if wa else None
     except ValueError: font = None
-    retail_art = art.in_game(editor.project, wa, _frame_card_id(editor) or 1, "art") if wa else None
+    retail_art = art.in_game(editor.project, wa, _frame_card_id(editor) or 1, "art", _FRAME_RENDER_SCALE) if wa else None
     star_icon, attribute_icon = _frame_star(wa), _frame_attribute(wa, 0)
     caption_key = f"{kind}_label" if kind != "monster" else None
     caption = _frame_caption(wa, kind) if caption_key else None

@@ -477,10 +477,10 @@ class CardsTest(unittest.TestCase):
         self.assertEqual(c['form'].objectName(), 'FramesPage')
         self.assertIs(w.workspace_controls['Assets']['frames_tab'], c['form'])
         self.assertEqual(c['style'].currentItem().text(), 'custom')
-        # The retail Frames preview remains a 140×196 game card even when
-        # the Designer form scales it for the available panel size.
+        # The preview retains the game renderer's 4x internal card texture,
+        # while its placement and hit-testing remain in 140×196 game pixels.
         retail_preview = c['preview'].property('_fullPixmap')
-        self.assertEqual((retail_preview.width(), retail_preview.height()), (140, 196))
+        self.assertEqual((retail_preview.width(), retail_preview.height()), (560, 784))
 
         # Select Artwork through the tree model exactly as a user does, then
         # edit its game-pixel position through the Designer spin boxes.
