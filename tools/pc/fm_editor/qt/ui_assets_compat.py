@@ -643,8 +643,11 @@ _FRAME_PARTS = (
     # distinct 24x12 sprites from the card-view sheet, rather than HUD text.
     ("atk", "ATK value", ("digits", "atk"), (109, 163, 6, 13), True, True, False),
     ("def", "DEF value", ("digits", "def"), (109, 177, 6, 13), True, True, False),
-    ("atk_label", "ATK label", ("atk_label",), (74, 162, 24, 12), True, True, True),
-    ("dfd_label", "DFD label", ("dfd_label",), (74, 173, 24, 12), True, True, True),
+    # The HD Times outlines have their own ink origin inside these boxes.
+    # Their source-box origin is one pixel left and five pixels above the
+    # retail bitmap's visual origin; this matches the card viewer exactly.
+    ("atk_label", "ATK label", ("atk_label",), (73, 157, 24, 12), True, True, True),
+    ("dfd_label", "DFD label", ("dfd_label",), (73, 168, 24, 12), True, True, True),
     ("magic_label", "Magic-card caption", ("type_label", "magic"), (84, 35, 56, 16), True, True, True),
     ("equip_label", "Equip-card caption", ("type_label", "equip"), (84, 35, 56, 16), True, True, True),
     ("ritual_label", "Ritual-card caption", ("type_label", "ritual"), (84, 35, 56, 16), True, True, True),

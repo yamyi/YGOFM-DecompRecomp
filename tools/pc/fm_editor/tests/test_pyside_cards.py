@@ -505,9 +505,9 @@ class CardsTest(unittest.TestCase):
         # the centre of their four-cell run, so their rendered rows start at
         # (97, 157) and (97, 171), not at the Frame image rectangle.
         from fm_editor.qt.ui_assets_compat import _frame_rect
-        self.assertEqual(_frame_rect(w, 'atk_label'), (74, 162, 24, 12))
+        self.assertEqual(_frame_rect(w, 'atk_label'), (73, 157, 24, 12))
         self.assertEqual(_frame_rect(w, 'atk'), (109, 163, 6, 13))
-        self.assertEqual(_frame_rect(w, 'dfd_label'), (74, 173, 24, 12))
+        self.assertEqual(_frame_rect(w, 'dfd_label'), (73, 168, 24, 12))
         self.assertEqual(_frame_rect(w, 'def'), (109, 177, 6, 13))
 
         # Select Artwork through the tree model exactly as a user does, then
