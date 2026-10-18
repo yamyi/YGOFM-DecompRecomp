@@ -1542,6 +1542,39 @@ class CardsTest(unittest.TestCase):
         w._remove_star_icon()
         self.assertNotIn('icons/star-5.png', w.project.files)
 
+    def test_duplicate_star_keeps_an_independent_icon_after_save_reopen(self):
+        """Removing a duplicated icon must never remove the source star's PNG."""
+        from fm_editor import guardian_stars as gs, pngio
+        w = self.window
+        self.stars_page()
+        w._select_star_row(1)
+        image = pngio.Image(16, 16, bytes([40, 120, 200, 255]) * 256)
+        with tempfile.TemporaryDirectory() as folder:
+            source = Path(folder) / 'star.png'
+            pngio.write(str(source), image)
+            w.use_star_icon(1, str(source))
+            source_icon = w.stars_model.stars[1].icon
+
+            w._duplicate_star()
+            duplicate = gs.RETAIL_COUNT + 1
+            duplicate_icon = w.stars_model.stars[duplicate].icon
+            self.assertNotEqual(duplicate_icon, source_icon)
+            self.assertEqual(w.project.files[duplicate_icon], w.project.files[source_icon])
+
+            w.stars_selected = duplicate
+            w._remove_star_icon()
+            self.assertEqual(w.stars_model.stars[1].icon, source_icon)
+            self.assertIn(source_icon, w.project.files)
+            self.assertNotIn(duplicate_icon, w.project.files)
+
+            output = Path(folder) / 'mod'
+            manifest.save_mod(w.project, output)
+            reopened, messages = manifest.open_mod(w.retail, output)
+            self.assertEqual(messages, [])
+            restored = gs.read(reopened.other.get('guardian_stars'))
+            self.assertEqual(restored.stars[1].icon, source_icon)
+            self.assertEqual(pngio.read(output / source_icon).rgba, image.rgba)
+
     def test_the_table_presets(self):
         w = self.window
         self.stars_page()

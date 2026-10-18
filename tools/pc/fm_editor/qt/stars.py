@@ -443,12 +443,40 @@ class StarsMixin:
         if source is not None:
             entry = self._star_entry(star)
             entry.name = copy.deepcopy(source.name)
-            entry.icon = source.icon
+            # Icons are mutable mod files.  A duplicate must own a copy rather
+            # than point at the source star's file, otherwise removing the
+            # duplicate (or just its icon) can delete the source icon too.
+            entry.icon = self._copy_star_icon(source.icon, star)
             entry.palette = source.palette
             entry.extra = copy.deepcopy(source.extra)
             self._refresh_stars_names_box()
             self._fill_stars()
             self._commit_stars()
+    def _copy_star_icon(self, source_icon, star):
+        """Copy an icon into the new star's mod-owned file, if it is readable."""
+        if not source_icon:
+            return None
+        data = self.project.files.get(source_icon)
+        if data is None and self.project.source_dir:
+            try:
+                data = (Path(self.project.source_dir) / source_icon).read_bytes()
+            except OSError:
+                data = None
+        if data is None:
+            # Preserve an unusual external reference.  The removal helper
+            # below still protects any other star that shares it.
+            return source_icon
+        icon = f"icons/star-{star}.png"
+        self.project.files[icon] = data
+        return icon
+    def _discard_star_icon_file(self, icon, except_star=None):
+        """Drop a mod file only after the last Guardian Star stops using it."""
+        if not icon:
+            return
+        for star, entry in self.stars_model.stars.items():
+            if star != except_star and entry.icon == icon:
+                return
+        self.project.files.pop(icon, None)
     def _remove_star(self):
         star = self.stars_selected
         if not star or star not in self.stars_model.stars:
@@ -463,8 +491,7 @@ class StarsMixin:
                 QMessageBox.StandardButton.No)
             if answer != QMessageBox.StandardButton.Yes:
                 return
-        if self.stars_model.stars[star].icon:
-            self.project.files.pop(self.stars_model.stars[star].icon, None)
+        self._discard_star_icon_file(self.stars_model.stars[star].icon, except_star=star)
         self.stars_model.remove_star(star)
         self._forget_star_icon(star)
         self.stars_selected = min(star, self.stars_model.count)
@@ -499,8 +526,9 @@ class StarsMixin:
         entry = self.stars_model.stars.get(star) if star else None
         if not entry or not entry.icon:
             return
-        self.project.files.pop(entry.icon, None)
+        icon = entry.icon
         entry.icon = None
+        self._discard_star_icon_file(icon)
         self._forget_star_icon(star)
         self._tidy_star(star)
         self._fill_stars()
