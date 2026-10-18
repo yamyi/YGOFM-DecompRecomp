@@ -591,9 +591,26 @@ def _ui_image(editor, name):
         return None
     try:
         if name in editor.project.files:
-            return pngio.decode(editor.project.files[name])
+            encoded = editor.project.files[name]
+            key = ("project", name, id(encoded), len(encoded))
+            cache = getattr(editor, "_ui_image_cache", None)
+            if cache is None:
+                cache = editor._ui_image_cache = {}
+            image = cache.get(key)
+            if image is None:
+                image = cache[key] = pngio.decode(encoded)
+            return image
         if editor.project.source_dir:
-            return pngio.read(Path(editor.project.source_dir) / name)
+            path = Path(editor.project.source_dir) / name
+            info = path.stat()
+            key = ("source", str(path), info.st_mtime_ns, info.st_size)
+            cache = getattr(editor, "_ui_image_cache", None)
+            if cache is None:
+                cache = editor._ui_image_cache = {}
+            image = cache.get(key)
+            if image is None:
+                image = cache[key] = pngio.read(path)
+            return image
     except (OSError, ValueError, pngio.PngError):
         pass
     return None
@@ -1166,7 +1183,7 @@ class _FramePreviewEvents(QObject):
                 x, y, _, _ = _frame_rect(self.editor, key)
                 c["selected"] = key
                 c["drag"] = {"key": key, "origin": point, "x": x, "y": y, "moved": False}
-                _refresh_frames_tab(self.editor)
+                _refresh_frames_tab(self.editor, selection_only=True)
             return True
         if event.type() == QEvent.Type.MouseMove and event.buttons() & Qt.MouseButton.LeftButton:
             c = self.editor.workspace_controls["UI"]["frames"]; drag = c.get("drag")
@@ -1292,7 +1309,7 @@ def _frame_select(editor, item):
     key = item.data(0, Qt.ItemDataRole.UserRole)
     if key in _FRAME_SPEC:
         editor.workspace_controls["UI"]["frames"]["selected"] = key
-        _refresh_frames_tab(editor)
+        _refresh_frames_tab(editor, selection_only=True)
 
 
 def _frame_style_changed(editor, item):
@@ -1303,29 +1320,30 @@ def _frame_style_changed(editor, item):
         _refresh_frames_tab(editor)
 
 
-def _refresh_frames_tab(editor):
+def _refresh_frames_tab(editor, selection_only=False):
     c = editor.workspace_controls.get("UI", {}).get("frames")
     if not c or c.get("loading"):
         return
     c["loading"] = True
     try:
-        styles = _frame_styles(editor); names = list(styles) or ["custom"]
         current = _frame_style_name(editor)
-        if current not in names: current = names[0]
-        c["style_name"] = current
-        c["style"].blockSignals(True); c["style"].clear(); c["style"].addItems(names)
-        c["style"].setCurrentRow(names.index(current)); c["style"].blockSignals(False)
-        from PySide6.QtWidgets import QTreeWidgetItem
-        tree = c["parts"]; tree.blockSignals(True); tree.clear(); chosen = None
-        groups = (("Main", _FRAME_PARTS[:2] + _FRAME_PARTS[6:20]), ("Hand", _FRAME_PARTS[2:3] + _FRAME_PARTS[20:]),
-                  ("Field", _FRAME_PARTS[3:5]), ("Library", _FRAME_PARTS[5:6]))
-        for label, parts in groups:
-            root = QTreeWidgetItem([label]); root.setFlags(root.flags() & ~Qt.ItemFlag.ItemIsSelectable)
-            tree.addTopLevelItem(root)
-            for key, part_label, *_ in parts:
-                item = QTreeWidgetItem([part_label]); item.setData(0, Qt.ItemDataRole.UserRole, key); root.addChild(item)
-                if key == c["selected"]: chosen = item
-        tree.expandAll(); tree.setCurrentItem(chosen or tree.topLevelItem(0).child(0)); tree.blockSignals(False)
+        if not selection_only:
+            styles = _frame_styles(editor); names = list(styles) or ["custom"]
+            if current not in names: current = names[0]
+            c["style_name"] = current
+            c["style"].blockSignals(True); c["style"].clear(); c["style"].addItems(names)
+            c["style"].setCurrentRow(names.index(current)); c["style"].blockSignals(False)
+            from PySide6.QtWidgets import QTreeWidgetItem
+            tree = c["parts"]; tree.blockSignals(True); tree.clear(); chosen = None
+            groups = (("Main", _FRAME_PARTS[:2] + _FRAME_PARTS[6:20]), ("Hand", _FRAME_PARTS[2:3] + _FRAME_PARTS[20:]),
+                      ("Field", _FRAME_PARTS[3:5]), ("Library", _FRAME_PARTS[5:6]))
+            for label, parts in groups:
+                root = QTreeWidgetItem([label]); root.setFlags(root.flags() & ~Qt.ItemFlag.ItemIsSelectable)
+                tree.addTopLevelItem(root)
+                for key, part_label, *_ in parts:
+                    item = QTreeWidgetItem([part_label]); item.setData(0, Qt.ItemDataRole.UserRole, key); root.addChild(item)
+                    if key == c["selected"]: chosen = item
+            tree.expandAll(); tree.setCurrentItem(chosen or tree.topLevelItem(0).child(0)); tree.blockSignals(False)
         key = c["selected"]; spec = _FRAME_SPEC[key]; x, y, width, height = _frame_rect(editor, key)
         for name, value in (("x", x), ("y", y), ("width", width), ("height", height)):
             c[name].blockSignals(True); c[name].setValue(value); c[name].blockSignals(False)
@@ -1342,14 +1360,27 @@ def _refresh_frames_tab(editor):
             _frames_widget(c["form"], QPushButton, name).setEnabled(spec[6] and has_image)
         _frames_widget(c["form"], QLabel, "elementName").setText(spec[1])
         _frames_widget(c["form"], QLabel, "styleProperty").setText(current)
-        _draw_frames(editor)
+        _draw_frames(editor, selection_only=selection_only)
     finally:
         c["loading"] = False
 
 
-def _draw_frames(editor):
+def _draw_frames(editor, selection_only=False):
     c = editor.workspace_controls.get("UI", {}).get("frames")
     if not c: return
+    # Clicking an element changes only its blue outline.  Reuse the composed
+    # 4x card rather than decoding every custom-style PNG and card-art source
+    # again on the GUI thread.
+    base_preview = c.get("base_preview_image")
+    if (selection_only and _frame_preview_domain(c.get("selected", "frame")) == "main"
+            and isinstance(base_preview, QImage) and not base_preview.isNull()):
+        image = base_preview.copy()
+        painter = QPainter(image)
+        painter.scale(_FRAME_RENDER_SCALE, _FRAME_RENDER_SCALE)
+        _draw_frame_selected_outline(painter, c)
+        painter.end()
+        _set_preview_pixmap(c["preview"], QPixmap.fromImage(image))
+        return
     # Frames are composed at the same four-times internal resolution that the
     # game uses for HD card names.  Logical coordinates remain console pixels,
     # so the editor fields and hit-testing still exactly match the original.
@@ -1361,12 +1392,15 @@ def _draw_frames(editor):
     painter.scale(_FRAME_RENDER_SCALE, _FRAME_RENDER_SCALE)
     selected = c.get("selected", "frame")
     if selected == "hand" or selected.startswith("hand_"):
+        c.pop("base_preview_image", None)
         _draw_hand_template(editor, painter, c)
         painter.end(); _set_preview_pixmap(c["preview"], QPixmap.fromImage(image)); return
     if selected in {"field", "field_back"}:
+        c.pop("base_preview_image", None)
         _draw_field_template(editor, painter, c, selected)
         painter.end(); _set_preview_pixmap(c["preview"], QPixmap.fromImage(image)); return
     if selected == "library":
+        c.pop("base_preview_image", None)
         _draw_library_template(editor, painter, c)
         painter.end(); _set_preview_pixmap(c["preview"], QPixmap.fromImage(image)); return
     face = _frames_widget(c["form"], QRadioButton, "frontRadio").isChecked()
@@ -1395,7 +1429,12 @@ def _draw_frames(editor):
     # and its title plate.  It deliberately does not use generic Qt text.
     try: font = card_text.RetailFont(wa) if wa else None
     except ValueError: font = None
-    retail_art = art.in_game(editor.project, wa, _frame_card_id(editor) or 1, "art", _FRAME_RENDER_SCALE) if wa else None
+    card_id = _frame_card_id(editor) or 1
+    art_key = (id(wa), card_id)
+    art_cache = c.setdefault("retail_art_cache", {})
+    if art_key not in art_cache:
+        art_cache[art_key] = art.in_game(editor.project, wa, card_id, "art", _FRAME_RENDER_SCALE) if wa else None
+    retail_art = art_cache[art_key]
     star_icon, attribute_icon = _frame_star(wa), _frame_attribute(wa, 0)
     caption_key = f"{kind}_label" if kind != "monster" else None
     caption = _frame_caption(wa, kind) if caption_key else None
@@ -1471,8 +1510,19 @@ def _draw_frames(editor):
             else:
                 painter.setPen(QColor(color)); painter.setFont(QFont("Serif", max(6, box.height() - 2)))
                 painter.drawText(box, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, text)
+    c["base_preview_image"] = image.copy()
     _draw_frame_selected_outline(painter, c)
     painter.end(); _set_preview_pixmap(c["preview"], QPixmap.fromImage(image))
+
+
+def _frame_preview_domain(key):
+    if key == "hand" or key.startswith("hand_"):
+        return "hand"
+    if key in {"field", "field_back"}:
+        return "field"
+    if key == "library":
+        return "library"
+    return "main"
 
 
 def _draw_frame_selected_outline(painter, controls):
