@@ -3274,9 +3274,6 @@ def _build_template_framework(self, page, controls):
         size=_asset_widget(form, QLabel, "assetSizeValue"),
         uses=_asset_widget(form, QLabel, "assetMethodValue"),
         state=_asset_widget(form, QLabel, "assetStatus"),
-        # The original form has no catalogue footer.  Keep this bookkeeping
-        # label out of the layout instead of changing the copied form.
-        footer=QLabel(form),
         replacement_info=_asset_widget(form, QLabel, "assetStatusNote"),
     )
     controls["remove"].setEnabled(False)
@@ -3393,8 +3390,6 @@ def _refresh_template(self):
         _select_template_row(self)
     else:
         _select_template(self, None)
-    modified = sum(1 for asset in c.get("catalog", []) if _entry_for(self, asset))
-    c["footer"].setText(f"{modified} modified asset{'s' if modified != 1 else ''}")
 
 
 def _select_template_row(self):

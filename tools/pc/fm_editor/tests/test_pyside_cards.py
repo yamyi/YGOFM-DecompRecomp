@@ -409,7 +409,7 @@ class CardsTest(unittest.TestCase):
         saved mod subsequently reloads."""
         from PySide6.QtCore import QPoint, Qt
         from PySide6.QtTest import QTest
-        from PySide6.QtWidgets import QPushButton
+        from PySide6.QtWidgets import QLabel, QPushButton
         from fm_editor import manifest
 
         w = self.window
@@ -417,6 +417,8 @@ class CardsTest(unittest.TestCase):
         c = w.workspace_controls['Assets']
         self.assertIs(c['shell'], w.workspace_forms['Assets'])
         self.assertFalse(any(item['name'].startswith('card_frames/') for item in c['catalog']))
+        self.assertFalse(any('modified asset' in label.text()
+                             for label in c['assets_tab'].findChildren(QLabel)))
         self.assertEqual([c['tabs'].tabText(i) for i in range(c['tabs'].count())],
                          ['Title screen', 'Menus', 'Duel', 'Frames', 'Duel board',
                           'Build Deck', 'Assets'])
