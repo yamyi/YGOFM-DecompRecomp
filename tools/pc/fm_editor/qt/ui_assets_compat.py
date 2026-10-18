@@ -637,10 +637,10 @@ _FRAME_PARTS = (
     ("art", "Artwork", ("art",), (19, 50, 102, 96), True, True, False),
     ("stars", "Level stars", ("stars",), (119, 32, 56, 9), True, False, False),
     ("attribute", "Attribute icon", ("attribute",), (110, 13, 16, 16), True, True, False),
-    ("atk", "ATK value", ("digits", "atk"), (97, 169, 10, 12), True, True, False),
-    ("def", "DEF value", ("digits", "def"), (97, 184, 10, 12), True, True, False),
-    ("atk_label", "ATK label", ("atk_label",), (54, 169, 16, 8), True, True, True),
-    ("dfd_label", "DFD label", ("dfd_label",), (54, 184, 16, 8), True, True, True),
+    ("atk", "ATK value", ("digits", "atk"), (97, 163, 10, 12), True, True, False),
+    ("def", "DEF value", ("digits", "def"), (97, 179, 10, 12), True, True, False),
+    ("atk_label", "ATK label", ("atk_label",), (54, 159, 16, 8), True, True, True),
+    ("dfd_label", "DFD label", ("dfd_label",), (54, 175, 16, 8), True, True, True),
     ("magic_label", "Magic-card caption", ("type_label", "magic"), (84, 35, 56, 16), True, True, True),
     ("equip_label", "Equip-card caption", ("type_label", "equip"), (84, 35, 56, 16), True, True, True),
     ("ritual_label", "Ritual-card caption", ("type_label", "ritual"), (84, 35, 56, 16), True, True, True),
@@ -1301,8 +1301,8 @@ def _draw_frames(editor):
     caption = _frame_caption(wa, kind) if caption_key else None
     parts = [("art", "#245175", "CARD ART"), ("title", "#ffffff", "Blue-eyes White Dragon")]
     if kind == "monster":
-        parts += [("stars", "#ffcf41", ""), ("attribute", "#ffe171", ""), ("atk", "#000000", "3000"),
-                  ("def", "#000000", "2500"), ("atk_label", "#000000", "ATK"), ("dfd_label", "#000000", "DFD")]
+        parts += [("stars", "#ffcf41", ""), ("attribute", "#ffe171", ""), ("atk", "#211503", "3000"),
+                  ("def", "#211503", "2500"), ("atk_label", "#211503", "ATK"), ("dfd_label", "#211503", "DFD")]
     else:
         label_text = {"magic_label": "Normal Magic Card", "equip_label": "Equip Magic Card",
                       "ritual_label": "Ritual Magic Card", "trap_label": "Trap Card"}[caption_key]
@@ -1343,12 +1343,16 @@ def _draw_frames(editor):
             # 16x8, or four digits squeezed into one glyph's own width, are
             # already tighter than the cell size on their own). Vector text
             # stays crisp at any box size, the same reason the name gets its
-            # own HD plate instead of the retail font's cells.
+            # own HD plate instead of the retail font's cells. The game's
+            # own HD path reproduces its serif pixel font's exact shape
+            # rather than substituting a system face; _draw_hd_card_title
+            # already approximates that with Times New Roman for the name,
+            # so match it here too instead of a generic sans-serif.
             painter.setPen(QColor(color))
-            label_font = QFont("DejaVu Sans"); label_font.setBold(True)
-            label_font.setPixelSize(max(5, box.height()))
+            label_font = QFont("Times New Roman"); label_font.setBold(True)
+            label_font.setPixelSize(max(5, round(box.height() * 0.85)))
             painter.setFont(label_font)
-            painter.drawText(box, Qt.AlignmentFlag.AlignCenter, text)
+            painter.drawText(box, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, text)
         else:
             picture = _frame_title_picture(text, box.width(), box.height(), color) if key == "title" else _frame_text_picture(font, text, box.width(), box.height(), color)
             if picture is not None:
