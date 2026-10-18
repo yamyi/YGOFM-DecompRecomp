@@ -11,6 +11,8 @@ from .. import art, board_art, board_model, card_text, duel_screen, gamedata, pa
 import contextlib
 import json
 import re
+import shutil
+import subprocess
 import sys
 import threading
 
@@ -72,19 +74,8 @@ def install():
         shell = _all_tabs_form(page)
         layout.addWidget(shell)
         tabs = _asset_widget(shell, QTabWidget, "uiPageTabs")
-        # The supplied Frames form intentionally keeps the classic editor's
-        # absolute layout.  Put it in a scroll area instead of
-        # shrinking it: scaling the form would change every game-pixel
-        # position and clipped the controls at the bottom of smaller windows.
         frames_form = _frames_form(tabs)
-        frames_size = frames_form.size()
-        frames_form.setMinimumSize(frames_size)
-        frames_form.resize(frames_size)
-        frames_tab = QScrollArea(tabs)
-        frames_tab.setObjectName("framesTab")
-        frames_tab.setFrameShape(QFrame.Shape.NoFrame)
-        frames_tab.setWidgetResizable(False)
-        frames_tab.setWidget(frames_form)
+        frames_tab = frames_form
         board_tab = _asset_widget(shell, QWidget, "duelBoardTab")
         tabs.insertTab(tabs.indexOf(board_tab), frames_tab, "Frames")
         assets_tab = QWidget(tabs)
@@ -711,10 +702,9 @@ def _frame_title_picture(text, width, height, color):
     if not text:
         return None
     try:
-        path = packs.serif_path()
-        if not path:
+        face = _frame_title_face()
+        if face is None:
             return None
-        face = _frame_title_faces.setdefault(path, ttf.Font(path))
         inks = packs.name_plate_inks(text, face, 4)
     except (ttf.FontError, OSError, ValueError, IndexError, KeyError):
         return None
@@ -730,6 +720,35 @@ def _frame_title_picture(text, width, height, color):
             alpha = round(255 * art.INK_SHARE[ink]) if ink < len(art.INK_SHARE) else 0
             rgba[index * 4:index * 4 + 4] = bytes((*rgb, alpha))
     return _frame_sized(pngio.Image(96 * 4, 14 * 4, bytes(rgba)), width, height)
+
+
+def _frame_title_face():
+    """The same Times-style TTF search as the classic Frames preview.
+
+    The game's title generator wants Times.  Some Linux systems resolve it to
+    a CFF font, which the small shared TTF reader cannot load; fall back to a
+    real TrueType serif face before using the game-font fallback.
+    """
+    candidates = [packs.serif_path()]
+    command = shutil.which("fc-match")
+    if command:
+        for family in ("Liberation Serif:regular", "Noto Serif:regular", "serif:regular"):
+            try:
+                candidates.append(subprocess.run([command, "-f", "%{file}", family], capture_output=True,
+                                                 text=True, timeout=5).stdout.strip())
+            except (OSError, subprocess.SubprocessError):
+                continue
+    for path in candidates:
+        if not path or not Path(path).is_file():
+            continue
+        try:
+            face = _frame_title_faces.get(path)
+            if face is None:
+                face = _frame_title_faces[path] = ttf.Font(path)
+            return face
+        except (ttf.FontError, OSError, ValueError):
+            continue
+    return None
 
 
 def _frame_digit_cell(strip, digit):

@@ -468,15 +468,14 @@ class CardsTest(unittest.TestCase):
         including normal placement edits and the global fallback assignment."""
         from PySide6.QtCore import QPoint, Qt
         from PySide6.QtTest import QTest
-        from PySide6.QtWidgets import QPushButton, QScrollArea
+        from PySide6.QtWidgets import QPushButton
         from fm_editor import manifest
 
         w = self.window
         w.select_workspace('Assets')
         c = w.workspace_controls['Assets']['frames']
         self.assertEqual(c['form'].objectName(), 'FramesPage')
-        self.assertIsInstance(w.workspace_controls['Assets']['frames_tab'], QScrollArea)
-        self.assertIs(w.workspace_controls['Assets']['frames_tab'].widget(), c['form'])
+        self.assertIs(w.workspace_controls['Assets']['frames_tab'], c['form'])
         self.assertEqual(c['style'].currentItem().text(), 'custom')
         # The retail Frames preview remains a 140×196 game card even when
         # the Designer form scales it for the available panel size.
@@ -494,8 +493,14 @@ class CardsTest(unittest.TestCase):
         c['y'].setValue(55)
         # The preview uses the same game-pixel values as its spin boxes; a
         # direct drag must select and move the part, not only redraw it.
+        w.workspace_controls['Assets']['tabs'].setCurrentWidget(c['form'])
         w.show()
         self.qt.processEvents()
+        form_width, canvas_width = c['form'].width(), c['preview'].width()
+        w.resize(w.width() + 240, w.height() + 160)
+        self.qt.processEvents()
+        self.assertGreater(c['form'].width(), form_width)
+        self.assertGreater(c['preview'].width(), canvas_width)
         canvas, box = c['preview'], c['boxes']['art']
         scale = min(canvas.width() / 140, canvas.height() / 196)
         point = QPoint(round((canvas.width() - 140 * scale) / 2 + (box[0] + box[2] / 2) * scale),
@@ -503,8 +508,12 @@ class CardsTest(unittest.TestCase):
         QTest.mousePress(canvas, Qt.MouseButton.LeftButton, pos=point)
         QTest.mouseMove(canvas, QPoint(point.x() + round(5 * scale), point.y() + round(3 * scale)))
         QTest.mouseRelease(canvas, Qt.MouseButton.LeftButton, pos=QPoint(point.x() + round(5 * scale), point.y() + round(3 * scale)))
-        self.assertEqual((w.project.other['card_layout']['frame_styles']['custom']['art']['x'],
-                          w.project.other['card_layout']['frame_styles']['custom']['art']['y']), (32, 58))
+        # The responsive Designer canvas can have a fractional display scale,
+        # so the nearest game-pixel drag delta depends on its current size.
+        # It must still move and preserve that exact resulting game position.
+        art_position = (w.project.other['card_layout']['frame_styles']['custom']['art']['x'],
+                        w.project.other['card_layout']['frame_styles']['custom']['art']['y'])
+        self.assertNotEqual(art_position, (27, 55))
         c['form'].findChild(QPushButton, 'setGlobalDefaultButton').click()
         c['kind_rule'].setCurrentIndex(c['kind_rule'].findData('monster'))
         c['form'].findChild(QPushButton, 'applyKindButton').click()
@@ -517,8 +526,8 @@ class CardsTest(unittest.TestCase):
         self.assertEqual(w.project.other['card_layout']['default_styles']['kinds']['monster'], 'custom')
         self.assertEqual(w.project.other['card_layout']['default_styles']['types'][selected_type], 'custom')
         self.assertEqual(w.project.card_extra[1]['frame_style'], 'custom')
-        self.assertEqual(w.project.other['card_layout']['frame_styles']['custom']['art']['x'], 32)
-        self.assertEqual(w.project.other['card_layout']['frame_styles']['custom']['art']['y'], 58)
+        self.assertEqual((w.project.other['card_layout']['frame_styles']['custom']['art']['x'],
+                          w.project.other['card_layout']['frame_styles']['custom']['art']['y']), art_position)
 
         with tempfile.TemporaryDirectory() as folder:
             manifest.save_mod(w.project, Path(folder))
@@ -530,7 +539,7 @@ class CardsTest(unittest.TestCase):
         self.assertEqual(layout['default_styles']['types'][selected_type], 'custom')
         self.assertEqual(reopened.card_extra[1]['frame_style'], 'custom')
         self.assertEqual((layout['frame_styles']['custom']['art']['x'],
-                          layout['frame_styles']['custom']['art']['y']), (32, 58))
+                          layout['frame_styles']['custom']['art']['y']), art_position)
         w.hide()
 
     def test_removing_ui_title_images_prunes_only_orphans(self):
