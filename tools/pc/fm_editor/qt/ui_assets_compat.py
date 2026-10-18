@@ -7,7 +7,7 @@ from __future__ import annotations
 from .common import *  # noqa: F401,F403
 from .common import _qimage
 from PySide6.QtCore import QObject, QEvent
-from .. import art, board_art, board_model, card_text, duel_screen, gamedata, pngio, ui_assets, ui_rules
+from .. import art, board_art, board_model, card_text, duel_screen, gamedata, packs, pngio, ttf, ui_assets, ui_rules
 import contextlib
 import json
 import re
@@ -72,7 +72,19 @@ def install():
         shell = _all_tabs_form(page)
         layout.addWidget(shell)
         tabs = _asset_widget(shell, QTabWidget, "uiPageTabs")
-        frames_tab = _frames_form(tabs)
+        # The supplied Frames form intentionally keeps the classic editor's
+        # absolute layout.  Put it in a scroll area instead of
+        # shrinking it: scaling the form would change every game-pixel
+        # position and clipped the controls at the bottom of smaller windows.
+        frames_form = _frames_form(tabs)
+        frames_size = frames_form.size()
+        frames_form.setMinimumSize(frames_size)
+        frames_form.resize(frames_size)
+        frames_tab = QScrollArea(tabs)
+        frames_tab.setObjectName("framesTab")
+        frames_tab.setFrameShape(QFrame.Shape.NoFrame)
+        frames_tab.setWidgetResizable(False)
+        frames_tab.setWidget(frames_form)
         board_tab = _asset_widget(shell, QWidget, "duelBoardTab")
         tabs.insertTab(tabs.indexOf(board_tab), frames_tab, "Frames")
         assets_tab = QWidget(tabs)
@@ -92,7 +104,7 @@ def install():
         controls.update(shell=shell, tabs=tabs, assets_tab=assets_tab, frames_tab=frames_tab)
         _apply_reference_skin(shell, tabs, assets_tab)
         _wire_ui_tabs(self, shell, controls)
-        _wire_frames_tab(self, frames_tab, controls)
+        _wire_frames_tab(self, frames_form, controls)
         tabs.setCurrentIndex(0)
         return shell
 
@@ -632,6 +644,105 @@ _FRAME_DIRECT = {"frame", "back", "hand", "field", "field_back", "library"}
 _FRAME_IMAGE = {"digits", "atk_label", "dfd_label", "magic_label", "equip_label", "ritual_label", "trap_label"}
 _FRAME_MOVABLE = {part[0] for part in _FRAME_PARTS if part[0] not in _FRAME_DIRECT}
 
+# Retail card-view sprites live in WA_MRG.MRG.  These three extractors are
+# copied from card_icons.py instead of importing it: card_icons also imports
+# Tkinter for the classic editor's PhotoImage adapter, which the PySide build
+# must not require.
+_CARD_SHEET, _CARD_PALETTES = 0xEFE800, 0xF06800
+_BALL_PALETTE, _STAR_PALETTE, _LABEL_PALETTE = 0x1E00, 0x1180, 0x11E0
+_frame_title_faces = {}
+
+
+def _frame_vram_picture(wa, base, u, v, width, height, palette):
+    if not wa or len(wa) < max(base + (v + height) * 128, palette + 32):
+        return None
+    rgba = bytearray()
+    for y in range(height):
+        for x in range(width):
+            texel = u + x
+            index = wa[base + (v + y) * 128 + texel // 2] >> (4 * (texel & 1)) & 15
+            word = wa[palette + 2 * index] | wa[palette + 2 * index + 1] << 8
+            rgba += bytes(((word & 31) << 3, (word >> 5 & 31) << 3,
+                           (word >> 10 & 31) << 3, 0 if index == 0 or word == 0 else 255))
+    return pngio.Image(width, height, bytes(rgba)) if any(rgba[3::4]) else None
+
+
+def _frame_attribute(wa, index):
+    return _frame_vram_picture(wa, _CARD_SHEET, 16 * index, 128, 16, 16,
+                               _CARD_PALETTES + _BALL_PALETTE + 0x20 * index) if 0 <= index < 8 else None
+
+
+def _frame_star(wa):
+    return _frame_vram_picture(wa, _CARD_SHEET, 0, 144, 9, 9, _CARD_PALETTES + _STAR_PALETTE)
+
+
+def _frame_caption(wa, kind):
+    row = {"magic": 158, "trap": 174, "ritual": 158, "equip": 190}.get(kind)
+    return _frame_vram_picture(wa, _CARD_SHEET, 0, row, 56, 16,
+                               _CARD_PALETTES + _LABEL_PALETTE) if row is not None else None
+
+
+def _frame_sized(image, width, height):
+    return pngio.scale_to(image, width, height) if image is not None and image.size != (width, height) else image
+
+
+def _frame_text_picture(font, text, width, height, color):
+    if not font or not text:
+        return None
+    cells = [font.cell(character) for character in text]
+    native_w, native_h = max(1, len(cells) * card_text.CELL_W), card_text.CELL_H
+    rgba = bytearray(native_w * native_h * 4)
+    try:
+        rgb = tuple(int(color[index:index + 2], 16) for index in (1, 3, 5))
+    except (TypeError, ValueError):
+        rgb = (255, 255, 255)
+    for column, cell in enumerate(cells):
+        if cell is None:
+            continue
+        for y in range(card_text.CELL_H):
+            for x in range(card_text.CELL_W):
+                if cell[y * card_text.CELL_W + x]:
+                    at = (y * native_w + column * card_text.CELL_W + x) * 4
+                    rgba[at:at + 4] = bytes((*rgb, 255))
+    return _frame_sized(pngio.Image(native_w, native_h, bytes(rgba)), width, height)
+
+
+def _frame_title_picture(text, width, height, color):
+    if not text:
+        return None
+    try:
+        path = packs.serif_path()
+        if not path:
+            return None
+        face = _frame_title_faces.setdefault(path, ttf.Font(path))
+        inks = packs.name_plate_inks(text, face, 4)
+    except (ttf.FontError, OSError, ValueError, IndexError, KeyError):
+        return None
+    if inks is None:
+        return None
+    try:
+        rgb = tuple(int(color[index:index + 2], 16) for index in (1, 3, 5))
+    except (TypeError, ValueError):
+        rgb = (255, 255, 255)
+    rgba = bytearray(96 * 4 * 14 * 4 * 4)
+    for index, ink in enumerate(inks):
+        if ink:
+            alpha = round(255 * art.INK_SHARE[ink]) if ink < len(art.INK_SHARE) else 0
+            rgba[index * 4:index * 4 + 4] = bytes((*rgb, alpha))
+    return _frame_sized(pngio.Image(96 * 4, 14 * 4, bytes(rgba)), width, height)
+
+
+def _frame_digit_cell(strip, digit):
+    if strip is None or not 0 <= digit <= 9:
+        return None
+    column, row = digit % 5, digit // 5 + 2
+    return pngio.crop(strip, column * 40, row * 48, 40, 48)
+
+
+def _frame_draw_picture(painter, image, box):
+    if image is not None:
+        painter.drawImage(box, _qimage(image.width, image.height, image.rgba))
+
 
 def _frame_layout(editor, create=False):
     value = editor.project.other.get("card_layout")
@@ -850,6 +961,7 @@ def _wire_frames_tab(editor, form, controls):
     c["style"].currentItemChanged.connect(lambda item, _: _frame_style_changed(editor, item))
     for name in ("frontRadio", "backRadio", "monsterRadio", "magicRadio", "equipRadio", "ritualRadio", "trapRadio"):
         _frames_widget(form, QRadioButton, name).toggled.connect(lambda _: _draw_frames(editor))
+    c["card_rule"].textChanged.connect(lambda _: _draw_frames(editor))
     for field in (c["x"], c["y"], c["width"], c["height"]): field.valueChanged.connect(lambda _: _frame_geometry_changed(editor))
     c["visible"].toggled.connect(lambda _: _frame_geometry_changed(editor))
     _frames_widget(form, QPushButton, "newStyleButton").clicked.connect(lambda: _frame_new_style(editor))
@@ -948,32 +1060,81 @@ def _draw_frames(editor):
         painter.end(); _set_preview_pixmap(c["preview"], QPixmap.fromImage(image)); return
     face = _frames_widget(c["form"], QRadioButton, "frontRadio").isChecked()
     kind = _frame_preview_kind(c)
-    painter.fillRect(0, 0, 140, 196, QColor("#b18a38" if face else "#423455"))
-    c["boxes"] = {}
-    for key, label, _path, _default, can_hide, _resize, _asset in _FRAME_PARTS:
-        if key.startswith("hand_") or key in {"hand", "field", "field_back", "library"}: continue
-        if not face and key not in {"back", "frame"}: continue
-        if face and kind == "monster" and key in {"spell_icon", "magic_label", "equip_label", "ritual_label", "trap_label"}: continue
-        if face and kind != "monster" and key in {"stars", "attribute", "atk", "def", "atk_label", "dfd_label"}: continue
-        if face and kind != "monster" and key in {"magic_label", "equip_label", "ritual_label", "trap_label"} and key != f"{kind}_label": continue
-        part = _frame_part(editor, key)
-        if can_hide and part.get("hide") is True: continue
-        x, y, width, height = _frame_rect(editor, key); box = QRect(x, y, width, height)
-        c["boxes"][key] = (box.x(), box.y(), box.width(), box.height())
+    painter.fillRect(0, 0, 140, 196, QColor("#06080d")); c["boxes"] = {}
+    base = "frame" if face else "back"
+    bx, by, bw, bh = _frame_rect(editor, base)
+    c["boxes"][base] = (bx, by, bw, bh)
+    frame_image = _ui_image(editor, _frame_asset(editor, base))
+    if frame_image is not None:
+        _frame_draw_picture(painter, frame_image, QRect(bx, by, bw, bh))
+    else:
+        painter.fillRect(bx, by, bw, bh, QColor("#35415b")); painter.setPen(QColor("#9da9bf")); painter.drawRect(bx, by, bw, bh)
+    if not face:
+        _draw_frame_selected_outline(painter, c); painter.end(); _set_preview_pixmap(c["preview"], QPixmap.fromImage(image)); return
+
+    # This is the same 140×196 card-view composition as the classic Frames
+    # page: retail art, VRAM star/attribute/caption sprites, the game font,
+    # and its title plate.  It deliberately does not use generic Qt text.
+    wa = getattr(getattr(editor, "files", None), "wa", None)
+    try: font = card_text.RetailFont(wa) if wa else None
+    except ValueError: font = None
+    retail_art = art.in_game(editor.project, wa, _frame_card_id(editor) or 1, "art") if wa else None
+    star_icon, attribute_icon = _frame_star(wa), _frame_attribute(wa, 0)
+    caption_key = f"{kind}_label" if kind != "monster" else None
+    caption = _frame_caption(wa, kind) if caption_key else None
+    parts = [("art", "#245175", "CARD ART"), ("title", "#ffffff", "Blue-eyes White Dragon")]
+    if kind == "monster":
+        parts += [("stars", "#ffcf41", ""), ("attribute", "#ffe171", ""), ("atk", "#ffffff", "3000"),
+                  ("def", "#ffffff", "2500"), ("atk_label", "#cce7ff", "ATK"), ("dfd_label", "#cce7ff", "DFD")]
+    else:
+        label_text = {"magic_label": "Normal Magic Card", "equip_label": "Equip Magic Card",
+                      "ritual_label": "Ritual Magic Card", "trap_label": "Trap Card"}[caption_key]
+        parts += [("spell_icon", "#ffe171", ""), (caption_key, "#111111", label_text)]
+        attribute_icon = _frame_attribute(wa, 7 if kind == "trap" else 6)
+    digits_image = _ui_image(editor, _frame_asset(editor, "digits"))
+    for key, color, text in parts:
+        part = _frame_part(editor, key); can_hide = _FRAME_SPEC[key][4]
+        x, y, width, height = _frame_rect(editor, key)
+        if key in ("atk", "def"):
+            step = _as_int(_frame_part(editor, "digits").get("step"), width)
+            width = (len(text) - 1) * step + width; x -= width // 2; y -= height // 2
+        box = QRect(x, y, width, height); c["boxes"][key] = (x, y, width, height)
+        if can_hide and part.get("hide") is True:
+            painter.setPen(QPen(QColor("#999999"), 1, Qt.PenStyle.DashLine)); painter.drawRect(box); continue
         asset = _ui_image(editor, _frame_asset(editor, key))
         if asset is not None:
-            picture = _qimage(asset.width, asset.height, asset.rgba)
-            painter.drawImage(box, picture)
-        elif key == "art": painter.fillRect(box, QColor("#315d8a"))
-        elif key == "title": painter.setPen(QColor("#ffffff")); painter.setFont(QFont("Serif", 8)); painter.drawText(box, Qt.AlignmentFlag.AlignCenter, "Blue-eyes White Dragon")
-        elif key in {"atk", "def"}: painter.setPen(QColor("#ffffff")); painter.drawText(box, Qt.AlignmentFlag.AlignCenter, "3000" if key == "atk" else "2500")
-        elif key == "stars": painter.setPen(QColor("#ffcf41")); painter.drawText(box, Qt.AlignmentFlag.AlignCenter, "★★★★★★★★")
-        elif key.endswith("_label"): painter.setPen(QColor("#1d1d1d")); painter.drawText(box, Qt.AlignmentFlag.AlignCenter, f"{kind.title()} Card")
-        else: painter.setPen(QColor("#8fa8c4")); painter.drawRect(box)
-    chosen = c.get("selected")
-    if chosen in c["boxes"]:
-        painter.setPen(QPen(QColor("#1686ff"), 2)); painter.drawRect(QRect(*c["boxes"][chosen]))
+            _frame_draw_picture(painter, asset, box)
+        elif key == "art" and retail_art is not None:
+            _frame_draw_picture(painter, retail_art, box)
+        elif key == "art":
+            painter.fillRect(box, QColor(color)); painter.setPen(QColor("#b9c7da")); painter.drawRect(box)
+        elif key == "stars" and star_icon is not None:
+            for number in range(12): _frame_draw_picture(painter, star_icon, QRect(x - number * 9, y, 9, 9))
+            c["boxes"][key] = (x - 99, y, 108, 9)
+        elif key in ("attribute", "spell_icon") and attribute_icon is not None:
+            _frame_draw_picture(painter, attribute_icon, box)
+        elif key == caption_key and caption is not None:
+            _frame_draw_picture(painter, caption, box)
+        elif key in ("atk", "def") and digits_image is not None:
+            step = _as_int(_frame_part(editor, "digits").get("step"), _frame_rect(editor, key)[2])
+            glyph_w, glyph_h = _frame_rect(editor, key)[2:]
+            for number, character in enumerate(text):
+                _frame_draw_picture(painter, _frame_digit_cell(digits_image, int(character)), QRect(x + number * step, y, glyph_w, glyph_h))
+        else:
+            picture = _frame_title_picture(text, box.width(), box.height(), color) if key == "title" else _frame_text_picture(font, text, box.width(), box.height(), color)
+            if picture is not None:
+                _frame_draw_picture(painter, picture, box)
+            else:
+                painter.setPen(QColor(color)); painter.setFont(QFont("Serif", max(6, box.height() - 2)))
+                painter.drawText(box, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, text)
+    _draw_frame_selected_outline(painter, c)
     painter.end(); _set_preview_pixmap(c["preview"], QPixmap.fromImage(image))
+
+
+def _draw_frame_selected_outline(painter, controls):
+    chosen = controls.get("selected")
+    if chosen in controls.get("boxes", {}):
+        painter.setPen(QPen(QColor("#1686ff"), 2)); painter.drawRect(QRect(*controls["boxes"][chosen]))
 
 
 def _draw_frame_template(editor, painter, controls, size, keys, colour):

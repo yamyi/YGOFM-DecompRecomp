@@ -468,14 +468,20 @@ class CardsTest(unittest.TestCase):
         including normal placement edits and the global fallback assignment."""
         from PySide6.QtCore import QPoint, Qt
         from PySide6.QtTest import QTest
-        from PySide6.QtWidgets import QPushButton
+        from PySide6.QtWidgets import QPushButton, QScrollArea
         from fm_editor import manifest
 
         w = self.window
         w.select_workspace('Assets')
         c = w.workspace_controls['Assets']['frames']
         self.assertEqual(c['form'].objectName(), 'FramesPage')
+        self.assertIsInstance(w.workspace_controls['Assets']['frames_tab'], QScrollArea)
+        self.assertIs(w.workspace_controls['Assets']['frames_tab'].widget(), c['form'])
         self.assertEqual(c['style'].currentItem().text(), 'custom')
+        # The retail Frames preview remains a 140×196 game card even when
+        # the Designer form scales it for the available panel size.
+        retail_preview = c['preview'].property('_fullPixmap')
+        self.assertEqual((retail_preview.width(), retail_preview.height()), (140, 196))
 
         # Select Artwork through the tree model exactly as a user does, then
         # edit its game-pixel position through the Designer spin boxes.

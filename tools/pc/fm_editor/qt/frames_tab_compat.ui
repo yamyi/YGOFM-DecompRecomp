@@ -430,7 +430,7 @@ QTreeWidget::item {height:20px;} QCheckBox,QRadioButton {color:#dce9fa;backgroun
      </rect>
     </property>
     <property name="text">
-     <string>5 Ryu-kishin</string>
+     <string/>
     </property>
    </widget>
    <widget class="QPushButton" name="browseCardButton">
