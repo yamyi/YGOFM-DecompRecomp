@@ -106,8 +106,10 @@ def main() -> int:
         program.append("--onefile")
     if not arguments.console:
         program.append("--windowed")
-    # The packaged application starts the modern Qt editor directly.
-    program.append(str(HERE / "pyside_app.py"))
+    # pyside_app uses package-relative imports, so a tiny sibling entry
+    # point imports it as fm_editor.pyside_app instead of running it as a
+    # top-level script.
+    program.append(str(HERE.parent / "fm_editor_pyside.py"))
     env = dict(os.environ)
     env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(HERE.parent), env.get("PYTHONPATH")]))
     makespec = [sys.executable, "-m", "PyInstaller.utils.cliutils.makespec", *program]

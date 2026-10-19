@@ -121,7 +121,7 @@ jobs:
         env:
           PYINSTALLER_COMPILE_BOOTLOADER: "1"
         run: |
-          python -m pip install --no-binary pyinstaller pyinstaller==6.18.0
+          python -m pip install --no-binary pyinstaller pyinstaller==6.18.0 -r tools/pc/fm_editor/requirements-modern.txt
           python tools/pc/fm_editor/build_exe.py --dist tmp/fm-editor --version "$PACKAGE_VERSION"
           python - <<'EOF'
           import os, zipfile
@@ -184,7 +184,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           docker run --rm -v "$PWD:/src" -w /src -e PACKAGE_VERSION -e GITHUB_SHA -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" python:3.12-bullseye sh -ec '
-            python -m pip install --root-user-action=ignore pyinstaller==6.18.0
+            python -m pip install --root-user-action=ignore pyinstaller==6.18.0 -r tools/pc/fm_editor/requirements-modern.txt
             python tools/pc/fm_editor/build_exe.py --dist tmp/fm-editor --version "$PACKAGE_VERSION"
             python - <<EOF
           import os, tarfile
@@ -303,7 +303,7 @@ jobs:
       - name: FM Editor (macOS)
         run: |
           python -c 'import tkinter; assert tkinter.TkVersion == 8.6'
-          python -m pip install pyinstaller==6.18.0
+          python -m pip install pyinstaller==6.18.0 -r tools/pc/fm_editor/requirements-modern.txt
           python tools/pc/fm_editor/build_exe.py --dist tmp/fm-editor --version "$PACKAGE_VERSION"
           folder="tmp/fm-editor-release/yfm-redecomp-$PACKAGE_VERSION"
           mkdir -p "$folder"
