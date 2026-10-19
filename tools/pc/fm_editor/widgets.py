@@ -256,8 +256,11 @@ class ScrolledForm(ttk.Frame):
             step = (-1 if getattr(event, "num", None) == 4 or getattr(event, "delta", 0) > 0 else 1) * px(self, 40)
             self.canvas.xview_scroll(step, "units")
             return "break"
-        if getattr(event, "num", None) in (4, 5):
-            units = -3 if event.num == 4 else 3
+        # Tk's X11 ``event_generate('<Button-4/5>')`` reports synthetic
+        # wheel buttons as 8/9.  Accept those aliases as well as the real
+        # pointer-button values so scrolling works in automated displays.
+        if getattr(event, "num", None) in (4, 5, 8, 9):
+            units = -3 if event.num in (4, 8) else 3
         else:
             delta = event.delta
             if not delta:
@@ -269,7 +272,12 @@ class ScrolledForm(ttk.Frame):
         if isinstance(widget, (tk.Text, tk.Listbox, ttk.Treeview)):
             first, last = widget.yview()
             if (units < 0 and first > 0) or (units > 0 and last < 1):
-                return  # its class binding scrolls its contents
+                # Tk's X11 Text binding does not handle Button-4/Button-5
+                # generated for a child carrying our binding tag.  Scrolling
+                # here also keeps Text, lists and trees independent of the
+                # enclosing form on every platform.
+                widget.yview_scroll(units, "units")
+                return "break"
         if self.body.winfo_reqheight() > self.canvas.winfo_height():
             self.canvas.yview_scroll(units * px(self, 20), "units")
             return "break"

@@ -16,9 +16,42 @@
 from __future__ import annotations
 
 import argparse
+import subprocess
 import sys
 
-from . import disc, gamedata, importer, manifest, validate
+from . import disc, gamedata, importer, manifest, settings, validate
+
+
+# Qt aborts the process, rather than raising an exception, when a platform
+# plugin cannot load.  Ask a child process first so the classic editor remains
+# usable on systems missing a native Qt dependency.
+QT_PROBE = "from PySide6.QtWidgets import QApplication; app = QApplication([]); app.quit()"
+
+
+def qt_opens(timeout=3) -> bool:
+    """Whether importing and constructing a Qt application succeeds safely.
+
+    A positive result is remembered.  Negative and inconclusive results are
+    deliberately retried: system packages may be repaired between launches,
+    and a sandbox may prohibit spawning a probe process.
+    """
+    try:
+        import PySide6  # noqa: F401
+    except ImportError:
+        return False
+    if getattr(sys, "frozen", False) or settings.load().get("qt_opens") is True:
+        return True
+    try:
+        result = subprocess.run([sys.executable, "-c", QT_PROBE], timeout=timeout,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except subprocess.TimeoutExpired:
+        return True
+    except OSError:
+        return True
+    if result.returncode != 0:
+        return False
+    settings.save("qt_opens", True)
+    return True
 
 
 def load_retail(game):
@@ -89,6 +122,7 @@ def build_parser():
     parser.add_argument("--version", action="store_true", help="show the editor build and supported mod API")
     parser.add_argument("--game", help="the game: a folder with SLUS_014.11 and DATA/WA_MRG.MRG, or the .bin")
     parser.add_argument("--mod", help="a mod folder to open")
+    parser.add_argument("--classic", action="store_true", help="open the legacy Tk editor")
     commands = parser.add_subparsers(dest="command")
     check = commands.add_parser("check", help="validate a mod folder against the retail tables")
     check.add_argument("mod")
@@ -120,5 +154,18 @@ def main(argv=None) -> int:
         return command_check(arguments)
     if arguments.command == "import":
         return command_import(arguments)
-    from .app import main as window
-    return window(arguments.game, arguments.mod)
+    if not arguments.classic and qt_opens():
+        try:
+            from .pyside_app import main as window
+            return window(arguments.game, arguments.mod)
+        except Exception as problem:
+            print(f"The PySide6 editor could not start: {problem}. Falling back to tkinter.", file=sys.stderr)
+    elif not arguments.classic and not getattr(sys, "frozen", False):
+        print("The PySide6 editor could not start; install it with: python -m pip install PySide6. "
+              "Falling back to tkinter.", file=sys.stderr)
+    try:
+        from .app import main as window
+        return window(arguments.game, arguments.mod)
+    except ModuleNotFoundError:
+        print("No editor window can open: PySide6 and tkinter are unavailable.", file=sys.stderr)
+        return 1

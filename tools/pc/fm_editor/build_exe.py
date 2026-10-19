@@ -28,6 +28,18 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 
 
+def say(message: str):
+    """Write diagnostics even when a Windows console cannot encode a path."""
+    try:
+        print(message)
+    except UnicodeEncodeError:
+        stream = sys.stdout
+        buffer = getattr(stream, "buffer", None)
+        if buffer is None:
+            raise
+        buffer.write((message + "\n").encode(stream.encoding or "utf-8", "backslashreplace"))
+
+
 def version_info(label: str) -> str:
     """A PyInstaller version file for fm-editor.exe."""
     match = re.match(r"v(\d+)\.(\d+)\.(\d+)", label)
@@ -63,7 +75,7 @@ def main() -> int:
     try:
         import PySide6      # noqa: F401
     except ImportError:
-        print("PySide6 is not installed: install it or pass --without-qt.", file=sys.stderr)
+        print("PySide6 is not installed: python -m pip install PySide6, or pass --without-qt.", file=sys.stderr)
         if not arguments.without_qt:
             return 1
     dist = arguments.dist.resolve()
@@ -99,7 +111,7 @@ def main() -> int:
     env = dict(os.environ)
     env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(HERE.parent), env.get("PYTHONPATH")]))
     makespec = [sys.executable, "-m", "PyInstaller.utils.cliutils.makespec", *program]
-    print(" ".join(makespec))
+    say(" ".join(makespec))
     if subprocess.run(makespec, cwd=str(ROOT), env=env).returncode != 0:
         return 1
     spec = work / "fm-editor.spec"
@@ -118,7 +130,7 @@ def main() -> int:
         text = text.replace("    exclude_binaries=True,\n", "    exclude_binaries=True,\n    append_pkg=False,\n", 1)
     spec.write_text(text)
     command = [sys.executable, "-m", "PyInstaller", *build, str(spec)]
-    print(" ".join(command))
+    say(" ".join(command))
     result = subprocess.run(command, cwd=str(ROOT), env=env)
     if result.returncode == 0:
         if sys.platform == "win32":
@@ -127,7 +139,7 @@ def main() -> int:
             built = dist / "fm-editor.app"
         else:
             built = dist / "fm-editor"
-        print(f"built {built}")
+        say(f"built {built}")
     return result.returncode
 
 

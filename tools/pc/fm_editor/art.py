@@ -795,7 +795,23 @@ def safe_target(folder, path):
         real_folder, real_parent = folder.resolve(), target.parent.resolve()
     except OSError:
         return None
-    return target if real_parent == real_folder or real_parent.is_relative_to(real_folder) else None
+    # Windows can retain an 8.3 spelling (for example ``RUNNER~1``) for one
+    # side of a path and the long spelling for the other.  Compare directory
+    # identity while walking to the root instead of comparing those strings.
+    parent = real_parent
+    while True:
+        try:
+            if parent.samefile(real_folder):
+                return target
+        except FileNotFoundError:
+            # A new asset directory has no inode yet.  Its nearest existing
+            # parent is still enough to prove where a later write will go.
+            pass
+        except OSError:
+            return None
+        if parent == parent.parent:
+            return None
+        parent = parent.parent
 
 
 def check(project, out: list):

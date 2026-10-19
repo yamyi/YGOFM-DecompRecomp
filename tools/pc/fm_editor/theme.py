@@ -178,7 +178,11 @@ class Theme:
     def rescale(self):
         """The sizes that follow the fonts and the scale, in both themes: a
         row as tall as a line of text, and the pixel sizes (sized())."""
-        self.row_height = tkfont.nametofont("TkDefaultFont", root=self.root).metrics("linespace") + 4
+        # Some Tk/X11 combinations retain the old metrics for a resized
+        # named font.  The logical 17px row still follows the interface
+        # scale, while live metrics retain room for a desktop's larger face.
+        self.row_height = max(tkfont.nametofont("TkDefaultFont", root=self.root).metrics("linespace") + 4,
+                              self.px(17))
         self.style.theme_settings(self.light, self.sized(False))
         if DARK_THEME in self.style.theme_names():
             self.style.theme_settings(DARK_THEME, self.sized(True))

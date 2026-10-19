@@ -19,15 +19,19 @@ def source_info(version="", commit=None) -> dict:
     root = Path(__file__).resolve().parents[3]
     commit = "unknown"
     try:
-        commit = subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"],
-                                         stderr=subprocess.DEVNULL, text=True, timeout=5).strip()
+        discovered = subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"],
+                                             stderr=subprocess.DEVNULL, text=True, timeout=5)
+        commit = discovered.strip() if isinstance(discovered, str) else "unknown"
         dirty = subprocess.check_output(["git", "-C", str(root), "status", "--porcelain"],
                                         stderr=subprocess.DEVNULL, text=True, timeout=5)
-        if dirty.strip():
+        if isinstance(dirty, str) and dirty.strip() and commit != "unknown":
             commit += " (modified)"
     except (OSError, subprocess.SubprocessError):
         pass
-    return {"version": version or "development", "commit": commit, "mod_api": HOST_API}
+    # subprocess helpers are occasionally unavailable (or deliberately
+    # replaced by build tooling); never let a non-string result escape into
+    # the editor's About/build metadata.
+    return {"version": version or "development", "commit": commit if isinstance(commit, str) else "unknown", "mod_api": HOST_API}
 
 
 @functools.lru_cache(maxsize=None)

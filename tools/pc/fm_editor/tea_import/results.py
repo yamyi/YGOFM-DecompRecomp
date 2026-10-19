@@ -37,6 +37,10 @@ class DetectionResult:
     version: str = ""
     details: str = ""
     diagnostics: tuple[Diagnostic, ...] = ()
+    # Exact, read-only detector observations.  This deliberately stays off
+    # FeatureResult: evidence is useful for variants even when no data may be
+    # safely converted into a Project.
+    evidence: dict[str, Any] = field(default_factory=dict)
 
     @property
     def is_recognized(self) -> bool:
@@ -94,6 +98,9 @@ class AnalysisResult:
                          + (f" ({detection.version})" if detection.version else ""))
             if detection.details:
                 lines.append(f"    Evidence: {detection.details}")
+            if detection.evidence:
+                lines.append("    Probe data: " + json.dumps(detection.evidence, sort_keys=True,
+                                                               separators=(",", ":")))
             feature = features.get(detection.patch_id)
             if feature is not None:
                 lines.append(f"    PC compatibility: {feature.compatibility.value}")
@@ -120,6 +127,7 @@ class AnalysisResult:
             "detections": [{
                 "id": item.patch_id, "status": item.status.value, "version": item.version,
                 "details": item.details,
+                "evidence": item.evidence,
                 "diagnostics": [{"message": note.message, "severity": note.severity, "detector": note.detector}
                                 for note in item.diagnostics],
             } for item in self.detections],

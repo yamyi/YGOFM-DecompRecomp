@@ -1597,14 +1597,27 @@ def output_path(folder: Path, relative) -> Path:
     every write so ``..``, absolute names and a destination symlink cannot
     escape the selected mod folder.
     """
-    folder = Path(folder).resolve()
+    # Preserve the caller's spelling for the returned path.  On Windows it
+    # may be the short spelling of a directory; resolving only the target
+    # would make an in-tree Save As look unrelated to its source.
+    requested_folder = Path(folder)
+    folder = requested_folder.resolve()
     relative = Path(relative)
     if relative.is_absolute() or ".." in relative.parts:
         raise ValueError(f"mod file path must stay inside the mod folder: {relative}")
-    target = folder / relative
+    target = requested_folder / relative
     try:
-        target.resolve().relative_to(folder)
-    except ValueError:
+        parent = target.resolve()
+        while True:
+            try:
+                if parent.samefile(folder):
+                    break
+            except FileNotFoundError:
+                pass
+            if parent == parent.parent:
+                raise ValueError
+            parent = parent.parent
+    except (OSError, ValueError):
         raise ValueError(f"mod file path escapes the mod folder: {relative}") from None
     return target
 

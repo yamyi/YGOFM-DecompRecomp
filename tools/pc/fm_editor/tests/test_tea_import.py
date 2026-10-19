@@ -160,7 +160,11 @@ class DocumentedTeaToolsDecodersTest(unittest.TestCase):
         self.assertIn("PC compatibility: needs_engine", report)
         self.assertIn('"card_id":10', report)
         slus[ROUTINE_PROBES[1][0]] ^= 1
-        self.assertEqual(decoder.detect(context).status, DetectionStatus.VARIANT)
+        variant = decoder.detect(context)
+        self.assertEqual(variant.status, DetectionStatus.VARIANT)
+        self.assertFalse(variant.evidence["routine"][1]["matched"])
+        self.assertEqual(variant.evidence["routine"][1]["offset"], ROUTINE_PROBES[1][0])
+        self.assertIn("actual", variant.evidence["routine"][1])
 
     def test_ritual_engine_requires_all_hooks_scripts_and_mirrored_records(self):
         wa_size = TABLE + STRIDE * (COPIES - 1) + SCRIPT_OFFSET + 560
@@ -203,7 +207,12 @@ class DocumentedTeaToolsDecodersTest(unittest.TestCase):
         self.assertEqual(feature.data["format"], "weighted")
         self.assertEqual([record["draws"] for record in feature.data["records"]], list(draws))
         modified[OFFSET + MIRROR] ^= 1
-        self.assertEqual(decoder.detect(context).status, DetectionStatus.VARIANT)
+        variant = decoder.detect(context)
+        self.assertEqual(variant.status, DetectionStatus.VARIANT)
+        self.assertEqual(variant.evidence["runtime_source"]["documented_source"], "A")
+        self.assertEqual(variant.evidence["runtime_source"]["active_source"], "unknown")
+        self.assertEqual(variant.evidence["mirrors"]["different_records"],
+                         [{"record": 1, "different_bytes": 1}])
         self.assertEqual(InitialDeckDecoder().detect(AnalysisContext(
             {"DATA/WA_MRG.MRG": BinaryReader(retail)}, {"DATA/WA_MRG.MRG": BinaryReader(retail)})).status,
             DetectionStatus.ABSENT)

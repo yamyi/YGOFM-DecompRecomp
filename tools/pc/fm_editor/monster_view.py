@@ -248,6 +248,7 @@ def render(model, yaw=30, pitch=-10, zoom=1., size=(320, 320)):
             continue
         for tri in ((0, 1, 2),) if len(points) == 3 else ((0, 1, 2), (1, 3, 2)):
             faces.append(([points[i] for i in tri], page, clut, None))
-    out = bytearray(bytes((16, 26, 42, 255)) * (width * height))
-    map_view._rasterize(size, faces, model.vram, out, [float("inf")] * (width * height))
-    return pngio.Image(width, height, bytes(out))
+    # ``_rasterize`` now returns the finished RGBA image.  The former
+    # mutable-output API left this preview at its background colour only.
+    rgba = map_view._rasterize(size, faces, model.vram, (16, 26, 42))
+    return pngio.Image(width, height, rgba)

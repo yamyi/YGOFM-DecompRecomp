@@ -220,6 +220,9 @@ class Zoom:
                 tkfont.nametofont(name, root=app).configure(size=font_size(size, factor))
             except tk.TclError:
                 pass        # deleted since
+        # Font metrics update on Tk's idle queue.  Theme row heights must use
+        # the new metrics immediately, before callers inspect the resized UI.
+        app.update_idletasks()
         app.theme.rescale()
         call = app.tk.call
         for path in app.theme.walk("."):
