@@ -227,7 +227,8 @@ class BuildTest(unittest.TestCase):
                 raise RuntimeError("libxcb-cursor0: cannot open shared object file")
             return self._real_import(name, *args, **rest)
         self._real_import = builtins.__import__
-        with mock.patch.object(builtins, "__import__", explode), \
+        with mock.patch.object(cli, "qt_opens", return_value=True), \
+             mock.patch.object(builtins, "__import__", explode), \
              patched("fm_editor.app.main", which, "tk"), \
              mock.patch("sys.stderr", said):
             self.assertEqual(cli.main([]), 0)
