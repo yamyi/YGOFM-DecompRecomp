@@ -436,5 +436,40 @@ class ArtModTest(unittest.TestCase):
         self.assertTrue(any("outside the mod" in i.message for i in validate.validate(project)))
 
 
+class ArtPathTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name) / "mod"
+        self.root.mkdir()
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_new_relative_art_directories_are_safe(self):
+        for relative in ("cards/0001.png", "cards/0002.png", "art/a.png", "art/0005.title.png"):
+            with self.subTest(relative):
+                self.assertEqual(art.safe_target(self.root, relative), self.root / relative)
+                self.assertEqual(manifest.output_path(self.root, relative), self.root / relative)
+                self.assertEqual(manifest.output_path(self.root, Path(relative)), self.root / relative)
+
+    def test_unsafe_paths_are_rejected(self):
+        for relative in ("", "../outside.png", "/outside.png", "C:/outside.png", "cards\\0001.png"):
+            with self.subTest(relative):
+                self.assertIsNone(art.safe_target(self.root, relative))
+                with self.assertRaises(ValueError):
+                    manifest.output_path(self.root, relative)
+
+    def test_symlink_that_leaves_the_mod_is_rejected(self):
+        outside = Path(self.tmp.name) / "outside"
+        outside.mkdir()
+        try:
+            (self.root / "cards").symlink_to(outside, target_is_directory=True)
+        except (NotImplementedError, OSError):
+            self.skipTest("this platform cannot create a test directory symlink")
+        self.assertIsNone(art.safe_target(self.root, "cards/0001.png"))
+        with self.assertRaises(ValueError):
+            manifest.output_path(self.root, "cards/0001.png")
+
+
 if __name__ == "__main__":
     unittest.main()

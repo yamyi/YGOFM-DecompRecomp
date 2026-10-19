@@ -741,7 +741,7 @@ def write_mod(project, folder):
     # refuse the whole save rather than write even one PNG through a path a
     # malicious mod could use to escape the folder.
     for _key, rep in pending:
-        relative = str(Path(textures if rep.kind == "pack" else "") / rep.file)
+        relative = (Path(textures if rep.kind == "pack" else "") / rep.file).as_posix()
         if safe_target(folder, relative) is None:
             raise ValueError(f"{rep.file!r} is not a safe path inside the mod folder; nothing was saved")
     map_art.write(project, folder)
@@ -788,30 +788,28 @@ def safe_target(folder, path):
     if not contained(path):
         return None
     folder = Path(folder)
-    target = folder / path
-    if target.is_symlink():
-        return None
+    target = folder.joinpath(*path.split("/"))
     try:
-        real_folder, real_parent = folder.resolve(), target.parent.resolve()
+        # Resolve the selected mod directory once.  From there, inspect each
+        # existing component by its own resolved location.  Walking a
+        # resolved *nonexistent* parent and calling samefile() on every
+        # ancestor rejects ordinary new paths on Windows, where those probes
+        # can fail before the child directory has an identity.
+        real_folder = folder.resolve()
+        current = folder
+        for part in path.split("/"):
+            current /= part
+            if current.is_symlink():
+                return None
+            if not current.exists():
+                continue
+            try:
+                current.resolve().relative_to(real_folder)
+            except ValueError:
+                return None
     except OSError:
         return None
-    # Windows can retain an 8.3 spelling (for example ``RUNNER~1``) for one
-    # side of a path and the long spelling for the other.  Compare directory
-    # identity while walking to the root instead of comparing those strings.
-    parent = real_parent
-    while True:
-        try:
-            if parent.samefile(real_folder):
-                return target
-        except FileNotFoundError:
-            # A new asset directory has no inode yet.  Its nearest existing
-            # parent is still enough to prove where a later write will go.
-            pass
-        except OSError:
-            return None
-        if parent == parent.parent:
-            return None
-        parent = parent.parent
+    return target
 
 
 def check(project, out: list):
