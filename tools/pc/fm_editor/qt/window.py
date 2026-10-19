@@ -19,12 +19,13 @@ from .rituals import RitualsMixin
 from .stars import StarsMixin
 from .starter import StarterMixin
 from .tower import TowerMixin
+from .types_attributes import TypesAttributesMixin
 
 
-class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixin, LimitsMixin, MapMixin, ModinfoMixin, PacksMixin, ProblemsMixin, RitualsMixin, StarsMixin, StarterMixin, TowerMixin, QMainWindow):
+class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin, FusionsMixin, LimitsMixin, MapMixin, ModinfoMixin, PacksMixin, ProblemsMixin, RitualsMixin, StarsMixin, StarterMixin, TowerMixin, TypesAttributesMixin, QMainWindow):
     FILTERS = ["All cards", "Changed", "Added by the mod", "With notes", "Monsters", "Non-monsters"] + TYPE_NAMES
-    NAV = ["Cards", "Art", "UI", "Campaign", "Fusions", "Equips", "Rituals", "Duelists", "Starter decks",
-           "Limits", "Guardian Stars", "Packs", "Tower", "Mod info", "Problems"]
+    NAV = ["Cards", "Art", "Types & Attributes", "UI", "Campaign", "Fusions", "Equips", "Rituals", "Duelists",
+           "Starter decks", "Limits", "Guardian Stars", "Packs", "Tower", "Mod info", "Problems"]
     # Internal workspace keys stay stable for controllers and existing mods;
     # this map supplies their user-facing navigation label.
     NAV_LABELS = {"Limits": "Game Rules"}
@@ -265,7 +266,8 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
         if name == "Packs":
             self._build_packs_page(parent)
             return
-        filenames = {"UI": "assets_page.ui", "Campaign": "campaign_page.ui", "Fusions": "fusions_page.ui",
+        filenames = {"Types & Attributes": "types_attributes_page.ui",
+                     "UI": "assets_page.ui", "Campaign": "campaign_page.ui", "Fusions": "fusions_page.ui",
                      "Equips": "equips_page.ui", "Rituals": "rituals_page.ui",
                      "Duelists": "duelists_page.ui", "Starter decks": "starter_decks_page.ui",
                      "Limits": "limits_page.ui",
@@ -315,7 +317,9 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
         def optional(cls, key):
             return page.findChild(cls, key)
 
-        if name == "Campaign":
+        if name == "Types & Attributes":
+            self._build_types_attributes_page(page, get, controls)
+        elif name == "Campaign":
             controls.update(tabs=get(QTabWidget, "campaignTabs"))
             # The card look, by a selector naming the frame itself: a bare
             # stylesheet here would paint every child the same.
@@ -552,20 +556,40 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
                             description=get(QPlainTextEdit, "modDescriptionEdit"),
                             settings=get(QPlainTextEdit, "modSettingsEdit"),
                             other=get(QPlainTextEdit, "modOtherEdit"), status=get(QLabel, "modInfoStatusLabel"),
-                            folder=get(QLabel, "modFolderLabel"))
+                            folder=get(QLabel, "modFolderLabel"), api=get(QLabel, "modApiLabel"),
+                            settings_tabs=get(QTabWidget, "modSettingsTabs"),
+                            settings_tree=get(QTreeWidget, "modSettingsTree"),
+                            settings_list_hint=get(QLabel, "modSettingsListHint"))
             get(QPushButton, "applyModInfoButton").clicked.connect(self._apply_mod_info)
             get(QPushButton, "previewModJsonButton").clicked.connect(self.preview_manifest)
+            get(QPushButton, "addSettingButton").clicked.connect(self._add_setting)
+            get(QPushButton, "editSettingButton").clicked.connect(self._edit_setting)
+            get(QPushButton, "removeSettingButton").clicked.connect(self._remove_setting)
+            get(QPushButton, "moveSettingUpButton").clicked.connect(lambda: self._move_setting(-1))
+            get(QPushButton, "moveSettingDownButton").clicked.connect(lambda: self._move_setting(1))
+            controls["settings_tree"].itemDoubleClicked.connect(lambda item, column: self._edit_setting())
+            controls["settings_tabs"].currentChanged.connect(lambda index: self._fill_settings_tree())
             self._style_mod_info_page(page, get, controls)
         elif name == "Problems":
             controls.update(table=get(QTableWidget, "problemsTable"),
                             summary=get(QLabel, "problemSummaryLabel"),
-                            others=get(QLabel, "otherModsLabel"), cross=False, issues=[])
+                            others=get(QLabel, "otherModsLabel"), cross=False, issues=[], level="all")
             get(QPushButton, "checkModButton").clicked.connect(self._refresh_problems)
             get(QPushButton, "checkOtherModsButton").clicked.connect(self._check_other_mods)
             get(QPushButton, "otherModsFolderButton").clicked.connect(self._choose_other_mods)
+            get(QPushButton, "defaultModsFolderButton").clicked.connect(self._use_default_mods_folder)
+            level_group = QButtonGroup(self)
+            level_group.setExclusive(True)
+            controls["level_group"] = level_group
+            for level, key in (("all", "problemFilterAllButton"), ("error", "problemFilterErrorsButton"),
+                               ("warning", "problemFilterWarningsButton"), ("note", "problemFilterNotesButton")):
+                button = get(QPushButton, key)
+                level_group.addButton(button)
+                button.clicked.connect(lambda checked=False, level=level: self._set_problem_filter(level))
             controls["others"].setStyleSheet("color:#9aacc4")      # said quietly, as a page's line is
             controls["table"].cellDoubleClicked.connect(self._open_problem)
-            controls["table"].setToolTip("Double-click a line to go to it.")
+            controls["table"].cellActivated.connect(self._open_problem)
+            controls["table"].setToolTip("Double-click or press Enter on a line to go to it.")
             controls["table"].setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         # The page's name and the line under it on one row: two rows of their
         # own took eighty pixels off every page for a title and a sentence.
@@ -673,7 +697,9 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
         if not hasattr(self, "workspace_controls") or name not in self.workspace_controls:
             return
         c, p = self.workspace_controls[name], self.project
-        if name == "UI":
+        if name == "Types & Attributes":
+            self._refresh_types_attributes()
+        elif name == "UI":
             self._refresh_assets()
         elif name == "Campaign":
             self._refresh_map()
@@ -761,6 +787,8 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
     MAP_WORLD_CENTRE = (0, 0)
     MAP_WORLD_SPAN = 2800
     MAP_INTS = ("distance", "heading", "pitch", "target_x", "target_z", "marker_x", "marker_y")
+    MAP_CAMERA_KEYS = ("distance", "heading", "pitch", "target_x", "target_z")
+    MAP_MARKER_KEYS = ("marker_x", "marker_y")
     @staticmethod
     def _set_combo_card(combo, cid):
         """Show a card in a card combo by its number."""
@@ -837,10 +865,11 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
                 lambda item: item.setCheckState(
                     Qt.CheckState.Unchecked if item.checkState() == Qt.CheckState.Checked
                     else Qt.CheckState.Checked))
-        for index, name in enumerate(names):
+        for index, entry in enumerate(names):
+            type_id, name = entry if isinstance(entry, tuple) else (index, entry)
             item = QListWidgetItem(name)
             item.setSizeHint(QSize(0, max(26, listing.fontMetrics().height() + 10)))
-            item.setData(Qt.ItemDataRole.UserRole, index)
+            item.setData(Qt.ItemDataRole.UserRole, type_id)
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
             item.setCheckState(Qt.CheckState.Unchecked)
             listing.addItem(item)
@@ -865,9 +894,10 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
         # rows are a line of text apart.
         listing.setSpacing(3)
         listing.setStyleSheet("QListWidget::item { padding: 3px 2px; }")
-        for index, name in enumerate(names):
+        for index, entry in enumerate(names):
+            type_id, name = entry if isinstance(entry, tuple) else (index, entry)
             item = QListWidgetItem(name)
-            item.setData(Qt.ItemDataRole.UserRole, index)
+            item.setData(Qt.ItemDataRole.UserRole, type_id)
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
             item.setCheckState(Qt.CheckState.Unchecked)
             listing.addItem(item)
@@ -899,7 +929,7 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
                          ("DEF > ATK", "defense_gt_attack", None))
     LP_UNSET = "—"      # a field left at the side's own number
     STAR_CELL_COLOURS = {"plus": "#1f4d2c", "minus": "#5a2323", "zero": "#16212f"}
-    MOD_INFO_OWNED = ("limits", "guardian_stars", "starter_pools", "story", "tower")
+    MOD_INFO_OWNED = ("limits", "guardian_stars", "starter_pools", "story", "title", "menu", "ui", "tower")
     MOD_INFO_RESERVED = frozenset(manifest.INFO_KEYS + manifest.TABLE_KEYS + MOD_INFO_OWNED)
     @staticmethod
     def _select_table_id(table, value, column=0):
@@ -1046,7 +1076,16 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
         close.clicked.connect(dialog.accept)
         layout.addWidget(close)
         dialog.exec()
-    def _use_import(self, project, report, source, preview_wa=None):
+    def _use_import(self, project, report, source, preview_wa=None, progress=None,
+                    show_report=True):
+        """Install an imported project, keeping any expensive page refreshes
+        inside the caller's progress dialog.
+
+        Importing finishes before this method constructs the tables and
+        previews for every workspace.  Leaving that construction outside the
+        dialog makes the progress window disappear, then blocks the event
+        loop immediately before the report appears.
+        """
         self.project = project
 
         self.preview_wa = preview_wa if preview_wa is not None else self.files.wa
@@ -1055,16 +1094,27 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
         self.duelist_selected_slot = 0
         self.frame_cache.clear()
         self.fusion_art_cache.clear()
+        forget_icon_caches(self)
+        if progress:
+            progress("Refreshing cards")
         self.refresh_cards(select_id=1)
         self.current_art_card = 1
+        if progress:
+            progress("Refreshing artwork")
         self.refresh_art_list(select_id=1)
         for name in self.NAV[2:]:
+            if progress:
+                progress(f"Refreshing {self.NAV_LABELS.get(name, name)}")
             self._refresh_workspace(name)
         self.dirty = False
         self._start_history()
         self._unsaved_start = True      # it has no folder of its own yet
         self._mark_dirty()
         self.statusBar().showMessage(f"Imported {source}: save it to write the mod folder.")
+        if show_report:
+            self._show_import_report(report)
+
+    def _show_import_report(self, report):
         self._report("Import report", "\n".join(report) +
                      "\n\nThe report is saved with the mod as import-report.txt.")
     def _run_with_progress(self, title: str, what: str, work):
@@ -1128,13 +1178,17 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
                         return
                     wa = Path(chosen)
                 files, name = disc.load_pair(source, wa), source.parent.name
-            result = self._run_with_progress(
-                "Import", f"Reading {source.name}\u2026",
-                lambda say: importer.import_modded(self.files, files, importer.slug(name), name, say))
+            def import_and_prepare(say):
+                result = importer.import_modded(self.files, files, importer.slug(name), name, say)
+                self._use_import(result.project, result.report, source, preview_wa=files.wa,
+                                 progress=say, show_report=False)
+                return result
+
+            result = self._run_with_progress("Import", f"Reading {source.name}\u2026", import_and_prepare)
         except Exception as problem:
             QMessageBox.critical(self, "Import", f"The import stopped: {type(problem).__name__}: {problem}")
             return
-        self._use_import(result.project, result.report, source,preview_wa=files.wa,)
+        self._show_import_report(result.report)
     def import_ygomods(self):
         if not self.confirm_discard():
             return
@@ -1175,6 +1229,7 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
         self.current = None
         self.frame_cache.clear()
         self.fusion_art_cache.clear()
+        forget_icon_caches(self)
         self.dirty = False
         self.refresh_cards(select_id=1)
         self.current_art_card = 1
@@ -1260,7 +1315,8 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
         if kind == "With notes" and cid not in self.project.notes: return False
         if kind == "Monsters" and not card.is_monster(): return False
         if kind == "Non-monsters" and card.is_monster(): return False
-        if kind in TYPE_NAMES and card.type != TYPE_NAMES.index(kind): return False
+        names = getattr(self.project, "type_names", None) or TYPE_NAMES
+        if kind in names and card.type != names.index(kind): return False
         advanced = getattr(self, "advanced_card_filters", {})
         if advanced.get("types") and card.type not in advanced["types"]: return False
         if advanced.get("attributes") and (not card.is_monster() or card.attribute not in advanced["attributes"]): return False
@@ -1338,6 +1394,7 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
         self.project = Project(self.retail)
         self.preview_wa = self.files.wa
         self.fusion_art_cache.clear()
+        forget_icon_caches(self)
         self.duelist_selected_slot=0
         self.project.source_dir = None
         self.current = None
@@ -1361,6 +1418,7 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
             QMessageBox.critical(self, "Could not open mod", str(problem)); return
         self.project = project
         self.preview_wa = self.files.wa
+        forget_icon_caches(self)
         self.duelist_selected_slot=0
         self.current = None
         self.frame_cache.clear()
@@ -1704,6 +1762,7 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
         try:
             self.frame_cache.clear()
             self.fusion_art_cache.clear()
+            forget_icon_caches(self)
             self.current = None
             self.refresh_cards(select_id=card if card in self.project.cards else 1)
             self.current_art_card = self.current_art_card if self.current_art_card in self.project.cards else 1

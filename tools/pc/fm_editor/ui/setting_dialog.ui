@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>SettingDialog</class>
+ <widget class="QDialog" name="SettingDialog">
+  <property name="windowTitle"><string>Setting</string></property>
+  <property name="minimumSize"><size><width>420</width><height>80</height></size></property>
+  <layout class="QVBoxLayout" name="settingDialogLayout">
+   <item>
+    <layout class="QFormLayout" name="settingForm">
+     <item row="0" column="0"><widget class="QLabel" name="settingKeyLabel"><property name="text"><string>Key</string></property></widget></item>
+     <item row="0" column="1"><widget class="QLineEdit" name="settingKeyEdit"/></item>
+     <item row="1" column="0"><widget class="QLabel" name="settingLabelLabel"><property name="text"><string>Label</string></property></widget></item>
+     <item row="1" column="1"><widget class="QLineEdit" name="settingLabelEdit"/></item>
+     <item row="2" column="0"><widget class="QLabel" name="settingTypeLabel"><property name="text"><string>Type</string></property></widget></item>
+     <item row="2" column="1">
+      <widget class="QComboBox" name="settingTypeCombo">
+       <item><property name="text"><string>bool</string></property></item>
+       <item><property name="text"><string>int</string></property></item>
+       <item><property name="text"><string>choice</string></property></item>
+       <item><property name="text"><string>key</string></property></item>
+      </widget>
+     </item>
+     <item row="3" column="0"><widget class="QLabel" name="settingDefaultLabel"><property name="text"><string>Default</string></property></widget></item>
+     <item row="3" column="1"><widget class="QLineEdit" name="settingDefaultEdit"/></item>
+     <item row="4" column="0"><widget class="QLabel" name="settingMinLabel"><property name="text"><string>Lowest</string></property></widget></item>
+     <item row="4" column="1"><widget class="QLineEdit" name="settingMinEdit"/></item>
+     <item row="5" column="0"><widget class="QLabel" name="settingMaxLabel"><property name="text"><string>Highest</string></property></widget></item>
+     <item row="5" column="1"><widget class="QLineEdit" name="settingMaxEdit"/></item>
+     <item row="6" column="0"><widget class="QLabel" name="settingStepLabel"><property name="text"><string>Step</string></property></widget></item>
+     <item row="6" column="1"><widget class="QLineEdit" name="settingStepEdit"/></item>
+     <item row="7" column="0"><widget class="QLabel" name="settingSuffixLabel"><property name="text"><string>Shown after it</string></property></widget></item>
+     <item row="7" column="1"><widget class="QLineEdit" name="settingSuffixEdit"/></item>
+     <item row="8" column="0"><widget class="QLabel" name="settingChoicesLabel"><property name="text"><string>Choices (a line each)</string></property></widget></item>
+     <item row="8" column="1">
+      <widget class="QPlainTextEdit" name="settingChoicesEdit">
+       <property name="maximumHeight"><number>90</number></property>
+       <property name="lineWrapMode"><enum>QPlainTextEdit::NoWrap</enum></property>
+      </widget>
+     </item>
+     <item row="9" column="0"><widget class="QLabel" name="settingDescriptionLabel"><property name="text"><string>Help</string></property></widget></item>
+     <item row="9" column="1"><widget class="QLineEdit" name="settingDescriptionEdit"/></item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QCheckBox" name="settingRestartCheck">
+     <property name="text"><string>Takes effect only after a restart</string></property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="settingHintLabel">
+     <property name="wordWrap"><bool>true</bool></property>
+     <property name="text"><string /></property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="settingErrorLabel">
+     <property name="wordWrap"><bool>true</bool></property>
+     <property name="text"><string /></property>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="settingDialogActions">
+     <item><spacer name="settingDialogSpacer"><property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property></spacer></item>
+     <item><widget class="QPushButton" name="settingCancelButton"><property name="text"><string>Cancel</string></property></widget></item>
+     <item><widget class="QPushButton" name="settingOkButton"><property name="text"><string>OK</string></property></widget></item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources/><connections/>
+</ui>

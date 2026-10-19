@@ -134,6 +134,10 @@ def _get(form, kind, name):
 
 def _retail_bonus(editor, field_id, type_id):
     """The disc executable's signed-byte terrain table, in points."""
+    # The original table has the twenty retail monster rows only.  Declared
+    # types are still listed below, with a neutral retail baseline.
+    if not 0 <= type_id < gamedata.TYPE_MAGIC:
+        return 0
     try:
         value = kit.Memory(editor.files.slus).s8(
             kit.TERRAIN_BOOST + type_id * len(FIELDS) + field_id - 1)
@@ -155,7 +159,7 @@ def _terrain_table(editor):
 
 def _effective_bonus(editor, field_id, field_name, type_id):
     values = _terrain_values(editor, field_name)
-    name = TYPE_NAMES[type_id]
+    name = type_name(editor.project, type_id)
     if name in values and isinstance(values[name], int):
         return values[name]
     replace = bool(_terrain_table(editor).get("replace"))
@@ -328,12 +332,13 @@ def _refresh_bonus_table(editor):
             selected_types.add(current_type.data(Qt.ItemDataRole.UserRole))
     held = sort_paused(table)
     table.blockSignals(True)
-    table.setRowCount(20)
-    for type_id, type_name in enumerate(TYPE_NAMES[:20]):
+    choices = declared_type_choices(editor.project, monster_only=True)
+    table.setRowCount(len(choices))
+    for row, (type_id, label) in enumerate(choices):
         retail = _retail_bonus(editor, field_id, type_id)
-        overridden = values.get(type_name)
+        overridden = values.get(label)
         effective = _effective_bonus(editor, field_id, field_name, type_id)
-        columns = (type_name, f"{retail:+d}", "—" if overridden is None else f"{overridden:+d}",
+        columns = (label, f"{retail:+d}", "—" if overridden is None else f"{overridden:+d}",
                    f"{effective:+d}")
         for column, value in enumerate(columns):
             item = QTableWidgetItem(value)
@@ -345,7 +350,7 @@ def _refresh_bonus_table(editor):
             if column == 3:
                 item.setForeground(QColor("#f2cd58") if effective > 0 else
                                    QColor("#ff8998") if effective < 0 else QColor("#aebfd6"))
-            table.setItem(type_id, column, item)
+            table.setItem(row, column, item)
     table.blockSignals(False)
     sort_resumed(table, held)
     table.clearSelection()
@@ -372,7 +377,7 @@ def _select_bonus(editor):
     c["type_ids"] = selected or {type_id}
     c["type_id"] = type_id
     if len(c["type_ids"]) == 1:
-        c["type"].setText(TYPE_NAMES[type_id])
+        c["type"].setText(type_name(editor.project, type_id))
         c["type_icon"].setPixmap(type_icon(editor, type_id).pixmap(QSize(52, 52)))
     else:
         c["type"].setText(f"{len(c['type_ids'])} types selected")
@@ -393,11 +398,11 @@ def _set_bonus(editor, value=None, retail=False, clear=False):
         editor.project.other["terrain_bonus"] = table = {}
     values = table.setdefault(field_name, {})
     for type_id in c.get("type_ids", {c["type_id"]}):
-        type_name = TYPE_NAMES[type_id]
+        name = type_name(editor.project, type_id)
         if clear:
-            values.pop(type_name, None)
+            values.pop(name, None)
         else:
-            values[type_name] = _retail_bonus(editor, field_id, type_id) if retail else int(value)
+            values[name] = _retail_bonus(editor, field_id, type_id) if retail else int(value)
     if not values:
         table.pop(field_name, None)
     if not table:

@@ -317,17 +317,35 @@ class CardView:
 
     def render(self, card_type: int, star1: int, star2: int, text: str, language: str = "en-us",
                colors: dict | None = None, scale: int = 1, star_names: dict | None = None,
-               text_only: bool = False):
+               text_only: bool = False, type_name: str | None = None,
+               type_icon=None, monster: bool | None = None):
         """The panel with the card's lines, as pngio.Image at `scale`.
         colors: a card_text_colors rule's {"description", "guardian_star"} ramps;
         star_names: a mod's names for its stars (past the disc's ten: no icon);
-        text_only: just the card text's box (its frame, stone and letters)."""
+        text_only: just the card text's box (its frame, stone and letters).
+        type_name/type_icon/monster: a declared custom type's display data.
+        Custom types live outside the PS1 name and icon banks, whose entries
+        after the 24 retail types are Guardian Stars.  The editor supplies
+        the runtime declaration here instead of accidentally drawing Mars
+        for custom type 24, Jupiter for 25, and so on."""
         european = language != "en-us"
         picture = Drawing(bytearray(self.panel), self.retail, self.glyphs(european), european)
-        monster = card_type < 20
+        if monster is None:
+            # The port's declared types (24-255) are monsters too.  The old
+            # retail-only comparison made every custom type use the spell
+            # panel layout, which omits the Guardian Star rows.
+            monster = card_type < 20 or card_type > 23
         colors = colors or {}
         description = text_tokens("".join(card_text.encode(text, colors=True)))
-        inserts = {0x00: [("icon", card_type)], 0x80: self.name(card_type, language),
+        # A custom type has no valid retail text-icon code.  When its
+        # declaration includes an icon, draw that actual PNG; without one,
+        # use the generic monster icon rather than reading a Guardian Star.
+        if type_icon is not None:
+            type_insert = [("picture", type_icon)]
+        else:
+            type_insert = [("icon", card_type if 0 <= card_type < 24 else 0)]
+        type_words = text_tokens(type_name) if type_name is not None else self.name(card_type, language)
+        inserts = {0x00: type_insert, 0x80: type_words,
                    0x40: [("color", colors.get("description", 0))] + description}
         for n, star in ((1, star1), (2, star2)):
             if star:
@@ -404,6 +422,26 @@ class Drawing:
                         self.letters.setdefault((LEFT + self.x + x, TOP + self.y - up + y), tuple(rgba[at:at + 3]))
         self.x += 16
 
+    def picture(self, image, up=ICON_UP):
+        """Draw a declared type's PNG in the same 16×16 cell as a game icon."""
+        if self.x >= BOX_W:
+            self.newline()
+        if self.done:
+            return
+        if isinstance(image, pngio.Image):
+            width, height, rgba = image.width, image.height, image.rgba
+        else:
+            width, height, rgba = image
+        if (width, height) != (16, 16):
+            resized = pngio.resample(pngio.Image(width, height, rgba), 16, 16)
+            width, height, rgba = resized.width, resized.height, resized.rgba
+        for y in range(height):
+            for x in range(width):
+                at = (y * width + x) * 4
+                if rgba[at + 3]:
+                    self.letters.setdefault((LEFT + self.x + x, TOP + self.y - up + y), tuple(rgba[at:at + 3]))
+        self.x += 16
+
     def run(self, tokens, inserts=None):
         for token in tokens:
             if self.done:
@@ -416,6 +454,8 @@ class Drawing:
                 self.newline()
             elif kind == "icon":
                 self.icon(token[1], 0)       # a type's or a star's, put in by F8 00
+            elif kind == "picture":
+                self.picture(token[1], 0)
             elif kind == "color":
                 self.color = token[1]
             elif kind == "code" and token[1][0] == "f8" and len(token[1]) >= 2:

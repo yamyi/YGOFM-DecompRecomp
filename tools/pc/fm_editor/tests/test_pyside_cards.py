@@ -50,6 +50,37 @@ class CardsTest(unittest.TestCase):
         self.addCleanup(self.render.stop)
         self.addCleanup(self.window.deleteLater)
 
+    def test_declared_type_is_appended_to_filters_and_fields(self):
+        """A custom monster keeps every retail choice and its real id.
+
+        In particular, custom id 24 must not replace Reptile nor be read as
+        the 24th list row (a Guardian Star in game text banks).
+        """
+        from fm_editor.qt import fields_compat
+
+        w = self.window
+        w.project.type_names[24] = "Psychic"
+        w.project.cards[1].type = 24
+        choices = w._checkable_list(
+            [(type_id, name) for type_id, name in enumerate(w.project.type_names) if name], w)
+        self.assertEqual(choices.count(), len(gamedata.TYPE_NAMES) + 1)
+        self.assertTrue(any(choices.item(index).text() == "Reptile"
+                            and choices.item(index).data(Qt_UserRole()) == 11
+                            for index in range(choices.count())))
+        self.assertEqual(choices.item(24).text(), "Psychic")
+        self.assertEqual(choices.item(24).data(Qt_UserRole()), 24)
+
+        w.advanced_card_filters["types"] = {24}
+        self.assertTrue(w._wanted(1))
+        w.advanced_card_filters["types"] = {13}
+        self.assertFalse(w._wanted(1))
+
+        fields_compat._refresh_bonus_table(w)
+        rows = w.workspace_controls["Fields"]["bonuses"]
+        type_ids = [rows.item(row, 0).data(Qt_UserRole()) for row in range(rows.rowCount())]
+        self.assertIn(13, type_ids)
+        self.assertIn(24, type_ids)
+
     def test_model_preview_button_tracks_selection_and_empty_state(self):
         from fm_editor import monster_view
         from fm_editor.tests.test_monster_view import model_record
@@ -2797,6 +2828,26 @@ class CardsTest(unittest.TestCase):
         self.assertEqual(w.project.other['story'], {'scene': 1})
         self.assertEqual(w.project.other['textures'], ['art/', 'ui/'])
 
+    def test_the_other_box_leaves_the_ui_workspace_s_keys_alone(self):
+        """"title", "menu" and "ui" are the UI workspace's own keys (Finding
+        A's "Assets"->"UI" rename): the Other box must hide and preserve them
+        too, or applying a stale box overwrites a later UI-workspace edit."""
+        import json
+        w = self.window
+        w.project.other['title'] = {'text': [{'text': 'Words'}]}
+        w.project.other['menu'] = {'scale': 120}
+        w.project.other['ui'] = {'duel': {'lp_player': {'x': 1}}}
+        w.project.other['textures'] = ['art/']
+        c = self.mod_info_page()
+        shown = json.loads(c['other'].toPlainText())
+        self.assertEqual(sorted(shown), ['textures'])
+        c['other'].setPlainText(json.dumps({'textures': ['art/', 'ui/']}))
+        self.assertTrue(w._apply_mod_info())
+        self.assertEqual(w.project.other['title'], {'text': [{'text': 'Words'}]})
+        self.assertEqual(w.project.other['menu'], {'scale': 120})
+        self.assertEqual(w.project.other['ui'], {'duel': {'lp_player': {'x': 1}}})
+        self.assertEqual(w.project.other['textures'], ['art/', 'ui/'])
+
     def test_a_key_the_editor_writes_is_refused_rather_than_lost(self):
         """Typing one in the box would be written over when the manifest is
         built, so say which page writes it instead."""
@@ -2846,6 +2897,98 @@ class CardsTest(unittest.TestCase):
                          ('deck-mod', 'Deck Mod', '2.1', 'Somebody', 'A mod.'))
         w._refresh_mod_info()
         self.assertEqual(c['version'].text(), '2.1')
+
+    def test_settings_list_shows_entries_and_usage_count(self):
+        """The structured List tab mirrors the JSON box, with how many of the
+        mod's own entries reference each setting's key."""
+        import json
+        w = self.window
+        w.project.info.settings = [
+            {'key': 'hard_mode', 'label': 'Hard mode', 'type': 'bool', 'default': 0},
+            {'key': 'difficulty', 'label': 'Difficulty', 'type': 'choice', 'default': 1,
+             'choices': ['Easy', 'Normal', 'Hard']},
+        ]
+        w.project.other['textures'] = {'icon': {'setting': 'hard_mode'}, 'other': {'setting': 'hard_mode'}}
+        c = self.mod_info_page()
+        self.assertEqual(c['settings_tree'].topLevelItemCount(), 2)
+        row0 = c['settings_tree'].topLevelItem(0)
+        self.assertEqual([row0.text(i) for i in range(5)],
+                         ['hard_mode', 'Hard mode', 'bool', 'off', '2 entries'])
+        row1 = c['settings_tree'].topLevelItem(1)
+        self.assertEqual([row1.text(i) for i in range(5)], ['difficulty', 'Difficulty', 'choice', 'Normal', ''])
+
+    def test_add_setting_through_the_dialog_round_trips(self):
+        """Add... opens the structured dialog; OK writes a setting nobody
+        could reach by hand-editing the JSON box faster."""
+        from PySide6.QtCore import QTimer
+        from PySide6.QtWidgets import QApplication, QComboBox, QLineEdit, QPushButton
+        w = self.window
+        self.mod_info_page()
+
+        def fill_and_accept():
+            dialog = QApplication.activeModalWidget()
+            dialog.findChild(QLineEdit, 'settingKeyEdit').setText('turbo')
+            dialog.findChild(QLineEdit, 'settingLabelEdit').setText('Turbo mode')
+            dialog.findChild(QComboBox, 'settingTypeCombo').setCurrentText('bool')
+            dialog.findChild(QLineEdit, 'settingDefaultEdit').setText('1')
+            dialog.findChild(QPushButton, 'settingOkButton').click()
+        QTimer.singleShot(0, fill_and_accept)
+        w._add_setting()
+        self.assertEqual(w.project.info.settings, [{'key': 'turbo', 'label': 'Turbo mode', 'type': 'bool',
+                                                    'default': 1}])
+
+    def test_add_setting_rejects_a_duplicate_key(self):
+        from PySide6.QtCore import QTimer
+        from PySide6.QtWidgets import QApplication, QLabel, QLineEdit, QPushButton
+        w = self.window
+        w.project.info.settings = [{'key': 'turbo', 'label': 'Turbo', 'type': 'bool', 'default': 0}]
+        self.mod_info_page()
+
+        def fill_and_accept():
+            dialog = QApplication.activeModalWidget()
+            dialog.findChild(QLineEdit, 'settingKeyEdit').setText('turbo')
+            dialog.findChild(QPushButton, 'settingOkButton').click()
+            self.assertIn('turbo', dialog.findChild(QLabel, 'settingErrorLabel').text())
+            dialog.reject()
+        QTimer.singleShot(0, fill_and_accept)
+        w._add_setting()
+        self.assertEqual(len(w.project.info.settings), 1)
+
+    def test_remove_setting_warns_when_entries_depend_on_it(self):
+        from PySide6.QtWidgets import QMessageBox
+        w = self.window
+        w.project.info.settings = [{'key': 'hard_mode', 'label': 'Hard mode', 'type': 'bool', 'default': 0}]
+        w.project.other['textures'] = {'icon': {'setting': 'hard_mode'}}
+        c = self.mod_info_page()
+        c['settings_tree'].setCurrentItem(c['settings_tree'].topLevelItem(0))
+
+        with mock.patch.object(QMessageBox, 'question', return_value=QMessageBox.StandardButton.No) as question:
+            w._remove_setting()
+            self.assertTrue(question.called)
+        self.assertEqual(len(w.project.info.settings), 1)
+
+        with mock.patch.object(QMessageBox, 'question', return_value=QMessageBox.StandardButton.Yes):
+            w._remove_setting()
+        self.assertEqual(w.project.info.settings, [])
+
+    def test_move_setting_reorders_the_list(self):
+        w = self.window
+        w.project.info.settings = [{'key': 'a', 'label': 'A', 'type': 'bool', 'default': 0},
+                                   {'key': 'b', 'label': 'B', 'type': 'bool', 'default': 0}]
+        c = self.mod_info_page()
+        c['settings_tree'].setCurrentItem(c['settings_tree'].topLevelItem(0))
+        w._move_setting(1)
+        self.assertEqual([s['key'] for s in w.project.info.settings], ['b', 'a'])
+
+    def test_mod_api_label_reports_the_required_game(self):
+        from fm_editor import compat
+        w = self.window
+        c = self.mod_info_page()
+        w._refresh_mod_info()
+        self.assertIn('needs no "min_api"', c['api'].text())
+        w.project.other['min_api'] = compat.HOST_API
+        w._fill_mod_api()
+        self.assertIn(f'Mod API {compat.HOST_API}', c['api'].text())
 
     # --- Problems ----------------------------------------------------------
 
@@ -2920,6 +3063,63 @@ class CardsTest(unittest.TestCase):
         row = next(r for r, i in enumerate(c['issues']) if i.area == 'Starter pools')
         c['table'].cellDoubleClicked.emit(row, 0)
         self.assertEqual(w.current_workspace, 'Starter decks')
+
+    def test_the_filter_shows_only_the_chosen_level_without_changing_totals(self):
+        """The Show row (All/Errors/Warnings/Notes), as the Tk tab's radios:
+        it narrows which rows are drawn, never the counted totals."""
+        from fm_editor import validate
+        self.pool_fixture()
+        w = self.window
+        c = self.problems_page()
+        total = len(c['issues'])
+        errors = len(validate.errors(c['issues']))
+        self.assertTrue(errors)
+        self.assertLess(errors, total)
+        summary_before = c['summary'].text()
+        w._set_problem_filter('error')
+        self.assertEqual(c['table'].rowCount(), errors)
+        for row in range(c['table'].rowCount()):
+            self.assertEqual(c['table'].item(row, 0).text(), 'Error')
+        self.assertEqual(c['summary'].text(), summary_before)      # totals are of every issue, filter or no
+        self.assertEqual(len(c['issues']), total)
+        w._set_problem_filter('all')
+        self.assertEqual(c['table'].rowCount(), total)
+
+    def test_a_filtered_double_click_still_goes_to_the_right_line(self):
+        """A filtered row's UserRole is still its index into the full issue
+        list, not its position in the filtered table."""
+        self.pool_fixture()
+        w = self.window
+        c = self.problems_page()
+        w._set_problem_filter('warning')
+        self.assertTrue(c['table'].rowCount())
+        shown_row = next(r for r in range(c['table'].rowCount())
+                         if c['table'].item(r, 1).text().startswith('Starter pools'))
+        target = c['issues'][c['table'].item(shown_row, 0).data(Qt_UserRole())]
+        c['table'].cellDoubleClicked.emit(shown_row, 0)
+        self.assertEqual(w.current_workspace, 'Starter decks')
+        starter = w.workspace_controls['Starter decks']
+        self.assertEqual(starter['pools'].currentRow(), target.target)
+
+    def test_enter_key_activation_goes_to_the_line_too(self):
+        """Tkinter opens a line on Return as well as a double-click."""
+        self.pool_fixture()
+        w = self.window
+        c = self.problems_page()
+        row = next(r for r, i in enumerate(c['issues']) if i.area == 'Starter pools')
+        c['table'].cellActivated.emit(row, 0)
+        self.assertEqual(w.current_workspace, 'Starter decks')
+
+    def test_the_default_mods_folder_button_clears_a_chosen_one(self):
+        from fm_editor import settings
+        w = self.window
+        c = self.problems_page()
+        with tempfile.TemporaryDirectory() as tmp:
+            settings.save('other_mods', tmp)
+            self.assertEqual(settings.load().get('other_mods'), tmp)
+            w._use_default_mods_folder()
+            self.assertIsNone(settings.load().get('other_mods'))
+            self.assertTrue(c['cross'])
 
     def test_a_pack_with_a_cover_shows_it_in_the_list(self):
         """The cover is drawn as the row's icon; nothing else in the suite

@@ -160,17 +160,28 @@ def install() -> None:
     icon_stride = 128
     icon_clut = 0xB60500
     icon_side = 16
-    retail_spots = ((0, 0), (16, 0), (32, 0), (48, 0), (64, 0), (80, 0),
-                    (96, 0), (112, 0), (0, 16), (16, 16))
+    # (x, y, clut) per star, pixel x/row y within icon_sheet and the CLUT's
+    # own byte offset from icon_clut. Verified against the TeaOnline
+    # Guardian Stars tool's own per-star rectangles (site JS chunks
+    # ht/ft/mt/gt/vt/bt/yt/wt/xt/kt for 1-10, Ot/Ct/_t/St/jt for 11-15) and
+    # its palette formula (pallete_offset = CLUT + (768 if star>10) +
+    # (32 if star==15)). Stars 11-15 are not a continuation of the retail
+    # grid -- they live in a separate, blank-in-stock row of the sheet
+    # (process-guardianstars/README.md "the tool draws them from WA sprite
+    # rows at y=128") with their own CLUT past the retail one.
+    retail_spots = ((0, 0, 0), (16, 0, 0), (32, 0, 0), (48, 0, 0), (64, 0, 0), (80, 0, 0),
+                    (96, 0, 0), (112, 0, 0), (0, 16, 0), (16, 16, 0))
+    imported_spots = ((16, 128, 768), (32, 128, 768), (48, 128, 768), (64, 128, 768), (80, 128, 800))
 
-    def sheet_icon(wa, star, spots):
+    def sheet_icon(wa, star, base, spots):
         if not 1 <= star <= len(spots) or wa is None:
             return None
-        x, y = spots[star - 1]
-        start = icon_sheet + y * icon_stride + x // 2
-        if start + (icon_side - 1) * icon_stride + icon_side // 2 > len(wa) or icon_clut + 32 > len(wa):
+        x, y, clut_offset = spots[star - 1]
+        start = base + y * icon_stride + x // 2
+        clut = icon_clut + clut_offset
+        if start + (icon_side - 1) * icon_stride + icon_side // 2 > len(wa) or clut + 32 > len(wa):
             return None
-        palette = struct.unpack_from("<16H", wa, icon_clut)
+        palette = struct.unpack_from("<16H", wa, clut)
         rgba = bytearray()
         drawn = False
         for row in range(icon_side):
@@ -188,10 +199,10 @@ def install() -> None:
         return (icon_side, icon_side, bytes(rgba)) if drawn else None
 
     if not hasattr(guardian_stars, "disc_icon"):
-        guardian_stars.disc_icon = lambda wa, star: sheet_icon(wa, star, retail_spots)
+        guardian_stars.disc_icon = lambda wa, star: sheet_icon(wa, star, icon_sheet, retail_spots)
     if not hasattr(guardian_stars, "imported_icon"):
         guardian_stars.imported_icon = lambda wa, star: sheet_icon(
-            wa, star, tuple((16 * (i % 8), 16 * (i // 8)) for i in range(guardian_stars.MAX_STARS)))
+            wa, star - guardian_stars.RETAIL_COUNT, 0xB50000, imported_spots)
 
     # The newer description-side renderer is optional for the Qt editor.
     # The classic renderer remains a useful fallback on branches where

@@ -99,8 +99,8 @@ class EquipsMixin:
                 state=("" if monster in baseline and monster in now else "added" if monster in now
                        else "removed" if monster in baseline else "")
                 card = self.project.cards[monster]
-                values=(f"{monster:03d}", card.name, TYPE_NAMES[card.type],
-                        ATTRIBUTE_NAMES[card.attribute] if 0 <= card.attribute < len(ATTRIBUTE_NAMES) else "—",
+                values=(f"{monster:03d}", card.name, type_name(self.project, card.type),
+                        attribute_name(self.project, card.attribute),
                         state.title() or ("Retail" if monster in now else ""))
                 self._tint_state(check,state)
                 for col,value in enumerate(values,1):

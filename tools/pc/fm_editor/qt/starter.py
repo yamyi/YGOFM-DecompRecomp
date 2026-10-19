@@ -194,7 +194,7 @@ class StarterMixin:
             row = table.rowCount()
             table.insertRow(row)
             values = (cid, card.name if card else "?",
-                      TYPE_NAMES[card.type] if card and 0 <= card.type < len(TYPE_NAMES) else "",
+                      type_name(self.project, card.type) if card else "",
                       weight, f"{weight * 100 / total:.2f}%" if weight else "", "")
             for column, value in enumerate(values):
                 item = TableItem(str(value))
@@ -396,7 +396,7 @@ class StarterMixin:
             warnings=[]
             if copies>DECK_COPY_LIMIT:warnings.append(f"Over {DECK_COPY_LIMIT} copies")
             if exodia_piece(cid) and copies>1:warnings.append("Exodia piece")
-            rows.append((cid,card.name if card else "?",TYPE_NAMES[card.type] if card else "",copies,", ".join(warnings)))
+            rows.append((cid,card.name if card else "?",type_name(self.project, card.type) if card else "",copies,", ".join(warnings)))
         for label,copies in deck.kept.items():rows.append(("",label,"",copies,"Kept as written"))
         held=sort_paused(table);table.setRowCount(len(rows))
         for i,row in enumerate(rows):

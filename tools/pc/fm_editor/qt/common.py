@@ -30,7 +30,7 @@ from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog, 
 from PySide6.QtUiTools import QUiLoader
 
 from .. import art, disc, gamedata
-from .. import manifest, validate, pools as poolmath, bulk_fusions, guardian_stars, card_text, ttf, settings, importer, ygomods, packs as packmath, pngio
+from .. import manifest, validate, pools as poolmath, bulk_fusions, guardian_stars, card_text, ttf, settings, importer, ygomods, packs as packmath, pngio, compat
 from .. import card_uses, history, recovery
 from .. import campaign_map as cm
 from .. import values as limits
@@ -157,63 +157,170 @@ def _icon_archive(editor):
     return getattr(editor, "preview_wa", None) or getattr(getattr(editor, "files", None), "wa", None)
 
 
-def type_icon(editor, type_id: int) -> QIcon:
-    """The card-text type icon used by the Cards page, cached per editor."""
-    if not isinstance(type_id, int) or type_id < 0:
+def type_name(project, type_id: int) -> str:
+    """A type id's display name: the project's own registry (retail names,
+    any renamed in place, any custom id a mod or an import declared), never
+    just the static 24-entry TYPE_NAMES a custom id (24-255) has no room in."""
+    names = getattr(project, "type_names", None) or TYPE_NAMES
+    if 0 <= type_id < len(names) and names[type_id]:
+        return names[type_id]
+    return f"Unknown type {type_id}"
+
+
+def declared_type_choices(project, monster_only: bool = False) -> list[tuple[int, str]]:
+    """The project's named types as ``(id, label)`` pairs.
+
+    The first 24 ids remain the retail choices.  Imports and authored mods
+    may add monster declarations at ids 24 through 255, so Qt lists must keep
+    their ids rather than treating an item's row as its type number.
+    """
+    names = getattr(project, "type_names", None) or TYPE_NAMES
+    return [(type_id, name) for type_id, name in enumerate(names)
+            if name and (not monster_only or gamedata.is_monster_type(type_id))]
+
+
+def attribute_name(project, attribute_id: int) -> str:
+    """An attribute id's display name, the same way (manifest._attribute_registry
+    resolves project.other["attributes"] the same way the Types & Attributes
+    page and the runtime's own declarations do)."""
+    from .. import manifest
+    names, _ = manifest._attribute_registry(project.other.get("attributes") if project is not None else None)
+    if 0 <= attribute_id < len(names) and names[attribute_id]:
+        return names[attribute_id]
+    return f"Unknown attribute {attribute_id}"
+
+
+def custom_type_icon_path(project, type_id: int):
+    """project.type_icons[type_id], the mod-owned PNG a declaration gave this
+    type -- or None for a retail symbol (or none at all)."""
+    icons = getattr(project, "type_icons", None) if project is not None else None
+    path = icons.get(type_id) if icons else None
+    return path if isinstance(path, str) and path else None
+
+
+def custom_attribute_icon_path(project, attribute_id: int):
+    """The icon on attribute_id's own declaration, if project.other
+    ["attributes"] has one -- the same raw section the Types & Attributes
+    page and manifest._attribute_registry() resolve names from."""
+    if project is None:
+        return None
+    section = project.other.get("attributes")
+    entries = section.get("attributes") if isinstance(section, dict) else None
+    if not isinstance(entries, list):
+        return None
+    for entry in entries:
+        if isinstance(entry, dict) and entry.get("id") == attribute_id:
+            icon = entry.get("icon")
+            return icon if isinstance(icon, str) and icon else None
+    return None
+
+
+def _project_icon(project, path: str) -> QIcon:
+    """A mod-owned PNG (project.files, else beside project.source_dir) as a
+    QIcon, or QIcon() if it cannot be read -- the same two-source lookup
+    guardian_star_icon already uses for a Guardian Star's own icon."""
+    try:
+        if path in project.files:
+            image = pngio.decode(project.files[path])
+        elif project.source_dir:
+            image = pngio.read(Path(project.source_dir) / path)
+        else:
+            return QIcon()
+        return QIcon(QPixmap.fromImage(_qimage(image.width, image.height, image.rgba)))
+    except (OSError, ValueError, pngio.PngError):
         return QIcon()
-    wa = _icon_archive(editor)
-    if wa is None:
+
+
+def type_icon(editor, type_id: int) -> QIcon:
+    """A declared type's own icon where one exists, else the card-text
+    symbol the retail font has for it (nothing past id 23); cached per
+    editor. Invalidate the cache (forget_icon_caches) when a project's
+    declarations might have changed -- a fresh import, or an edit on the
+    Types & Attributes page."""
+    if not isinstance(type_id, int) or type_id < 0:
         return QIcon()
     cache = getattr(editor, "_type_icon_cache", None)
     if cache is None:
         cache = editor._type_icon_cache = {}
     if type_id in cache:
         return cache[type_id]
-    try:
-        from .. import card_text
-        # Use the named icon table rather than assuming the numeric card type
-        # order.  The game stores Spell/Trap/Ritual/Equip after the monster
-        # icons, and this remains correct if that order changes in a mod.
-        name = TYPE_NAMES[type_id]
-        code = card_text.ICON_NAMES.index(name)
-        image = card_text.RetailFont(wa).icon(code)
-        icon = QIcon(QPixmap.fromImage(_qimage(*image))) if image is not None else QIcon()
-    except (IndexError, OSError, ValueError, struct.error):
+    project = getattr(editor, "project", None)
+    custom = custom_type_icon_path(project, type_id)
+    if custom:
+        icon = _project_icon(project, custom)
+    else:
         icon = QIcon()
+        wa = _icon_archive(editor)
+        if wa is not None and type_id < len(TYPE_NAMES):
+            try:
+                from .. import card_text
+                # Use the named icon table rather than assuming the numeric
+                # card type order.  The game stores Spell/Trap/Ritual/Equip
+                # after the monster icons, and this remains correct if that
+                # order changes in a mod.
+                name = TYPE_NAMES[type_id]
+                code = card_text.ICON_NAMES.index(name)
+                image = card_text.RetailFont(wa).icon(code)
+                icon = QIcon(QPixmap.fromImage(_qimage(*image))) if image is not None else QIcon()
+            except (IndexError, OSError, ValueError, struct.error):
+                icon = QIcon()
     cache[type_id] = icon
     return icon
 
 
 def attribute_icon(editor, attribute_id: int) -> QIcon:
-    """The 16×16 attribute ball shown by the Cards page."""
-    if not isinstance(attribute_id, int) or not 0 <= attribute_id < 8:
-        return QIcon()
-    wa = _icon_archive(editor)
-    if wa is None:
+    """A declared attribute's own icon where one exists, else the 16×16
+    attribute ball the Cards page always drew (retail ids 0-7 only);
+    cached per editor the same way as type_icon."""
+    if not isinstance(attribute_id, int) or attribute_id < 0:
         return QIcon()
     cache = getattr(editor, "_attribute_icon_cache", None)
     if cache is None:
         cache = editor._attribute_icon_cache = {}
     if attribute_id in cache:
         return cache[attribute_id]
-    try:
-        sheet, palettes = 0xEFE800, 0xF06800
-        palette = palettes + 0x1E00 + attribute_id * 0x20
-        if len(wa) < max(sheet + (128 + 16) * 128, palette + 32):
-            raise ValueError("attribute sheet is unavailable")
-        rgba = bytearray()
-        for y in range(16):
-            for x in range(16):
-                byte = wa[sheet + (128 + y) * 128 + (16 * attribute_id + x) // 2]
-                index = byte >> (4 * ((16 * attribute_id + x) & 1)) & 15
-                word = wa[palette + index * 2] | wa[palette + index * 2 + 1] << 8
-                rgba += bytes(((word & 31) * 255 // 31, ((word >> 5) & 31) * 255 // 31,
-                               ((word >> 10) & 31) * 255 // 31, 255 if index and word else 0))
-        icon = QIcon(QPixmap.fromImage(_qimage(16, 16, bytes(rgba))))
-    except (IndexError, OSError, ValueError, struct.error):
+    project = getattr(editor, "project", None)
+    custom = custom_attribute_icon_path(project, attribute_id)
+    if custom:
+        icon = _project_icon(project, custom)
+    elif 0 <= attribute_id < 8:
+        wa = _icon_archive(editor)
+        icon = QIcon()
+        if wa is not None:
+            try:
+                sheet, palettes = 0xEFE800, 0xF06800
+                palette = palettes + 0x1E00 + attribute_id * 0x20
+                if len(wa) < max(sheet + (128 + 16) * 128, palette + 32):
+                    raise ValueError("attribute sheet is unavailable")
+                rgba = bytearray()
+                for y in range(16):
+                    for x in range(16):
+                        byte = wa[sheet + (128 + y) * 128 + (16 * attribute_id + x) // 2]
+                        index = byte >> (4 * ((16 * attribute_id + x) & 1)) & 15
+                        word = wa[palette + index * 2] | wa[palette + index * 2 + 1] << 8
+                        rgba += bytes(((word & 31) * 255 // 31, ((word >> 5) & 31) * 255 // 31,
+                                       ((word >> 10) & 31) * 255 // 31, 255 if index and word else 0))
+                icon = QIcon(QPixmap.fromImage(_qimage(16, 16, bytes(rgba))))
+            except (IndexError, OSError, ValueError, struct.error):
+                icon = QIcon()
+    else:
         icon = QIcon()
     cache[attribute_id] = icon
     return icon
+
+
+def forget_icon_caches(editor):
+    """Drop every cached type/attribute/Guardian Star icon: a fresh import
+    or mod load may declare different ones at the same ids, and a Types &
+    Attributes or Guardian Stars edit may change one in place. Every list
+    that shows these icons rebuilds its rows from project state already
+    (refresh_cards, decorate_type_items, and the rest all run again after
+    either); this only makes sure that rebuild reads icons fresh rather
+    than whatever an earlier id happened to resolve to."""
+    for name in ("_type_icon_cache", "_attribute_icon_cache", "_guardian_star_icon_cache"):
+        cache = getattr(editor, name, None)
+        if cache is not None:
+            cache.clear()
 
 
 def guardian_star_icon(editor, star_id: int) -> QIcon:
@@ -250,14 +357,29 @@ def guardian_star_icon(editor, star_id: int) -> QIcon:
 
 
 def decorate_type_items(editor, widget, names=TYPE_NAMES[:20]):
-    """Set type icons on a combo box or checkable list whose labels are names."""
-    for index, name in enumerate(names):
-        icon = type_icon(editor, index)
+    """Set icons from each item's actual type id, never its list position.
+
+    ``names`` remains accepted for older retail-only callers, but new lists
+    carry their id in UserRole/currentData.  This keeps a custom id such as
+    Psychic (24) from becoming the Guardian Star image in slot 24.
+    """
+    for index in range(widget.count()):
         if isinstance(widget, QComboBox):
-            found = widget.findText(name)
-            if found >= 0:
-                widget.setItemIcon(found, icon)
-        elif index < widget.count():
+            # Some choice boxes save the type *name* in UserRole.  Their
+            # numeric id is retained in the next role solely for rendering.
+            type_id = widget.itemData(index, int(Qt.ItemDataRole.UserRole) + 1)
+            if not isinstance(type_id, int):
+                type_id = widget.itemData(index)
+            if not isinstance(type_id, int) and widget.itemText(index) in ("Any", "(none)"):
+                continue
+        else:
+            type_id = widget.item(index).data(Qt.ItemDataRole.UserRole)
+        if not isinstance(type_id, int):
+            type_id = index
+        icon = type_icon(editor, type_id)
+        if isinstance(widget, QComboBox):
+            widget.setItemIcon(index, icon)
+        else:
             widget.item(index).setIcon(icon)
 
 
@@ -594,16 +716,30 @@ class MapCanvas(QLabel):
                 return kind, index
         return None
 
+    # Turning the camera is Shift+left, or the other button (map_tab.py binds
+    # <Shift-ButtonPress-1> and the right/middle button the same way): any
+    # button but a plain left click means "turn", not "pick what is under it".
+    _TURN_BUTTONS = (Qt.MouseButton.MiddleButton, Qt.MouseButton.RightButton)
+
     def mousePressEvent(self, event):
-        if self.on_press is not None and event.button() == Qt.MouseButton.LeftButton:
-            self.on_press(self.at(event.position().toPoint()))
+        if self.on_press is None:
+            return
+        button = event.button()
+        if button == Qt.MouseButton.LeftButton:
+            turn = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
+        elif button in self._TURN_BUTTONS:
+            turn = True
+        else:
+            return
+        self.on_press(self.at(event.position().toPoint()), turn)
 
     def mouseMoveEvent(self, event):
         if self.on_move is not None:
             self.on_move(self.at(event.position().toPoint()))
 
     def mouseReleaseEvent(self, event):
-        if self.on_release is not None and event.button() == Qt.MouseButton.LeftButton:
+        if self.on_release is not None and \
+                event.button() in (Qt.MouseButton.LeftButton, *self._TURN_BUTTONS):
             self.on_release(self.at(event.position().toPoint()))
 
 

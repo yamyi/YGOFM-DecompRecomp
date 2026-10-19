@@ -221,7 +221,7 @@ class RitualsMixin:
     def _ritual_card_summary(self,cid):
         card=self.project.cards.get(cid)
         if card is None:return "Card data unavailable"
-        card_type=TYPE_NAMES[card.type] if 0<=card.type<len(TYPE_NAMES) else "Unknown type"
+        card_type=type_name(self.project, card.type)
         lines=[f"ID {cid:03d}  ·  {card_type}"]
         if card.is_monster():
             attribute=ATTRIBUTE_NAMES[card.attribute] if 0<=card.attribute<len(ATTRIBUTE_NAMES) else "Unknown"

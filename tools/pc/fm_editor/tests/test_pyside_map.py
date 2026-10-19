@@ -196,6 +196,141 @@ class MapTest(unittest.TestCase):
         self.assertIn(w._map_camera(w.map_index), w.map_references)
         self.assertIn('your reference picture', m['caption'].text())
 
+    def test_dragging_empty_screen_pans_the_camera(self):
+        """A plain left-drag over no marker/exit/place pans the camera: the
+        ground under the mouse stays under it. A port of map_tab.py's own
+        pan test."""
+        w, m = self.window, self.m
+        w._select_map_place(0)
+        start = QPoint(10, 10)
+        self.assertIsNone(m['canvas'].hit(start))
+        before = w._map_camera(0)
+        w._map_press(start)
+        self.assertEqual(w.map_drag[0], ('pan', None))
+        w._map_move(start + QPoint(40, 0))
+        self.assertIsNotNone(w.map_preview)      # a live preview while the drag is held
+        w._map_release(start + QPoint(40, 0))
+        after = w._map_camera(0)
+        self.assertEqual(after[:3], before[:3])              # distance, heading, pitch: unchanged
+        self.assertNotEqual((after[3], after[4]), (before[3], before[4]))     # target_x, target_z moved
+        self.assertIsNone(w.map_preview)
+        self.assertTrue(cm.changed(w.project, 0))
+
+    def test_shift_drag_turns_the_camera(self):
+        """Shift+left (map_tab.py's other turn gesture) rotates and tilts
+        instead of panning, by the same formula as the Tk tab's."""
+        w, m = self.window, self.m
+        w._select_map_place(0)
+        before = w._map_camera(0)
+        start = QPoint(10, 10)
+        w._map_press(start, turn=True)
+        self.assertEqual(w.map_drag[0], ('turn', None))
+        w._map_move(start + QPoint(5, 3))
+        w._map_release(start + QPoint(5, 3))
+        after = w._map_camera(0)
+        self.assertEqual(after[0], before[0])                # distance: unchanged
+        self.assertEqual(after[1], (before[1] + 5 * 4) % 4096)
+        self.assertEqual(after[2], max(16, min(1024, before[2] + 3 * 2)))
+        self.assertEqual((after[3], after[4]), (before[3], before[4]))        # target: unchanged
+
+    def test_a_turn_drag_ignores_what_is_under_the_mouse(self):
+        """turn=True skips hit-testing outright (map_tab.py's press() does
+        too): starting it on top of an exit still turns the camera, not
+        drags the exit."""
+        w, m = self.window, self.m
+        w._select_map_place(0)
+        arrow = next(r for kind, n, r in m['canvas'].targets if kind == 'exit' and n == 0)
+        before_exit = (w.map_state.locations[0].exits[0].x, w.map_state.locations[0].exits[0].y)
+        w._map_press(arrow.center(), turn=True)
+        self.assertEqual(w.map_drag[0], ('turn', None))
+        w._map_move(arrow.center() + QPoint(5, 0))
+        w._map_release(arrow.center() + QPoint(5, 0))
+        self.assertEqual((w.map_state.locations[0].exits[0].x, w.map_state.locations[0].exits[0].y), before_exit)
+
+    def test_add_exit_fills_a_free_slot_with_sensible_defaults(self):
+        """+ Add: the first free slot, a direction nothing else here uses,
+        and a destination this place does not already lead to. A port of
+        map_tab.py's add_exit()."""
+        w = self.window
+        w._select_map_place(0)
+        loc = w.map_state.locations[0]
+        self.assertEqual([e.used for e in loc.exits], [True, True, False, False])
+        w._map_add_exit()
+        self.assertEqual(w.map_exit, 2)
+        e = w.map_state.locations[0].exits[2]
+        self.assertTrue(e.used)
+        self.assertIn(e.buttons, (0x1000, 0x4000))      # up or down: left/right are already taken
+        self.assertNotIn(e.destination, {0, loc.exits[0].destination, loc.exits[1].destination})
+        self.assertEqual(e.steps, 16)
+        self.assertEqual(e.condition, 0)
+
+    def test_add_exit_does_nothing_with_every_slot_full(self):
+        w = self.window
+        w._select_map_place(3)       # the fixture gives place 3 three used exits
+        loc = w.map_state.locations[3].copy()
+        loc.exits[3].destination = 5
+        w._store_map(loc)
+        before = list(w.map_state.locations[3].exits)
+        w._map_add_exit()
+        self.assertEqual(w.map_state.locations[3].exits, before)
+
+    def test_reset_camera_only_puts_back_the_camera(self):
+        w, m = self.window, self.m
+        w._select_map_place(0)
+        retail = w.map_state.retail.locations[0]
+        self.assertFalse(m['reset_camera'].isEnabled())
+        m['distance'].setValue(retail.distance + 500)
+        m['marker_x'].setValue(123)      # a second, unrelated change
+        self.assertTrue(m['reset_camera'].isEnabled())
+        w._map_revert_part(keys=w.MAP_CAMERA_KEYS)
+        loc = w.map_state.locations[0]
+        self.assertEqual((loc.distance, loc.heading, loc.pitch, loc.target_x, loc.target_z),
+                         (retail.distance, retail.heading, retail.pitch, retail.target_x, retail.target_z))
+        self.assertEqual(loc.marker_x, 123)            # the unrelated change survives
+        self.assertFalse(m['reset_camera'].isEnabled())
+
+    def test_reset_marker_only_puts_back_the_marker(self):
+        w, m = self.window, self.m
+        w._select_map_place(cm.TOWN_FIRST)
+        retail = w.map_state.retail.locations[cm.TOWN_FIRST]
+        self.assertFalse(m['reset_marker'].isEnabled())
+        m['marker_x'].setValue(retail.marker_x + 20)
+        m['distance'].setValue(9999)
+        self.assertTrue(m['reset_marker'].isEnabled())
+        w._map_revert_part(keys=w.MAP_MARKER_KEYS)
+        loc = w.map_state.locations[cm.TOWN_FIRST]
+        self.assertEqual((loc.marker_x, loc.marker_y), (retail.marker_x, retail.marker_y))
+        self.assertEqual(loc.distance, 9999)
+        self.assertFalse(m['reset_marker'].isEnabled())
+
+    def test_reset_exit_only_puts_back_the_selected_exit(self):
+        w, m = self.window, self.m
+        w._select_map_place(0)
+        retail = w.map_state.retail.locations[0]
+        self.assertFalse(m['reset_exit'].isEnabled())
+        m['x'].setValue(retail.exits[0].x + 30)
+        m['distance'].setValue(9999)
+        self.assertTrue(m['reset_exit'].isEnabled())
+        w._map_revert_part(exits=(0,))
+        loc = w.map_state.locations[0]
+        self.assertEqual(loc.exits[0], retail.exits[0])
+        self.assertEqual(loc.distance, 9999)
+        self.assertFalse(m['reset_exit'].isEnabled())
+
+    def test_reset_confirm_only_puts_back_confirm_and_gate(self):
+        w, m = self.window, self.m
+        w._select_map_place(0)
+        self.assertFalse(m['reset_confirm'].isEnabled())
+        m['gate'].setChecked(True)
+        m['distance'].setValue(9999)
+        self.assertTrue(m['reset_confirm'].isEnabled())
+        retail = w.map_state.retail.locations[0]
+        w._map_revert_part(keys=('confirm', 'gate', 'pad'))
+        loc = w.map_state.locations[0]
+        self.assertEqual((loc.confirm, loc.gate, loc.pad), (retail.confirm, retail.gate, retail.pad))
+        self.assertEqual(loc.distance, 9999)
+        self.assertFalse(m['reset_confirm'].isEnabled())
+
     def test_the_pictures_window_lists_sprites_and_textures(self):
         w = self.window
         w._show_map_pictures()

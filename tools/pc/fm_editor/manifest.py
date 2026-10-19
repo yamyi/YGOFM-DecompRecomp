@@ -29,7 +29,7 @@ from . import art, board_art, campaign_map, compat, fixed_decks, guardian_stars,
 
 INFO_KEYS = ("id", "name", "version", "author", "description")
 TABLE_KEYS = ("settings", "cards", "fusions", "equips", "rituals", "drops", "decks", "starter", "packs", "pack_shop",
-              "duelists")
+              "duelists", "card_types")
 REPLACE_EXTRA = ("art", "thumbnail", "title", "model", "effect", "exodia")
 POOL_ALIASES = {"deck": "deck", "pow": "pow", "sapow": "pow", "bcd": "bcd", "tec": "tec", "satec": "tec"}
 
@@ -459,6 +459,24 @@ def build_passwords(project: Project):
     return table or None
 
 
+def build_card_types(project: Project):
+    """"card_types": only the retail IDs the mod renamed and the custom IDs
+    (24-255) it declared, by project.type_names against the retail baseline.
+    None when the mod made no such change."""
+    types = []
+    for type_ in range(TYPE_LIMIT):
+        name = project.type_names[type_] if type_ < len(project.type_names) else None
+        changed = (name and name != TYPE_NAMES[type_]) if type_ < len(TYPE_NAMES) else bool(name)
+        if not changed:
+            continue
+        entry = {"id": type_, "name": name}
+        icon = project.type_icons.get(type_)
+        if icon:
+            entry["icon"] = icon
+        types.append(entry)
+    return {"types": types} if types else None
+
+
 def build(project: Project) -> dict:
     """The mod.json object: the mod's own keys, then only what differs."""
     info = project.info
@@ -483,6 +501,11 @@ def build(project: Project) -> dict:
         manifest["passwords"] = passwords
     elif isinstance(manifest.get("passwords"), dict):
         del manifest["passwords"]
+    types = build_card_types(project)
+    if types:
+        manifest["card_types"] = types
+    elif isinstance(manifest.get("card_types"), dict):
+        del manifest["card_types"]
     if info.settings:
         manifest["settings"] = info.settings
     cards = build_cards(project)
@@ -694,6 +717,13 @@ def read_card_types(project: Project, section, messages: list):
             messages.append(f'{where}: "{name}" is already type {collision}\'s name or retail alias; declaration left out')
             continue
         project.type_names[type_] = name
+        # A declaration is a complete visual override (attributes.c,
+        # Attributes_Add): an icon left out clears one an earlier mod gave
+        # this id, rather than keeping it under the new name.
+        project.type_icons.pop(type_, None)
+        icon = entry.get("icon")
+        if isinstance(icon, str) and icon:
+            project.type_icons[type_] = icon
 
 
 def _number(value, default=-1):

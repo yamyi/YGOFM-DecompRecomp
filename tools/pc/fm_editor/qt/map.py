@@ -65,6 +65,11 @@ class MapMixin:
             "arrow": get(QComboBox, "mapExitArrowCombo"),
             "groups": [get(QGroupBox, key) for key in ("mapCameraGroup", "mapMarkerGroup",
                                                        "mapConfirmGroup", "mapExitsGroup")],
+            "add_exit": get(QPushButton, "addExitButton"),
+            "reset_camera": get(QPushButton, "mapResetCameraButton"),
+            "reset_marker": get(QPushButton, "mapResetMarkerButton"),
+            "reset_confirm": get(QPushButton, "mapResetConfirmButton"),
+            "reset_exit": get(QPushButton, "mapResetExitButton"),
         }
         for key, name in (("distance", "mapDistanceSpin"), ("heading", "mapHeadingSpin"),
                           ("pitch", "mapPitchSpin"), ("target_x", "mapTargetXSpin"),
@@ -85,6 +90,7 @@ class MapMixin:
         self.map_exit = 0
         self.map_filling = False
         self.map_drag = None
+        self.map_drag_camera = None    # the camera a pan/turn drag started from
         self.map_preview = None        # the place as a drag is leaving it
         self.map_references = {}       # camera -> a picture the player chose, this session
         self.map_pictures = {}         # rendered map_view pictures, by key
@@ -138,6 +144,11 @@ class MapMixin:
         get(QPushButton, "mapPicturesButton").clicked.connect(self._show_map_pictures)
         get(QPushButton, "resetPlaceButton").clicked.connect(self._reset_map_place)
         get(QPushButton, "resetAllButton").clicked.connect(self._reset_map_all)
+        m["add_exit"].clicked.connect(self._map_add_exit)
+        m["reset_camera"].clicked.connect(lambda: self._map_revert_part(keys=self.MAP_CAMERA_KEYS))
+        m["reset_marker"].clicked.connect(lambda: self._map_revert_part(keys=self.MAP_MARKER_KEYS))
+        m["reset_confirm"].clicked.connect(lambda: self._map_revert_part(keys=("confirm", "gate", "pad")))
+        m["reset_exit"].clicked.connect(lambda: self._map_revert_part(exits=(self.map_exit,)))
         for key in self.MAP_INTS + ("flag", "steps", "x", "y"):
             m[key].valueChanged.connect(self._map_edited)
         for box in (m["confirm"], m["destination"], m["condition"], m["arrow"]):
@@ -160,7 +171,12 @@ class MapMixin:
         return {p: image for p in map_art.STRIP_PALETTES
                 if (image := map_art.strip_override(self.project, p)) is not None}
     def _map_camera(self, index):
-        loc = self.map_state.locations[index]
+        # A pan/turn drag previews its camera the same way an exit or marker
+        # drag previews its own moved part: through map_preview, so the
+        # screen redraws with the camera the mouse is dragging, not the
+        # committed one, until the drag lets go.
+        loc = self.map_preview if index == self.map_index and self.map_preview is not None \
+            else self.map_state.locations[index]
         return loc.distance, loc.heading, loc.pitch, loc.target_x, loc.target_z
     def _refresh_map(self):
         m = self.workspace_controls.get("Campaign", {}).get("map")
@@ -286,7 +302,22 @@ class MapMixin:
             self._map_exit_titles()
         finally:
             self.map_filling = False
+        self._map_update_reset_buttons()
         self._show_map_problems()
+    def _map_update_reset_buttons(self):
+        """Each ⟳ is live only while its own part differs from the disc, as
+        map_tab.py's fill_changes() only shows a part's own button once
+        there is something in it to put back."""
+        m = self.workspace_controls["Campaign"]["map"]
+        loc = self.map_state.locations[self.map_index]
+        retail = self.map_state.retail.locations[self.map_index]
+        m["reset_camera"].setEnabled(any(getattr(loc, k) != getattr(retail, k)
+                                         for k in self.MAP_CAMERA_KEYS))
+        m["reset_marker"].setEnabled(any(getattr(loc, k) != getattr(retail, k)
+                                         for k in self.MAP_MARKER_KEYS))
+        m["reset_confirm"].setEnabled((loc.confirm, loc.gate, loc.pad) !=
+                                      (retail.confirm, retail.gate, retail.pad))
+        m["reset_exit"].setEnabled(loc.exits[self.map_exit] != retail.exits[self.map_exit])
     def _map_exit_titles(self):
         m = self.workspace_controls["Campaign"]["map"]
         loc = self.map_state.locations[self.map_index]
@@ -347,6 +378,7 @@ class MapMixin:
             return
         self.map_state.locations[self.map_index] = loc
         self._map_exit_titles()
+        self._map_update_reset_buttons()
         self._fill_map_places()
         self._mark_dirty()
         self._draw_map()
@@ -377,6 +409,52 @@ class MapMixin:
         self._mark_dirty()
         self._fill_map_places()
         self._select_map_place(self.map_index)
+
+    MAP_NEW_ARROW = {"up": (6, 160, 64), "right": (0, 300, 120), "down": (2, 160, 192), "left": (4, 24, 120)}
+
+    def _map_add_exit(self):
+        """An arrow in the first free slot: a direction no other arrow of
+        the place takes, its picture and place on the screen, to the first
+        place none leads to yet. A port of map_tab.py's add_exit()."""
+        if not self._map_available():
+            return
+        loc = self.map_state.locations[self.map_index].copy()
+        free = [n for n, e in enumerate(loc.exits) if not e.used]
+        if not free:
+            return
+        taken = 0
+        for e in loc.exits:
+            if e.used:
+                taken |= e.buttons
+        name = next((d for d, bit in cm.DIRECTIONS if not taken & bit), "up")
+        arrow, x, y = self.MAP_NEW_ARROW[name]
+        if self.map_index >= cm.TOWN_FIRST:     # the town's arrows stand beside the marker
+            dx, dy = {"up": (0, -24), "right": (24, 0), "down": (0, 24), "left": (-24, 0)}[name]
+            x, y = loc.marker_x + dx, loc.marker_y + dy
+        leads = {e.destination for e in loc.exits if e.used} | {self.map_index}
+        group = range(cm.TOWN_FIRST, cm.COUNT) if self.map_index >= cm.TOWN_FIRST else range(cm.TOWN_FIRST)
+        to = next((i for i in group if i not in leads), next(i for i in range(cm.COUNT) if i != self.map_index))
+        e = loc.exits[free[0]]
+        e.destination, e.buttons, e.arrow, e.x, e.y, e.condition = to, dict(cm.DIRECTIONS)[name], arrow, x, y, 0
+        e.steps = e.steps or 16         # the game's usual length
+        self.map_exit = free[0]
+        self._store_map(loc)       # already refreshes the places list, caption and problems
+        self._fill_map_form()
+
+    def _map_revert_part(self, keys=(), exits=()):
+        """Put named fields, or named exits, back as the disc has them,
+        leaving the rest of the place as it is. A port of map_tab.py's
+        revert_part()."""
+        if not self._map_available():
+            return
+        loc = self.map_state.locations[self.map_index].copy()
+        retail = self.map_state.retail.locations[self.map_index]
+        for key in keys:
+            setattr(loc, key, getattr(retail, key))
+        for n in exits:
+            loc.exits[n] = copy.copy(retail.exits[n])
+        self._store_map(loc)
+        self._fill_map_form()
     def _map_picture(self, key, make):
         """A map_view picture, drawn once; None when the disc's model cannot be
         read (said in the caption)."""
@@ -638,11 +716,16 @@ class MapMixin:
                  QPoint(round(bx - 10 * math.cos(angle + 0.35)), round(by - 10 * math.sin(angle + 0.35)))]
         painter.drawPolygon([tip, *wings])
         painter.setBrush(Qt.BrushStyle.NoBrush)
-    def _map_press(self, point):
+    def _map_press(self, point, turn=False):
         if not self._map_available():
             return
         m = self.workspace_controls["Campaign"]["map"]
-        found = m["canvas"].hit(point)
+        found = None if turn else m["canvas"].hit(point)
+        if found is None and not m["overview"].isChecked():
+            # The map itself, not a marker/exit/place: the camera moves (or
+            # turns) with the mouse, as map_tab.py's press() does.
+            found = ("turn" if turn else "pan", None)
+            self.map_drag_camera = self._map_camera(self.map_index)
         if found is None:
             self.map_drag = None
             return
@@ -655,6 +738,18 @@ class MapMixin:
         if not self.map_drag:
             return
         (kind, n), start, _moved = self.map_drag
+        if kind in ("pan", "turn"):
+            # Unlike the drags below, this recomputes from the place the
+            # drag started (map_drag_camera, start) every time, not from the
+            # last tick: map_tab.py's dragged_camera() does the same, since a
+            # pan's ground point depends on the camera it is dragged from.
+            self.map_drag = ((kind, n), start, True)
+            loc = self.map_state.locations[self.map_index].copy()
+            loc.distance, loc.heading, loc.pitch, loc.target_x, loc.target_z = \
+                self._map_dragged_camera(kind, start, point)
+            self.map_preview = loc
+            self._draw_map()
+            return
         dx, dy = point.x() - start.x(), point.y() - start.y()
         if not dx and not dy:
             return
@@ -688,6 +783,52 @@ class MapMixin:
             return
         self._store_map(loc)
         self._fill_map_form()
+
+    # --- the camera, by the mouse ---------------------------------------------------------------------
+
+    @staticmethod
+    def _map_ground(camera, x, y):
+        """The point of the ground (y 0) the screen shows at x, y (320x240),
+        as map_view.render projects; None above the horizon. A port of
+        map_tab.py's own ground()."""
+        import math
+        from .. import map_view
+        vp, vr = map_view.eye(camera)
+        f = [vr[i] - vp[i] for i in range(3)]
+        length = math.sqrt(sum(a * a for a in f)) or 1.0
+        f = [a / length for a in f]
+        r = [f[2], 0.0, -f[0]]
+        length = math.sqrt(r[0] * r[0] + r[2] * r[2])
+        r = [a / length for a in r] if length > 1e-9 else [1.0, 0.0, 0.0]
+        u = [f[1] * r[2] - f[2] * r[1], f[2] * r[0] - f[0] * r[2], f[0] * r[1] - f[1] * r[0]]
+        a, b = (x - 160) / map_view.PROJECTION, (y - 120) / map_view.PROJECTION
+        d = [f[i] + a * r[i] + b * u[i] for i in range(3)]
+        if abs(d[1]) < 1e-9:
+            return None
+        t = -vp[1] / d[1]
+        if t <= 0:
+            return None
+        return vp[0] + t * d[0], vp[2] + t * d[2]
+
+    def _map_dragged_camera(self, kind, start, point):
+        """The camera map_drag_camera took, moved by the mouse from start to
+        point (canvas pixels): the ground under the mouse stays under it (a
+        pan), or the camera turns about what it looks at. A port of
+        map_tab.py's own dragged_camera()."""
+        distance, heading, pitch, tx, tz = self.map_drag_camera
+        clamp = lambda v: max(-32768, min(32767, round(v)))      # noqa: E731
+        x0, y0, x1, y1 = start.x(), start.y(), point.x(), point.y()
+        if kind == "turn":
+            heading = (heading + (x1 - x0) * 4) % 4096
+            pitch = max(16, min(1024, pitch + (y1 - y0) * 2))
+            return distance, clamp(heading), clamp(pitch), tx, tz
+        zoom = self.MAP_ZOOM
+        ground_start = self._map_ground(self.map_drag_camera, x0 / zoom, y0 / zoom)
+        now = self._map_ground(self.map_drag_camera, x1 / zoom, y1 / zoom)
+        if ground_start is None or now is None:
+            return self.map_drag_camera
+        return distance, heading, pitch, clamp(tx + ground_start[0] - now[0]), clamp(tz + ground_start[1] - now[1])
+
     def _choose_map_reference(self):
         if not self._map_available():
             return

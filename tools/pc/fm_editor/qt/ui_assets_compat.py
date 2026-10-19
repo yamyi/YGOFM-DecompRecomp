@@ -1405,7 +1405,10 @@ def _draw_frames(editor, selection_only=False):
         painter.end(); _set_preview_pixmap(c["preview"], QPixmap.fromImage(image)); return
     face = _frames_widget(c["form"], QRadioButton, "frontRadio").isChecked()
     kind = _frame_preview_kind(c)
-    wa = getattr(getattr(editor, "files", None), "wa", None)
+    # An imported BIN may carry its card-frame atlas as data patches.  The
+    # Frames workspace must inspect that reconstructed archive, just as the
+    # Cards preview does, rather than silently reverting to retail pixels.
+    wa = getattr(editor, "preview_wa", None) or getattr(getattr(editor, "files", None), "wa", None)
     painter.fillRect(0, 0, 140, 196, QColor("#06080d")); c["boxes"] = {}
     base = "frame" if face else "back"
     bx, by, bw, bh = _frame_rect(editor, base)
@@ -1539,7 +1542,7 @@ def _draw_hand_template(editor, painter, c):
     c["boxes"] = {}
     box = QRect(left, top, width, height)
     c["boxes"]["hand"] = (box.x(), box.y(), box.width(), box.height())
-    wa = getattr(getattr(editor, "files", None), "wa", None)
+    wa = getattr(editor, "preview_wa", None) or getattr(getattr(editor, "files", None), "wa", None)
     hand_asset = _ui_image(editor, _frame_asset(editor, "hand"))
     if hand_asset is not None:
         _frame_draw_picture(painter, hand_asset, box)
@@ -1601,7 +1604,7 @@ def _draw_library_template(editor, painter, c):
     if asset is not None:
         painter.drawImage(box, _qimage(asset.width, asset.height, asset.rgba))
     else:
-        wa = getattr(getattr(editor, "files", None), "wa", None)
+        wa = getattr(editor, "preview_wa", None) or getattr(getattr(editor, "files", None), "wa", None)
         plate = _library_icon_background(wa, _FRAME_INDEX[_frame_preview_kind(c)])
         if plate is not None: _frame_draw_picture(painter, plate, box)
         else: painter.setPen(QColor("#9ab2cf")); painter.drawRect(box)
@@ -1624,7 +1627,7 @@ def _draw_field_template(editor, painter, c, key):
     if asset is not None:
         painter.drawImage(box, _qimage(asset.width, asset.height, asset.rgba))
     else:
-        wa = getattr(getattr(editor, "files", None), "wa", None)
+        wa = getattr(editor, "preview_wa", None) or getattr(getattr(editor, "files", None), "wa", None)
         kind = _frame_preview_kind(c)
         plate = (_field_back_frame_background(wa, _FRAME_INDEX[kind]) if key == "field_back"
                 else _field_frame_background(wa, _FRAME_INDEX[kind], kind == "monster"))

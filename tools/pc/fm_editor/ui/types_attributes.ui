@@ -1,0 +1,574 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>TypeAttributeRegistryPage</class>
+ <widget class="QWidget" name="TypeAttributeRegistryPage">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>991</width>
+    <height>774</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Card Types &amp; Attributes — Registry Editor</string>
+  </property>
+  <layout class="QVBoxLayout" name="mainVerticalLayout">
+   <item>
+    <layout class="QHBoxLayout" name="headerLayout"/>
+   </item>
+   <item>
+    <widget class="QTabWidget" name="registryTabs">
+     <property name="currentIndex">
+      <number>0</number>
+     </property>
+     <widget class="QWidget" name="typesTab">
+      <attribute name="title">
+       <string>Types</string>
+      </attribute>
+      <layout class="QHBoxLayout" name="typesColumns" stretch="0,0">
+       <item>
+        <widget class="QGroupBox" name="typesCatalogGroup">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="title">
+          <string>Types registry</string>
+         </property>
+         <layout class="QVBoxLayout" name="typesCatalogLayout">
+          <item>
+           <widget class="QLineEdit" name="typesSearchEdit">
+            <property name="placeholderText">
+             <string>Search by ID or name</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QTreeWidget" name="typesTree">
+            <property name="alternatingRowColors">
+             <bool>true</bool>
+            </property>
+            <column>
+             <property name="text">
+              <string>ID</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>Name</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>Origin</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>Icon</string>
+             </property>
+            </column>
+           </widget>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="typesCatalogButtons">
+            <item>
+             <widget class="QPushButton" name="typesAddButton">
+              <property name="text">
+               <string>Add new</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="typesRenameButton">
+              <property name="text">
+               <string>Edit</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="typesRemoveButton">
+              <property name="text">
+               <string>Remove</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="typesTools">
+            <item>
+             <widget class="QPushButton" name="typesRevertButton">
+              <property name="text">
+               <string>Revert selected</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="typesValidateButton">
+              <property name="text">
+               <string>Validate registry</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <layout class="QVBoxLayout" name="typesEditorLayout">
+         <item>
+          <widget class="QGroupBox" name="typesDetailsGroup">
+           <property name="title">
+            <string>Type definition</string>
+           </property>
+           <layout class="QGridLayout" name="typesFormLayout">
+            <item row="0" column="0">
+             <widget class="QLabel" name="typesIdLabel">
+              <property name="text">
+               <string>Numeric ID</string>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="1">
+             <widget class="QSpinBox" name="typesIdSpin">
+              <property name="minimum">
+               <number>0</number>
+              </property>
+              <property name="maximum">
+               <number>255</number>
+              </property>
+              <property name="value">
+               <number>24</number>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="0">
+             <widget class="QLabel" name="typesNameLabel">
+              <property name="text">
+               <string>Display name</string>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="1">
+             <widget class="QLineEdit" name="typesNameEdit">
+              <property name="placeholderText">
+               <string>Unique case- and punctuation-insensitive name</string>
+              </property>
+             </widget>
+            </item>
+            <item row="2" column="0">
+             <widget class="QLabel" name="typesOriginLabel">
+              <property name="text">
+               <string>Definition</string>
+              </property>
+             </widget>
+            </item>
+            <item row="2" column="1">
+             <widget class="QComboBox" name="typesModeCombo">
+              <item>
+               <property name="text">
+                <string>New definition</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Rename retail ID</string>
+               </property>
+              </item>
+             </widget>
+            </item>
+            <item row="3" column="0">
+             <widget class="QLabel" name="typesIconLabel">
+              <property name="text">
+               <string>Optional icon path</string>
+              </property>
+             </widget>
+            </item>
+            <item row="3" column="1">
+             <widget class="QLineEdit" name="typesIconPathEdit">
+              <property name="placeholderText">
+               <string>icons/example.png (relative to mod)</string>
+              </property>
+             </widget>
+            </item>
+            <item row="4" column="0" colspan="2">
+             <widget class="QLabel" name="typesAssetNote">
+              <property name="text">
+               <string>PNG is loaded by the mod runtime; none is required by this .ui</string>
+              </property>
+             </widget>
+            </item>
+            <item row="5" column="0" colspan="2">
+             <widget class="QLabel" name="typeRanges">
+              <property name="text">
+               <string>Retail IDs: 0–23  •  New monster types: 24–255  •  IDs 20–23 retain Magic / Trap / Ritual / Equip mechanics</string>
+              </property>
+             </widget>
+            </item>
+            <item row="6" column="0" colspan="2">
+             <widget class="QLabel" name="typeRuleNote">
+              <property name="text">
+               <string>Custom types behave as monsters. Retail-only routines can treat them as Dragon.</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="typesApplyButtons">
+           <item>
+            <widget class="QPushButton" name="typesApplyButton">
+             <property name="text">
+              <string>Apply definition</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="typesDiscardButton">
+             <property name="text">
+              <string>Discard changes</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <widget class="QGroupBox" name="typesUsageGroup">
+           <property name="title">
+            <string>Framework usage &amp; validation</string>
+           </property>
+           <layout class="QVBoxLayout" name="typesUsageLayout">
+            <item>
+             <widget class="QLabel" name="typesUsage0">
+              <property name="text">
+               <string>Used by: cards.type, terrain_bonus, equip targets/bonuses, rituals, fusions, monster effects.</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="typesUsage1">
+              <property name="text">
+               <string>New IDs cannot reuse an existing normalized name. Numeric ID remains stable when renaming.</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="typesUsage2">
+              <property name="text">
+               <string>Custom type icons render in card viewer, decks/lists, trade and duel UI.</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QCheckBox" name="typesShowRetailCheck">
+              <property name="text">
+               <string>Show original definitions</string>
+              </property>
+              <property name="checked">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
+          <spacer name="typesVerticalSpacer">
+           <property name="orientation">
+            <enum>Qt::Orientation::Vertical</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>20</width>
+             <height>35</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="attributesTab">
+      <attribute name="title">
+       <string>Attributes</string>
+      </attribute>
+      <layout class="QHBoxLayout" name="attributesColumns">
+       <item>
+        <widget class="QGroupBox" name="attributesCatalogGroup">
+         <property name="title">
+          <string>Attributes registry</string>
+         </property>
+         <layout class="QVBoxLayout" name="attributesCatalogLayout">
+          <item>
+           <widget class="QLineEdit" name="attributesSearchEdit">
+            <property name="placeholderText">
+             <string>Search by ID or name</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QTreeWidget" name="attributesTree">
+            <property name="alternatingRowColors">
+             <bool>true</bool>
+            </property>
+            <column>
+             <property name="text">
+              <string>ID</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>Name</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>Origin</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>Icon</string>
+             </property>
+            </column>
+           </widget>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="attributesCatalogButtons">
+            <item>
+             <widget class="QPushButton" name="attributesAddButton">
+              <property name="text">
+               <string>Add new</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="attributesRenameButton">
+              <property name="text">
+               <string>Edit</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="attributesRemoveButton">
+              <property name="text">
+               <string>Remove</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="attributesTools">
+            <item>
+             <widget class="QPushButton" name="attributesRevertButton">
+              <property name="text">
+               <string>Revert selected</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="attributesValidateButton">
+              <property name="text">
+               <string>Validate registry</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <layout class="QVBoxLayout" name="attributesEditorLayout">
+         <item>
+          <widget class="QGroupBox" name="attributesDetailsGroup">
+           <property name="title">
+            <string>Attribute definition</string>
+           </property>
+           <layout class="QGridLayout" name="attributesFormLayout">
+            <item row="0" column="0">
+             <widget class="QLabel" name="attributesIdLabel">
+              <property name="text">
+               <string>Numeric ID</string>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="1">
+             <widget class="QSpinBox" name="attributesIdSpin">
+              <property name="minimum">
+               <number>0</number>
+              </property>
+              <property name="maximum">
+               <number>255</number>
+              </property>
+              <property name="value">
+               <number>8</number>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="0">
+             <widget class="QLabel" name="attributesNameLabel">
+              <property name="text">
+               <string>Display name</string>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="1">
+             <widget class="QLineEdit" name="attributesNameEdit">
+              <property name="placeholderText">
+               <string>Unique case- and punctuation-insensitive name</string>
+              </property>
+             </widget>
+            </item>
+            <item row="2" column="0">
+             <widget class="QLabel" name="attributesOriginLabel">
+              <property name="text">
+               <string>Definition</string>
+              </property>
+             </widget>
+            </item>
+            <item row="2" column="1">
+             <widget class="QComboBox" name="attributesModeCombo">
+              <item>
+               <property name="text">
+                <string>New definition</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Rename retail ID</string>
+               </property>
+              </item>
+             </widget>
+            </item>
+            <item row="3" column="0">
+             <widget class="QLabel" name="attributesIconLabel">
+              <property name="text">
+               <string>Optional icon path</string>
+              </property>
+             </widget>
+            </item>
+            <item row="3" column="1">
+             <widget class="QLineEdit" name="attributesIconPathEdit">
+              <property name="placeholderText">
+               <string>icons/example.png (relative to mod)</string>
+              </property>
+             </widget>
+            </item>
+            <item row="4" column="0" colspan="2">
+             <widget class="QLabel" name="attributesAssetNote">
+              <property name="text">
+               <string>PNG is loaded by the mod runtime; none is required by this .ui</string>
+              </property>
+             </widget>
+            </item>
+            <item row="5" column="0" colspan="2">
+             <widget class="QLabel" name="attributeRanges">
+              <property name="text">
+               <string>Retail IDs: 0–5  •  Reserved: 6–7  •  New monster attributes: 8–255</string>
+              </property>
+             </widget>
+            </item>
+            <item row="6" column="0" colspan="2">
+             <widget class="QLabel" name="attributeRuleNote">
+              <property name="text">
+               <string>A changed ID meaning affects all cards referencing that numeric attribute.</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="attributesApplyButtons">
+           <item>
+            <widget class="QPushButton" name="attributesApplyButton">
+             <property name="text">
+              <string>Apply definition</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="attributesDiscardButton">
+             <property name="text">
+              <string>Discard changes</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <widget class="QGroupBox" name="attributesUsageGroup">
+           <property name="title">
+            <string>Framework usage &amp; validation</string>
+           </property>
+           <layout class="QVBoxLayout" name="attributesUsageLayout">
+            <item>
+             <widget class="QLabel" name="attributesUsage0">
+              <property name="text">
+               <string>Used by: cards.attribute, equip bonus_if, monster-effect attribute filters.</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="attributesUsage1">
+              <property name="text">
+               <string>Attribute names must contain letters/digits and must not normalize to a numeric ID.</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="attributesUsage2">
+              <property name="text">
+               <string>Custom icons are loaded from the attribute texture bank.</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QCheckBox" name="attributesShowRetailCheck">
+              <property name="text">
+               <string>Show original definitions</string>
+              </property>
+              <property name="checked">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
+          <spacer name="attributesVerticalSpacer">
+           <property name="orientation">
+            <enum>Qt::Orientation::Vertical</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>20</width>
+             <height>35</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="footerLayout"/>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

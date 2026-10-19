@@ -200,7 +200,7 @@ class FusionsMixin:
             cap = side.upper()
             types = get(QListWidget, f"material{cap}TypeList")
             stars = get(QListWidget, f"material{cap}StarList")
-            self._populate_checkable_list(types, TYPE_NAMES[:20])
+            self._populate_checkable_list(types, declared_type_choices(self.project, monster_only=True))
             decorate_type_items(self, types)
             self._populate_checkable_list(stars, guardian_stars.choices(self.project.other.get("guardian_stars"))[1:])
             decorate_guardian_star_items(self, stars)

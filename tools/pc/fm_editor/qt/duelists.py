@@ -1319,7 +1319,7 @@ QLabel#statsRank { color: #8aa0bd; }
             if not weight and not before:continue
             card=self.project.cards.get(cid)
             state="" if weight==before else "added" if not before else "removed" if not weight else "changed"
-            rows.append((cid,card.name if card else "?",TYPE_NAMES[card.type] if card else "",weight,
+            rows.append((cid,card.name if card else "?",type_name(self.project, card.type) if card else "",weight,
                          f"{weight*100/POOL_TOTAL:.2f}%",before,state.title()))
         self._show_pool_statistics(pool)
         table=c["table"];held=sort_paused(table);table.setRowCount(len(rows))
@@ -1382,7 +1382,7 @@ QLabel#statsRank { color: #8aa0bd; }
             weight = weights.get(cid, 0)
             row = table.rowCount()
             table.insertRow(row)
-            kind = TYPE_NAMES[card.type] if card and 0 <= card.type < len(TYPE_NAMES) else ""
+            kind = type_name(self.project, card.type) if card else ""
             for column, value in enumerate((cid, card.name if card else "?", kind, copies,
                                             f"{weight * 100 / POOL_TOTAL:.2f}%" if weight else "",
                                             ", ".join(notes))):

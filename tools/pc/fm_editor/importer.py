@@ -18,17 +18,28 @@ player's retail files and writes what differs in the port's terms:
 from __future__ import annotations
 
 import bisect
+import json
 import re
 import struct
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import art, duelist_rules, gamedata as g, guardian_stars, kit, manifest, pngio, starter_pools, values
+from . import art, duelist_rules, gamedata as g, guardian_stars, kit, manifest, pngio, starter_pools, tea_import, teatools_import, ui_assets, values
 from .fixed_decks import set_deck as set_fixed_deck
 from .model import Project, StarterDeck, duelist_named
 from .pools import normalize
 
+# ``extract_images`` lives beside the editor package.  The editor is also
+# imported as the top-level ``fm_editor`` package by its test suite, so use
+# both valid import paths rather than making the importer depend on one launch
+# convention.
+try:
+    from tools.pc import extract_images as image_extract
+except ImportError:  # pragma: no cover - exercised by PYTHONPATH=tools/pc
+    import extract_images as image_extract
+
 WA_FILE = "\\DATA\\WA_MRG.MRG;1"
+SECTOR = 2048
 MERGE_GAP = 32              # changed runs closer than this are one patch
 PATCH_LIMIT = 4096          # longer runs become sector replacements
 # The port holds 65536 patched runs and 4096 replaced regions for all the mods
@@ -77,11 +88,63 @@ def slug(text: str) -> str:
     return (text or "imported-mod")[:63]
 
 
+@dataclass(frozen=True)
+class ImportFinding:
+    """One source feature's import outcome, suitable for a detailed summary."""
+
+    feature: str
+    workspace: str
+    status: str                 # recovered, partial, raw, unsupported, unchanged
+    source_file: str
+    details: str
+
+
 @dataclass
 class ImportResult:
     project: Project
     report: list = field(default_factory=list)       # lines for the user
     unhandled: int = 0                               # count of things the port cannot take
+    findings: list[ImportFinding] = field(default_factory=list)
+    handled_ranges: dict[str, list[tuple[int, int]]] = field(default_factory=dict)
+    analysis: object | None = None
+    analysis_status: dict[str, str] = field(default_factory=dict)
+
+    def finding(self, feature: str, workspace: str, status: str, source_file: str, details: str,
+                ranges: list[tuple[int, int]] | None = None) -> None:
+        """Record a structured outcome without making reporting all-or-nothing."""
+        self.findings.append(ImportFinding(feature, workspace, status, source_file, details))
+        if ranges:
+            self.handled_ranges.setdefault(source_file, []).extend(ranges)
+
+
+def _starter_analysis_matches_project(project: Project, records: list) -> bool:
+    """Whether the ordinary starter importer already expressed decoded pools."""
+    pools = project.other.get("starter_pools")
+    if not isinstance(pools, list) or len(pools) != len(records):
+        return False
+    for pool, record in zip(pools, records):
+        if not isinstance(pool, dict) or pool.get("draws") != record.get("draws"):
+            return False
+        cards = pool.get("cards")
+        expected = {str(card): weight for card, weight in record.get("weights", {}).items()}
+        if cards != expected:
+            return False
+    return True
+
+
+def _tea_analysis_status(result: ImportResult) -> None:
+    """Describe analysis/import relation without letting analysis mutate Project."""
+    analysis = result.analysis
+    if analysis is None:
+        return
+    for feature in analysis.features:
+        if feature.feature_id == "initial_deck" and _starter_analysis_matches_project(result.project,
+                                                                                        feature.data.get("records", [])):
+            result.analysis_status[feature.feature_id] = "already_imported"
+        elif feature.compatibility.value == "supported":
+            result.analysis_status[feature.feature_id] = "ready_for_conversion"
+        else:
+            result.analysis_status[feature.feature_id] = "needs_engine_support"
 
 
 def _runs(a: bytes, b: bytes, start: int, end: int, gap: int = MERGE_GAP):
@@ -609,6 +672,150 @@ def check_rituals(project: Project, modded) -> list:
                     "card: code, or another format); the rituals were imported as removed, as the game finds none there"]
 
 
+TYPE_NAME_INDEX = 0x300         # the names bank: 0x300 + type id, type 0 (Dragon) is string 0x8300
+
+
+def type_names_from_slus(slus: bytes) -> dict:
+    """{type: name} for the 24 retail type slots, as the names bank has
+    them. Past type 23 the bank holds the star strings (cardsdata README:
+    "768..791 types, 792..801 stars"), so nothing past 23 is read -- a card
+    wearing one of those ids has no name of its own to recover here."""
+    from .gamedata import _tl
+    try:
+        image = g._image(slus)
+        glyphs = _tl.glyph_characters(image)
+    except Exception:
+        return {}
+    out = {}
+    for type_ in range(len(g.TYPE_NAMES)):
+        at = g.NAME_BANK + image.u16(_tl.NAME_TABLE + (TYPE_NAME_INDEX + type_) * 2)
+        text, jumps = "", 0
+        try:
+            while len(text) < 24:
+                code = image.bytes(at, 1)[0]
+                # As community mods write them (gamedata.plain_names): a
+                # colour/icon escape (F8 0A/0B NN) is skipped rather than
+                # read as a glyph or mistaken for the 0xF0+ terminator.
+                if code == 0xF8:
+                    at += 3 if image.bytes(at + 1, 1)[0] in (0x0A, 0x0B) else 2
+                    continue
+                if code == 0xFD and jumps < 8:
+                    at = g.NAME_BANK + int.from_bytes(image.bytes(at + 1, 2), "little")
+                    jumps += 1
+                    continue
+                if code >= 0xF0:
+                    break
+                text += glyphs.get(code, "?")
+                at += 1
+        except Exception:
+            return {}
+        out[type_] = text.strip()
+    return out
+
+
+def import_card_types(project: Project, retail_slus: bytes, modded_slus: bytes, modded_wa: bytes,
+                      report: list) -> list:
+    """A retail type the executable renamed becomes a new custom declaration
+    rather than a rewrite of the retail slot.
+
+    The disc has one name per id: it cannot keep "Sea Serpent" for anyone who
+    still expects retail's 13 to mean that and also show a mod's "Psychic"
+    there. In the modded game every card at that id now reads "Psychic", so
+    that is what they are; retail's 13 is left alone (unused by this mod)
+    and the mod's name gets an id of its own, with the cards that wore the
+    retail id moved to it. TeaTools' own tools (cardsdata) only repack the
+    24 retail type-name strings -- there is no registry for a name past
+    those 24, so nothing here is invented for an id with no string of its
+    own (cardsdata's accepted 0-63 just writes the raw id).
+
+    The new declaration's icon, where one can be read, is the retail slot's
+    own card-text glyph (card_text.RetailFont): cardsdata only ever rewrites
+    the name string, never that glyph bitmap, so the picture at "Sea
+    Serpent"'s old position is still exactly what it was -- a real starting
+    icon for "Psychic" to keep or replace, not a guess from its numeric id."""
+    was, now = type_names_from_slus(retail_slus), type_names_from_slus(modded_slus)
+    if not was or not now:
+        report.append("card_types: the executable's type names could not be read; any renamed type is left out")
+        return []
+    renamed = {type_: now[type_] for type_ in sorted(now) if now[type_] and now[type_] != was.get(type_)}
+    if not renamed:
+        return []
+    from . import card_text
+    try:
+        font = card_text.RetailFont(modded_wa)
+    except (ValueError, OSError, struct.error):
+        font = None
+    mapping, entries, skipped, icons_found = {}, [], [], 0
+    next_id = len(g.TYPE_NAMES)
+    for old in sorted(renamed):
+        new_name = renamed[old]
+        while next_id < g.TYPE_LIMIT and project.type_names[next_id]:
+            next_id += 1
+        if next_id >= g.TYPE_LIMIT:
+            skipped.append(new_name)
+            continue
+        declaration = {"id": next_id, "name": new_name}
+        icon_path = None
+        if font is not None:
+            try:
+                found = font.icon(card_text.ICON_NAMES.index(g.TYPE_NAMES[old]))
+            except ValueError:
+                found = None
+            if found is not None:
+                icon_path = f"icons/type-{next_id}.png"
+                project.files[icon_path] = pngio.encode(pngio.Image(*found))
+                declaration["icon"] = icon_path
+        messages = []
+        manifest.read_card_types(project, {"types": [declaration]}, messages)
+        if messages:
+            skipped.append(new_name)
+            if icon_path:
+                project.files.pop(icon_path, None)
+            continue
+        mapping[old] = next_id
+        if icon_path:
+            icons_found += 1
+        entries.append(f'{was.get(old, old)} (id {old}) → "{new_name}" (new id {next_id})')
+        next_id += 1
+    if mapping:
+        moved = sum(1 for card in project.cards.values() if card.type in mapping)
+        for card in project.cards.values():
+            if card.type in mapping:
+                card.type = mapping[card.type]
+        shown = ", ".join(entries[:3])
+        report.append(f"card_types: {len(mapping)} retail type(s) renamed in the executable "
+                      f"({shown}{', ...' if len(entries) > 3 else ''}) became new custom types rather than "
+                      f"replacing the retail one, since the disc has no room for both names at the same id; "
+                      f"{moved} card(s) using the old id moved to the new one"
+                      + (f"; {icons_found} kept the retail slot's own icon" if icons_found else ""))
+    if skipped:
+        report.append(f"card_types: {len(skipped)} renamed type(s) could not be declared as new custom types "
+                      f"({', '.join(skipped[:3])}); left as retail")
+    return []
+
+
+def report_unresolved_type_and_attribute_ids(project: Project, report: list):
+    """Cards wearing a custom type or attribute id the import could not name
+    -- past the 24 types and 6 attributes the disc's own names bank covers,
+    TeaTools' cardsdata writes the raw id (0-63 for type, 0-15 for
+    attribute) with nothing recoverable past it; this just says so, rather
+    than inventing a name import_card_types had no string to base one on."""
+    custom_types = sorted({card.type for card in project.cards.values()
+                           if len(g.TYPE_NAMES) <= card.type < g.TYPE_LIMIT and not project.type_names[card.type]})
+    if custom_types:
+        report.append(f"card_types: {len(custom_types)} custom type id(s) in use with no name of their own "
+                      f"({', '.join(str(t) for t in custom_types[:6])}{', ...' if len(custom_types) > 6 else ''}); "
+                      "name them on the Types & Attributes page. TeaTools' own cardsdata tool accepts ids up to 63, "
+                      "but the original game masks a card's type to 5 bits in places, so an id of 32 or more may not "
+                      "play consistently on the original disc even though this port reads it exactly")
+    custom_attributes = sorted({card.attribute for card in project.cards.values() if 8 <= card.attribute <= 255})
+    if custom_attributes:
+        report.append(f"attributes: {len(custom_attributes)} custom attribute id(s) in use with no name of their "
+                      f"own ({', '.join(str(a) for a in custom_attributes[:6])}"
+                      f"{', ...' if len(custom_attributes) > 6 else ''}); TeaTools has no attribute-naming tool to "
+                      "recover one from, so name them on the Types & Attributes page")
+
+
 DUELIST_NAME_INDEX = 0x328      # the names bank: 0x328 + id (translation.c TEXT_DUELIST_NAMES)
 
 
@@ -1031,6 +1238,92 @@ def port_wa(retail_wa: bytes, modded_wa: bytes, keep_retail) -> bytes:
     return bytes(out)
 
 
+def preview_archive(project: Project, retail_wa: bytes, wa_lba: int) -> bytes:
+    """Return the archive as an imported mod makes the game read it.
+
+    An imported BIN keeps unstructured graphics as ``data`` patches and raw
+    sector replacements.  The game applies those entries at load time, but a
+    newly opened editor project otherwise only has the retail ``WA_MRG.MRG``
+    in memory.  Replaying the entries here makes editor previews show the
+    same card frames, UI sheets, and other imported graphics after Save and
+    Open as they did immediately after the BIN import.
+
+    This is deliberately preview-only: structured tables remain represented
+    by the normal Project model and are not copied back into the archive.
+    Invalid or unrelated ``data`` entries are ignored just as the preview
+    ignores assets it cannot render.
+    """
+    data = project.other.get("data")
+    if not isinstance(data, list) or not retail_wa:
+        return retail_wa
+
+    def blob(path):
+        if not isinstance(path, str):
+            return None
+        value = project.files.get(path)
+        if isinstance(value, bytes):
+            return value
+        folder = getattr(project, "source_dir", None)
+        if folder is None:
+            return None
+        try:
+            target = art.safe_target(Path(folder), path)
+            return target.read_bytes() if target is not None and target.is_file() else None
+        except OSError:
+            return None
+
+    def number(value):
+        try:
+            return int(value, 0) if isinstance(value, str) else int(value)
+        except (TypeError, ValueError):
+            return None
+
+    def is_archive(value):
+        return isinstance(value, str) and value.replace("/", "\\").upper().lstrip("\\") in \
+            ("DATA\\WA_MRG.MRG;1", "DATA\\WA_MRG.MRG")
+
+    out = bytearray(retail_wa)
+    for entry in data:
+        if not isinstance(entry, dict):
+            continue
+        replacement = blob(entry.get("replace"))
+        if replacement is not None and is_archive(entry.get("file")):
+            # A named full-file replacement.  Keep the retail tail where a
+            # malformed replacement is short, matching the port's sector
+            # fallback rather than making the preview unreadable.
+            out[:min(len(out), len(replacement))] = replacement[:len(out)]
+        lba, sectors = number(entry.get("lba")), number(entry.get("sectors"))
+        if replacement is not None and lba is not None and sectors and sectors > 0:
+            start = (lba - wa_lba) * SECTOR
+            size = sectors * SECTOR
+            if start < len(out) and start + size > 0:
+                source_start = max(0, -start)
+                target_start = max(0, start)
+                count = min(size - source_start, len(replacement) - source_start, len(out) - target_start)
+                if count > 0:
+                    out[target_start:target_start + count] = replacement[source_start:source_start + count]
+        if not is_archive(entry.get("file")) or not isinstance(entry.get("patch"), list):
+            continue
+        for patch in entry["patch"]:
+            if not isinstance(patch, dict):
+                continue
+            at = number(patch.get("at"))
+            text = patch.get("bytes")
+            if at is None or not isinstance(text, str):
+                continue
+            try:
+                changed = bytes.fromhex("".join(text.split()))
+            except ValueError:
+                continue
+            if at < len(out) and at + len(changed) > 0:
+                source_start = max(0, -at)
+                target_start = max(0, at)
+                count = min(len(changed) - source_start, len(out) - target_start)
+                if count > 0:
+                    out[target_start:target_start + count] = changed[source_start:source_start + count]
+    return bytes(out)
+
+
 def wa_data(project: Project, retail_files, modded_files, report: list, carried=()) -> list:
     """The "data" entries that carry the rest of WA_MRG.MRG: patches and
     sector replacements at the retail disc's sectors when they are few, the
@@ -1147,36 +1440,287 @@ AI_COMMANDS = 0x800916E0, 0x800916E0 + 4 * 72    # gAiScript_apfnCommand
 STAT_CAP_SITES = (0x800170E0, 0x80017200)       # Duel_CalcCardStats
 OPPONENT_FIELD = 0x80024E08                     # func_80024DC8: the opponent's home field
 CARD_FRAME = 0x8002C290                         # func_8002BFCC: the card's frame
+# The card-colour patch's older ("v1") layout, before it also redirected the
+# Library setup loop: init_container_entry_objs's and func_80016784's own
+# redirects are the only trace of it, and its table lived here instead of
+# alongside CARD_FRAME's. teatools/process-cardcolor/README.md #4 and
+# scripts/card_color.py's OLD/OLD_DATA document and verify these bytes.
+CARD_FRAME_OLD_BIG = 0x800293FC                 # init_container_entry_objs's redirect
+CARD_FRAME_OLD_SMALL = 0x80016BAC               # func_80016784's redirect
+CARD_FRAME_OLD_TABLE = 0x801DAE24               # the table, at its pre-migration home
+
+# The card viewer's two 128px-wide atlas pages and the palette rows used by
+# its four frame kinds.  These are the same sources the Frames page decodes
+# for its retail fallback (qt.common._card_frame_background), kept here so an
+# imported BIN produces ordinary, editable PNG frame styles instead of a
+# preview-only raw WA patch.
+CARD_FRAME_LEFT = 0xEE6800
+CARD_FRAME_RIGHT = CARD_FRAME_LEFT + 16 * SECTOR
+CARD_FRAME_PALETTES = 0xF06800
+CARD_FRAME_KINDS = (("monster", 0, "gold"), ("magic", 1, "green"),
+                    ("trap", 2, "pink"), ("ritual", 3, "blue"))
+
+# Direct immediate values in the retail card-view renderer.  These are safe
+# to import only when the modified instruction keeps the retail opcode and
+# changes its 16-bit literal; arbitrary replacement code remains reported as
+# code, rather than being guessed at as a layout.
+CARD_LAYOUT_IMMEDIATES = {
+    "art_y": 0x80028C4C,
+    "title_x": 0x80028CC8,
+    "atk_x": 0x80028EB0,
+    "atk_y": 0x80028EC4,
+    "def_x": 0x80028F3C,
+    "def_y": 0x80028F50,
+    "attribute_x": 0x80029084,
+    "attribute_y": 0x80029098,
+}
 
 
 def card_frame_table(slus: bytes):
-    """The TeaOnline card-colour patch's packed frame table, if present.
+    """The TeaOnline card-colour patch's packed frame table, if present, in
+    either layout the tool has written.
 
-    The patch replaces the Library setup loop with a lookup of one 4-bit
-    frame number for each card.  Its first two instructions name the table;
-    the remaining instructions are checked exactly so unrelated library
-    changes are never mistaken for card colours.
+    The current layout replaces the Library setup loop with a lookup of one
+    4-bit frame number for each card; its first two instructions name the
+    table, and the remaining instructions are checked exactly so unrelated
+    library changes are never mistaken for card colours. The older layout
+    never touched the Library loop at all -- only the two other consumers --
+    so it is detected by its own pair of redirects instead, with the table
+    at a fixed, different address (card_frame_table_old).
     """
     at = g.slus_offset(CARD_FRAME)
     if at < 0 or at + 100 > len(slus):
-        return None
+        return card_frame_table_old(slus)
     words = struct.unpack_from("<25I", slus, at)
+    # Word 15 sits right after the "slti s2,6 / bnez +2" bnez's delay slot:
+    # process-cardcolor/README.md #3c calls the two paths through here a
+    # "dead check: both paths converge", so this word (a plain nop in one
+    # build, "li s2,0" in another -- both seen in real files, the other 23
+    # words agreeing exactly) is not load-bearing and is not checked.
     fixed = (None, None, 0xA0800056, 0xA6A00054, 0x2671FFFF, 0x00118842, 0x00518821,
              0x92310000, 0x32720001, 0x12400002, 0x3232000F, 0x00119102,
-             0x2A510006, 0x16200002, 0, 0x24120000, 0x00129100, 0x24110160,
+             0x2A510006, 0x16200002, 0, None, 0x00129100, 0x24110160,
              0x02328821, 0xA4910054, 0x24840004, 0x26730001, 0x2A7102D3,
              0x1620FFEA, 0x24A50004)
     if any(expected is not None and word != expected for word, expected in zip(words, fixed)) or \
             words[0] >> 16 != 0x3C02 or words[1] >> 16 != 0x2442:
-        return None
+        return card_frame_table_old(slus)
     address = ((words[0] & 0xFFFF) << 16) + struct.unpack("<h", struct.pack("<H", words[1] & 0xFFFF))[0]
     table = g.slus_offset(address)
-    size = (g.CARD_COUNT + 2) // 2       # card 0 through card 722, two nibbles per byte
+    size = (g.CARD_COUNT + 1) // 2       # cards 1 through 722, two nibbles per byte (361 for 722)
     if table < 0 or table + size > len(slus):
+        return card_frame_table_old(slus)
+    raw = slus[table:table + size]
+    values = [((raw[(cid - 1) // 2] >> (4 * (cid & 1))) & 15) for cid in range(g.CARD_COUNT + 1)]
+    return values, [(at, at + 100), (table, table + size)]
+
+
+def card_frame_table_old(slus: bytes):
+    """card_frame_table's fallback for the card-colour patch's older layout
+    (process-cardcolor/README.md #4): its two redirects, verified exactly,
+    name no table address of their own, so the table's fixed old home is
+    read directly instead."""
+    big, small = g.slus_offset(CARD_FRAME_OLD_BIG), g.slus_offset(CARD_FRAME_OLD_SMALL)
+    table = g.slus_offset(CARD_FRAME_OLD_TABLE)
+    size = (g.CARD_COUNT + 1) // 2
+    if big < 0 or big + 8 > len(slus) or small < 0 or small + 4 > len(slus) or \
+            table < 0 or table + size > len(slus):
+        return None
+    if slus[big:big + 8] != bytes.fromhex("786b0708ffff9324") or \
+            slus[small:small + 4] != bytes.fromhex("e46b0708"):
         return None
     raw = slus[table:table + size]
-    values = [((raw[cid // 2] >> (4 * (cid & 1))) & 15) for cid in range(g.CARD_COUNT + 1)]
-    return values, [(at, at + 100), (table, table + size)]
+    values = [((raw[(cid - 1) // 2] >> (4 * (cid & 1))) & 15) for cid in range(g.CARD_COUNT + 1)]
+    return values, [(big, big + 8), (small, small + 4), (table, table + size)]
+
+
+def _transparent_rect(image: pngio.Image, left: int, top: int, width: int, height: int) -> pngio.Image:
+    """Clear an artwork window in an otherwise opaque PS1 frame atlas."""
+    out = bytearray(image.rgba)
+    for y in range(max(0, top), min(image.height, top + height)):
+        start = (y * image.width + max(0, left)) * 4
+        end = (y * image.width + min(image.width, left + width)) * 4
+        out[start:end] = b"\0" * (end - start)
+    return pngio.Image(image.width, image.height, bytes(out))
+
+
+def _frame_atlas(wa: bytes, frame: int, monster: bool, art_rect=(19, 50, 102, 96)) -> pngio.Image | None:
+    """Decode one 140×196 card-view plate from WA_MRG.MRG.
+
+    The image is composed from the exact two VRAM atlas pages the original
+    renderer uses.  It deliberately contains no card-specific artwork or
+    text; transparent texels remain transparent so a full-bleed style can be
+    drawn behind the normal card art, title, and stat sprites.
+    """
+    palette_at = CARD_FRAME_PALETTES + (8 + frame) * 0x200
+    minimum = max(CARD_FRAME_RIGHT + 16 * SECTOR, palette_at + 0x200)
+    if len(wa) < minimum:
+        return None
+    try:
+        palette = image_extract.read_palette(wa, palette_at, 256)
+        left_w, left_h, left_rgba = image_extract.decode(wa, CARD_FRAME_LEFT, 64, 256, 8, palette)
+        right_w, right_h, right_rgba = image_extract.decode(wa, CARD_FRAME_RIGHT, 64, 256, 8, palette)
+    except (IndexError, struct.error):
+        return None
+    left = pngio.Image(left_w, left_h, left_rgba)
+    right = pngio.Image(right_w, right_h, right_rgba)
+    # See func_80029EC4's Library atlas packing, mirrored in the existing Qt
+    # preview helper.  The lower 4px edge is split into two 62px pieces and
+    # stretched to the 64px output halves by the game's primitive layout.
+    out = pngio.Image(140, 196, b"\0" * (140 * 196 * 4))
+    out = pngio.paste(out, pngio.crop(left, 0, 0, 128, 192), 0, 0)
+    out = pngio.paste(out, pngio.crop(right, 4, 0, 12, 128), 128, 0)
+    out = pngio.paste(out, pngio.crop(right, 36, 0, 12, 68), 128, 128)
+    if not monster:
+        out = pngio.paste(out, pngio.crop(left, 0, 208, 128, 48), 0, 144)
+    bottom = pngio.crop(left, 0, 0, 128, 4)
+    # The original vertical-flips the source edge before placing it.
+    rows = [bottom.rgba[(bottom.height - 1 - y) * bottom.width * 4:
+                        (bottom.height - y) * bottom.width * 4]
+            for y in range(bottom.height)]
+    bottom = pngio.Image(bottom.width, bottom.height, b"".join(rows))
+    out = pngio.paste(out, pngio.resample(pngio.crop(bottom, 0, 0, 62, 4), 64, 4), 0, 192)
+    out = pngio.paste(out, pngio.resample(pngio.crop(bottom, 62, 0, 62, 4), 64, 4), 64, 192)
+    # The PS1 submits the artwork after this opaque plate.  A card_layout
+    # frame draws after the artwork instead, so its picture needs a real
+    # transparent aperture or it would paint over the card art in-game.
+    return _transparent_rect(out, *art_rect)
+
+
+def _changed_immediate(retail_slus: bytes, modded_slus: bytes, address: int) -> int | None:
+    """A changed same-opcode signed immediate at a RAM ``address``, if any."""
+    at = g.slus_offset(address)
+    if at < 0 or at + 4 > len(retail_slus) or at + 4 > len(modded_slus):
+        return None
+    old, new = struct.unpack_from("<I", retail_slus, at)[0], struct.unpack_from("<I", modded_slus, at)[0]
+    if old == new or old >> 16 != new >> 16:
+        return None
+    value = new & 0xFFFF
+    return value - 0x10000 if value & 0x8000 else value
+
+
+def _label_sprites_hidden(retail_slus: bytes, modded_slus: bytes) -> bool:
+    """Recognise TLM's label-suppression patch without accepting arbitrary code.
+
+    TLM replaces both ``lhu`` loads that provide the label Y coordinate with
+    loads into ``$zero``.  The labels consequently draw at screen origin and
+    are intentionally absent from the card.  Representing that as explicit
+    ``hide`` state is both editable and faithful in the port.
+    """
+    locations = (0x80028D44, 0x80028D48)
+    expected = (0x96420032, 0x96630032)
+    replacement = (0x96000032, 0x96000032)
+    words = []
+    for address in locations:
+        at = g.slus_offset(address)
+        if at < 0 or at + 4 > len(retail_slus) or at + 4 > len(modded_slus):
+            return False
+        words.append((struct.unpack_from("<I", retail_slus, at)[0], struct.unpack_from("<I", modded_slus, at)[0]))
+    return tuple(old for old, _ in words) == expected and tuple(new for _, new in words) == replacement
+
+
+def import_card_layout(project: Project, retail_files, modded_files, report: list) -> list:
+    """Import a modified card-frame atlas and recognised layout immediates.
+
+    Raw WA replacements still preserve every unrecognised pixel and program
+    patch.  This conversion adds the useful editor representation alongside
+    them: each source frame becomes a PNG under ``frames/`` and known card
+    renderer positions become the selected style's editable fields.
+    """
+    retail_wa, modded_wa = retail_files.wa, modded_files.wa
+    atlas_ranges = ((CARD_FRAME_LEFT, CARD_FRAME_RIGHT + 16 * SECTOR),
+                    (CARD_FRAME_PALETTES, CARD_FRAME_PALETTES + 12 * 0x200))
+    atlas_changed = any(end <= len(retail_wa) and end <= len(modded_wa) and
+                        retail_wa[start:end] != modded_wa[start:end]
+                        for start, end in atlas_ranges)
+    positions = {key: value for key, address in CARD_LAYOUT_IMMEDIATES.items()
+                 if (value := _changed_immediate(retail_files.slus, modded_files.slus, address)) is not None}
+    labels_hidden = _label_sprites_hidden(retail_files.slus, modded_files.slus)
+    if not atlas_changed and not positions and not labels_hidden:
+        return []
+
+    styles = {}
+    for kind, index, color in CARD_FRAME_KINDS:
+        # A full-bleed style must opt back into the localized card-title
+        # sprite.  The PS1 source always draws it over the frame plate.
+        style = {"hand_color": color, "title": {"x": 12, "y": 14}}
+        if atlas_changed:
+            art_rect = (19, positions.get("art_y", 50), 102, 96) if kind == "monster" else (19, 50, 102, 96)
+            image = _frame_atlas(modded_wa, index, kind == "monster", art_rect)
+            if image is not None:
+                path = f"frames/imported-{kind}.png"
+                project.files[path] = pngio.encode(image)
+                style["image"] = path
+        styles[f"imported-{kind}"] = style
+
+    # ``digits`` owns the positions in a full-bleed style.  The source
+    # renderer's literals are top-left positions for a 4×6px, 13px-high run;
+    # the current mod API stores that run's centre.
+    if {"atk_x", "atk_y"} <= positions.keys():
+        styles["imported-monster"].setdefault("digits", {})["atk"] = {
+            "x": positions["atk_x"] + 12, "y": positions["atk_y"] + 6}
+    if {"def_x", "def_y"} <= positions.keys():
+        styles["imported-monster"].setdefault("digits", {})["def"] = {
+            "x": positions["def_x"] + 12, "y": positions["def_y"] + 6}
+    if "art_y" in positions:
+        styles["imported-monster"]["art"] = {"x": 19, "y": positions["art_y"], "width": 102, "height": 96}
+    if "title_x" in positions:
+        styles["imported-monster"]["title"] = {"x": positions["title_x"], "y": 14}
+    if {"attribute_x", "attribute_y"} <= positions.keys():
+        styles["imported-monster"]["attribute"] = {
+            "x": positions["attribute_x"], "y": positions["attribute_y"], "width": 16, "height": 16}
+    if labels_hidden:
+        styles["imported-monster"]["atk_label"] = {"hide": True}
+        styles["imported-monster"]["dfd_label"] = {"hide": True}
+
+    layout = project.other.get("card_layout")
+    if not isinstance(layout, dict):
+        project.other["card_layout"] = layout = {}
+    existing = layout.get("frame_styles")
+    if not isinstance(existing, dict):
+        layout["frame_styles"] = existing = {}
+    style_names = {}
+    for name, style in styles.items():
+        # An importer owns its generated names.  Do not overwrite a previous
+        # hand-authored style should this helper ever be used on an existing
+        # project in the future.
+        candidate = name
+        suffix = 2
+        while candidate in existing:
+            candidate = f"{name}-{suffix}"
+            suffix += 1
+        existing[candidate] = style
+        style_names[name.removeprefix("imported-")] = candidate
+
+    # Keep the four extracted plates selectable and make them the default
+    # family when the player enables the generated full-bleed setting.
+    names = style_names
+    layout["default_styles"] = {"kinds": {
+        "monster": names["monster"], "effect_monster": names["monster"],
+        "magic": names["magic"], "equip": names["magic"],
+        "ritual": names["ritual"], "trap": names["trap"],
+    }}
+    layout["default_style"] = names["monster"]
+    if not any(isinstance(setting, dict) and setting.get("key") == "full_bleed" for setting in project.info.settings):
+        project.info.settings.append({
+            "key": "full_bleed", "label": "Imported card frame", "type": "bool", "default": 0,
+            "description": "Use the card frame, layout and stat placement imported from the source game."})
+
+    imported = ", ".join(kind for kind, _, _ in CARD_FRAME_KINDS if "image" in styles[f"imported-{kind}"])
+    summary = f"frames: imported editable card-frame styles ({imported or 'layout only'})"
+    if positions:
+        changed = ", ".join(key.replace("_", " ") for key in positions)
+        summary += f" and renderer positions ({changed})"
+    if labels_hidden:
+        summary += "; ATK and DEF labels are hidden as in the source game"
+    report.append(summary)
+    handled = [(g.slus_offset(CARD_LAYOUT_IMMEDIATES[key]),
+                g.slus_offset(CARD_LAYOUT_IMMEDIATES[key]) + 4)
+               for key in positions]
+    if labels_hidden:
+        handled += [(g.slus_offset(address), g.slus_offset(address) + 4)
+                    for address in (0x80028D44, 0x80028D48)]
+    return handled
 
 
 def import_card_frames(project: Project, modded, slus: bytes, report: list) -> list:
@@ -1197,6 +1741,90 @@ def import_card_frames(project: Project, modded, slus: bytes, report: list) -> l
             changed.append(cid)
     report.append(f"cards: {len(changed)} frame colours imported from the mod's per-card frame table")
     return handled
+
+
+# Title/menu assets live in SU.MRG rather than WA_MRG.MRG.  The ordinary
+# raw-WA fallback cannot preserve that archive, so decode the same sprites as
+# the UI workspace and turn only changed visual layers into ordinary mod PNGs.
+# These names are the port's built-in menu entries, in the same order as
+# ui_assets.ENTRY_SPRITES.
+TITLE_MENU_ENTRIES = ("new_game", "load", "duel", "trade", "options", "campaign", "free_duel",
+                      "build_deck", "library", "password", "save")
+
+
+def _same_image(one: pngio.Image, other: pngio.Image) -> bool:
+    return one.width == other.width and one.height == other.height and one.rgba == other.rgba
+
+
+def import_title_and_menu_assets(project: Project, retail_files, modded_files, report: list) -> tuple[list[str], list[str], str | None]:
+    """Recover modified SU.MRG title and retail-menu images as editable PNGs.
+
+    TeaTools' Main Logo writer operates on the title package's texture pages,
+    palettes and sprite geometry.  ``TitleArt`` already reconstructs those
+    pages with the game's sprite layout, so it is the single source of truth
+    for import as well as preview.  A full canvas is used for the wallpaper:
+    it preserves the game's tiled 256x240 background in the title API's
+    320x240 picture field.
+    """
+    retail_su = ui_assets.read_su(retail_files)
+    modded_su = ui_assets.read_su(modded_files)
+    retail, modded = ui_assets.TitleArt(retail_su), ui_assets.TitleArt(modded_su)
+    if not retail.ok or not modded.ok:
+        # An ordinary SLUS/WA pair has no supplementary title archive on
+        # either side.  That is not evidence of a title modification and must
+        # not make a no-change import look partial.  One readable archive is
+        # different: comparison is impossible and needs a visible diagnostic.
+        if retail_su is None and modded_su is None:
+            return [], [], None
+        report.append("title: DATA/SU.MRG is missing from one source; title and menu graphics were not imported")
+        return [], [], "DATA/SU.MRG"
+
+    title, menu = {}, {}
+    changed_title = []
+    retail_wall, modded_wall = retail.wall(), modded.wall()
+    if not _same_image(retail_wall, modded_wall):
+        path = "ui/title-background.png"
+        project.files[path] = pngio.encode(modded_wall)
+        title["background"] = {"image": path, "picture": True}
+        changed_title.append("background")
+    for layer in ("logo", "copyright", "prompt"):
+        old, _, _ = retail.layer(layer)
+        image, _, _ = modded.layer(layer)
+        if not _same_image(old, image):
+            path = f"ui/title-{layer}.png"
+            project.files[path] = pngio.encode(image)
+            title[layer] = {"image": path}
+            changed_title.append(layer)
+
+    changed_menu = []
+    entries = {}
+    for index, name in enumerate(TITLE_MENU_ENTRIES):
+        entry = {}
+        for selected, key, suffix in ((False, "image", ""), (True, "selected_image", "-selected")):
+            old, _, _ = retail.entry(index, selected)
+            image, _, _ = modded.entry(index, selected)
+            if _same_image(old, image):
+                continue
+            path = f"ui/menu-{name}{suffix}.png"
+            project.files[path] = pngio.encode(image)
+            entry[key] = path
+        if entry:
+            entries[name] = entry
+            changed_menu.append(name)
+    if entries:
+        menu["entries"] = entries
+
+    if title:
+        project.other["title"] = title
+    if menu:
+        project.other["menu"] = menu
+    if changed_title:
+        report.append("title: imported " + ", ".join(changed_title) + " image"
+                      + ("s" if len(changed_title) != 1 else "") + " from SU.MRG")
+    if changed_menu:
+        report.append(f"menus: imported {len(changed_menu)} changed retail menu entr"
+                      f"{'y' if len(changed_menu) == 1 else 'ies'} from SU.MRG")
+    return changed_title, changed_menu, None
 
 
 def kit_rules(project: Project, modded, retail_files, modded_files) -> tuple:
@@ -1351,6 +1979,12 @@ def import_modded(retail_files, modded_files, mod_id: str = "imported-mod", name
     project.info.name = name or mod_id
     project.info.description = "Imported from a modified game by the FM Editor."
     result = ImportResult(project, report)
+    # TeaTools recognition is deliberately an analysis pass: it is allowed to
+    # report a decoder failure but never to change this import's outcome.
+    try:
+        result.analysis = tea_import.analyze(retail_files, modded_files)
+    except Exception as problem:
+        report.append(f"TeaTools analysis: unavailable ({type(problem).__name__}: {problem})")
     for note in modded.notes:
         report.append(f"note: {note}")
         result.unhandled += 1
@@ -1463,6 +2097,8 @@ def import_modded(retail_files, modded_files, mod_id: str = "imported-mod", name
     say("Pictures")
     carried = import_card_art(project, retail_files.wa, modded_files.wa, report, say)
     renamed_duelists(project, retail_files.slus, modded_files.slus, report)
+    import_card_types(project, retail_files.slus, modded_files.slus, modded_files.wa, report)
+    report_unresolved_type_and_attribute_ids(project, report)
     # After the renames: a renamed duelist's entry takes its portrait too,
     # rather than a second entry being written for the same duelist.
     say("Portraits")
@@ -1470,6 +2106,21 @@ def import_modded(retail_files, modded_files, mod_id: str = "imported-mod", name
     guardian_handled = import_guardian_stars(project, retail, modded, retail_files.slus, modded_files.slus,
                                               modded_files.wa, report)
     frame_handled = import_card_frames(project, modded, modded_files.slus, report)
+    layout_handled = import_card_layout(project, retail_files, modded_files, report)
+    say("Title screen and menus")
+    title_layers, menu_entries, title_missing = import_title_and_menu_assets(project, retail_files, modded_files, report)
+    title_format = teatools_import.format_named("logo")
+    if title_layers or menu_entries:
+        details = []
+        if title_layers:
+            details.append("title " + ", ".join(title_layers))
+        if menu_entries:
+            details.append(f"{len(menu_entries)} menu entries")
+        result.finding(title_format.identifier, title_format.workspace, "recovered", "DATA/SU.MRG",
+                       "; ".join(details))
+    elif title_missing:
+        result.finding(title_format.identifier, title_format.workspace, "partial", title_missing,
+                       "supplementary archive could not be compared")
 
     # Rules the kit's code sets.
     say("Rules the mod's code sets")
@@ -1484,7 +2135,7 @@ def import_modded(retail_files, modded_files, mod_id: str = "imported-mod", name
         report.append(f"executable: its size differs ({len(modded_files.slus)} bytes); only the tables were read")
         result.unhandled += 1
     text_read = text_spans(modded_files.slus) or []      # what text.txt carries; nothing when unreadable
-    handled = [(g.slus_offset(a), g.slus_offset(b)) for a, b in SLUS_HANDLED + text_read] + guardian_handled + frame_handled
+    handled = [(g.slus_offset(a), g.slus_offset(b)) for a, b in SLUS_HANDLED + text_read] + guardian_handled + frame_handled + layout_handled
     named = [(g.slus_offset(a), g.slus_offset(b), label) for a, b, label in SLUS_REGIONS]
     # A rule above (terrain_bonus, trap_thresholds, megamorph_bonus, the AI
     # table...) may already have read a named region's bytes as the mod's
@@ -1522,6 +2173,16 @@ def import_modded(retail_files, modded_files, mod_id: str = "imported-mod", name
         project.other["data"] = data
     if result.unhandled:
         report.append(f"{result.unhandled} kind(s) of change could not be imported (above)")
+    _tea_analysis_status(result)
+    if result.analysis is not None:
+        report.extend(("", *result.analysis.report().rstrip().splitlines()))
+        if result.analysis_status:
+            report.append("TeaTools conversion status:")
+            for feature, status in sorted(result.analysis_status.items()):
+                report.append(f"  {feature}: {status.replace('_', ' ')}")
+        sidecar = result.analysis.as_dict()
+        sidecar["import_status"] = dict(sorted(result.analysis_status.items()))
+        project.files["import-analysis.json"] = (json.dumps(sidecar, indent=2, sort_keys=True) + "\n").encode("utf-8")
     project.files["import-report.txt"] = ("\n".join(report) + "\n").encode("utf-8")
     return result
 

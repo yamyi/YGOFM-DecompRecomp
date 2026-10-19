@@ -283,9 +283,9 @@ class PacksMixin:
                 if cid > 0: unique_ids.add(cid)
                 if chance > 0: chance_values.append(chance)
                 r=t.rowCount();t.insertRow(r)
-                type_name=TYPE_NAMES[card.type] if card and 0<=card.type<len(TYPE_NAMES) else "Unknown"
-                attribute_name=ATTRIBUTE_NAMES[card.attribute] if card and 0<=card.attribute<len(ATTRIBUTE_NAMES) else "—"
-                for col,val in enumerate((r+1,card.name if card else str(ref),type_name,attribute_name,
+                type_label=type_name(self.project,card.type) if card else "Unknown"
+                attribute_label=attribute_name(self.project,card.attribute) if card else "—"
+                for col,val in enumerate((r+1,card.name if card else str(ref),type_label,attribute_label,
                                           tier_name,weight,f"{chance*100:.2f}%")):
                     cell=TableItem(str(val))
                     if col==0:cell.setData(Qt.ItemDataRole.UserRole,(ti,k,cid))
@@ -295,9 +295,9 @@ class PacksMixin:
                         if picture is not None:cell.setIcon(picture)
                         if not card:self._tint_state(cell,"removed")
                     elif col==2 and card:
-                        cell.setIcon(type_icon(self,card.type));cell.setToolTip(type_name)
+                        cell.setIcon(type_icon(self,card.type));cell.setToolTip(type_label)
                     elif col==3 and card:
-                        cell.setIcon(attribute_icon(self,card.attribute));cell.setToolTip(attribute_name)
+                        cell.setIcon(attribute_icon(self,card.attribute));cell.setToolTip(attribute_label)
                     if col not in (4,5):
                         cell.setFlags(cell.flags() & ~Qt.ItemFlag.ItemIsEditable)
                     t.setItem(r,col,cell)
@@ -1192,12 +1192,14 @@ class PacksMixin:
             grid.addWidget(QLabel(label), row, 0, 1, columns)
             row += 1
             made = []
-            for n, name in enumerate(names):
+            for n, entry in enumerate(names):
+                value, name = entry if isinstance(entry, tuple) else (n, entry)
                 box = QCheckBox(str(name))
+                box.setProperty("choiceValue", value)
                 if key == "attributes":
-                    box.setIcon(attribute_icon(self, n))
+                    box.setIcon(attribute_icon(self, value))
                 elif key == "types":
-                    box.setIcon(type_icon(self, n))
+                    box.setIcon(type_icon(self, value))
                 elif key == "stars":
                     box.setIcon(guardian_star_icon(self, n + 1))
                 if key in ("attributes", "types", "stars"):
@@ -1219,7 +1221,7 @@ class PacksMixin:
         boxes("Kind", [kind.capitalize() for kind in bulk_fusions.KINDS], "kinds", 4)
         boxes("Attribute", ATTRIBUTE_NAMES[:6], "attributes", 6)
         boxes("Guardian star", STAR_NAMES[1:11], "stars", 5)
-        boxes("Monster type", TYPE_NAMES[:20], "types", 5)
+        boxes("Monster type", declared_type_choices(self.project, monster_only=True), "types", 5)
         grid.addWidget(QLabel("Level"), row, 0)
         fields["level_min"] = QSpinBox()
         fields["level_max"] = QSpinBox()
@@ -1263,7 +1265,7 @@ class PacksMixin:
                 kinds={kind for kind, box in zip(bulk_fusions.KINDS, fields["kinds"]) if box.isChecked()},
                 attributes={n for n, box in enumerate(fields["attributes"]) if box.isChecked()},
                 stars={n + 1 for n, box in enumerate(fields["stars"]) if box.isChecked()},
-                types={n for n, box in enumerate(fields["types"]) if box.isChecked()},
+                types={box.property("choiceValue") for box in fields["types"] if box.isChecked()},
                 level_min=low or None, level_max=high if high < 12 else None,
                 name=fields["name"].text(), text=fields["text"].text(), cards=fields["cards"].text(),
                 **numbers)

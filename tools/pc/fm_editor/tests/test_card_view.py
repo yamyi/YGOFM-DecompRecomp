@@ -84,6 +84,20 @@ class GameFilesTest(unittest.TestCase):
         # The stone's dark blue inside the description box, the frame's tan on its edge.
         self.assertEqual(view.render(4, 9, 1, "").pixel(100, 180)[2] > 40, True)
 
+    def test_declared_custom_type_does_not_use_guardian_star_slot(self):
+        """Type ids 24+ are declarations, not entries in the retail name bank.
+
+        The PS1 bank's slot 24 is Mars.  A custom type assigned id 24 must
+        still use its own name and the monster layout with Guardian Stars.
+        """
+        view = card_view.CardView((GAME / "SLUS_014.11").read_bytes(), (GAME / "DATA" / "WA_MRG.MRG").read_bytes())
+        psychic_icon = view.retail.icon(11)
+        custom = view.render(24, 2, 7, "Uses psychic powers.", type_name="Psychic",
+                             type_icon=psychic_icon, monster=True)
+        retail_slot = view.render(24, 2, 7, "Uses psychic powers.")
+        self.assertEqual((custom.width, custom.height), (card_view.WIDTH, card_view.HEIGHT))
+        self.assertNotEqual(custom.rgba, retail_slot.rgba)
+
 
 @unittest.skipUnless((GAME / "DATA" / "WA_MRG.MRG").is_file(), "needs the game files in game/")
 class CardIconsTest(unittest.TestCase):

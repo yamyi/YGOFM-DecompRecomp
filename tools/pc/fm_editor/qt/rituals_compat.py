@@ -36,7 +36,7 @@ def install() -> None:
         QAbstractItemView, QCheckBox, QComboBox, QHeaderView, QHBoxLayout, QLabel, QLineEdit, QPixmap,
         QPushButton, QRadioButton, QSpinBox, QStackedWidget, QTableWidget, QTableWidgetItem,
         QToolButton, QVBoxLayout, Qt, UI_DIR, QWidget, _card_image,
-        decorate_type_items,
+        declared_type_choices, decorate_type_items, type_name,
     )
     from .rituals import RitualsMixin
     from .window import ModernEditor
@@ -221,7 +221,10 @@ def install() -> None:
             combo.setEditable(True)
             combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
             combo.setMaxVisibleItems(18)
-        controls["condition_type"].addItems(TYPE_NAMES[:20])
+        for type_id, name in declared_type_choices(self.project, monster_only=True):
+            controls["condition_type"].addItem(name)
+            controls["condition_type"].setItemData(controls["condition_type"].count() - 1, type_id,
+                                                     int(Qt.ItemDataRole.UserRole) + 1)
         controls["condition_group"].addItems(FUSION_GROUPS)
         decorate_type_items(self, controls["condition_type"])
         self._ritual_refill_cards()
@@ -606,7 +609,7 @@ def install() -> None:
             req.clear(); req["card"] = cid
         elif set(req) == {"card"}:
             card = self.project.cards.get(req["card"])
-            req.clear(); req["type"] = TYPE_NAMES[card.type] if card and card.is_monster() else TYPE_NAMES[0]
+            req.clear(); req["type"] = type_name(self.project, card.type) if card and card.is_monster() else TYPE_NAMES[0]
         self._ritual_selected_condition = None
         self._refresh_ritual_detail()
 
@@ -655,7 +658,9 @@ def install() -> None:
             table.setCellWidget(row, 1, operator)
             if key == "type":
                 editor = QComboBox(table)
-                editor.addItems(TYPE_NAMES[:20])
+                for type_id, name in declared_type_choices(self.project, monster_only=True):
+                    editor.addItem(name)
+                    editor.setItemData(editor.count() - 1, type_id, int(Qt.ItemDataRole.UserRole) + 1)
                 editor.setCurrentIndex(max(0, editor.findText(str(value))))
                 decorate_type_items(self, editor)
                 editor.currentTextChanged.connect(lambda item, k=key: self._set_ritual_condition_direct(k, item))

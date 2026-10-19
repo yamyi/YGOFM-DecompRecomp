@@ -60,6 +60,46 @@
     </widget>
    </item>
    <item>
+    <layout class="QHBoxLayout" name="problemFilterLayout">
+     <item>
+      <widget class="QLabel" name="problemFilterLabel">
+       <property name="text"><string>Show</string></property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="problemFilterAllButton">
+       <property name="text"><string>All</string></property>
+       <property name="checkable"><bool>true</bool></property>
+       <property name="checked"><bool>true</bool></property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="problemFilterErrorsButton">
+       <property name="text"><string>Errors</string></property>
+       <property name="checkable"><bool>true</bool></property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="problemFilterWarningsButton">
+       <property name="text"><string>Warnings</string></property>
+       <property name="checkable"><bool>true</bool></property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="problemFilterNotesButton">
+       <property name="text"><string>Notes</string></property>
+       <property name="checkable"><bool>true</bool></property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="problemFilterSpacer">
+       <property name="orientation"><enum>Qt::Horizontal</enum></property>
+       <property name="sizeHint" stdset="0"><size><width>20</width><height>20</height></size></property>
+      </spacer>
+     </item>
+    </layout>
+   </item>
+   <item>
     <widget class="QTableWidget" name="problemsTable">
      <column>
       <property name="text">
@@ -101,6 +141,13 @@
       <widget class="QPushButton" name="otherModsFolderButton">
        <property name="text">
         <string>Other mods folder…</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="defaultModsFolderButton">
+       <property name="text">
+        <string>The game's mods folder</string>
        </property>
       </widget>
      </item>

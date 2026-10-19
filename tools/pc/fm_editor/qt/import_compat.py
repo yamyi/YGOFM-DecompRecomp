@@ -422,7 +422,7 @@ def install() -> None:
             importer.wa_data = wa_with_progress
             try:
                 say("Loading retail game tables")
-                result = original_import_modded(retail_files, modded_files, mod_id, name)
+                result = original_import_modded(retail_files, modded_files, mod_id, name, progress=say)
             finally:
                 importer.coded_card_texts = previous_coded
                 importer.text_changes = previous_text_changes
@@ -627,7 +627,11 @@ def install() -> None:
         # rebuilt every hidden workspace and decoded every mod image before
         # showing a window, making an HD mod appear frozen for seconds.
         self.project = project
-        self.preview_wa = self.files.wa
+        # ``data`` patches and sector replacements are how a BIN import
+        # preserves altered UI sheets such as the Library card-frame atlas.
+        # Apply them to the editor-only preview archive after reopening the
+        # saved mod, just as the port applies them when it reads the game.
+        self.preview_wa = importer.preview_archive(project, self.files.wa, self.files.wa_lba)
         self.duelist_selected_slot = 0
         self.current = None
         self.frame_cache.clear()

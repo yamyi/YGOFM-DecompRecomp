@@ -6,6 +6,7 @@ the current ``monster_effects`` card data without changing classic modules.
 from __future__ import annotations
 
 import struct
+from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon, QImage, QPixmap
@@ -216,13 +217,16 @@ def install() -> None:
         # An imported modified BIN may replace these sheet sprites too.
         wa = getattr(self, "preview_wa", self.files.wa)
         try:
-            font = card_text.RetailFont(wa)
-            for kind in range(self.type_box.count()):
-                code = kind if kind < gamedata.TYPE_MAGIC else 0x14 + kind - gamedata.TYPE_MAGIC
-                found = font.icon(code)
-                if found is not None:
-                    width, height, rgba = found
-                    self.type_box.setItemIcon(kind, QIcon(QPixmap.fromImage(_qimage(width, height, rgba))))
+            # Combo positions are not type ids once a declaration occupies
+            # an id past the 24 retail entries.  Asking the font for icon 24
+            # draws Mars, because the next retail icon row belongs to
+            # Guardian Stars.  common.type_icon first honours the type's
+            # declaration, then only looks up a retail code where it exists.
+            for index in range(self.type_box.count()):
+                kind = self.type_box.itemData(index)
+                if not isinstance(kind, int):
+                    kind = index
+                self.type_box.setItemIcon(index, qt_common.type_icon(self, kind))
             for attribute in range(self.attribute_box.count()):
                 self.attribute_box.setItemIcon(attribute, picture_icon(attribute_picture(wa, attribute)))
             for index in range(1, self.star1_box.count()):
@@ -243,7 +247,10 @@ def install() -> None:
         if card is None:
             return None
         type_box = getattr(self, "fields", {}).get("type")
-        return type_box.currentIndex() if cid == self.current and type_box is not None else card.type
+        if cid == self.current and type_box is not None:
+            value = type_box.currentData()
+            return value if isinstance(value, int) else type_box.currentIndex()
+        return card.type
 
     def type_supports_effects(self, cid=None):
         """Whether the selected type can own Monster or Magic/Trap effects."""
@@ -454,9 +461,10 @@ def install() -> None:
         for box in (only_type, each_type):
             box.clear()
             box.addItem("Any", None)
-            for name in effects.TYPE_NAMES[:gamedata.TYPE_MAGIC]:
+            for type_id, name in qt_common.declared_type_choices(self.project, monster_only=True):
                 box.addItem(name, name)
-            decorate_type_items(self, box, effects.TYPE_NAMES[:gamedata.TYPE_MAGIC])
+                box.setItemData(box.count() - 1, type_id, int(Qt.ItemDataRole.UserRole) + 1)
+            decorate_type_items(self, box)
         for box in (only_attribute, each_attribute):
             box.clear()
             box.addItem("Any", None)
@@ -678,7 +686,7 @@ def install() -> None:
         # save instead of labelling a Magic card as a Trap.
         card = self.project.cards.get(cid) if self.project else None
         update_effects_tab(self)
-        if card is not None and not card.is_monster():
+        if card is not None and not gamedata.is_monster_type(card.type):
             self.attribute_box.setCurrentIndex(
                 7 if card.type == gamedata.TYPE_TRAP else 6)
         if hasattr(self, "card_notes"):
@@ -825,6 +833,26 @@ def install() -> None:
             self.statusBar().showMessage(f"Updated {self.project.card_label(cid)}")
         return True
 
+    def declared_type_picture(self, kind):
+        """The declared type icon as a card-view image, if there is one.
+
+        A declaration can be backed by an imported PNG in ``project.files``
+        or by a file in an opened mod folder.  CardView draws this in the
+        game icon's 16×16 text cell, preserving the custom visual instead of
+        interpreting a custom numeric id as a Guardian Star sprite.
+        """
+        path = qt_common.custom_type_icon_path(self.project, kind)
+        if not path:
+            return None
+        try:
+            if path in self.project.files:
+                return pngio.decode(self.project.files[path])
+            if self.project.source_dir:
+                return pngio.read(Path(self.project.source_dir) / path)
+        except (OSError, ValueError, pngio.PngError):
+            pass
+        return None
+
     def render_full_description(self):
         """Render the complete in-game information panel, not a text fallback."""
         label = getattr(self, "card_text_preview", None)
@@ -845,9 +873,13 @@ def install() -> None:
                 self._game_card_view = cached
             names = guardian_stars.choices(self.project.other.get("guardian_stars"))
             star_names = {index: name for index, name in enumerate(names) if index and name}
+            kind = selected_card_type(self)
+            if kind is None:
+                return
             image = cached[1].render(
-                self.type_box.currentIndex(), self.star1_box.currentIndex(), self.star2_box.currentIndex(),
-                self.description.toPlainText(), scale=2, star_names=star_names)
+                kind, self.star1_box.currentIndex(), self.star2_box.currentIndex(), self.description.toPlainText(),
+                scale=2, star_names=star_names, type_name=qt_common.type_name(self.project, kind),
+                type_icon=declared_type_picture(self, kind), monster=gamedata.is_monster_type(kind))
             label.setText("")
             label.setPixmap(QPixmap.fromImage(_qimage(image.width, image.height, image.rgba)))
         except (IndexError, KeyError, OSError, ValueError, struct.error, pngio.PngError) as problem:
@@ -1022,9 +1054,10 @@ def install() -> None:
             magic.addItem(self.project.card_label(cid), cid)
         type_box = line(4, "Only type", QComboBox(dialog))
         type_box.addItem("Any", None)
-        for name in effects.TYPE_NAMES[:20]:
+        for type_id, name in qt_common.declared_type_choices(self.project, monster_only=True):
             type_box.addItem(name, name)
-        decorate_type_items(self, type_box, effects.TYPE_NAMES[:20])
+            type_box.setItemData(type_box.count() - 1, type_id, int(Qt.ItemDataRole.UserRole) + 1)
+        decorate_type_items(self, type_box)
         attribute = line(5, "Only attribute", QComboBox(dialog))
         attribute.addItem("Any", None)
         for name in effects.ATTRIBUTE_NAMES:

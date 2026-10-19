@@ -254,8 +254,8 @@ class CardsMixin:
         self.star2_box = self.fields["star2"]
         self.frame_box = self.fields["frame"]
 
-        self.filter.addItems(self.FILTERS)
-        self.type_box.addItems(TYPE_NAMES)
+        self._populate_filter_box()
+        self._populate_type_box()
         self.attribute_box.addItems(ATTRIBUTE_NAMES + ["6 (magic)", "7 (trap)"])
         star_choices = guardian_stars.choices(self.project.other.get("guardian_stars"))
         self.star1_box.addItems(star_choices)
@@ -452,7 +452,7 @@ class CardsMixin:
         layout.setContentsMargins(14, 14, 14, 14)
         layout.setSpacing(10)
         lists = QHBoxLayout()
-        type_list = self._checkable_list(TYPE_NAMES, dialog, height=8)
+        type_list = self._checkable_list(declared_type_choices(self.project), dialog, height=8)
         attribute_list = self._checkable_list(ATTRIBUTE_NAMES, dialog, height=8)
         decorate_type_items(self, type_list, TYPE_NAMES)
         decorate_attribute_items(self, attribute_list, ATTRIBUTE_NAMES)
@@ -487,7 +487,7 @@ class CardsMixin:
         for listing, values in ((type_list, self.advanced_card_filters["types"]),
                                 (attribute_list, self.advanced_card_filters["attributes"])):
             for i in range(listing.count()):
-                if i in values:
+                if listing.item(i).data(Qt.ItemDataRole.UserRole) in values:
                     listing.item(i).setCheckState(Qt.CheckState.Checked)
         actions = QHBoxLayout()
         clear = QPushButton("Clear filters", dialog)
@@ -521,16 +521,61 @@ class CardsMixin:
             QMessageBox.warning(self, "Advanced filters", str(problem))
             return
         self.advanced_card_filters = {
-            "types": {i for i in range(type_list.count())
+            "types": {type_list.item(i).data(Qt.ItemDataRole.UserRole) for i in range(type_list.count())
                       if type_list.item(i).checkState() == Qt.CheckState.Checked},
             "attributes": {i for i in range(attribute_list.count())
                            if attribute_list.item(i).checkState() == Qt.CheckState.Checked},
             "bounds": new_bounds,
         }
         self.refresh_cards(select_id=self.current)
+    def _populate_type_box(self):
+        """Every id the project's registry currently names, retail or
+        custom, as (name, id) items -- never just the static 24-entry
+        TYPE_NAMES a custom id (24-255) has no room in. currentIndex() is
+        therefore a position, not a type id; read/write the id itself
+        through currentData()/findData()."""
+        box = self.type_box
+        current = box.currentData() if box.count() else None
+        box.blockSignals(True)
+        box.clear()
+        names = getattr(self.project, "type_names", None) or TYPE_NAMES
+        for id_, name in enumerate(names):
+            if name:
+                box.addItem(name, id_)
+        if current is not None:
+            found = box.findData(current)
+            if found >= 0:
+                box.setCurrentIndex(found)
+        box.blockSignals(False)
+
+    def _current_type_id(self) -> int:
+        """type_box's chosen id (its userData, not its on-screen position --
+        the combo is not index-aligned with type ids once a custom one is
+        among its items). 0 (Dragon) if nothing is selected."""
+        data = self.type_box.currentData()
+        return data if isinstance(data, int) else 0
+
+    def _populate_filter_box(self):
+        """The "Show" filter's type choices, kept to the project's own
+        registry: a custom type (24-255) must be choosable here the same as
+        a retail one, not just shown once a card happens to use it."""
+        box = self.filter
+        fixed = self.FILTERS[:len(self.FILTERS) - len(TYPE_NAMES)]
+        current = box.currentText() if box.count() else fixed[0]
+        box.blockSignals(True)
+        box.clear()
+        box.addItems(fixed)
+        names = getattr(self.project, "type_names", None) or TYPE_NAMES
+        box.addItems([name for name in names if name])
+        found = box.findText(current)
+        box.setCurrentIndex(found if found >= 0 else 0)
+        box.blockSignals(False)
+
     def refresh_cards(self, *_args, select_id=None):
         if not hasattr(self, "listing") or self.project is None:
             return
+        self._populate_type_box()
+        self._populate_filter_box()
         selected = select_id or self.current
         self._loading = True
         held = sort_paused(self.listing)
@@ -541,7 +586,7 @@ class CardsMixin:
             row = self.listing.rowCount(); self.listing.insertRow(row)
             state = ("added" if cid in self.project.added else "changed" if self.project.card_changed(cid)
                      else "notes" if cid in self.project.notes else "")
-            for col, value in enumerate((cid, card.name, TYPE_NAMES[card.type], card.attack, card.defense, state)):
+            for col, value in enumerate((cid, card.name, type_name(self.project, card.type), card.attack, card.defense, state)):
                 item = TableItem()
                 item.setData(Qt.ItemDataRole.DisplayRole, value)
                 if col == 0: item.setData(Qt.ItemDataRole.UserRole, cid)
@@ -602,7 +647,7 @@ class CardsMixin:
         card = self.project.cards[cid]
         self.card_id.setValue(cid)
         self.fields["name"].setText(card.name)
-        self.fields["type"].setCurrentIndex(card.type)
+        self.fields["type"].setCurrentIndex(self.fields["type"].findData(card.type))
         self._last_type_index = card.type
         self.fields["attribute"].setCurrentIndex(card.attribute)
         self.fields["level"].setValue(card.level)
@@ -713,7 +758,7 @@ class CardsMixin:
         return eid if self._effect_kind(eid) == self.project.cards[cid].type else 0
 
     def _chosen_effect(self) -> int:
-        kind = self.fields["type"].currentIndex()
+        kind = self._current_type_id()
         chosen = self.fields["effect"].currentText()
         return next((eid for eid in self.project.retail.cards
                      if self._effect_kind(eid) == kind and self._effect_label(eid) == chosen), 0)
@@ -721,8 +766,8 @@ class CardsMixin:
     def _show_card_kind(self, select=None):
         """The monster's fields for a monster, the effect for the rest
         (tabs.CardsTab.show_kind)."""
-        kind = self.fields["type"].currentIndex()
-        monster = kind < gamedata.TYPE_MAGIC
+        kind = self._current_type_id()
+        monster = gamedata.is_monster_type(kind)
         combo = self.fields["effect"]
         self._set_monster_fields_enabled(monster)
         # An equip needs none: a monster copied into one is played as an
@@ -771,7 +816,7 @@ class CardsMixin:
         """Only an attack trap triggers at a threshold, and only the one its
         effect brings (model.trap_threshold_default)."""
         default = None
-        if self.project is not None and self.fields["type"].currentIndex() == gamedata.TYPE_TRAP:
+        if self.project is not None and self._current_type_id() == gamedata.TYPE_TRAP:
             default = self.project.trap_threshold_default(self._chosen_effect())
         box = self.fields["trap_threshold"]
         self.trap_caption.setVisible(default is not None)
@@ -785,7 +830,7 @@ class CardsMixin:
         """An equip's ATK and DEF boosts, where another kind of card has its
         effect list (tabs.CardsTab.show_bonus). The box left at its lowest
         reads as the default, since the boost itself may be negative."""
-        equip = self.fields["type"].currentIndex() == gamedata.TYPE_EQUIP and self.project is not None
+        equip = self._current_type_id() == gamedata.TYPE_EQUIP and self.project is not None
         default = self.project.equip_bonus_default(self.current) if equip and self.current else (0, 0)
         for key, points in zip(("equip_attack", "equip_defense"), default):
             box, caption = self.fields[key], self.bonus_captions[key]
@@ -938,7 +983,7 @@ QLabel#referenceValue[changed="true"] { color: #8ab4f8; border-color: #3f6ea8; }
         star = lambda n: stars[n] if 0 <= n < len(stars) else str(n)
         shown = {
             "Name": reference.name or "—",
-            "Type": TYPE_NAMES[reference.type] if 0 <= reference.type < len(TYPE_NAMES) else str(reference.type),
+            "Type": type_name(self.project, reference.type),
             "Attribute": attributes[reference.attribute] if 0 <= reference.attribute < len(attributes) else str(reference.attribute),
             "Level": str(reference.level),
             "Frame": FRAME_NAMES[reference.frame] if reference.frame >= 0 else "By card type",
@@ -980,7 +1025,7 @@ QLabel#referenceValue[changed="true"] { color: #8ab4f8; border-color: #3f6ea8; }
         if key == "text":
             return " ".join(self.description.toPlainText().split()) or "—"
         if key == "effect":
-            kind = self.fields["type"].currentIndex()
+            kind = self._current_type_id()
             return self.fields["effect"].currentText() \
                 if gamedata.TYPE_MAGIC <= kind != gamedata.TYPE_EQUIP else "—"
         if key == "password":
@@ -992,7 +1037,7 @@ QLabel#referenceValue[changed="true"] { color: #8ab4f8; border-color: #3f6ea8; }
                 return self.reference_shown.get("Starchips")
             return f"{self.fields['starchips'].value():,}"
         if key in ("equip_attack", "equip_defense"):
-            if self.fields["type"].currentIndex() != gamedata.TYPE_EQUIP:
+            if self._current_type_id() != gamedata.TYPE_EQUIP:
                 return "—"
             points = self.fields[key].value()
             return self.reference_shown.get("ATK boost" if key == "equip_attack" else "DEF boost") \
@@ -1067,8 +1112,8 @@ QLabel#referenceValue[changed="true"] { color: #8ab4f8; border-color: #3f6ea8; }
         try:
             card = self.project.cards[self.current].copy()
             card.name = self.fields["name"].text()
-            card.type = self.fields["type"].currentIndex()
-            monster = card.type < gamedata.TYPE_MAGIC
+            card.type = self._current_type_id()
+            monster = gamedata.is_monster_type(card.type)
             card.attribute = self.fields["attribute"].currentIndex()
             card.level = self.fields["level"].value()
             card.attack = self.fields["attack"].value()
@@ -1098,7 +1143,7 @@ QLabel#referenceValue[changed="true"] { color: #8ab4f8; border-color: #3f6ea8; }
             self.preview_image.setPixmap(pixmap.scaled(
                 self.preview_image.contentsRect().size(), Qt.AspectRatioMode.KeepAspectRatio, interpolation))
             card = preview_project.cards[self.current]
-            kind = TYPE_NAMES[card.type] if 0 <= card.type < len(TYPE_NAMES) else "Unknown"
+            kind = type_name(preview_project, card.type)
             attribute = ATTRIBUTE_NAMES[card.attribute] if 0 <= card.attribute < len(ATTRIBUTE_NAMES) else ""
         except (IndexError, ValueError, OSError, art.pngio.PngError) as problem:
             self.preview_image.clear()
@@ -1292,9 +1337,10 @@ QLabel#referenceValue[changed="true"] { color: #8ab4f8; border-color: #3f6ea8; }
         whose.setCurrentIndex(max(0, whose.findData(effect.get("whose"))))
         only_type = row(4, "Only type", short_popup(QComboBox(dialog)))
         only_type.addItem("Any", "")
-        for name in TYPE_NAMES[:gamedata.TYPE_MAGIC]:
+        for type_id, name in declared_type_choices(self.project, monster_only=True):
             only_type.addItem(name, name)
-        decorate_type_items(self, only_type, TYPE_NAMES[:gamedata.TYPE_MAGIC])
+            only_type.setItemData(only_type.count() - 1, type_id, int(Qt.ItemDataRole.UserRole) + 1)
+        decorate_type_items(self, only_type)
         only_type.setCurrentIndex(max(0, only_type.findData(effect.get("only_type", ""))))
         only_attribute = row(5, "Only attribute", short_popup(QComboBox(dialog)))
         only_attribute.addItem("Any", "")
@@ -1402,13 +1448,18 @@ QLabel#referenceValue[changed="true"] { color: #8ab4f8; border-color: #3f6ea8; }
             return
         try:
             font = self._retail_font()
-            kind = self.type_box.currentIndex()
-            type_name = TYPE_NAMES[kind] if 0 <= kind < len(TYPE_NAMES) else "Unknown"
+            kind = self._current_type_id()
+            type_label = type_name(self.project, kind)
+            monster = gamedata.is_monster_type(kind)
             # The four non-monster symbols follow the twenty monster-type
-            # symbols in the same text-icon page.
-            type_icon = kind if kind < gamedata.TYPE_MAGIC else 0x14 + kind - gamedata.TYPE_MAGIC
+            # symbols in the same text-icon page. A custom monster type
+            # (24-255) has no retail icon code of its own there, so it
+            # draws as a generic monster (Dragon, 0) rather than reading
+            # whatever that code happens to be past the font's type icons.
+            type_icon = kind if kind < gamedata.TYPE_MAGIC else \
+                0x14 + kind - gamedata.TYPE_MAGIC if kind <= gamedata.TYPE_EQUIP else 0
             stars = ()
-            if kind < gamedata.TYPE_MAGIC:
+            if monster:
                 model = guardian_stars.read(self.project.other.get("guardian_stars"))
                 selected = (self.star1_box.currentIndex(), self.star2_box.currentIndex())
                 stars = tuple(star for star in (self._description_star(model, item) for item in selected) if star)
@@ -1424,7 +1475,7 @@ QLabel#referenceValue[changed="true"] { color: #8ab4f8; border-color: #3f6ea8; }
             navy = _pack_texture(self.project, self.frame_cache,
                                  0x10E4800, 64, 128, 4, 0x10E9620, 16)
             image = card_text.render_description(
-                font, self.description.toPlainText(), type_name, type_icon, stars, 2,
+                font, self.description.toPlainText(), type_label, type_icon, stars, 2,
                 wa=getattr(self, "preview_wa", self.files.wa),
                 stone_sheet=stone, navy_sheet=navy)
             label.setText("")
@@ -1533,7 +1584,7 @@ QLabel#referenceValue[changed="true"] { color: #8ab4f8; border-color: #3f6ea8; }
         if not cid: return True
         card = self.project.cards[cid].copy()
         card.name = self.fields["name"].text()
-        card.type = self.fields["type"].currentIndex()
+        card.type = self._current_type_id()
         monster = card.type < gamedata.TYPE_MAGIC
         card.attribute = self.fields["attribute"].currentIndex()
         card.level = self.fields["level"].value()

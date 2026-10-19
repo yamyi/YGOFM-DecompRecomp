@@ -1,12 +1,14 @@
 """The retail-diff importer on synthetic files: a "community mod" made by
 changing the fixture's tables, text and bytes, imported back as a port mod."""
+import json
 import random
 import struct
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
-from fm_editor import gamedata as g, importer, manifest, roster
+from fm_editor import gamedata as g, importer, manifest, pngio, roster, teatools_import
 from fm_editor.disc import GameFiles
 from fm_editor.model import Project
 from fm_editor.tests import fixtures
@@ -35,6 +37,18 @@ def modded():
     wa[0x100:0x104] = b"\x01\x02\x03\x04"                     # a small patch
     wa[0x169000:0x169000 + 5000] = bytes([7]) * 5000          # a long run: sectors
     return GameFiles(bytes(slus), bytes(wa), "modded"), cards, fusions, equips, pools
+
+
+class TeaToolsRegistryTest(unittest.TestCase):
+    def test_registry_records_documented_sources_and_current_coverage(self):
+        formats = {item.identifier: item for item in teatools_import.formats()}
+        self.assertEqual(set(formats), {"cardsdata", "process-cardcolor", "image-cardsleeves",
+                                        "image-minicardsleeves", "logo", "image-field",
+                                        "image-gamefont", "initial-deck"})
+        self.assertEqual(formats["logo"].source_files, ("DATA/SU.MRG",))
+        self.assertEqual(formats["logo"].workspace, "UI > Title screen")
+        self.assertEqual(formats["image-cardsleeves"].coverage, "partial")
+        self.assertIs(teatools_import.format_named("missing"), None)
 
 
 class ImporterTest(unittest.TestCase):
@@ -91,6 +105,216 @@ class ImporterTest(unittest.TestCase):
         result = importer.import_modded(files, files, "same")
         built = manifest.build(result.project)
         self.assertEqual(set(built) - {"id", "name", "version", "description"}, set())
+        self.assertEqual(result.findings, [])
+
+    def test_teatools_starter_analysis_uses_the_existing_starter_import(self):
+        """A decoded TeaTools layout must not create a second deck format.
+
+        The normal importer owns ``starter_pools``.  TeaTools validates the
+        duplicate table and records why no separate conversion was needed.
+        """
+        f = fixture()
+        retail = GameFiles(f.slus, f.wa, "retail")
+        wa = bytearray(f.wa)
+        start, end = g.STARTER_BASE, g.STARTER_BASE + g.STARTER_LENGTH
+        table = bytearray(g.STARTER_LENGTH)
+        row_bytes = g.STARTER_LENGTH // 7
+        for number, draws in enumerate((6, 6, 6, 6, 6, 5, 5)):
+            row = number * row_bytes
+            struct.pack_into("<H", table, row, draws)
+            struct.pack_into("<H", table, row + 2, 2048)
+        for offset in (start, start + 0x2B000):
+            wa[offset:offset + len(table)] = table
+
+        result = importer.import_modded(retail, GameFiles(f.slus, bytes(wa), "modified"), "starter-analysis")
+
+        self.assertEqual(result.analysis_status, {"initial_deck": "already_imported"})
+        report = "\n".join(result.report)
+        self.assertIn("starter decks: imported seven weighted starter pools", report)
+        self.assertIn("initial_deck: already imported", report)
+        analysis = json.loads(result.project.files["import-analysis.json"])
+        self.assertEqual(analysis["import_status"], {"initial_deck": "already_imported"})
+        self.assertTrue(any(item["owner"] == "initial_deck" for item in analysis["claims"]))
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp) / "starter-analysis"
+            importer.save(result, folder)
+            saved = json.loads((folder / "import-analysis.json").read_text(encoding="utf-8"))
+            self.assertEqual(saved["import_status"], analysis["import_status"])
+            opened, messages = manifest.open_mod(f.game(), folder)
+            self.assertEqual(messages, [])
+            self.assertEqual(opened.other["starter_pools"], result.project.other["starter_pools"])
+
+    def test_teatools_analysis_failure_does_not_stop_a_normal_import(self):
+        f = fixture()
+        files = GameFiles(f.slus, f.wa, "retail")
+
+        with mock.patch("fm_editor.importer.tea_import.analyze", side_effect=RuntimeError("broken decoder")):
+            result = importer.import_modded(files, files, "analysis-failure")
+
+        self.assertIsNone(result.analysis)
+        self.assertIn("TeaTools analysis: unavailable (RuntimeError: broken decoder)", result.report)
+        self.assertIn("import-report.txt", result.project.files)
+        self.assertNotIn("import-analysis.json", result.project.files)
+
+    def test_preview_archive_replays_saved_wa_patches_and_sectors(self):
+        """A reopened BIN import must preview its raw UI/frame graphics.
+
+        ``manifest.open_mod`` intentionally does not load arbitrary data
+        files into Project.files.  The preview therefore has to read a raw
+        sector replacement from the mod folder as well as apply inline
+        patches from mod.json.
+        """
+        f = fixture()
+        project = Project(f.game())
+        with tempfile.TemporaryDirectory() as tmp:
+            project.source_dir = Path(tmp)
+            raw = Path(tmp) / "data" / "frame-atlas.bin"
+            raw.parent.mkdir()
+            raw.write_bytes(b"XYZ" + bytes(2045))
+            project.other["data"] = [
+                {"file": importer.WA_FILE, "patch": [{"at": "0x10", "bytes": "A1 B2"}]},
+                {"lba": 10103, "sectors": 1, "replace": "data/frame-atlas.bin"},
+            ]
+            preview = importer.preview_archive(project, f.wa, 10102)
+        self.assertEqual(preview[0x10:0x12], b"\xA1\xB2")
+        self.assertEqual(preview[2048:2051], b"XYZ")
+
+    def test_import_card_layout_creates_editable_frame_styles(self):
+        """Known card-view immediates become Frames-page style properties.
+
+        This models the TLM patch: its frame atlas is changed, its ATK/DEF
+        rows move to one horizontal line, and the original label sprites are
+        deliberately suppressed by loading their Y positions into ``$zero``.
+        """
+        f = fixture()
+        retail_slus, wa = bytearray(f.slus), bytearray(f.wa)
+        opcodes = {"art_y": 0x24630000, "title_x": 0x24420000,
+                   "atk_x": 0x24420000, "atk_y": 0x24420000,
+                   "def_x": 0x24420000, "def_y": 0x24420000,
+                   "attribute_x": 0x24420000, "attribute_y": 0x24420000}
+        for key, opcode in opcodes.items():
+            struct.pack_into("<I", retail_slus, g.slus_offset(importer.CARD_LAYOUT_IMMEDIATES[key]), opcode)
+        struct.pack_into("<I", retail_slus, g.slus_offset(0x80028D44), 0x96420032)
+        struct.pack_into("<I", retail_slus, g.slus_offset(0x80028D48), 0x96630032)
+        slus = bytearray(retail_slus)
+        for key, value in {"art_y": 46, "title_x": 21, "atk_x": 17,
+                           "atk_y": 162, "def_x": 87, "def_y": 162,
+                           "attribute_x": 62, "attribute_y": 160}.items():
+            at = g.slus_offset(importer.CARD_LAYOUT_IMMEDIATES[key])
+            word = struct.unpack_from("<I", slus, at)[0]
+            struct.pack_into("<I", slus, at, word & 0xFFFF0000 | value)
+        for address in (0x80028D44, 0x80028D48):
+            at = g.slus_offset(address)
+            word = struct.unpack_from("<I", slus, at)[0]
+            struct.pack_into("<I", slus, at, word & 0xFFFF | 0x96000000)
+        wa[importer.CARD_FRAME_LEFT] ^= 1
+        retail = GameFiles(bytes(retail_slus), f.wa, "retail")
+        modded = GameFiles(bytes(slus), bytes(wa), "modded")
+        project, report = Project(f.game()), []
+
+        handled = importer.import_card_layout(project, retail, modded, report)
+
+        monster = project.other["card_layout"]["frame_styles"]["imported-monster"]
+        self.assertEqual(monster["digits"], {"atk": {"x": 29, "y": 168}, "def": {"x": 99, "y": 168}})
+        self.assertEqual(monster["art"], {"x": 19, "y": 46, "width": 102, "height": 96})
+        self.assertEqual(monster["attribute"], {"x": 62, "y": 160, "width": 16, "height": 16})
+        self.assertEqual(monster["atk_label"], {"hide": True})
+        self.assertEqual(monster["dfd_label"], {"hide": True})
+        frame = pngio.decode(project.files["frames/imported-monster.png"])
+        self.assertEqual(frame.size, (140, 196))
+        self.assertEqual(frame.pixel(70, 90)[3], 0)
+        self.assertEqual(project.other["card_layout"]["default_styles"]["kinds"]["monster"], "imported-monster")
+        self.assertTrue(any(item[0] == g.slus_offset(importer.CARD_LAYOUT_IMMEDIATES["atk_x"])
+                            for item in handled))
+        self.assertIn("ATK and DEF labels are hidden", "\n".join(report))
+
+    def test_recognized_frame_layout_keeps_changed_frame_bytes_in_raw_fallback(self):
+        """Editable layout import must not discard its partially decoded atlas."""
+        f = fixture()
+        retail_slus, modded_slus = bytearray(f.slus), bytearray(f.slus)
+        # Give the known immediate a stable retail opcode then change only its
+        # literal, which is exactly the conservative layout recognizer rule.
+        at = g.slus_offset(importer.CARD_LAYOUT_IMMEDIATES["atk_x"])
+        struct.pack_into("<I", retail_slus, at, 0x24420010)
+        struct.pack_into("<I", modded_slus, at, 0x2442001A)
+        retail_wa, modded_wa = f.wa, bytearray(f.wa)
+        modded_wa[importer.CARD_FRAME_LEFT] ^= 1
+        retail = GameFiles(bytes(retail_slus), retail_wa, "retail")
+        modded = GameFiles(bytes(modded_slus), bytes(modded_wa), "modified")
+        project, report = Project(f.game()), []
+
+        self.assertTrue(importer.import_card_layout(project, retail, modded, report))
+        data = importer.wa_data(project, retail, modded, report)
+
+        patches = [patch for entry in data if entry.get("file") == importer.WA_FILE
+                   for patch in entry.get("patch", [])]
+        self.assertTrue(any(int(patch["at"], 0) <= importer.CARD_FRAME_LEFT <
+                            int(patch["at"], 0) + len(bytes.fromhex(patch["bytes"]))
+                            for patch in patches))
+
+    def test_import_title_and_menu_assets_from_su(self):
+        """Changed SU.MRG sprites become title/menu PNG entries, not raw bytes.
+
+        The synthetic texture changes target the same 8-bit pages as the
+        title logo and NEW GAME's normal/selected entry sprites.
+        """
+        f = fixture()
+        retail_su = bytearray(0x31000)
+        # Palette row 240 colours menu entries; row 241 colours the logo.
+        struct.pack_into("<H", retail_su, 0x30000 + 2, 0x801F)
+        struct.pack_into("<H", retail_su, 0x30000 + 0x200 + 2, 0x83E0)
+        modded_su = bytearray(retail_su)
+        modded_su[32 * importer.SECTOR] = 1       # page (640,256), u/v (0,0): logo
+        modded_su[26 * importer.SECTOR] = 1       # page (512,256), u/v (128,160): NEW GAME
+        modded_su[10 * importer.SECTOR] = 1       # selected NEW GAME, u/v (0,160)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "DATA").mkdir()
+            (root / "DATA" / "SU.MRG").write_bytes(retail_su)
+            retail = GameFiles(f.slus, f.wa, str(root))
+            modified = root / "modified"
+            (modified / "DATA").mkdir(parents=True)
+            (modified / "DATA" / "SU.MRG").write_bytes(modded_su)
+            modded = GameFiles(f.slus, f.wa, str(modified))
+            project, report = Project(f.game()), []
+
+            title_layers, menu_entries, missing = importer.import_title_and_menu_assets(project, retail, modded, report)
+
+        self.assertEqual((title_layers, menu_entries, missing), (["logo"], ["new_game"], None))
+        self.assertEqual(project.other["title"]["logo"]["image"], "ui/title-logo.png")
+        self.assertEqual(project.other["menu"]["entries"]["new_game"],
+                         {"image": "ui/menu-new_game.png", "selected_image": "ui/menu-new_game-selected.png"})
+        self.assertEqual(pngio.decode(project.files["ui/title-logo.png"]).size, (320, 168))
+        self.assertIn("title: imported logo image", "\n".join(report))
+        self.assertIn("menus: imported 1 changed retail menu entry", "\n".join(report))
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp) / "ui-import"
+            importer.save(importer.ImportResult(project, report), folder)
+            opened, messages = manifest.open_mod(f.game(), folder)
+            self.assertEqual(messages, [])
+            self.assertEqual(opened.other["title"], project.other["title"])
+            self.assertEqual(opened.other["menu"], project.other["menu"])
+            # UI images are deliberately loaded from ``source_dir`` on demand
+            # rather than all being retained in memory after reopen.
+            self.assertTrue((folder / "ui/menu-new_game-selected.png").is_file())
+
+    def test_title_import_distinguishes_missing_archive_from_absent_archives(self):
+        f = fixture()
+        project, report = Project(f.game()), []
+        retail = GameFiles(f.slus, f.wa, "retail")
+        modded = GameFiles(f.slus, f.wa, "modded")
+        self.assertEqual(importer.import_title_and_menu_assets(project, retail, modded, report), ([], [], None))
+        self.assertEqual(report, [])
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "DATA").mkdir()
+            (root / "DATA" / "SU.MRG").write_bytes(bytes(0x31000))
+            project, report = Project(f.game()), []
+            self.assertEqual(importer.import_title_and_menu_assets(
+                project, GameFiles(f.slus, f.wa, str(root)), modded, report),
+                ([], [], "DATA/SU.MRG"))
+        self.assertIn("missing from one source", report[0])
 
     def test_runs(self):
         a = bytes(100)
@@ -196,6 +420,77 @@ class ModdedGameTest(unittest.TestCase):
         self.assertIn("2 names or texts differ from retail only by spaces", report)
         self.assertEqual(project.cards[8].description, f.cards[8].description)
         self.assertEqual(project.cards[9].name, f.cards[9].name)
+
+
+# --- the TeaOnline card-colour patch, both layouts it has shipped --------------------
+#
+# Bytes verified byte-for-byte against the tool's own saved samples in
+# teatools/process-cardcolor/patch/ (not checked into this repo; see
+# importer.card_frame_table and card_frame_table_old, and
+# process-cardcolor/README.md #4 for the v1/v2 layout history).
+
+CARD_COLOR_V2_LIBRARY_LOOP = bytes.fromhex(
+    "0180023c50214224560080a05400a0a6ffff712642881100218851000000319201007232020040120f00"
+    "3232029111000600512a0200201600000000000000000091120060011124218832025400"
+    "91a40400842401007326d302712aeaff20160400a524000000000000000000000000")
+CARD_COLOR_V1_BIG_HOOK = bytes.fromhex("786b0708ffff9324")
+CARD_COLOR_V1_SMALL_HOOK = bytes.fromhex("e46b0708")
+
+
+def _card_color_table(slots: dict) -> bytes:
+    """One nibble pair per two cards, card 2n+1 in the high nibble and card
+    2n+2 in the low (the tool's own packing)."""
+    raw = bytearray((g.CARD_COUNT + 1) // 2)
+    for cid, slot in slots.items():
+        i = (cid - 1) // 2
+        raw[i] = (raw[i] & 0x0F) | (slot << 4) if cid % 2 else (raw[i] & 0xF0) | slot
+    return bytes(raw)
+
+
+class CardFrameImportTest(unittest.TestCase):
+    def imported(self, slus):
+        f = fixture()
+        result = importer.import_modded(GameFiles(f.slus, f.wa, "retail"),
+                                         GameFiles(bytes(slus), f.wa, "modded"), "community")
+        return result.project, "\n".join(result.report)
+
+    def test_the_current_layout_imports_frame_colours(self):
+        f = fixture()
+        slus = bytearray(f.slus)
+        at = g.slus_offset(importer.CARD_FRAME)
+        slus[at:at + len(CARD_COLOR_V2_LIBRARY_LOOP)] = CARD_COLOR_V2_LIBRARY_LOOP
+        slus[0x2950:0x2950 + 361] = _card_color_table({5: 4, 6: 4})
+        project, report = self.imported(slus)
+        self.assertEqual(project.cards[5].frame, 4)
+        self.assertEqual(project.cards[6].frame, 4)
+        self.assertIn("frame colours imported", report)
+
+    def test_the_older_layout_imports_frame_colours_too(self):
+        """process-cardcolor/README.md #4: a game patched before the tool
+        also redirected the Library setup loop -- card_frame_table_old()."""
+        f = fixture()
+        slus = bytearray(f.slus)
+        big, small = g.slus_offset(importer.CARD_FRAME_OLD_BIG), g.slus_offset(importer.CARD_FRAME_OLD_SMALL)
+        table = g.slus_offset(importer.CARD_FRAME_OLD_TABLE)
+        slus[big:big + len(CARD_COLOR_V1_BIG_HOOK)] = CARD_COLOR_V1_BIG_HOOK
+        slus[small:small + len(CARD_COLOR_V1_SMALL_HOOK)] = CARD_COLOR_V1_SMALL_HOOK
+        slus[table:table + 361] = _card_color_table({5: 4, 6: 4})
+        project, report = self.imported(slus)
+        self.assertEqual(project.cards[5].frame, 4)
+        self.assertEqual(project.cards[6].frame, 4)
+        self.assertIn("frame colours imported", report)
+
+    def test_an_unrecognized_frame_patch_is_not_claimed_as_imported(self):
+        """Only one of the two hooks present (a different, unrecognized
+        tool, or a half-applied patch): no frame colours are invented."""
+        f = fixture()
+        slus = bytearray(f.slus)
+        big = g.slus_offset(importer.CARD_FRAME_OLD_BIG)
+        slus[big:big + len(CARD_COLOR_V1_BIG_HOOK)] = CARD_COLOR_V1_BIG_HOOK
+        project, report = self.imported(slus)
+        for cid in (5, 6):
+            self.assertEqual(project.cards[cid].frame, f.cards[cid].frame)
+        self.assertNotIn("frame colours imported", report)
 
 
 if __name__ == "__main__":

@@ -203,6 +203,7 @@ class Project:
         # The active card-type registry.  Retail names remain available to
         # readers as aliases; type_names holds the spelling a manifest writes.
         self.type_names = list(TYPE_NAMES) + [None] * (TYPE_LIMIT - len(TYPE_NAMES))
+        self.type_icons = {}            # id -> a custom type's icon, a PNG path inside the mod
         self.kept = {"fusions": [], "equips": [], "rituals": []}   # rules naming cards it cannot place
         self.kept_pools = {}            # (duelist or "all", pool) -> {name: weight} it cannot place
         self.fixed = {}                 # key as written -> fixed_decks.FixedDeck ("fixed": true), in order

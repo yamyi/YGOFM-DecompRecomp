@@ -22,6 +22,17 @@ class ProblemsMixin:
             settings.save("other_mods", folder)
             self._check_other_mods()
 
+    def _use_default_mods_folder(self):
+        """Back to the player's own mods folder: clear the chosen one and
+        check again, as the Tk tab's "The game's mods folder" button does."""
+        settings.save("other_mods", None)
+        self._check_other_mods()
+
+    def _set_problem_filter(self, level):
+        """Which lines show (all, or one level): the Tk tab's radio row."""
+        self.workspace_controls["Problems"]["level"] = level
+        self._refresh_problems()
+
     def _check_other_mods(self):
         """Where this mod meets the others installed (validate.cross_mod).
         Asked for once, the Problems page keeps showing them."""
@@ -43,11 +54,13 @@ class ProblemsMixin:
             issues = issues + others
             c["others"].setText(said)
         c["issues"]=issues
-        held=sort_paused(table);table.setRowCount(len(issues))
-        for row,issue in enumerate(issues):
+        level=c.get("level","all")
+        shown=[(i,issue) for i,issue in enumerate(issues) if level=="all" or issue.level==level]
+        held=sort_paused(table);table.setRowCount(len(shown))
+        for row,(index,issue) in enumerate(shown):
             for col,value in enumerate((issue.level.title(),issue.area+" · "+issue.where,issue.message)):
                 item=TableItem(str(value))
-                item.setData(Qt.ItemDataRole.UserRole,row)      # which issue the line is, once a sort has moved it
+                item.setData(Qt.ItemDataRole.UserRole,index)      # which issue the line is, once a sort or filter has moved it
                 self._tint_state(item,issue.level)      # the level's ink, as the Tk tree's tags draw it
                 table.setItem(row,col,item)
         sort_resumed(table,held)

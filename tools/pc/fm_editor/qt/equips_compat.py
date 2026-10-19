@@ -7,8 +7,8 @@ from pathlib import Path
 def install() -> None:
     from .common import (ATTRIBUTE_NAMES, QFile, QIODevice, QLineEdit,
                          QListWidget, QListWidgetItem, QMessageBox, QPushButton, QCheckBox, QToolButton,
-                         QUiLoader, Qt, TYPE_NAMES, decorate_attribute_items,
-                         decorate_type_items)
+                         QUiLoader, Qt, TYPE_NAMES, declared_type_choices,
+                         decorate_attribute_items, decorate_type_items)
     from .window import ModernEditor
     from .. import bulk_fusions
 
@@ -200,12 +200,14 @@ def install() -> None:
             "level_max": dialog.findChild(QLineEdit, "equipFilterLevelMax"),
         }
         filters = getattr(self, "equip_advanced_filters", {})
-        for listing, labels, selected in ((types, TYPE_NAMES[:20], filters.get("types", set())),
+        for listing, labels, selected in ((types, declared_type_choices(self.project, monster_only=True), filters.get("types", set())),
                                           (attributes, ATTRIBUTE_NAMES, filters.get("attributes", set()))):
-            for index, label in enumerate(labels):
+            for index, entry in enumerate(labels):
+                type_id, label = entry if isinstance(entry, tuple) else (index, entry)
                 item = QListWidgetItem(label)
+                item.setData(Qt.ItemDataRole.UserRole, type_id)
                 item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-                item.setCheckState(Qt.CheckState.Checked if index in selected else Qt.CheckState.Unchecked)
+                item.setCheckState(Qt.CheckState.Checked if type_id in selected else Qt.CheckState.Unchecked)
                 listing.addItem(item)
         decorate_type_items(self, types)
         decorate_attribute_items(self, attributes)
@@ -236,7 +238,7 @@ def install() -> None:
             QMessageBox.warning(self, "Advanced filters", str(problem))
             return
         self.equip_advanced_filters = {
-            "types": {index for index in range(types.count())
+            "types": {types.item(index).data(Qt.ItemDataRole.UserRole) for index in range(types.count())
                       if types.item(index).checkState() == Qt.CheckState.Checked},
             "attributes": {index for index in range(attributes.count())
                            if attributes.item(index).checkState() == Qt.CheckState.Checked},

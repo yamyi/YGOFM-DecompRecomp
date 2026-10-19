@@ -581,7 +581,7 @@ class StarsMixin:
         # refused by star_rules.plan, so at least one of these must be set.
         chooser = QGroupBox("Cards (every filter given must hold)")
         chooser_layout = QHBoxLayout(chooser)
-        types = self._checkable_list(TYPE_NAMES[:20], chooser, height=6)
+        types = self._checkable_list(declared_type_choices(self.project, monster_only=True), chooser, height=6)
         attributes = self._checkable_list(ATTRIBUTE_NAMES, chooser, height=6)
         decorate_type_items(self, types)
         decorate_attribute_items(self, attributes)
@@ -686,7 +686,7 @@ class StarsMixin:
             elif kind == "attribute":
                 keys = list(enumerate(ATTRIBUTE_NAMES))
             else:
-                keys = list(enumerate(TYPE_NAMES[:20]))
+                keys = declared_type_choices(self.project, monster_only=True)
             for key, title in keys:
                 box = star_combo()
                 combos[key] = box
