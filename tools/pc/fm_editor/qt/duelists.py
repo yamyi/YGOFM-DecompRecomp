@@ -8,6 +8,11 @@ from .. import roster, duelist_rules, bust as bustm
 from ..gamedata import AI_FIELD_LABELS, RANK_RULES, RANK_STEPS, RANK_ABOVE
 
 
+# duel_init_scene.c branches at this final retail opponent ID and deals the
+# player's deck to the opponent instead of reading a weighted opponent deck.
+DUEL_MASTER_K_OPPONENT_ID = len(DUELIST_NAMES) - 1
+
+
 class DuelistsMixin:
     def _load_duelist_dialog(self, filename):
         """Load a Designer-defined dialog; Python only binds roster data
@@ -1303,11 +1308,16 @@ QLabel#statsRank { color: #8aa0bd; }
         c=self.workspace_controls["Duelists"];d=self._selected_duelist();subject=self._selected_duelist_subject();name=self._selected_pool_name()
         if name is None:
             self._set_duelist_pool_editor_visible(False)
+            c["master_k_notice"].setVisible(False)
             c["randomizer_page"].setVisible(True)
             self._refresh_drop_randomizer()
             return
         c["randomizer_page"].setVisible(False)
-        self._set_duelist_pool_editor_visible(True)
+        player_deck = self._copies_player_deck()
+        c["master_k_notice"].setVisible(player_deck)
+        self._set_duelist_pool_editor_visible(not player_deck)
+        if player_deck:
+            return
         record=getattr(self,"duelist_slots",{}).get(getattr(self,"duelist_selected_slot",d))
         pool=roster.pools_of(self.project, subject)[name];retail=roster.retail_pool(self.project, subject, name)
         title=record["name"] if record else DUELIST_NAMES[d]
@@ -1342,6 +1352,15 @@ QLabel#statsRank { color: #8aa0bd; }
                 self._tint_state(item,row[6].lower())
                 table.setItem(i,col,item)
         sort_resumed(table,held)
+
+    def _copies_player_deck(self):
+        """Whether the selected Deck tab is dealt from the player's cards.
+
+        Custom roster entries keep their base opponent ID, so a copy of Duel
+        Master K follows the same retail game branch and must be read-only too.
+        """
+        return (self._selected_pool_name() == "deck"
+                and self._selected_duelist() == DUEL_MASTER_K_OPPONENT_ID)
 
     def _set_duelist_pool_editor_visible(self, visible):
         """Show the normal pool editor, or leave room for Randomizer.
@@ -1588,7 +1607,7 @@ QLabel#statsRank { color: #8aa0bd; }
         return True
     def _switch_deck_mode(self, *_):
         c = self.workspace_controls["Duelists"]
-        if self._selected_pool_name() != "deck":
+        if self._selected_pool_name() != "deck" or self._copies_player_deck():
             return
         duelist = self._selected_duelist_subject()
         stash_key = self._selected_duelist_stash_key()
@@ -1623,6 +1642,8 @@ QLabel#statsRank { color: #8aa0bd; }
         if deck and len(chosen) == 1 and isinstance(chosen[0], int):
             self.workspace_controls["Duelists"]["copies"].setValue(deck.cards.get(chosen[0], 0))
     def _add_fixed_card(self):
+        if self._copies_player_deck():
+            return
         deck = self._fixed_deck()
         if deck is None:
             return
@@ -1633,6 +1654,8 @@ QLabel#statsRank { color: #8aa0bd; }
         deck.cards[cid] = copies if 0 < copies <= DECK_SIZE else 1
         self._fixed_edited()
     def _set_fixed_copies(self):
+        if self._copies_player_deck():
+            return
         deck = self._fixed_deck()
         if deck is None:
             return
@@ -1642,6 +1665,8 @@ QLabel#statsRank { color: #8aa0bd; }
                 deck.cards[cid] = copies
         self._fixed_edited()
     def _remove_fixed_cards(self):
+        if self._copies_player_deck():
+            return
         deck = self._fixed_deck()
         if deck is None:
             return
@@ -1652,6 +1677,8 @@ QLabel#statsRank { color: #8aa0bd; }
                 deck.cards.pop(cid, None)
         self._fixed_edited()
     def _copy_weighted_deck(self):
+        if self._copies_player_deck():
+            return
         deck = self._fixed_deck()
         if deck is None:
             return
@@ -1669,6 +1696,8 @@ QLabel#statsRank { color: #8aa0bd; }
                              fixed_decks.most_likely(roster.pools_of(self.project, duelist)["deck"]))
         self._fixed_edited()
     def _clear_fixed_deck(self):
+        if self._copies_player_deck():
+            return
         deck = self._fixed_deck()
         if deck is None:
             return
@@ -1676,6 +1705,8 @@ QLabel#statsRank { color: #8aa0bd; }
         self._fixed_edited()
     def _revert_fixed_deck(self):
         """Back to the disc's: no fixed deck, and the weighted deck retail's."""
+        if self._copies_player_deck():
+            return
         duelist = self._selected_duelist_subject()
         answer = QMessageBox.question(
             self, "Revert to retail",
@@ -1696,6 +1727,8 @@ QLabel#statsRank { color: #8aa0bd; }
         c=self.workspace_controls["Duelists"];row=c["table"].currentRow()
         if row>=0:c["weight"].setValue(int(c["table"].item(row,3).text()))
     def _add_pool_card(self):
+        if self._copies_player_deck():
+            return
         cid=self._choose_one_card("Add card to pool")
         if cid:
             d=self._selected_duelist_subject();pool=roster.pools_of(self.project, d)[self._selected_pool_name()]
@@ -1707,6 +1740,8 @@ QLabel#statsRank { color: #8aa0bd; }
         return [table.item(row,0).data(Qt.ItemDataRole.UserRole)
                 for row in sorted({x.row() for x in table.selectedItems()}) if table.item(row,0)]
     def _set_pool_weight(self):
+        if self._copies_player_deck():
+            return
         pool=roster.pools_of(self.project, self._selected_duelist_subject())[self._selected_pool_name()]
         weight=self.workspace_controls["Duelists"]["weight"].value()
         for cid in self._selected_pool_cards():
@@ -1714,10 +1749,14 @@ QLabel#statsRank { color: #8aa0bd; }
             else:pool.pop(cid,None)
         self._mark_dirty();self._refresh_duelist_pool()
     def _remove_pool_cards(self):
+        if self._copies_player_deck():
+            return
         pool=roster.pools_of(self.project, self._selected_duelist_subject())[self._selected_pool_name()]
         for cid in self._selected_pool_cards():pool.pop(cid,None)
         self._mark_dirty();self._refresh_duelist_pool()
     def _normalize_pool(self):
+        if self._copies_player_deck():
+            return
         d=self._selected_duelist_subject();pool=self._selected_pool_name()
         roster.pools_of(self.project, d)[pool]=poolmath.normalize(roster.pools_of(self.project, d)[pool])
         self._mark_dirty();self._refresh_duelist_pool()
@@ -1736,6 +1775,8 @@ QLabel#statsRank { color: #8aa0bd; }
             f"Randomized {POOL_LABELS[pool_name]} from {len(chosen)} checked cards.", 8000)
         return chosen
     def _revert_pool(self):
+        if self._copies_player_deck():
+            return
         d=self._selected_duelist_subject();pool=self._selected_pool_name()
         if isinstance(d, int):
             self.project.revert_pool(d,pool)

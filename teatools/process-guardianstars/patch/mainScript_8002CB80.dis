@@ -1,0 +1,26 @@
+; mainScript_8002CB80  RAM 0x8002cb80  96 bytes  -- SLUS file 0x1D380, overwrites the first 96 of the 116 bytes of Duel_CalcGuardianStarMatchup
+; PATCHED
+8002cb80:	2484ffff 	addiu	a0,a0,-1
+8002cb84:	24a5ffff 	addiu	a1,a1,-1
+8002cb88:	3c028001 	lui	v0,0x8001
+8002cb8c:	24421a80 	addiu	v0,v0,6784
+8002cb90:	00051840 	sll	v1,a1,0x1
+8002cb94:	00431821 	addu	v1,v0,v1
+8002cb98:	94630000 	lhu	v1,0(v1)
+8002cb9c:	00000000 	nop
+8002cba0:	00831806 	srlv	v1,v1,a0
+8002cba4:	30630001 	andi	v1,v1,0x1
+8002cba8:	1460000a 	bnez	v1,0x8002cbd4
+8002cbac:	2403fe0c 	li	v1,-500
+8002cbb0:	00041840 	sll	v1,a0,0x1
+8002cbb4:	00431821 	addu	v1,v0,v1
+8002cbb8:	94630000 	lhu	v1,0(v1)
+8002cbbc:	00000000 	nop
+8002cbc0:	00a31806 	srlv	v1,v1,a1
+8002cbc4:	30630001 	andi	v1,v1,0x1
+8002cbc8:	14600002 	bnez	v1,0x8002cbd4
+8002cbcc:	240301f4 	li	v1,500
+8002cbd0:	24030000 	li	v1,0
+8002cbd4:	00601021 	move	v0,v1
+8002cbd8:	03e00008 	jr	ra
+8002cbdc:	00000000 	nop

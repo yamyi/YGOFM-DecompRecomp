@@ -1,0 +1,8 @@
+; bonusData_80011A80  RAM 0x80011a80  32 bytes  -- SLUS file 0x2280, 16 x u16 "beats" bitmask; stock = PsyQ libetc/libspu debug strings
+; PATCHED
+80011a80:	00040002 	srl	zero,a0,0x0
+80011a84:	00100008 	.word	0x100008
+80011a88:	00010020 	add	zero,zero,at
+80011a8c:	01000080 	.word	0x1000080
+80011a90:	00400200 	.word	0x400200
+	...

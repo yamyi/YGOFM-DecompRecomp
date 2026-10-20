@@ -325,6 +325,12 @@
         <layout class="QHBoxLayout" name="duelistPoolHeader">
          <item>
           <widget class="QWidget" name="duelistPoolTabsHost" native="true">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
            <layout class="QHBoxLayout" name="duelistPoolTabsLayout">
             <property name="leftMargin">
              <number>0</number>
@@ -350,6 +356,43 @@
          </item>
         </layout>
        </item>
+      <item>
+       <widget class="QLabel" name="duelMasterKDeckNotice">
+        <property name="visible">
+         <bool>false</bool>
+        </property>
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>104</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>16777215</width>
+          <height>104</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>Copies the player's deck instead</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignmentFlag::AlignCenter</set>
+        </property>
+        <property name="margin">
+         <number>16</number>
+        </property>
+        <property name="styleSheet">
+         <string notr="true">font-size: 16px; font-weight: 600; color: #dbe8fb; background: #101d2e; border: 1px solid #244869; border-radius: 6px;</string>
+        </property>
+       </widget>
+      </item>
       <item>
        <widget class="QWidget" name="dropRandomizerPage">
         <property name="visible">

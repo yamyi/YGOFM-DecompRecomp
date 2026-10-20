@@ -1,0 +1,16 @@
+/Assets/fonts/css/germania.css
+/Assets/fonts/css/open.css
+/Assets/fonts/css/roboto.css
+/Assets/js/h.js
+/Assets/js/m2.js
+/Assets/js/saver.js
+/css/chunk-common.2de9cb28.css
+/css/chunk-vendors.5e4bfd78.css
+/css/extend/tools/image/campaign/characters.c4f6fade.css
+/js/chunk-2d0be2d7.adcd2597.js
+/js/chunk-2d0ccb5f.ea2c3341.js
+/js/chunk-2d20ec33.6ae1b987.js
+/js/chunk-common.d179124d.js
+/js/chunk-vendors.96a50521.js
+/js/extend/tools/image/campaign/characters.55dd3bc1.js
+/manifestEx.js

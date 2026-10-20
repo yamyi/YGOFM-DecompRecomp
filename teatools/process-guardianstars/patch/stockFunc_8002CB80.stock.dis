@@ -1,0 +1,31 @@
+; full stock Duel_CalcGuardianStarMatchup, 116 bytes, RAM 0x8002cb80
+; STOCK
+8002cb80:	2484fff9 	addiu	a0,a0,-7
+8002cb84:	04800006 	bltz	a0,0x8002cba0
+8002cb88:	24030006 	li	v1,6
+8002cb8c:	24a5fff9 	addiu	a1,a1,-7
+8002cb90:	04a10007 	bgez	a1,0x8002cbb0
+8002cb94:	24030004 	li	v1,4
+8002cb98:	03e00008 	jr	ra
+8002cb9c:	00001021 	move	v0,zero
+8002cba0:	24a5ffff 	addiu	a1,a1,-1
+8002cba4:	00a3102a 	slt	v0,a1,v1
+8002cba8:	1040fffb 	beqz	v0,0x8002cb98
+8002cbac:	00832021 	addu	a0,a0,v1
+8002cbb0:	24840001 	addiu	a0,a0,1
+8002cbb4:	0083102a 	slt	v0,a0,v1
+8002cbb8:	14400002 	bnez	v0,0x8002cbc4
+8002cbbc:	00000000 	nop
+8002cbc0:	00002021 	move	a0,zero
+8002cbc4:	14850003 	bne	a0,a1,0x8002cbd4
+8002cbc8:	2484fffe 	addiu	a0,a0,-2
+8002cbcc:	03e00008 	jr	ra
+8002cbd0:	240201f4 	li	v0,500
+8002cbd4:	04810002 	bgez	a0,0x8002cbe0
+8002cbd8:	00000000 	nop
+8002cbdc:	00832021 	addu	a0,a0,v1
+8002cbe0:	10850002 	beq	a0,a1,0x8002cbec
+8002cbe4:	2402fe0c 	li	v0,-500
+8002cbe8:	00001021 	move	v0,zero
+8002cbec:	03e00008 	jr	ra
+8002cbf0:	00000000 	nop

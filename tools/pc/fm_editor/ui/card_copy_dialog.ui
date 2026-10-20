@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>CardCopyDialog</class>
+ <widget class="QDialog" name="cardCopyDialog">
+  <property name="windowTitle"><string>Copy card</string></property>
+  <property name="modal"><bool>true</bool></property>
+  <layout class="QVBoxLayout" name="copyCardDialogLayout">
+   <item>
+    <widget class="QLabel" name="copyCardIntroLabel">
+     <property name="text"><string>Choose the new card's name and what it should copy from the selected card.</string></property>
+     <property name="wordWrap"><bool>true</bool></property>
+    </widget>
+   </item>
+   <item>
+    <layout class="QFormLayout" name="copyCardFormLayout">
+     <item row="0" column="0"><widget class="QLabel" name="copyNameLabel"><property name="text"><string>Name</string></property></widget></item>
+     <item row="0" column="1"><widget class="QLineEdit" name="copyNameEdit"/></item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="copyContentsGroup">
+     <property name="title"><string>Copy from selected card</string></property>
+     <layout class="QVBoxLayout" name="copyContentsLayout">
+      <item><widget class="QCheckBox" name="copyCardDataCheckBox"><property name="text"><string>Card data (type, attribute, level, stats, frame and stars)</string></property><property name="checked"><bool>true</bool></property></widget></item>
+      <item><widget class="QCheckBox" name="copyDescriptionCheckBox"><property name="text"><string>Description</string></property><property name="checked"><bool>true</bool></property></widget></item>
+      <item><widget class="QCheckBox" name="copyArtworkCheckBox"><property name="text"><string>Artwork and thumbnail</string></property><property name="checked"><bool>true</bool></property></widget></item>
+      <item><widget class="QCheckBox" name="copyModelCheckBox"><property name="text"><string>3D model</string></property><property name="checked"><bool>true</bool></property></widget></item>
+      <item><widget class="QCheckBox" name="copyFusionsCheckBox"><property name="text"><string>Fusions</string></property><property name="checked"><bool>true</bool></property></widget></item>
+      <item><widget class="QCheckBox" name="copyEquipsCheckBox"><property name="text"><string>Equip relationships</string></property><property name="checked"><bool>true</bool></property></widget></item>
+      <item><widget class="QCheckBox" name="copyRitualsCheckBox"><property name="text"><string>Ritual recipe</string></property><property name="checked"><bool>true</bool></property></widget></item>
+      <item><widget class="QCheckBox" name="copyBehaviourCheckBox"><property name="text"><string>Card behaviour, effects and tags</string></property><property name="checked"><bool>true</bool></property></widget></item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QCheckBox" name="saveCopyDefaultsCheckBox">
+     <property name="text"><string>Save these choices as the default</string></property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="copyCardProblemLabel">
+     <property name="styleSheet"><string notr="true">color: #ff8b8b;</string></property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="copyCardButtonBox">
+     <property name="standardButtons"><set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set></property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

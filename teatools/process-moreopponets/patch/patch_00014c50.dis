@@ -1,0 +1,7 @@
+; patch: file offset 0x14c50, 8 bytes, RAM 0x80024450
+; PATCHED:
+80024450:	08004760 	j	0x80011d80
+80024454:	00000000 	nop
+; STOCK:
+80024450:	00009821 	move	s3,zero
+80024454:	27b40010 	addiu	s4,sp,16

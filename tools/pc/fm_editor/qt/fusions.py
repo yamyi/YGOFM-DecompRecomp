@@ -49,6 +49,46 @@ class FusionTableDelegate(QStyledItemDelegate):
 
 class FusionsMixin:
 
+    def _inherited_fusion_pairs(self, pairs):
+        """Pairs added cards inherit from the cards they copy.
+
+        The port resolves a fusion rule through an added card's ``base`` when
+        the pair has no rule of its own.  The Fusions page used to enumerate
+        only literal table entries, so those working in-game recipes had no
+        row to search for or inspect.  Build display-only pairs here; editing
+        one still creates the explicit rule that intentionally overrides the
+        inherited recipe.
+        """
+        p = self.project
+        if not p.added:
+            return {}
+
+        # Only table rules whose materials are stock cards can be a source.
+        # An explicit rule for a copy is already in ``pairs`` and must retain
+        # its own status and result instead of being presented as inherited.
+        sources = {
+            pair for pair in p.fusions
+            if pair[0] not in p.added and pair[1] not in p.added
+        }
+        variants = {}
+        for cid, added in p.added.items():
+            variants.setdefault(added.base, [added.base]).append(cid)
+
+        inherited = {}
+        for source in sources:
+            left, right = source
+            for a in variants.get(left, (left,)):
+                for b in variants.get(right, (right,)):
+                    pair = p.pair(a, b)
+                    if pair == source or pair in pairs or pair in inherited:
+                        continue
+                    # ``effective`` is the same base-card fallback used by
+                    # the bulk editor and the PC tables.  Do not add rows for
+                    # a source rule that currently forbids or removes fusion.
+                    if bulk_fusions.effective(p, *pair):
+                        inherited[pair] = source
+        return inherited
+
     def _set_fusion_view(self, mode):
         """Switch between visual cards and the normal editable table."""
         controls = self.workspace_controls.get("Fusions")
@@ -83,10 +123,17 @@ class FusionsMixin:
         own = {pair: p.own_fusion(pair, removes) for pair in named}
         pairs = set(p.fusions) | set(p.retail.fusions) | p.fusion_explicit | {
             pair for pair, result in own.items() if result is not None}
+        inherited = self._inherited_fusion_pairs(pairs)
+        pairs.update(inherited)
         outcomes = {}
         for pair in sorted(pairs):
-            status = "own list" if own.get(pair) is not None else p.fusion_status(pair)
-            result = own[pair] if status == "own list" else p.fusions.get(pair)
+            source = inherited.get(pair)
+            if source is not None:
+                status = "inherited"
+                result = bulk_fusions.effective(p, *pair)
+            else:
+                status = "own list" if own.get(pair) is not None else p.fusion_status(pair)
+                result = own[pair] if status == "own list" else p.fusions.get(pair)
             outcomes[pair] = result
             a, b = p.card_label(pair[0]), p.card_label(pair[1])
             retail = p.retail.fusions.get(pair)
@@ -94,7 +141,10 @@ class FusionsMixin:
                 f"No fusion (retail: {p.card_label(retail)})" if retail else "No fusion (forbidden)")
             if status == "own list":
                 outcome += " (a card’s own fusions list)"
-            if changed_only and status in ("", "glitch"):
+            elif source is not None:
+                outcome += (" (inherits "
+                            f"{p.card_label(source[0])} + {p.card_label(source[1])})")
+            if changed_only and status in ("", "glitch", "inherited"):
                 continue
             if query:
                 materials_match = any(query in text.casefold() for text in (a, b))
@@ -678,7 +728,41 @@ class FusionsMixin:
     def _remove_fusion_result(self):
         # The selected pair's result is the likely one, as the Tk dialog fills it.
         pairs = self._selected_fusion_pairs()
-        chosen = self.project.fusions.get(pairs[0]) if pairs else None
+        chosen = None
+        if pairs:
+            pair = pairs[0]
+            own = self.project.own_fusion(pair, set(self.project.active_removes()))
+            # A copied material normally has no literal rule of its own, but
+            # the game still resolves the base card's recipe.  Use that
+            # effective result here so "Remove recipes of…" starts on the
+            # result the selected row actually makes.
+            chosen = own if own is not None else bulk_fusions.effective(self.project, *pair)
+            if not chosen:
+                copied = next((cid for cid in pair if cid in self.project.added), None)
+                if copied is not None:
+                    removes = set(self.project.active_removes())
+                    inherited = [other for other in self.project.cards
+                                 if self.project.pair(copied, other) not in self.project.fusions
+                                 and self.project.own_fusion(self.project.pair(copied, other), removes) is None
+                                 and bulk_fusions.effective(self.project, copied, other)]
+                    if not inherited:
+                        QMessageBox.information(self, "Remove copied-card recipes",
+                                                "This copied card has no active inherited fusion recipes.")
+                        return
+                    answer = QMessageBox.question(
+                        self, "Remove copied-card recipes",
+                        f"Remove all {len(inherited)} inherited fusion recipe(s) that use "
+                        f"{self.project.card_label(copied)}?\n"
+                        "This writes explicit no-fusion rules for the copy; its base card is unchanged.",
+                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                        QMessageBox.StandardButton.No)
+                    if answer == QMessageBox.StandardButton.Yes:
+                        for other in inherited:
+                            self.project.set_fusion(copied, other, None)
+                        self._mark_dirty()
+                        self._refresh_fusions()
+                        self._refresh_bulk_fusion_plan()
+                    return
         cid = self._choose_one_card("Remove all disc recipes of…", selected=chosen)
         if cid is None:
             return

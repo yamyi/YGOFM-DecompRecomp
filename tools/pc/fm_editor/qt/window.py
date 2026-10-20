@@ -322,6 +322,12 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
                 splitter.setStretchFactor(0,0)
                 splitter.setStretchFactor(1,1)
                 splitter.setSizes([560,900])
+            detail_layout=page.findChild(QVBoxLayout, "duelistDetailLayout")
+            if detail_layout is not None:
+                # QUiLoader drops a layout's alignment property.  A sparse
+                # read-only pool view must begin below its tabs, not centre
+                # itself in the pane left by the regular editor.
+                detail_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         def get(cls, key):
             item = page.findChild(cls, key)
@@ -485,6 +491,7 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
                             position=get(QComboBox, "duelistPositionCombo"),
                             pool=self._pool_tabs(get(QWidget, "duelistPoolTabsHost")),
                             summary=get(QLabel, "duelistPoolSummary"),
+                            master_k_notice=get(QLabel, "duelMasterKDeckNotice"),
                             table=get(QTableWidget, "duelistPoolTable"),
                             weight=get(QSpinBox, "duelistWeightSpin"),
                             randomizer_page=get(QWidget, "dropRandomizerPage"),
@@ -803,6 +810,10 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
             tabs.addTab(POOL_LABELS[name])
         tabs.addTab("Randomizer")
         host.layout().addWidget(tabs)
+        # QUiLoader does not retain the vertical Fixed policy of this native
+        # layout host. Lock it to the tab bar's style-aware height so a
+        # read-only pool view cannot push its content to the bottom.
+        host.setFixedHeight(tabs.sizeHint().height())
         return tabs
 
     def _card_combo(self, parent, selected=None, ids=None):

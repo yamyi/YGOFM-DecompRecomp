@@ -1,0 +1,7 @@
+; hook: file offset 0xa260, 8 bytes, RAM 0x80019a60
+; PATCHED:
+80019a60:	08062f06 	j	0x8018bc18
+80019a64:	00000000 	nop
+; STOCK:
+80019a60:	3c028018 	lui	v0,0x8018
+80019a64:	2443c2d8 	addiu	v1,v0,-15656

@@ -1,0 +1,4 @@
+; jump_type2_80024E10  RAM 0x80024e10  8 bytes  -- SLUS file 0x15610, only valid after the freedueltheme patch has compacted the function
+; PATCHED
+80024e10:	0806ff98 	j	0x801bfe60
+80024e14:	3c11801c 	lui	s1,0x801c

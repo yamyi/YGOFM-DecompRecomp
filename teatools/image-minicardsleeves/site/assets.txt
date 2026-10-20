@@ -1,0 +1,15 @@
+/Assets/fonts/css/germania.css
+/Assets/fonts/css/open.css
+/Assets/fonts/css/roboto.css
+/Assets/js/m2.js
+/Assets/js/saver.js
+/css/chunk-common.90e79da6.css
+/css/chunk-vendors.5e4bfd78.css
+/css/extend/tools/image/minicardsleeves.d661a9ca.css
+/js/chunk-2d0be2d7.adcd2597.js
+/js/chunk-2d0ccb5f.ea2c3341.js
+/js/chunk-2d20ec33.6ae1b987.js
+/js/chunk-common.465e9746.js
+/js/chunk-vendors.b3844982.js
+/js/extend/tools/image/minicardsleeves.f22f6e41.js
+/manifestEx.js

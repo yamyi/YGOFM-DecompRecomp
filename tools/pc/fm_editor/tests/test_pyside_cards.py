@@ -439,9 +439,35 @@ class CardsTest(unittest.TestCase):
     def test_add_without_selection(self):
         w = self.window
         w.show_card(None)
-        with mock.patch.object(w, '_choose_one_card', return_value=1):
+        options = dict.fromkeys(w.COPY_OPTION_NAMES, True)
+        with mock.patch.object(w, '_choose_one_card', return_value=1), \
+             mock.patch.object(w, '_choose_copy_options', return_value=('Copied card', options)):
             w.add_card()
         self.assertEqual(len(w.project.added), 1)
+        self.assertEqual(w.project.cards[next(iter(w.project.added))].name, 'Copied card')
+
+    def test_copy_options_dialog_accepts_the_add_copy_button(self):
+        """The shipped .ui dialog can complete an Add copy interaction.
+
+        Loading a dialog with QUiLoader is different from the hand-built
+        dialogs elsewhere in this page.  Exercise its real OK button so a
+        broken connection cannot make Add copy silently appear inert.
+        """
+        from PySide6.QtCore import QTimer
+        from PySide6.QtWidgets import QDialogButtonBox
+
+        def accept_dialog():
+            dialog = QApplication.activeModalWidget()
+            self.assertIsNotNone(dialog)
+            buttons = dialog.findChild(QDialogButtonBox, "copyCardButtonBox")
+            self.assertIsNotNone(buttons)
+            buttons.button(QDialogButtonBox.StandardButton.Ok).click()
+
+        QTimer.singleShot(0, accept_dialog)
+        source = self.window.project.cards[1]
+        chosen = self.window._choose_copy_options(source)
+        self.assertIsNotNone(chosen)
+        self.assertEqual(chosen[0], f"{source.name} II")
 
     def test_text_preview_renders_and_follows_card(self):
         from PySide6.QtWidgets import QLabel
@@ -1101,6 +1127,30 @@ class CardsTest(unittest.TestCase):
         self.assertIn('own list', rows[(4, 5)].text())
         self.assertIn((7, 8), rows)
 
+    def test_added_card_lists_the_fusions_it_inherits_from_its_base(self):
+        from PySide6.QtCore import Qt
+        from fm_editor import bulk_fusions
+
+        w = self.window
+        p = w.project
+        base_pair, expected = next(
+            (pair, result) for pair, result in p.retail.fusions.items()
+            if result and pair[0] != pair[1])
+        copied = p.add_card(base_pair[0], 'fusion-inheritance-copy')
+        inherited_pair = p.pair(copied, base_pair[1])
+
+        controls = w.workspace_controls['Fusions']
+        controls['search'].setText(str(copied))
+        w._refresh_fusions()
+        listing = controls['image_list']
+        rows = {listing.item(i).data(Qt.ItemDataRole.UserRole): listing.item(i)
+                for i in range(listing.count())}
+
+        self.assertEqual(bulk_fusions.effective(p, *inherited_pair), expected)
+        self.assertIn(inherited_pair, rows)
+        self.assertEqual(rows[inherited_pair].data(int(Qt.ItemDataRole.UserRole) + 1), expected)
+        self.assertIn('inherited', rows[inherited_pair].text())
+
     def test_fusion_multiselect_and_empty_actions(self):
         from PySide6.QtWidgets import QAbstractItemView
         w = self.window
@@ -1175,6 +1225,60 @@ class CardsTest(unittest.TestCase):
             w._remove_fusion_result()
         self.assertIn(3, w.project.active_removes())
         self.assertFalse(w.project.fusions.get((1, 2)))
+
+    def test_remove_disc_recipes_uses_an_added_card_inherited_result(self):
+        w = self.window
+        p = w.project
+        source, result = next((pair, made) for pair, made in p.retail.fusions.items()
+                              if made and pair[0] != pair[1])
+        copied = p.add_card(source[0], 'inherited-result-copy')
+        inherited_pair = p.pair(copied, source[1])
+        seen = {}
+
+        def choose(_title, ids=None, selected=None):
+            seen['selected'] = selected
+            return None
+
+        with mock.patch.object(w, '_selected_fusion_pairs', return_value=[inherited_pair]), \
+             mock.patch.object(w, '_choose_one_card', side_effect=choose):
+            w._remove_fusion_result()
+        self.assertEqual(seen['selected'], result)
+
+    def test_remove_recipes_on_a_copy_can_remove_its_inherited_material_rules(self):
+        from PySide6.QtWidgets import QMessageBox
+        from fm_editor import bulk_fusions
+
+        w = self.window
+        p = w.project
+        source, _result = next((pair, made) for pair, made in p.retail.fusions.items()
+                               if made and pair[0] != pair[1])
+        copied = p.add_card(source[0], 'remove-inherited-copy')
+        selected_pair = p.pair(copied, source[1])
+        p.set_fusion(*selected_pair, None)
+        another = next(other for other in p.cards
+                       if other != source[1] and bulk_fusions.effective(p, copied, other))
+
+        with mock.patch.object(w, '_selected_fusion_pairs', return_value=[selected_pair]), \
+             mock.patch('fm_editor.pyside_app.QMessageBox.question',
+                        return_value=QMessageBox.StandardButton.Yes):
+            w._remove_fusion_result()
+        self.assertFalse(bulk_fusions.effective(p, copied, another))
+
+    def test_copy_card_options_can_exclude_inherited_fusions_and_equips(self):
+        w = self.window
+        p = w.project
+        source = next(cid for cid in p.cards if p.fusions and cid <= 722)
+        options = dict.fromkeys(w.COPY_OPTION_NAMES, True)
+        options.update({'fusions': False, 'equips': False, 'artwork': False})
+        w.show_card(source)
+        with mock.patch.object(w, '_choose_copy_options', return_value=('No inherited rules', options)):
+            w.add_card()
+        copied = next(reversed(p.added))
+        removes = set(p.active_removes())
+        self.assertEqual(p.cards[copied].name, 'No inherited rules')
+        self.assertFalse(any(w._fusion_result_for_copy(copied, other, removes) for other in p.cards))
+        self.assertNotIn(copied, p.equips)
+        self.assertFalse(any(copied in targets for targets in p.equips.values()))
 
     def test_fusions_keep_non_monster_results_and_restore_disc_table(self):
         from PySide6.QtWidgets import QMessageBox, QPushButton
@@ -2572,6 +2676,27 @@ class CardsTest(unittest.TestCase):
         self.assertTrue(w.dirty)
         self.assertGreater(c['fixed_table'].rowCount(), 0)
         self.assertEqual(c['summary'].text(), '40/40 cards')
+
+    def test_duel_master_k_deck_is_read_only_because_he_copies_the_player(self):
+        """Retail opponent 39 never deals its stored weighted deck in-game."""
+        w = self.window
+        c = self.duelists_page()
+        duel_master_k = len(DUELIST_NAMES) - 1
+        w.goto_duelist(duel_master_k, 'deck')
+
+        self.assertEqual(w._selected_duelist(), duel_master_k)
+        self.assertFalse(c['master_k_notice'].isHidden())
+        self.assertEqual(c['master_k_notice'].text(), "Copies the player's deck instead")
+        self.assertTrue(c['table'].isHidden())
+
+        stored_deck = dict(w.project.pools[duel_master_k]['deck'])
+        w._normalize_pool()
+        self.assertEqual(w.project.pools[duel_master_k]['deck'], stored_deck)
+
+        # His drop pools still work and remain independently editable.
+        c['pool'].setCurrentIndex(1)
+        self.assertTrue(c['master_k_notice'].isHidden())
+        self.assertFalse(c['table'].isHidden())
 
     def test_custom_duelist_pools_and_fixed_decks_are_isolated_and_persist(self):
         """A roster copy edits itself, never the retail duelist it copied."""

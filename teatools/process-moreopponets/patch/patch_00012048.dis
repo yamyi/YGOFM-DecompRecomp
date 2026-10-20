@@ -1,0 +1,7 @@
+; patch: file offset 0x12048, 8 bytes, RAM 0x80021848
+; PATCHED:
+80021848:	0800476a 	j	0x80011da8
+8002184c:	00000000 	nop
+; STOCK:
+80021848:	304207ff 	andi	v0,v0,0x7ff
+8002184c:	24450001 	addiu	a1,v0,1

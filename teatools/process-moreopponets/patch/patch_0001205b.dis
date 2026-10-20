@@ -1,0 +1,5 @@
+; patch: file offset 0x1205b, 1 bytes, RAM 0x8002185b
+; PATCHED:
+8002185b:	Address 0x8002185b is out of bounds.
+; STOCK:
+8002185b:	Address 0x8002185b is out of bounds.

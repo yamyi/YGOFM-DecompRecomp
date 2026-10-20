@@ -1,0 +1,7 @@
+[
+ {"width":128,"height":192,"data":{"ci":{"x":0,"y":0}},  "canvas":{"ci":{"x":0,"y":0}}},
+ {"width":16, "height":128,"data":{"ci":{"x":0,"y":256}},"canvas":{"ci":{"x":128,"y":0}}},
+ {"width":16, "height":72, "data":{"ci":{"x":32,"y":256}},"canvas":{"ci":{"x":128,"y":128}}},
+ {"width":64, "height":8,  "data":{"ci":{"x":64,"y":272}},"canvas":{"ci":{"x":0,"y":192}}},
+ {"width":64, "height":8,  "data":{"ci":{"x":64,"y":280}},"canvas":{"ci":{"x":64,"y":192}}}
+]

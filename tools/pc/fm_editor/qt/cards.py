@@ -1,6 +1,8 @@
 """The Cards page."""
 from __future__ import annotations
 
+import copy
+
 from .common import *      # noqa: F401,F403
 from .common import (_qimage, _line_count, _pairs_text, _parse_pairs, _whole,
                      _card_image, _pack_texture)      # noqa: F401
@@ -8,6 +10,11 @@ from ..model import parse_tags, tags_text
 
 
 class CardsMixin:
+    COPY_OPTION_NAMES = (
+        "card_data", "description", "artwork", "model", "fusions",
+        "equips", "rituals", "behaviour",
+    )
+
     def preview_card_model(self):
         self.model_preview_button.setChecked(True)
         self.preview_image.hide()
@@ -1762,13 +1769,160 @@ QLabel#referenceValue[changed="true"] { color: #8ab4f8; border-color: #3f6ea8; }
         self.refresh_art_list(select_id=self.current_art_card)
         self.statusBar().showMessage("Restored retail card data")
         self._mark_dirty()
+    def _choose_copy_options(self, source):
+        """Ask what a new copy should take from the selected card.
+
+        A copy still has a base at runtime.  The choices decide which parts
+        are captured from the selected card now, rather than merely falling
+        back to that base later.
+        """
+        ui_path = UI_DIR / "card_copy_dialog.ui"
+        ui_file = QFile(str(ui_path))
+        if not ui_file.open(QIODevice.OpenModeFlag.ReadOnly):
+            raise RuntimeError(f"Could not open card copy dialog {ui_path}: {ui_file.errorString()}")
+        loader = QUiLoader()
+        dialog = loader.load(ui_file, self)
+        ui_file.close()
+        if dialog is None:
+            raise RuntimeError(f"Could not load card copy dialog {ui_path}: {loader.errorString()}")
+
+        def get(widget_type, name):
+            found = dialog.findChild(widget_type, name)
+            if found is None:
+                raise RuntimeError(f"Card copy dialog is missing widget {name!r}")
+            return found
+
+        name = get(QLineEdit, "copyNameEdit")
+        problem = get(QLabel, "copyCardProblemLabel")
+        save_defaults = get(QCheckBox, "saveCopyDefaultsCheckBox")
+        button_box = get(QDialogButtonBox, "copyCardButtonBox")
+        saved = settings.load().get("card_copy_options", {})
+        saved = saved if isinstance(saved, dict) else {}
+        boxes = {}
+        for option in self.COPY_OPTION_NAMES:
+            object_name = "copy" + "".join(part.capitalize() for part in option.split("_")) + "CheckBox"
+            box = get(QCheckBox, object_name)
+            box.setChecked(bool(saved.get(option, True)))
+            boxes[option] = box
+        name.setText(f"{source.name} II")
+
+        def accept():
+            if name.text().strip():
+                dialog.accept()
+                return
+            problem.setText("Give the new card a name.")
+            name.setFocus()
+
+        button_box.accepted.connect(accept)
+        button_box.rejected.connect(dialog.reject)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return None
+        options = {option: box.isChecked() for option, box in boxes.items()}
+        if save_defaults.isChecked():
+            error = settings.save("card_copy_options", options)
+            if error:
+                self.statusBar().showMessage(f"Could not save copy defaults: {error}", 8000)
+        return name.text().strip(), options
+
+    def _fusion_result_for_copy(self, a, b, removes):
+        pair = self.project.pair(a, b)
+        own = self.project.own_fusion(pair, removes)
+        return own if own is not None else bulk_fusions.effective(self.project, a, b)
+
+    def _copy_fusions(self, source, cid, include):
+        """Make the new card match, or deliberately not match, source's fusions."""
+        removes = set(self.project.active_removes())
+        targets = list(self.project.cards)
+        desired = ({other: self._fusion_result_for_copy(source, other, removes)
+                    for other in targets if other != cid}
+                   if include else {})
+        if include:
+            desired[cid] = self._fusion_result_for_copy(source, source, removes)
+        for other in targets:
+            current = self._fusion_result_for_copy(cid, other, removes)
+            wanted = desired.get(other) if include else None
+            if current == wanted:
+                continue
+            if wanted:
+                self.project.set_fusion(cid, other, wanted)
+            elif current:
+                # A null rule on an added pair is the port's explicit
+                # "forbid" value, preventing its base fallback.
+                self.project.set_fusion(cid, other, None)
+
+    def _copy_equips(self, source, cid, include):
+        p = self.project
+        p.equips.pop(cid, None)
+        for targets in p.equips.values():
+            targets.discard(cid)
+        if not include:
+            return
+        if source in p.equips:
+            p.equips[cid] = set(p.equips[source])
+        for targets in p.equips.values():
+            if source in targets:
+                targets.add(cid)
+
+    def _copy_ritual(self, source, cid, include):
+        p = self.project
+        p.rituals.pop(cid, None)
+        p.ritual_requirements.pop(cid, None)
+        p.ritual_from.pop(cid, None)
+        if not include:
+            if p.ritual_recipe(cid) is not None:
+                p.rituals[cid] = None
+            return
+        recipe = p.ritual_recipe(source)
+        if recipe is None:
+            return
+        tributes, result, origin = recipe
+        owner = source if source in p.ritual_requirements else p.base_of(source)
+        p.set_ritual(cid, tributes, result, origin, objects=owner in p.ritual_requirements)
+
+    def _copy_card_options(self, source_id, cid, name, options):
+        """Apply the choices from the copy dialog to an already-added card."""
+        p = self.project
+        source, base = p.cards[source_id], p.base_of(source_id)
+        target = p.cards[cid]
+        if options["card_data"]:
+            target = source.copy(id=cid)
+        if options["description"]:
+            target = target.copy(description=source.description)
+        elif options["card_data"]:
+            target = target.copy(description=p.cards[base].description)
+        p.cards[cid] = target.copy(id=cid, name=name)
+
+        added = p.added[cid]
+        source_extra = (p.added[source_id].extra if source_id in p.added
+                        else p.card_extra.get(source_id, {}))
+        if options["model"]:
+            model = p.model_of(source_id)
+            if model != p.model_of(base):
+                added.extra["model"] = model
+        if options["behaviour"]:
+            for key in ("effect", "monster_effects", "effects", "trap_threshold", "tags", "exodia"):
+                if key in source_extra:
+                    added.extra[key] = copy.deepcopy(source_extra[key])
+        if options["artwork"]:
+            for part in ("art", "thumbnail"):
+                image, _where = art.shown_image(p, self.files.wa, source_id, part)
+                if image is not None:
+                    art.set_image(p, cid, part, image)
+        self._copy_fusions(source_id, cid, options["fusions"])
+        self._copy_equips(source_id, cid, options["equips"])
+        self._copy_ritual(source_id, cid, options["rituals"])
+
     def add_card(self):
         selected = self.current or self._choose_one_card("Base of the new card", sorted(self.project.retail.cards))
         if not selected or not self.apply_card(quiet=True): return
         source = self.project.cards[selected]
+        chosen = self._choose_copy_options(source)
+        if chosen is None:
+            return
+        name, options = chosen
         base = self.project.base_of(selected)
         cid = self.project.add_card(base)
-        self.project.cards[cid] = source.copy(id=cid, name=source.name + " II")
+        self._copy_card_options(selected, cid, name, options)
         self._mark_dirty()
         self.statusBar().showMessage(f"Added a copy: {self.project.card_label(cid)}")
         self.advanced_card_filters = {"types": set(), "attributes": set(), "bounds": {}}

@@ -1,0 +1,4 @@
+; jump_type1_80024E08  RAM 0x80024e08  8 bytes  -- SLUS file 0x15608, stock EXE
+; STOCK
+80024e08:	a020b364 	sb	zero,-19612(at)
+80024e0c:	3c01800a 	lui	at,0x800a

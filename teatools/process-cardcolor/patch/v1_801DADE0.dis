@@ -1,0 +1,18 @@
+; v1_801DADE0  RAM 0x801dade0  64 bytes  -- SLUS file 0x1CB5E0 -- v1 big-card stub; stock is zero fill
+; PATCHED
+801dade0:	00139842 	srl	s3,s3,0x1
+801dade4:	3c06801e 	lui	a2,0x801e
+801dade8:	24c6ae24 	addiu	a2,a2,-20956
+801dadec:	00d33021 	addu	a2,a2,s3
+801dadf0:	80c60000 	lb	a2,0(a2)
+801dadf4:	30930001 	andi	s3,a0,0x1
+801dadf8:	30c600ff 	andi	a2,a2,0xff
+801dadfc:	12600003 	beqz	s3,0x801dae0c
+801dae00:	30d3000f 	andi	s3,a2,0xf
+801dae04:	08076b84 	j	0x801dae10
+801dae08:	00069902 	srl	s3,a2,0x4
+801dae0c:	00000000 	nop
+801dae10:	26730100 	addiu	s3,s3,256
+801dae14:	00008021 	move	s0,zero
+801dae18:	00000000 	nop
+801dae1c:	0800a501 	j	0x80029404

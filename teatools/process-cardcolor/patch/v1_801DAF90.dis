@@ -1,0 +1,33 @@
+; v1_801DAF90  RAM 0x801daf90  124 bytes  -- SLUS file 0x1CB790 -- v1 small-card stub; stock is zero fill
+; PATCHED
+801daf90:	8fa10028 	lw	at,40(sp)
+801daf94:	3c03801e 	lui	v1,0x801e
+801daf98:	8421000c 	lh	at,12(at)
+801daf9c:	2463ae24 	addiu	v1,v1,-20956
+801dafa0:	3021ffff 	andi	at,at,0xffff
+801dafa4:	00011021 	addu	v0,zero,at
+801dafa8:	2421ffff 	addiu	at,at,-1
+801dafac:	00010842 	srl	at,at,0x1
+801dafb0:	00611821 	addu	v1,v1,at
+801dafb4:	80630000 	lb	v1,0(v1)
+801dafb8:	30420001 	andi	v0,v0,0x1
+801dafbc:	306300ff 	andi	v1,v1,0xff
+801dafc0:	10400003 	beqz	v0,0x801dafd0
+801dafc4:	00000000 	nop
+801dafc8:	08076bf6 	j	0x801dafd8
+801dafcc:	00031902 	srl	v1,v1,0x4
+801dafd0:	3063000f 	andi	v1,v1,0xf
+801dafd4:	00000000 	nop
+801dafd8:	28620006 	slti	v0,v1,6
+801dafdc:	14400003 	bnez	v0,0x801dafec
+801dafe0:	00000000 	nop
+801dafe4:	00001821 	move	v1,zero
+801dafe8:	00000000 	nop
+801dafec:	240200f1 	li	v0,241
+801daff0:	00621821 	addu	v1,v1,v0
+801daff4:	a6230012 	sh	v1,18(s1)
+801daff8:	3c018010 	lui	at,0x8010
+801daffc:	96230006 	lhu	v1,6(s1)
+801db000:	86220004 	lh	v0,4(s1)
+801db004:	08005aed 	j	0x80016bb4
+801db008:	2463fff8 	addiu	v1,v1,-8

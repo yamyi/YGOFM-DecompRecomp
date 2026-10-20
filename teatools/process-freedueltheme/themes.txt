@@ -1,0 +1,57 @@
+{value:"00",name:"Main Menu"}
+{value:"01",name:"Input Name Menu"}
+{value:"02",name:"Introduction Title Screen"}
+{value:"03",name:"Tournament Announcement"}
+{value:"04",name:"Modern Times"}
+{value:"05",name:"Inside the Puzzle"}
+{value:"06",name:"Preliminary Face-Off"}
+{value:"07",name:"Finals Face Off"}
+{value:"08",name:"Seto Kaiba Face-Off"}
+{value:"09",name:"Tournament Card Shop"}
+{value:"0A",name:"Metropolis 1"}
+{value:"0B",name:"Metropolis 2"}
+{value:"0C",name:"Simon Muran"}
+{value:"0D",name:"Egypt in Ruins"}
+{value:"0E",name:"Build Deck Menu"}
+{value:"0F",name:"Duel Ground"}
+{value:"10",name:"Valley of the Kings"}
+{value:"11",name:"Sea Shrine"}
+{value:"12",name:"Forest Shrine"}
+{value:"13",name:"Desert Shrine"}
+{value:"14",name:"Meadow Shrine"}
+{value:"15",name:"Mountain Shrine"}
+{value:"16",name:"Vast Shrine"}
+{value:"17",name:"Dark Shrine"}
+{value:"18",name:"Setos Betrayal"}
+{value:"19",name:"Forbidden Ruins"}
+{value:"1A",name:"Millennium Puzzle Confrontation"}
+{value:"1B",name:"Heshins Invasion"}
+{value:"1C",name:"DarkNites Arrival"}
+{value:"1D",name:"Preliminary Match"}
+{value:"1E",name:"Finals Match"}
+{value:"1F",name:"Seto Kaiba"}
+{value:"20",name:"Egyptian Duel"}
+{value:"21",name:"Mage Duel"}
+{value:"22",name:"High Mages Theme"}
+{value:"23",name:"Heishin Theme"}
+{value:"24",name:"Priest Seto Theme"}
+{value:"25",name:"DarkNite & Nitemare"}
+{value:"26",name:"DarkNite & Nitemare"}
+{value:"27",name:"Freeduel Theme"}
+{value:"28",name:"3D Battle"}
+{value:"29",name:"Seto Kaiba 3D Battle"}
+{value:"2A",name:"3D Battle Egypt"}
+{value:"2B",name:"DarkNite 3D Battle"}
+{value:"2C",name:"Free Duel Menu"}
+{value:"2D",name:"Library Menu"}
+{value:"2E",name:"You Win"}
+{value:"2F",name:"You Lose"}
+{value:"30",name:"Game Over"}
+{value:"31",name:"Exodia"}
+{value:"32",name:"Epilogue"}
+{value:"33",name:"Ending Credits Theme"}
+{value:"34",name:"Town Plaza Festival"}
+{value:"35",name:"Password Menu"}
+{value:"36",name:"Millenium Item Found"}
+{value:"37",name:"Forbidden Ruins"}
+{value:"38",name:"Simon Muran"}
