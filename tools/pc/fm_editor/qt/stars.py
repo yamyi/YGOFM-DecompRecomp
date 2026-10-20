@@ -555,6 +555,7 @@ class StarsMixin:
         self.project.other.pop("guardian_stars", None)
         self._mark_dirty()
         self._refresh_stars()
+        self._refresh_registry_consumers()
     def _open_star_rules(self):
         """Set many cards' stars at once: the chosen cards get a star from
         their attribute or their monster type (star_rules.py)."""
@@ -582,7 +583,7 @@ class StarsMixin:
         chooser = QGroupBox("Cards (every filter given must hold)")
         chooser_layout = QHBoxLayout(chooser)
         types = self._checkable_list(declared_type_choices(self.project, monster_only=True), chooser, height=6)
-        attributes = self._checkable_list(ATTRIBUTE_NAMES, chooser, height=6)
+        attributes = self._checkable_list(declared_attribute_choices(self.project), chooser, height=6)
         decorate_type_items(self, types)
         decorate_attribute_items(self, attributes)
         for listing, title in ((types, "Monster type"), (attributes, "Attribute")):
@@ -684,7 +685,7 @@ class StarsMixin:
             if kind == "star":
                 keys = [(None, "Every chosen card")]
             elif kind == "attribute":
-                keys = list(enumerate(ATTRIBUTE_NAMES))
+                keys = declared_attribute_choices(self.project)
             else:
                 keys = declared_type_choices(self.project, monster_only=True)
             for key, title in keys:
@@ -823,6 +824,9 @@ class StarsMixin:
             self.project.other["guardian_stars"] = after
         if after != before:
             self._mark_dirty()
+            # A star's label and icon appear in Card Data, filters, and card
+            # tables across the editor. Refresh them as one registry update.
+            self._refresh_registry_consumers()
         self._stars_report()
         return True
     def _stars_report(self):

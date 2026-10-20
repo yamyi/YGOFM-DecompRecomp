@@ -5,9 +5,9 @@ from pathlib import Path
 
 
 def install() -> None:
-    from .common import (ATTRIBUTE_NAMES, QFile, QIODevice, QLineEdit,
+    from .common import (QFile, QIODevice, QLineEdit,
                          QListWidget, QListWidgetItem, QMessageBox, QPushButton, QCheckBox, QToolButton,
-                         QUiLoader, Qt, TYPE_NAMES, declared_type_choices,
+                         QUiLoader, Qt, declared_attribute_choices, declared_type_choices,
                          decorate_attribute_items, decorate_type_items)
     from .window import ModernEditor
     from .. import bulk_fusions
@@ -201,7 +201,7 @@ def install() -> None:
         }
         filters = getattr(self, "equip_advanced_filters", {})
         for listing, labels, selected in ((types, declared_type_choices(self.project, monster_only=True), filters.get("types", set())),
-                                          (attributes, ATTRIBUTE_NAMES, filters.get("attributes", set()))):
+                                          (attributes, declared_attribute_choices(self.project), filters.get("attributes", set()))):
             for index, entry in enumerate(labels):
                 type_id, label = entry if isinstance(entry, tuple) else (index, entry)
                 item = QListWidgetItem(label)
@@ -240,7 +240,8 @@ def install() -> None:
         self.equip_advanced_filters = {
             "types": {types.item(index).data(Qt.ItemDataRole.UserRole) for index in range(types.count())
                       if types.item(index).checkState() == Qt.CheckState.Checked},
-            "attributes": {index for index in range(attributes.count())
+            "attributes": {attributes.item(index).data(Qt.ItemDataRole.UserRole)
+                           for index in range(attributes.count())
                            if attributes.item(index).checkState() == Qt.CheckState.Checked},
             "bounds": bounds,
         }

@@ -1123,7 +1123,8 @@ QPushButton#ruleDrop:hover { color: #ffffff; }
         self._refresh_duelists()
 
     def _selected_pool_name(self):
-        return POOLS[max(0, self.workspace_controls["Duelists"]["pool"].currentIndex())]
+        index = self.workspace_controls["Duelists"]["pool"].currentIndex()
+        return POOLS[index] if 0 <= index < len(POOLS) else None
     STAT_STYLE = """
 QFrame#statsPanel { background: #101b2b; border: 1px solid #26374c; border-radius: 10px; }
 QLabel#statsTitle { font-weight: 600; color: #e5edf8; }
@@ -1300,6 +1301,13 @@ QLabel#statsRank { color: #8aa0bd; }
     def _refresh_duelist_pool(self,*_):
         if "Duelists" not in self.workspace_controls:return
         c=self.workspace_controls["Duelists"];d=self._selected_duelist();subject=self._selected_duelist_subject();name=self._selected_pool_name()
+        if name is None:
+            self._set_duelist_pool_editor_visible(False)
+            c["randomizer_page"].setVisible(True)
+            self._refresh_drop_randomizer()
+            return
+        c["randomizer_page"].setVisible(False)
+        self._set_duelist_pool_editor_visible(True)
         record=getattr(self,"duelist_slots",{}).get(getattr(self,"duelist_selected_slot",d))
         pool=roster.pools_of(self.project, subject)[name];retail=roster.retail_pool(self.project, subject, name)
         title=record["name"] if record else DUELIST_NAMES[d]
@@ -1334,6 +1342,171 @@ QLabel#statsRank { color: #8aa0bd; }
                 self._tint_state(item,row[6].lower())
                 table.setItem(i,col,item)
         sort_resumed(table,held)
+
+    def _set_duelist_pool_editor_visible(self, visible):
+        """Show the normal pool editor, or leave room for Randomizer.
+
+        The two views share the duelist selection and the tab bar.  Keeping
+        their widgets in the Designer form and only changing visibility keeps
+        layout ownership with the UI file.
+        """
+        c = self.workspace_controls["Duelists"]
+        c["summary"].setVisible(visible)
+        self._show_fixed_widgets(c["mode_row"], visible)
+        c["table"].setVisible(visible)
+        self._show_fixed_widgets(c["pool_actions"], visible)
+        c["fixed_table"].setVisible(visible)
+        c["fixed_hint"].setVisible(visible)
+        self._show_fixed_widgets(c["fixed_actions"], visible)
+        stats = c.get("stats")
+        if stats:
+            stats["panel"].setVisible(visible)
+
+    def _drop_randomizer_filter_wanted(self, cid, text):
+        if not self._card_matches(cid, text):
+            return False
+        card = self.project.cards[cid]
+        filters = getattr(self, "drop_randomizer_advanced_filters", {})
+        if filters.get("types") and card.type not in filters["types"]:
+            return False
+        if filters.get("attributes") and card.attribute not in filters["attributes"]:
+            return False
+        bounds = filters.get("bounds", {})
+        return (bulk_fusions._within(card.attack, bounds.get("atk_min"), bounds.get("atk_max"))
+                and bulk_fusions._within(card.defense, bounds.get("def_min"), bounds.get("def_max"))
+                and bulk_fusions._within(card.level, bounds.get("level_min"), bounds.get("level_max")))
+
+    def _refresh_drop_randomizer(self):
+        """Fill the checked-card catalogue from the active mod, not retail."""
+        c = self.workspace_controls["Duelists"]
+        table = c["randomizer_table"]
+        selected = getattr(self, "drop_randomizer_selected", set())
+        selected.intersection_update(self.project.cards)
+        self._loading_drop_randomizer = True
+        held = sort_paused(table)
+        table.blockSignals(True)
+        table.setRowCount(0)
+        for row, cid in enumerate(sorted(self.project.cards)):
+            card = self.project.cards[cid]
+            table.insertRow(row)
+            check = TableItem("")
+            check.setData(Qt.ItemDataRole.UserRole, cid)
+            check.setFlags(check.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            check.setCheckState(Qt.CheckState.Checked if cid in selected else Qt.CheckState.Unchecked)
+            table.setItem(row, 0, check)
+            values = (cid, card.name, type_name(self.project, card.type),
+                      attribute_name(self.project, card.attribute), card.attack,
+                      card.defense, card.level)
+            for column, value in enumerate(values, 1):
+                item = TableItem(str(value))
+                if column == 3:
+                    item.setIcon(type_icon(self, card.type))
+                elif column == 4:
+                    item.setIcon(attribute_icon(self, card.attribute))
+                table.setItem(row, column, item)
+        table.blockSignals(False)
+        sort_resumed(table, held)
+        self._loading_drop_randomizer = False
+        self._filter_drop_randomizer(c["randomizer_search"].text())
+        self._sync_drop_randomizer_actions()
+
+    def _filter_drop_randomizer(self, text):
+        c = self.workspace_controls.get("Duelists", {})
+        table = c.get("randomizer_table")
+        if table is None:
+            return
+        for row in range(table.rowCount()):
+            item = table.item(row, 0)
+            cid = item.data(Qt.ItemDataRole.UserRole) if item else None
+            table.setRowHidden(row, cid is None or not self._drop_randomizer_filter_wanted(cid, text))
+
+    def _toggle_drop_randomizer_card(self, item):
+        if getattr(self, "_loading_drop_randomizer", False) or item.column() != 0:
+            return
+        cid = item.data(Qt.ItemDataRole.UserRole)
+        if cid not in self.project.cards:
+            return
+        selected = getattr(self, "drop_randomizer_selected", set())
+        if item.checkState() == Qt.CheckState.Checked:
+            selected.add(cid)
+        else:
+            selected.discard(cid)
+        self.drop_randomizer_selected = selected
+        self._sync_drop_randomizer_actions()
+
+    def _sync_drop_randomizer_actions(self):
+        c = self.workspace_controls.get("Duelists", {})
+        selected = getattr(self, "drop_randomizer_selected", set())
+        count = len(selected)
+        c["randomizer_count"].setText(
+            "No cards checked" if not count else f"{count} card{'s' if count != 1 else ''} checked")
+        for key in ("randomize_pow", "randomize_bcd", "randomize_tec"):
+            c[key].setEnabled(bool(count))
+
+    def _clear_drop_randomizer_filters(self):
+        self.drop_randomizer_advanced_filters = {"types": set(), "attributes": set(), "bounds": {}}
+        c = self.workspace_controls["Duelists"]
+        self._filter_drop_randomizer(c["randomizer_search"].text())
+
+    def _open_drop_randomizer_advanced_filter(self):
+        source = QFile(str(Path(__file__).resolve().parents[1] / "ui" / "equip_filter_dialog.ui"))
+        if not source.open(QIODevice.OpenModeFlag.ReadOnly):
+            raise RuntimeError(f"Could not open card filter form: {source.errorString()}")
+        try:
+            dialog = QUiLoader().load(source, self)
+        finally:
+            source.close()
+        if dialog is None:
+            raise RuntimeError("Could not load card filter form")
+        dialog.setWindowTitle("Drop randomizer filters")
+        dialog.setModal(True)
+        types = dialog.findChild(QListWidget, "equipFilterTypes")
+        attributes = dialog.findChild(QListWidget, "equipFilterAttributes")
+        edits = {key: dialog.findChild(QLineEdit, name) for key, name in (
+            ("atk_min", "equipFilterAtkMin"), ("atk_max", "equipFilterAtkMax"),
+            ("def_min", "equipFilterDefMin"), ("def_max", "equipFilterDefMax"),
+            ("level_min", "equipFilterLevelMin"), ("level_max", "equipFilterLevelMax"))}
+        filters = getattr(self, "drop_randomizer_advanced_filters", {})
+        for listing, choices, selected in (
+                (types, declared_type_choices(self.project), filters.get("types", set())),
+                (attributes, declared_attribute_choices(self.project), filters.get("attributes", set()))):
+            for value, label in choices:
+                entry = QListWidgetItem(label)
+                entry.setData(Qt.ItemDataRole.UserRole, value)
+                entry.setFlags(entry.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                entry.setCheckState(Qt.CheckState.Checked if value in selected else Qt.CheckState.Unchecked)
+                listing.addItem(entry)
+        decorate_type_items(self, types)
+        decorate_attribute_items(self, attributes)
+        for key, edit in edits.items():
+            value = filters.get("bounds", {}).get(key)
+            edit.setText("" if value is None else str(value))
+        dialog.findChild(QPushButton, "clearButton").clicked.connect(
+            lambda: (self._clear_checkable_list(types), self._clear_checkable_list(attributes),
+                     [edit.clear() for edit in edits.values()]))
+        dialog.findChild(QPushButton, "cancelButton").clicked.connect(dialog.reject)
+        dialog.findChild(QPushButton, "applyButton").clicked.connect(dialog.accept)
+        if not dialog.exec():
+            return
+        try:
+            bounds = {key: int(edit.text()) if edit.text().strip() else None
+                      for key, edit in edits.items()}
+            for label, low, high in (("ATK", "atk_min", "atk_max"),
+                                     ("DEF", "def_min", "def_max"),
+                                     ("Level", "level_min", "level_max")):
+                if bounds[low] is not None and bounds[high] is not None and bounds[low] > bounds[high]:
+                    raise ValueError(f"{label} minimum exceeds maximum")
+        except ValueError as problem:
+            QMessageBox.warning(self, "Drop randomizer filters", str(problem))
+            return
+        self.drop_randomizer_advanced_filters = {
+            "types": {types.item(i).data(Qt.ItemDataRole.UserRole) for i in range(types.count())
+                      if types.item(i).checkState() == Qt.CheckState.Checked},
+            "attributes": {attributes.item(i).data(Qt.ItemDataRole.UserRole) for i in range(attributes.count())
+                           if attributes.item(i).checkState() == Qt.CheckState.Checked},
+            "bounds": bounds,
+        }
+        self._filter_drop_randomizer(self.workspace_controls["Duelists"]["randomizer_search"].text())
     def _fixed_deck(self):
         """The duelist's fixed deck, while the deck pool is the one shown."""
         if self._selected_pool_name() != "deck":
@@ -1548,6 +1721,20 @@ QLabel#statsRank { color: #8aa0bd; }
         d=self._selected_duelist_subject();pool=self._selected_pool_name()
         roster.pools_of(self.project, d)[pool]=poolmath.normalize(roster.pools_of(self.project, d)[pool])
         self._mark_dirty();self._refresh_duelist_pool()
+    def _randomize_selected_drop_pool(self, pool_name):
+        """Build one award table from the checked cards at equal odds."""
+        if pool_name not in ("pow", "bcd", "tec"):
+            return []
+        chosen = sorted(getattr(self, "drop_randomizer_selected", set()) & set(self.project.cards))
+        if not chosen:
+            return []
+        roster.pools_of(self.project, self._selected_duelist_subject())[pool_name] = \
+            poolmath.normalize({card_id: 1 for card_id in chosen})
+        self._mark_dirty()
+        self._refresh_duelists()
+        self.statusBar().showMessage(
+            f"Randomized {POOL_LABELS[pool_name]} from {len(chosen)} checked cards.", 8000)
+        return chosen
     def _revert_pool(self):
         d=self._selected_duelist_subject();pool=self._selected_pool_name()
         if isinstance(d, int):

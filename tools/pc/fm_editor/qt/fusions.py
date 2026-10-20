@@ -218,12 +218,15 @@ class FusionsMixin:
                 lambda: self._list_bulk_matches(side))
             attributes = [get(QCheckBox, f"material{cap}Attribute{i}") for i in range(6)]
             for attribute, box in enumerate(attributes):
+                box.setProperty("choiceValue", attribute)
                 box.setIcon(attribute_icon(self, attribute))
                 box.setIconSize(QSize(16, 16))
             return {
                 "group": get(QGroupBox, f"material{cap}Group"),
                 "kinds": kinds, "types": types, "stars": stars,
-                "attributes": attributes,
+                "attributes": attributes, "base_attributes": attributes,
+                "custom_attributes": [],
+                "attribute_layout": get(QGridLayout, f"material{cap}AttributeLayout"),
                 "bounds": {
                     "atk_min": get(QLineEdit, f"material{cap}AtkMin"),
                     "atk_max": get(QLineEdit, f"material{cap}AtkMax"),
@@ -327,7 +330,67 @@ class FusionsMixin:
         timer.setInterval(300)
         timer.timeout.connect(self._refresh_bulk_fusion_plan)
         controls["bulk_timer"] = timer
+        self._refresh_bulk_filter_registry_choices()
         self._refresh_bulk_fusion_plan()
+
+    def _refresh_bulk_filter_registry_choices(self):
+        """Refresh Fusion material filters after a registry edit.
+
+        Type, attribute and Guardian Star IDs are data, not list rows: retain
+        checked IDs while replacing labels or icons and append newly declared
+        attributes below the six retail Designer controls.
+        """
+        controls = self.workspace_controls.get("Fusions")
+        if not controls or "bulk_filters" not in controls:
+            return
+        type_choices = declared_type_choices(self.project, monster_only=True)
+        attribute_choices = declared_attribute_choices(self.project)
+        star_choices = declared_guardian_star_choices(self.project)
+        signature = (tuple(type_choices), tuple(attribute_choices), tuple(star_choices))
+        for side in controls["bulk_filters"].values():
+            if side.get("registry_signature") == signature:
+                continue
+            for key, choices, decorate in (("types", type_choices, decorate_type_items),
+                                           ("stars", star_choices, decorate_guardian_star_items)):
+                listing = side[key]
+                selected = {item.data(Qt.ItemDataRole.UserRole)
+                            for item in self._checked_items(listing)}
+                listing.blockSignals(True)
+                self._populate_checkable_list(listing, choices)
+                for row in range(listing.count()):
+                    item = listing.item(row)
+                    if item.data(Qt.ItemDataRole.UserRole) in selected:
+                        item.setCheckState(Qt.CheckState.Checked)
+                decorate(self, listing)
+                listing.blockSignals(False)
+
+            selected = {box.property("choiceValue") for box in side["attributes"]
+                        if box.isChecked()}
+            for box in side["custom_attributes"]:
+                side["attribute_layout"].removeWidget(box)
+                box.deleteLater()
+            side["custom_attributes"] = []
+            available = {attribute_id: name for attribute_id, name in attribute_choices}
+            rebuilt = []
+            for index, (attribute_id, name) in enumerate(attribute_choices):
+                box = next((item for item in side["base_attributes"]
+                            if item.property("choiceValue") == attribute_id), None)
+                if box is None:
+                    box = QCheckBox()
+                    box.setProperty("choiceValue", attribute_id)
+                    box.stateChanged.connect(self._schedule_bulk_fusion_plan)
+                    side["custom_attributes"].append(box)
+                    side["attribute_layout"].addWidget(box, index // 2, index % 2)
+                box.setText(name)
+                box.setIcon(attribute_icon(self, attribute_id))
+                box.setIconSize(QSize(16, 16))
+                box.setChecked(attribute_id in selected)
+                rebuilt.append(box)
+            for box in side["base_attributes"]:
+                box.setVisible(box.property("choiceValue") in available)
+            side["attributes"] = rebuilt
+            side["registry_signature"] = signature
+
     def _choose_bulk_result(self):
         controls = self.workspace_controls.get("Fusions")
         if not controls or "bulk" not in controls:
@@ -409,8 +472,8 @@ class FusionsMixin:
         card_filter = bulk_fusions.CardFilter(
             kinds={kind for kind, box in controls["kinds"].items() if box.isChecked()},
             types={item.data(Qt.ItemDataRole.UserRole) for item in self._checked_items(controls["types"])},
-            attributes={i for i, widget in enumerate(controls["attributes"]) if widget.isChecked()},
-            stars={item.data(Qt.ItemDataRole.UserRole) + 1 for item in self._checked_items(controls["stars"])},
+            attributes={widget.property("choiceValue") for widget in controls["attributes"] if widget.isChecked()},
+            stars={item.data(Qt.ItemDataRole.UserRole) for item in self._checked_items(controls["stars"])},
             name=controls["name"].text(), text=controls["text"].text(), cards=controls["cards"].text(),
             results_only=controls["results_only"].isChecked(), **numbers)
         return card_filter
@@ -419,8 +482,9 @@ class FusionsMixin:
         src, dst = controls[source], controls[destination]
         for kind, box in src["kinds"].items():
             dst["kinds"][kind].setChecked(box.isChecked())
-        for mine, theirs in zip(dst["attributes"], src["attributes"]):
-            mine.setChecked(theirs.isChecked())
+        chosen_attributes = {box.property("choiceValue") for box in src["attributes"] if box.isChecked()}
+        for box in dst["attributes"]:
+            box.setChecked(box.property("choiceValue") in chosen_attributes)
         for key in ("name", "text", "cards"):
             dst[key].setText(src[key].text())
         for key in src["bounds"]:
@@ -433,8 +497,10 @@ class FusionsMixin:
         dst["level_max"].setValue(src["level_max"].value())
         dst["results_only"].setChecked(src["results_only"].isChecked())
         for key in ("types", "stars"):
-            for i in range(src[key].count()):
-                dst[key].item(i).setCheckState(src[key].item(i).checkState())
+            checked = {item.data(Qt.ItemDataRole.UserRole) for item in self._checked_items(src[key])}
+            for item in (dst[key].item(i) for i in range(dst[key].count())):
+                item.setCheckState(Qt.CheckState.Checked if item.data(Qt.ItemDataRole.UserRole) in checked
+                                   else Qt.CheckState.Unchecked)
     def _schedule_bulk_fusion_plan(self, *_):
         controls = self.workspace_controls.get("Fusions")
         if controls and "bulk_timer" in controls:
@@ -444,16 +510,7 @@ class FusionsMixin:
         if not controls or "bulk" not in controls:
             return
         bulk = controls["bulk"]
-        names = guardian_stars.choices(self.project.other.get("guardian_stars"))[1:]
-        for side in controls["bulk_filters"].values():
-            listing = side["stars"]
-            if [listing.item(i).text() for i in range(listing.count())] != names:
-                selected = {item.data(Qt.ItemDataRole.UserRole) for item in self._checked_items(listing)}
-                listing.blockSignals(True)
-                self._populate_checkable_list(listing, names)
-                for i in selected:
-                    if i < listing.count(): listing.item(i).setCheckState(Qt.CheckState.Checked)
-                listing.blockSignals(False)
+        self._refresh_bulk_filter_registry_choices()
         if bulk["result_project"] is not self.project:
             bulk["result_id"] = 0
             bulk["result_button"].setText("Choose a result…")

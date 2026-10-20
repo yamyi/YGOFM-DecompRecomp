@@ -84,6 +84,32 @@ class TypesAttributesMixin:
         self._show_type_icon()
         self._show_attribute_icon()
 
+    def _refresh_registry_consumers(self):
+        """Refresh every open workspace that displays card registries.
+
+        This runs only after a type, attribute, or Guardian Star actually
+        changes.  It deliberately does not run during card selection, so
+        browsing stays cheap while registry edits are immediately visible.
+        """
+        if self.project is None:
+            return
+        self._refresh_card_catalogs()
+        if self.current:
+            self.refresh_cards(select_id=self.current)
+        from .fields_compat import _refresh_bonus_table
+        _refresh_bonus_table(self)
+        self._refresh_equips()
+        self._refresh_fusions()
+        self._refresh_bulk_fusion_plan()
+        self._refresh_ritual_card_metadata_choices()
+        self._refresh_rituals()
+        self._refresh_packs()
+        self._refresh_starter_decks()
+        self._refresh_starter_pools()
+        self._refresh_duelists()
+        from .ui_assets_compat import _refresh_frame_type_choices
+        _refresh_frame_type_choices(self)
+
     def _type_display_icon(self, id_):
         """The custom icon where one is declared, else the retail symbol
         (common.type_icon) -- the same fallback guardian_star_icon uses."""
@@ -209,6 +235,7 @@ class TypesAttributesMixin:
             return False
         self._mark_dirty()
         self._refresh_types_attributes()
+        self._refresh_registry_consumers()
         return True
 
     def _remove_type(self):
@@ -225,6 +252,7 @@ class TypesAttributesMixin:
         self.type_icon_cache.clear()
         self._mark_dirty()
         self._refresh_types_attributes()
+        self._refresh_registry_consumers()
 
     def _discard_type_icon_file(self, icon, except_id=None):
         """Drop a mod file only after the last type stops using it."""
@@ -390,6 +418,7 @@ class TypesAttributesMixin:
             return False
         self._mark_dirty()
         self._refresh_types_attributes()
+        self._refresh_registry_consumers()
         return True
 
     def _remove_attribute(self):
@@ -413,6 +442,7 @@ class TypesAttributesMixin:
         self.attribute_icon_cache.clear()
         self._mark_dirty()
         self._refresh_types_attributes()
+        self._refresh_registry_consumers()
 
     def _discard_attribute_icon_file(self, icon, except_id=None):
         """Drop a mod file only after the last attribute stops using it."""

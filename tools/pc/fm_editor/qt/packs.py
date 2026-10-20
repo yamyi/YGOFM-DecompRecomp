@@ -375,36 +375,21 @@ class PacksMixin:
         full=c["image_style"].currentIndex()==1 and own
         try:
             if full:
-                # pack_shop.c: fit the whole PNG inside the password-card
-                # view, over black, using the console alpha rule at 1× and
-                # the PNG's alpha at 2×/4×.
-                w, h = packmath.fit_full(picture.width, picture.height)
-                fitted = pngio.resample(picture, w * zoom, h * zoom)
-                width, height = packmath.CARD_VIEW[0] * zoom, packmath.CARD_VIEW[1] * zoom
-                rgba = bytearray(b"\x00\x00\x00\xff") * (width * height)
-                left = (packmath.CARD_VIEW[0] - w) // 2 * zoom
-                top = (packmath.CARD_VIEW[1] - h) // 2 * zoom
-                for y in range(fitted.height):
-                    row = fitted.rgba[y * fitted.width * 4:(y + 1) * fitted.width * 4]
-                    start = ((top + y) * width + left) * 4
-                    for x in range(fitted.width):
-                        red, green, blue, alpha = row[x * 4:x * 4 + 4]
-                        target = start + x * 4
-                        if zoom == 1:
-                            if alpha * 2 >= 255:
-                                rgba[target:target + 4] = bytes((red, green, blue, 255))
-                        elif alpha:
-                            rgba[target:target + 4] = bytes((red * alpha // 255, green * alpha // 255,
-                                                              blue * alpha // 255, 255))
-                drawn = _qimage(width, height, bytes(rgba))
+                # This is an editor preview of the complete source picture.
+                # The game still applies pack_shop.c's card-view fit when it
+                # renders the pack, but placing that 140×196 black canvas in
+                # the editor hid large parts of portrait and landscape covers.
+                # Fit the full PNG to the available preview instead.
+                source = pngio.resample(picture, picture.width * zoom, picture.height * zoom)
+                drawn = _qimage(source.width, source.height, source.rgba)
             else:
                 drawn=self._pack_card_view(picture,name,zoom)
         except (OSError,ValueError,pngio.PngError):drawn=None
         if own and picture is not None:
             self._set_packs_status(
-                f"The pack's whole picture, {picture.width}×{picture.height}, where the card is drawn: fitted "
-                f"inside the card's {packmath.CARD_VIEW[0]}×{packmath.CARD_VIEW[1]} at 1×, its shape kept, a pixel "
-                "under half opaque clear; Internal 2× and 4× draw the PNG itself, with its own transparency."
+                f"The pack's whole picture, {picture.width}×{picture.height}: shown complete in this preview. "
+                f"The game fits it inside the card's {packmath.CARD_VIEW[0]}×{packmath.CARD_VIEW[1]} view; "
+                "2× and 4× preserve the PNG's own transparency."
                 if full else
                 f"The pack's picture, {picture.width}×{picture.height}: made into the console's "
                 f"{art.SIZES['art'][0]}×{art.SIZES['art'][1]} at 1×; Internal 2× and 4× draw it at its own size.")
@@ -1201,7 +1186,7 @@ class PacksMixin:
                 elif key == "types":
                     box.setIcon(type_icon(self, value))
                 elif key == "stars":
-                    box.setIcon(guardian_star_icon(self, n + 1))
+                    box.setIcon(guardian_star_icon(self, value))
                 if key in ("attributes", "types", "stars"):
                     box.setIconSize(QSize(16, 16))
                 grid.addWidget(box, row + n // columns, n % columns)
@@ -1219,8 +1204,8 @@ class PacksMixin:
             row += 1
 
         boxes("Kind", [kind.capitalize() for kind in bulk_fusions.KINDS], "kinds", 4)
-        boxes("Attribute", ATTRIBUTE_NAMES[:6], "attributes", 6)
-        boxes("Guardian star", STAR_NAMES[1:11], "stars", 5)
+        boxes("Attribute", declared_attribute_choices(self.project), "attributes", 6)
+        boxes("Guardian star", declared_guardian_star_choices(self.project), "stars", 5)
         boxes("Monster type", declared_type_choices(self.project, monster_only=True), "types", 5)
         grid.addWidget(QLabel("Level"), row, 0)
         fields["level_min"] = QSpinBox()
@@ -1263,8 +1248,8 @@ class PacksMixin:
             low, high = fields["level_min"].value(), fields["level_max"].value()
             return bulk_fusions.CardFilter(
                 kinds={kind for kind, box in zip(bulk_fusions.KINDS, fields["kinds"]) if box.isChecked()},
-                attributes={n for n, box in enumerate(fields["attributes"]) if box.isChecked()},
-                stars={n + 1 for n, box in enumerate(fields["stars"]) if box.isChecked()},
+                attributes={box.property("choiceValue") for box in fields["attributes"] if box.isChecked()},
+                stars={box.property("choiceValue") for box in fields["stars"] if box.isChecked()},
                 types={box.property("choiceValue") for box in fields["types"] if box.isChecked()},
                 level_min=low or None, level_max=high if high < 12 else None,
                 name=fields["name"].text(), text=fields["text"].text(), cards=fields["cards"].text(),

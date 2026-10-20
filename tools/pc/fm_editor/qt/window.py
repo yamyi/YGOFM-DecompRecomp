@@ -1,6 +1,8 @@
 """The editor window: the frame, the file menu, and every page mixed in."""
 from __future__ import annotations
 
+import time
+
 from .common import *      # noqa: F401,F403
 from .common import (_qimage, _line_count, _pairs_text, _parse_pairs, _whole,
                      _card_image)      # noqa: F401
@@ -28,9 +30,15 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
            "Starter decks", "Limits", "Guardian Stars", "Packs", "Tower", "Mod info", "Problems"]
     # Internal workspace keys stay stable for controllers and existing mods;
     # this map supplies their user-facing navigation label.
-    NAV_LABELS = {"Limits": "Game Rules"}
+    NAV_LABELS = {"Limits": "Game Rules", "Types & Attributes": "Types && Attributes"}
     # Kept built and loadable while the asset-replacement page is refined.
     HIDDEN_WORKSPACES = frozenset()
+    # A recovery copy can take seconds on a large mod. Keep the same
+    # user-selectable cadence as the classic editor instead of writing one
+    # after each interaction.
+    RECOVERY_CHOICES = (0, 1, 5, 10, 30)
+    RECOVERY_DEFAULT = 5
+    RECOVERY_RETRY_MS = 500
     def __init__(self, game=None, mod=None, ask=False):
         super().__init__()
         self._ask_recovery = ask      # only the real entry point asks (_build_ui)
@@ -212,6 +220,13 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
         self._recovery_timer = QTimer(self)
         self._recovery_timer.setSingleShot(True)
         self._recovery_timer.timeout.connect(self._autosave)
+        configured_recovery = settings.load().get("recovery_minutes")
+        self.recovery_minutes = (configured_recovery if type(configured_recovery) is int
+                                 and configured_recovery in self.RECOVERY_CHOICES
+                                 else self.RECOVERY_DEFAULT)
+        self._recovery_stale = False
+        self._recovery_since = None
+        self._recovery_copied = None
         self._restoring = False
         self._recovery_source = None
         self._recovered_from = None
@@ -435,10 +450,14 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
                 # so a card the mod adds later is among them too.
                 combo.currentIndexChanged.connect(self._stage_ritual_selector_recipe)
             for fields in [controls["card_meta"],*controls["tribute_fields"],controls["summon_fields"]]:
-                for key in ("type","attribute"):
-                    if fields.get(key) is not None:
-                        fields[key].addItems(TYPE_NAMES if key == "type" else ATTRIBUTE_NAMES)
-                        fields[key].setEnabled(False)
+                for key in ("type", "attribute"):
+                    box = fields.get(key)
+                    if box is not None:
+                        choices = (declared_type_choices(self.project)
+                                   if key == "type" else declared_attribute_choices(self.project))
+                        for value, label in choices:
+                            box.addItem(label, value)
+                        box.setEnabled(False)
                 for key in ("id","name"):
                     if fields.get(key) is not None:fields[key].setReadOnly(True)
                 for key in ("level","atk","def"):
@@ -467,7 +486,14 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
                             pool=self._pool_tabs(get(QWidget, "duelistPoolTabsHost")),
                             summary=get(QLabel, "duelistPoolSummary"),
                             table=get(QTableWidget, "duelistPoolTable"),
-                            weight=get(QSpinBox, "duelistWeightSpin"))
+                            weight=get(QSpinBox, "duelistWeightSpin"),
+                            randomizer_page=get(QWidget, "dropRandomizerPage"),
+                            randomizer_search=get(QLineEdit, "dropRandomizerSearchEdit"),
+                            randomizer_table=get(QTableWidget, "dropRandomizerTable"),
+                            randomizer_count=get(QLabel, "dropRandomizerCountLabel"),
+                            randomize_pow=get(QPushButton, "randomizePowDropButton"),
+                            randomize_bcd=get(QPushButton, "randomizeBcdDropButton"),
+                            randomize_tec=get(QPushButton, "randomizeTecDropButton"))
             controls["remove"] = get(QPushButton, "removeDuelistButton")
             # The deck pool may be forty cards written down instead of weights
             # (fixed_decks.py): its own list and buttons, shown in their place.
@@ -510,6 +536,19 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
             for slot in range(40,128):controls["position"].addItem(f"Position {slot}",slot)
             controls["pool"].currentChanged.connect(self._refresh_duelist_pool)
             controls["table"].itemSelectionChanged.connect(self._select_pool_card)
+            self.drop_randomizer_selected = set()
+            self.drop_randomizer_advanced_filters = {"types": set(), "attributes": set(), "bounds": {}}
+            controls["randomizer_page"].setVisible(False)
+            controls["randomizer_search"].textChanged.connect(self._filter_drop_randomizer)
+            controls["randomizer_table"].itemChanged.connect(self._toggle_drop_randomizer_card)
+            controls["randomizer_table"].setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+            controls["randomizer_table"].setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+            for key, callback in (("dropRandomizerAdvancedFilterButton", self._open_drop_randomizer_advanced_filter),
+                                  ("dropRandomizerClearFilterButton", self._clear_drop_randomizer_filters),
+                                  ("randomizePowDropButton", lambda: self._randomize_selected_drop_pool("pow")),
+                                  ("randomizeBcdDropButton", lambda: self._randomize_selected_drop_pool("bcd")),
+                                  ("randomizeTecDropButton", lambda: self._randomize_selected_drop_pool("tec"))):
+                get(QPushButton, key).clicked.connect(callback)
             get(QPushButton,"duelistPortraitButton").clicked.connect(self._choose_duelist_portrait)
             get(QPushButton,"duelistUnlockButton").clicked.connect(self._open_duelist_unlock)
             get(QPushButton,"duelistRulesButton").clicked.connect(self._open_duelist_rules)
@@ -649,6 +688,18 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
                               lambda: self._filter_equip_cards(controls["search"].text()))
             sort_keeps_filter(controls["monsters"],
                               lambda: self._filter_equip_monsters(controls["monster_search"].text()))
+        elif name == "Duelists":
+            # Match the Equip target list: compact selection/numeric columns,
+            # an expandable card name, and filters that survive a sort.
+            randomizer_header = controls["randomizer_table"].horizontalHeader()
+            for column, width in ((0, 42), (1, 54), (2, 230), (3, 130),
+                                  (4, 120), (5, 68), (6, 68)):
+                randomizer_header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
+                randomizer_header.resizeSection(column, width)
+            randomizer_header.setStretchLastSection(True)
+            sort_keeps_filter(controls["randomizer_table"],
+                              lambda: self._filter_drop_randomizer(
+                                  controls["randomizer_search"].text()))
         elif name == "Rituals":
             # After the shared pass above, which stretches every column.
             card_header=controls["cards"].horizontalHeader()
@@ -741,7 +792,7 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
                 header.setStretchLastSection(True)
     @staticmethod
     def _pool_tabs(host):
-        """The four pools as tabs over the list. Built here because Designer
+        """The pool editors and checked-card randomizer as tabs. Built here because Designer
         has no QTabBar, and a QTabWidget would draw a frame under a list that
         is not inside it."""
         tabs = QTabBar(host)
@@ -750,6 +801,7 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
         tabs.setDrawBase(False)
         for name in POOLS:
             tabs.addTab(POOL_LABELS[name])
+        tabs.addTab("Randomizer")
         host.layout().addWidget(tabs)
         return tabs
 
@@ -939,8 +991,11 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
             item = table.item(row, column)
             if item is not None and item.data(Qt.ItemDataRole.UserRole) == value:
                 table.setRowHidden(row, False)
-                table.selectRow(row)
                 table.scrollToItem(item, QAbstractItemView.ScrollHint.PositionAtCenter)
+                # Selecting can apply a pending Cards form, which rebuilds
+                # this table and deletes its old QTableWidgetItem objects.
+                # Scroll while this item is still owned by the table.
+                table.selectRow(row)
                 return True
         return False
     def _build_menus(self):
@@ -969,6 +1024,7 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
         file_menu.addAction("Convert an old recomp's .ygomods package (one way)…").triggered.connect(self.import_ygomods)
         file_menu.addSeparator()
         file_menu.addAction("Recover work…").triggered.connect(self.recover_work)
+        file_menu.addAction("Recovery copy…").triggered.connect(self.choose_recovery)
         file_menu.addSeparator()
         game_action = file_menu.addAction("Game files…")
         game_action.triggered.connect(self.choose_game_files)
@@ -1522,6 +1578,8 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
             if item is not None:
                 item.clear()
         self._recovery_source = None
+        self._recovery_stale = False
+        self._recovery_since = self._recovery_copied = None
 
     def _forget_recovered_copy(self):
         """The recovered session is saved now: stop offering it at start."""
@@ -1531,23 +1589,97 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
         self._recovered_from = None
 
     def _autosave(self):
-        """The mod as it stands into a recovery copy, a couple of seconds
-        after the last edit (editing.autosave): a crash, a power cut or a
-        closed window then costs the session nothing."""
+        """Write a pending recovery copy only when its configured interval is due."""
         self._recovery_timer.stop()
-        if getattr(self, "recovery", None) is None:
+        if (not self.recovery_minutes or not self._recovery_stale or
+                getattr(self, "recovery", None) is None):
             return
         if not self.dirty:
             self.recovery.clear()
+            self._recovery_stale = False
+            return
+        # Let the coalesced undo snapshot finish first. The recovery writer
+        # can then use it rather than copying a large project while the user
+        # is still interacting with the form.
+        if self._history_timer.isActive():
+            self._arm_recovery(self.RECOVERY_RETRY_MS)
+            return
+        if self.recovery_writer.busy():
+            self._arm_recovery(self.RECOVERY_RETRY_MS)
             return
         # With no snapshot waiting, the history's current one is this project,
         # so a big mod is not pickled twice.
         snapshot = (self.history.items[self.history.position]
                     if self.history is not None and not self._history_timer.isActive() else None)
         if self.recovery_writer.write(self.project, snapshot):
+            self._recovery_stale = False
+            self._recovery_since = None
+            self._recovery_copied = time.monotonic()
             self.statusBar().showMessage("Writing recovery copy in the background · Ctrl+S saves the mod folder")
         elif self.recovery_writer.error is not None:
             self.statusBar().showMessage(f"Recovery copy failed: {self.recovery_writer.error} · Ctrl+S saves the mod folder")
+            self._arm_recovery()
+
+    def _schedule_recovery(self):
+        """Mark a real mutation for recovery without writing it right away."""
+        if getattr(self, "project", None) is None or self._restoring:
+            return
+        self._recovery_stale = True
+        if self._recovery_since is None:
+            self._recovery_since = time.monotonic()
+        self._arm_recovery()
+
+    def _arm_recovery(self, delay_ms=None):
+        """Arm one recovery write at the user-selected interval.
+
+        Subsequent edits stay in the same pending copy; they do not restart
+        the countdown or create a write storm.
+        """
+        if self._recovery_timer.isActive():
+            if delay_ms is None:
+                return
+            self._recovery_timer.stop()
+        if not self.recovery_minutes or not self._recovery_stale:
+            return
+        if delay_ms is None:
+            start = (self._recovery_copied if self._recovery_copied is not None
+                     else self._recovery_since if self._recovery_since is not None
+                     else time.monotonic())
+            delay_ms = max(1, int((start + self.recovery_minutes * 60 - time.monotonic()) * 1000))
+        self._recovery_timer.start(max(1, delay_ms))
+
+    def choose_recovery(self):
+        """Choose the recovery-copy interval using the Designer dialog."""
+        source = QFile(str(UI_DIR / "recovery_settings_dialog.ui"))
+        if not source.open(QIODevice.OpenModeFlag.ReadOnly):
+            raise RuntimeError(f"Could not open Recovery settings form: {source.errorString()}")
+        loader = QUiLoader()
+        dialog = loader.load(source, self)
+        source.close()
+        if dialog is None:
+            raise RuntimeError(f"Could not load Recovery settings form: {loader.errorString()}")
+        interval = dialog.findChild(QComboBox, "recoveryIntervalCombo")
+        buttons = dialog.findChild(QDialogButtonBox, "recoveryDialogButtons")
+        if interval is None or buttons is None:
+            raise RuntimeError("Recovery settings form is missing controls")
+        # QUiLoader can lose Designer item data. Its item order is deliberately
+        # identical to RECOVERY_CHOICES instead.
+        interval.setCurrentIndex(self.RECOVERY_CHOICES.index(self.recovery_minutes))
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        self.recovery_minutes = self.RECOVERY_CHOICES[interval.currentIndex()]
+        problem = settings.save("recovery_minutes", self.recovery_minutes)
+        self._recovery_timer.stop()
+        self._arm_recovery()
+        if problem:
+            self.statusBar().showMessage(f"Could not remember the recovery copy setting: {problem}")
+        elif self.recovery_minutes:
+            label = "Every minute" if self.recovery_minutes == 1 else f"Every {self.recovery_minutes} minutes"
+            self.statusBar().showMessage(f"Recovery copy: {label.lower()} while there are unsaved changes.")
+        else:
+            self.statusBar().showMessage("Recovery copy off: only Ctrl+S keeps work if the editor closes unexpectedly.")
 
     def recover_work(self):
         """The recovery copies and save backups on this machine, each opened
@@ -1779,8 +1911,7 @@ class ModernEditor(ArtMixin, AssetsMixin, CardsMixin, DuelistsMixin, EquipsMixin
 
     def _mark_dirty(self):
         self._schedule_history()
-        if not self._restoring:
-            self._recovery_timer.start(5000)
+        self._schedule_recovery()
         if not self.dirty:
             self.dirty = True
             self.setWindowTitle("* " + self.project.info.name + " — FM Editor")

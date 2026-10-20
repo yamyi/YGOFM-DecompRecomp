@@ -81,6 +81,35 @@ class CardsTest(unittest.TestCase):
         self.assertIn(13, type_ids)
         self.assertIn(24, type_ids)
 
+    def test_clicking_a_card_keeps_its_list_row_selected(self):
+        """Card Data can never show a card without highlighting that row."""
+        w = self.window
+        w.refresh_cards(select_id=1)
+        row = next(index for index in range(w.listing.rowCount())
+                   if w.listing.item(index, 0).data(Qt_UserRole()) == 2)
+        w.listing.setCurrentCell(row, 1)
+        w.listing.cellClicked.emit(row, 1)
+        self.assertEqual(w.current, 2)
+        self.assertTrue(w.listing.selectionModel().isRowSelected(
+            row, w.listing.rootIndex()))
+
+    def test_type_change_refreshes_effects_tab_visibility(self):
+        """Effects follow the type being edited, including a custom monster."""
+        w = self.window
+        w.show_card(1)
+        effects_tab = w._effects_tab_index
+        self.assertTrue(w.card_data_tabs.isTabVisible(effects_tab))
+
+        w.type_box.setCurrentIndex(w.type_box.findData(gamedata.TYPE_EQUIP))
+        self.assertFalse(w.card_data_tabs.isTabVisible(effects_tab))
+
+        self.assertTrue(w._apply_type(24, "Psychic"))
+        w.type_box.setCurrentIndex(w.type_box.findData(24))
+        self.assertTrue(w.card_data_tabs.isTabVisible(effects_tab))
+
+        w.type_box.setCurrentIndex(w.type_box.findData(gamedata.TYPE_MAGIC))
+        self.assertTrue(w.card_data_tabs.isTabVisible(effects_tab))
+
     def test_model_preview_button_tracks_selection_and_empty_state(self):
         from fm_editor import monster_view
         from fm_editor.tests.test_monster_view import model_record
@@ -162,6 +191,47 @@ class CardsTest(unittest.TestCase):
             self.assertTrue(w.apply_card(quiet=True))
         self.assertEqual(before, manifest.build(w.project))
         self.assertFalse(w.dirty)
+
+    def test_selecting_an_unchanged_card_never_marks_the_project_dirty(self):
+        """Browsing is navigation, not a hidden Apply or recovery trigger."""
+        w = self.window
+        w.refresh_cards(select_id=1)
+        before = manifest.build(w.project)
+        self.assertFalse(w.dirty)
+        self.assertFalse(w._card_form_edited)
+        target = next(cid for cid, card in w.project.cards.items()
+                      if not gamedata.is_monster_type(card.type))
+
+        with mock.patch.object(w, "_mark_dirty", wraps=w._mark_dirty) as marked:
+            self.assertTrue(w._select_table_id(w.listing, target))
+            self.qt.processEvents()
+
+        self.assertEqual(w.current, target)
+        self.assertEqual(marked.call_count, 0)
+        self.assertFalse(w.dirty)
+        self.assertFalse(w._recovery_timer.isActive())
+        self.assertEqual(manifest.build(w.project), before)
+
+    def test_recovery_copy_uses_the_configured_interval_and_can_be_off(self):
+        w = self.window
+        w.recovery_minutes = 0
+        w._mark_dirty()
+        self.assertTrue(w._recovery_stale)
+        self.assertFalse(w._recovery_timer.isActive())
+
+        w.recovery_minutes = 5
+        w._arm_recovery()
+        self.assertTrue(w._recovery_timer.isActive())
+        self.assertGreater(w._recovery_timer.remainingTime(), 4 * 60 * 1000)
+
+    def test_navigation_applies_a_real_compatibility_form_edit(self):
+        w = self.window
+        w.refresh_cards(select_id=1)
+        w.card_notes.setPlainText("Kept on navigation")
+        self.assertTrue(w._card_form_edited)
+        target = next(cid for cid in w.project.cards if cid != 1)
+        self.assertTrue(w._select_table_id(w.listing, target))
+        self.assertEqual(w.project.notes[1], "Kept on navigation")
 
     def test_custom_star_is_preserved(self):
         w = self.window
@@ -632,6 +702,112 @@ class CardsTest(unittest.TestCase):
         self.assertEqual((layout['frame_styles']['custom']['art']['x'],
                           layout['frame_styles']['custom']['art']['y']), art_position)
         w.hide()
+
+    def test_new_type_attribute_and_star_refresh_card_data_selectors(self):
+        """Registry additions are immediately selectable in Card Data.
+
+        The list controls must grow without making a user navigate away from
+        the selected card; custom attribute IDs are sparse, so their combo
+        item data rather than their visual row identifies the ID.
+        """
+        w = self.window
+        w.show_card(1)
+        self.assertTrue(w._apply_type(24, "Psychic"))
+        self.assertTrue(w._apply_attribute(8, "Aether"))
+        self.assertGreaterEqual(w.type_box.findData(24), 0)
+        self.assertEqual(w.type_box.itemText(w.type_box.findData(24)), "Psychic")
+        self.assertGreaterEqual(w.attribute_box.findData(8), 0)
+        self.assertEqual(w.attribute_box.itemText(w.attribute_box.findData(8)), "Aether")
+
+        before = w.star1_box.count()
+        w.select_workspace("Guardian Stars")
+        star = w._add_star()
+        self.assertTrue(star)
+        self.assertEqual(w.star1_box.count(), before + 1)
+        self.assertEqual(w.star2_box.count(), before + 1)
+        self.assertIn(w.stars_model.name(star), w.star1_box.itemText(star))
+
+    def test_registry_changes_refresh_workspace_filters(self):
+        """Every persistent type, attribute, and star filter follows its registry."""
+        w = self.window
+        w.show_card(1)
+        self.assertTrue(w._apply_type(24, "Psychic"))
+        self.assertTrue(w._apply_attribute(8, "Aether"))
+
+        fields = w.workspace_controls["Fields"]["bonuses"]
+        self.assertIn(24, {fields.item(row, 0).data(Qt_UserRole())
+                           for row in range(fields.rowCount())})
+        fusion = w.workspace_controls["Fusions"]["bulk_filters"]["a"]
+        self.assertIn(24, {fusion["types"].item(row).data(Qt_UserRole())
+                           for row in range(fusion["types"].count())})
+        self.assertIn(8, {box.property("choiceValue") for box in fusion["attributes"]})
+        frame_types = w.workspace_controls["UI"]["frames"]["type_rule"]
+        self.assertGreaterEqual(frame_types.findData("Psychic"), 0)
+
+        star = w._add_star()
+        self.assertTrue(star)
+        self.assertIn(star, {fusion["stars"].item(row).data(Qt_UserRole())
+                             for row in range(fusion["stars"].count())})
+
+        self.assertTrue(w._apply_type(24, "Mind"))
+        type_labels = {fusion["types"].item(row).data(Qt_UserRole()): fusion["types"].item(row).text()
+                       for row in range(fusion["types"].count())}
+        self.assertEqual(type_labels[24], "Mind")
+        self.assertGreaterEqual(frame_types.findData("Mind"), 0)
+        self.assertLess(frame_types.findData("Psychic"), 0)
+
+    def test_custom_type_keeps_monster_card_data(self):
+        """A named custom type is a monster, never an accidental Magic card."""
+        w = self.window
+        w.show_card(1)
+        self.assertTrue(w._apply_type(24, "Psychic"))
+        w.type_box.setCurrentIndex(w.type_box.findData(24))
+        w.attribute_box.setCurrentIndex(w.attribute_box.findData(1))
+        w.fields["level"].setValue(7)
+        w.fields["attack"].setValue(2340)
+        w.fields["defense"].setValue(1960)
+        w.star1_box.setCurrentIndex(1)
+        w.star2_box.setCurrentIndex(2)
+
+        self.assertTrue(w.fields["attribute"].isEnabled())
+        self.assertTrue(w.apply_card(quiet=True))
+        card = w.project.cards[1]
+        self.assertEqual(card.type, 24)
+        self.assertEqual(card.attribute, 1)
+        self.assertEqual((card.level, card.attack, card.defense), (7, 2340, 1960))
+        self.assertEqual((card.star1, card.star2), (1, 2))
+
+    def test_resized_attribute_icon_selects_itself_on_the_frame_preview(self):
+        """The frame canvas follows its left-aligned displayed pixmap, not an
+        imaginary centred card, so clicks over a resized attribute never land
+        on the overlapping Card name rectangle."""
+        from PySide6.QtCore import QPoint, Qt
+        from PySide6.QtTest import QTest
+
+        w = self.window
+        w.select_workspace('UI')
+        c = w.workspace_controls['UI']['frames']
+        attribute = next(c['parts'].topLevelItem(group).child(row)
+                         for group in range(c['parts'].topLevelItemCount())
+                         for row in range(c['parts'].topLevelItem(group).childCount())
+                         if c['parts'].topLevelItem(group).child(row).data(0, Qt_UserRole()) == 'attribute')
+        c['parts'].setCurrentItem(attribute)
+        c['width'].setValue(32)
+        c['height'].setValue(28)
+        w.workspace_controls['UI']['tabs'].setCurrentWidget(c['form'])
+        w.show()
+        self.addCleanup(w.hide)
+        self.qt.processEvents()
+        canvas, box = c['preview'], c['boxes']['attribute']
+        pixmap, rect = canvas.pixmap(), canvas.contentsRect()
+        scale_x, scale_y = pixmap.width() / 140, pixmap.height() / 196
+        top = rect.y() + (rect.height() - pixmap.height()) // 2
+        # Click inside the part's visible left edge: this is inside the title
+        # only under the old centred-canvas coordinate conversion.
+        point = QPoint(round(rect.x() + (box[0] + 4) * scale_x),
+                       round(top + (box[1] + 4) * scale_y))
+        QTest.mouseClick(canvas, Qt.MouseButton.LeftButton, pos=point)
+        self.assertEqual(c['selected'], 'attribute')
 
     def test_removing_ui_title_images_prunes_only_orphans(self):
         """Removing a Title picture deletes its imported PNG on the next save,
@@ -2441,6 +2617,33 @@ class CardsTest(unittest.TestCase):
         self.assertIsNone(fixed_decks.deck_of(fixed_reopened, base))
         self.assertEqual(fixed_reopened.pools[base]['deck'], retail_deck)
 
+    def test_drop_randomizer_builds_any_drop_table_from_checked_mod_cards(self):
+        """The checked-card Randomizer includes custom cards and normalizes."""
+        from PySide6.QtCore import Qt
+        from fm_editor.gamedata import POOLS, POOL_TOTAL
+
+        w = self.window
+        c = self.duelists_page()
+        added = w.project.add_card(1)
+        c['pool'].setCurrentIndex(len(POOLS))
+        self.assertEqual(c['pool'].tabText(len(POOLS)), 'Randomizer')
+        table = c['randomizer_table']
+        chosen = {1, 2, added}
+        for row in range(table.rowCount()):
+            item = table.item(row, 0)
+            if item.data(Qt.ItemDataRole.UserRole) in chosen:
+                item.setCheckState(Qt.CheckState.Checked)
+        self.assertTrue(c['randomize_pow'].isEnabled())
+        self.assertTrue(c['randomize_bcd'].isEnabled())
+        self.assertTrue(c['randomize_tec'].isEnabled())
+        w.dirty = False
+        for pool_name in ('pow', 'bcd', 'tec'):
+            self.assertEqual(w._randomize_selected_drop_pool(pool_name), sorted(chosen))
+            pool = w.project.pools[w._selected_duelist()][pool_name]
+            self.assertEqual(set(pool), chosen)
+            self.assertEqual(sum(pool.values()), POOL_TOTAL)
+        self.assertTrue(w.dirty)
+
     def test_duelist_duplicate_is_exposed_and_keeps_an_independent_subject(self):
         """The Designer controls expose roster.duplicate() without sharing
         the source duelist's pools or fixed deck."""
@@ -4245,6 +4448,9 @@ class CardsTest(unittest.TestCase):
         self.assertEqual(w._pack_entry().get('image_style'), 'full')
         full = c['image'].pixmap()
         self.assertFalse(full.isNull())
+        # Full-picture mode previews the complete source PNG, without putting
+        # it in a black 140×196 card canvas first.
+        self.assertAlmostEqual(full.width() / full.height(), 300 / 500, delta=0.01)
         self.assertIn('whole picture', c['status'].text())
         # "card" is the default, so it is not written.
         c['image_style'].setCurrentIndex(0)
@@ -4400,7 +4606,11 @@ class CardsTest(unittest.TestCase):
                 w.show_card(1)
                 w.fields['name'].setText('Recovered Dragon')
                 self.assertTrue(w.apply_card(quiet=True))
+                # Recovery uses the coalesced idle history snapshot and writes
+                # on its worker thread, as it does in the running editor.
+                self.qt.processEvents()
                 w._autosave()
+                w.recovery_writer._thread.join(timeout=10)
                 rows = recovery.records()
                 self.assertEqual([row[2]['name'] for row in rows], [w.project.info.name])
                 copy, _ = manifest.open_mod(w.retail, rows[0][1])

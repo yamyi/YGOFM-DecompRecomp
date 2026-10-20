@@ -1219,10 +1219,34 @@ class _FramePreviewEvents(QObject):
 
 
 def _frame_preview_point(label, position):
-    scale = min(label.width() / 140, label.height() / 196)
-    if scale <= 0: return 0, 0
-    return ((position.x() - (label.width() - 140 * scale) / 2) / scale,
-            (position.y() - (label.height() - 196 * scale) / 2) / scale)
+    """Translate a mouse point from the *shown* card pixmap to game pixels.
+
+    ``QLabel`` lays out its fitted pixmap according to its alignment.  The
+    Frames canvas is left-aligned, but the old calculation always assumed a
+    centred card.  On a wide canvas that shifted every click left, so a resized
+    Attribute icon could hit the Card name rectangle instead.
+    """
+    pixmap = label.pixmap()
+    rect = label.contentsRect()
+    if pixmap is not None and not pixmap.isNull():
+        scale_x, scale_y = pixmap.width() / 140, pixmap.height() / 196
+        if scale_x <= 0 or scale_y <= 0:
+            return 0, 0
+        alignment = label.alignment()
+        left, top = rect.x(), rect.y()
+        if alignment & Qt.AlignmentFlag.AlignHCenter:
+            left += (rect.width() - pixmap.width()) / 2
+        elif alignment & Qt.AlignmentFlag.AlignRight:
+            left += rect.width() - pixmap.width()
+        if alignment & Qt.AlignmentFlag.AlignVCenter:
+            top += (rect.height() - pixmap.height()) / 2
+        elif alignment & Qt.AlignmentFlag.AlignBottom:
+            top += rect.height() - pixmap.height()
+        return ((position.x() - left) / scale_x, (position.y() - top) / scale_y)
+    scale = min(rect.width() / 140, rect.height() / 196)
+    if scale <= 0:
+        return 0, 0
+    return ((position.x() - rect.x()) / scale, (position.y() - rect.y()) / scale)
 
 
 def _frame_preview_kind(controls):
@@ -1267,9 +1291,7 @@ def _wire_frames_tab(editor, form, controls):
     for combo, values in ((c["kind_rule"], (("monster", "Monster"), ("effect_monster", "Effect monster"), ("magic", "Magic"), ("equip", "Equip"), ("ritual", "Ritual"), ("trap", "Trap"))),):
         combo.clear()
         for value, label in values: combo.addItem(label, value)
-    c["type_rule"].clear()
-    for type_id, name in enumerate(TYPE_NAMES):
-        if name: c["type_rule"].addItem(name, name)
+    _refresh_frame_type_choices(editor)
     bridge = _FramePreviewEvents(editor, c["preview"])
     c["preview"].setMouseTracking(True); c["preview"].setFocusPolicy(Qt.FocusPolicy.StrongFocus); c["preview"].installEventFilter(bridge); c["events"] = bridge
     c["parts"].currentItemChanged.connect(lambda item, _: _frame_select(editor, item))
@@ -1301,6 +1323,33 @@ def _wire_frames_tab(editor, form, controls):
     # deliver a mouse-release event to the hold button.
     editor.pages.currentChanged.connect(lambda _: _frame_hold(editor, False))
     _refresh_frames_tab(editor)
+
+
+def _refresh_frame_type_choices(editor):
+    """Synchronise the Frames type rule with the live card-type registry."""
+    c = editor.workspace_controls.get("UI", {}).get("frames")
+    if not c:
+        return
+    combo = c["type_rule"]
+    selected = combo.currentData()
+    if selected is None:
+        selected = combo.currentText()
+    # Frame assignments are keyed by printed type name in ``card_layout``.
+    # Keep that manifest format while deriving the names from the live registry.
+    wanted = [(name, name) for _type_id, name in declared_type_choices(editor.project)]
+    present = [(combo.itemData(index), combo.itemText(index))
+               for index in range(combo.count())]
+    if present == wanted:
+        return
+    combo.blockSignals(True)
+    combo.clear()
+    for _value, name in wanted:
+        combo.addItem(name, name)
+    found = combo.findData(selected)
+    if found < 0:
+        found = combo.findText(str(selected))
+    combo.setCurrentIndex(found if found >= 0 else 0)
+    combo.blockSignals(False)
 
 
 def _frame_select(editor, item):

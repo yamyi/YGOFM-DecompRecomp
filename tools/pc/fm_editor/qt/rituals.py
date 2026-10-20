@@ -205,16 +205,34 @@ class RitualsMixin:
             self._mark_dirty()
         self.ritual_pending.pop(ritual,None)
         self._refresh_rituals()
+    def _refresh_ritual_card_metadata_choices(self):
+        """Rebuild read-only card metadata selectors from the live registries."""
+        controls = self.workspace_controls.get("Rituals", {})
+        groups = [controls.get("card_meta", {}), *controls.get("tribute_fields", []),
+                  controls.get("summon_fields", {})]
+        for fields in groups:
+            for key, choices in (("type", declared_type_choices(self.project)),
+                                 ("attribute", declared_attribute_choices(self.project))):
+                box = fields.get(key)
+                if box is None:
+                    continue
+                current = box.currentData()
+                box.blockSignals(True)
+                box.clear()
+                for value, label in choices:
+                    box.addItem(label, value)
+                box.setCurrentIndex(box.findData(current))
+                box.blockSignals(False)
+
     def _set_ritual_fields(self,fields,cid):
         card=self.project.cards.get(cid) if cid is not None else None
         if fields.get("id") is not None:fields["id"].setText(f"{cid:03d}" if card is not None else "")
 
-        for key,choices,value in (("type",TYPE_NAMES,card.type if card else -1),
-                                  ("attribute",ATTRIBUTE_NAMES,card.attribute if card else -1)):
-            box=fields.get(key)
+        for key, value in (("type", card.type if card else -1),
+                           ("attribute", card.attribute if card else -1)):
+            box = fields.get(key)
             if box is not None:
-                if value>=0 and value<len(choices):box.setCurrentIndex(value)
-                else:box.setCurrentIndex(-1)
+                box.setCurrentIndex(box.findData(value))
         for key,value in (("level",card.level if card else 0),("atk",card.attack if card else 0),
                           ("def",card.defense if card else 0)):
             if fields.get(key) is not None:fields[key].setValue(value)
@@ -224,9 +242,10 @@ class RitualsMixin:
         card_type=type_name(self.project, card.type)
         lines=[f"ID {cid:03d}  ·  {card_type}"]
         if card.is_monster():
-            attribute=ATTRIBUTE_NAMES[card.attribute] if 0<=card.attribute<len(ATTRIBUTE_NAMES) else "Unknown"
-            star1=STAR_NAMES[card.star1] if 0<=card.star1<len(STAR_NAMES) else "Unknown"
-            star2=STAR_NAMES[card.star2] if 0<=card.star2<len(STAR_NAMES) else "Unknown"
+            attribute = attribute_name(self.project, card.attribute)
+            stars = guardian_stars.choices(self.project.other.get("guardian_stars"))
+            star1 = stars[card.star1] if 0 <= card.star1 < len(stars) else "Unknown"
+            star2 = stars[card.star2] if 0 <= card.star2 < len(stars) else "Unknown"
             lines.extend((f"{attribute}  ·  Level {card.level}",
                           f"ATK {card.attack}  ·  DEF {card.defense}",
                           f"Stars: {star1} / {star2}"))
@@ -300,9 +319,12 @@ class RitualsMixin:
                     editors[key] = field
                 elif key in ("type", "fusion_group"):
                     field = QComboBox()
-                    field.addItems(list(TYPE_NAMES[:20] if key == "type" else FUSION_GROUPS))
                     if key == "type":
+                        for type_id, name in declared_type_choices(self.project, monster_only=True):
+                            field.addItem(name, type_id)
                         decorate_type_items(self, field)
+                    else:
+                        field.addItems(FUSION_GROUPS)
                     found = field.findText(str(requirement[key]))
                     field.setCurrentIndex(found if found >= 0 else 0)
                     row.addWidget(field, 1)
@@ -372,7 +394,8 @@ class RitualsMixin:
                     return
                 requirement[key] = chosen
             elif key == "type":
-                requirement[key] = TYPE_NAMES[0]
+                choices = declared_type_choices(self.project, monster_only=True)
+                requirement[key] = choices[0][1] if choices else TYPE_NAMES[0]
             elif key == "fusion_group":
                 requirement[key] = FUSION_GROUPS[0]
             elif key == "defense_gt_attack":

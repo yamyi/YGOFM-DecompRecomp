@@ -350,6 +350,135 @@
          </item>
         </layout>
        </item>
+      <item>
+       <widget class="QWidget" name="dropRandomizerPage">
+        <property name="visible">
+         <bool>false</bool>
+        </property>
+        <layout class="QVBoxLayout" name="dropRandomizerLayout">
+         <property name="leftMargin">
+          <number>0</number>
+         </property>
+         <property name="topMargin">
+          <number>0</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <property name="bottomMargin">
+          <number>0</number>
+         </property>
+         <item>
+          <widget class="QLabel" name="dropRandomizerHint">
+           <property name="text">
+            <string>Check the cards that may appear, then choose the drop table to randomize. Checked cards receive equal odds.</string>
+           </property>
+           <property name="wordWrap">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="dropRandomizerFilterLayout">
+           <item>
+            <widget class="QLineEdit" name="dropRandomizerSearchEdit">
+             <property name="placeholderText">
+              <string>Search cards by name, ID, or text…</string>
+             </property>
+             <property name="clearButtonEnabled">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="dropRandomizerAdvancedFilterButton">
+             <property name="text">
+              <string>Advanced…</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="dropRandomizerClearFilterButton">
+             <property name="text">
+              <string>Clear filters</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <widget class="QTableWidget" name="dropRandomizerTable">
+           <property name="alternatingRowColors">
+            <bool>true</bool>
+           </property>
+           <property name="selectionMode">
+            <enum>QAbstractItemView::SelectionMode::ExtendedSelection</enum>
+           </property>
+           <property name="selectionBehavior">
+            <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
+           </property>
+           <column>
+            <property name="text"><string>Use</string></property>
+           </column>
+           <column>
+            <property name="text"><string>ID</string></property>
+           </column>
+           <column>
+            <property name="text"><string>Card</string></property>
+           </column>
+           <column>
+            <property name="text"><string>Type</string></property>
+           </column>
+           <column>
+            <property name="text"><string>Attribute</string></property>
+           </column>
+           <column>
+            <property name="text"><string>ATK</string></property>
+           </column>
+           <column>
+            <property name="text"><string>DEF</string></property>
+           </column>
+           <column>
+            <property name="text"><string>Level</string></property>
+           </column>
+          </widget>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="dropRandomizerActionsLayout">
+           <item>
+            <widget class="QLabel" name="dropRandomizerCountLabel">
+             <property name="text"><string>No cards checked</string></property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="dropRandomizerActionsSpacer">
+             <property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property>
+             <property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property>
+            </spacer>
+           </item>
+           <item>
+            <widget class="QPushButton" name="randomizePowDropButton">
+             <property name="toolTip"><string>Build S/A-POW drops from the checked cards.</string></property>
+             <property name="text"><string>Randomize S/A-POW</string></property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="randomizeBcdDropButton">
+             <property name="toolTip"><string>Build B/C/D drops from the checked cards.</string></property>
+             <property name="text"><string>Randomize B/C/D</string></property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="randomizeTecDropButton">
+             <property name="toolTip"><string>Build S/A-TEC drops from the checked cards.</string></property>
+             <property name="text"><string>Randomize S/A-TEC</string></property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+        </layout>
+       </widget>
+      </item>
        <item>
         <layout class="QHBoxLayout" name="deckModeRow">
          <property name="spacing">
@@ -650,6 +779,13 @@
   <tabstop>removePoolCardButton</tabstop>
   <tabstop>normalizePoolButton</tabstop>
   <tabstop>revertPoolButton</tabstop>
+  <tabstop>dropRandomizerSearchEdit</tabstop>
+  <tabstop>dropRandomizerAdvancedFilterButton</tabstop>
+  <tabstop>dropRandomizerClearFilterButton</tabstop>
+  <tabstop>dropRandomizerTable</tabstop>
+  <tabstop>randomizePowDropButton</tabstop>
+  <tabstop>randomizeBcdDropButton</tabstop>
+  <tabstop>randomizeTecDropButton</tabstop>
   <tabstop>fixedDeckTable</tabstop>
   <tabstop>addFixedCardButton</tabstop>
   <tabstop>fixedCopiesSpin</tabstop>

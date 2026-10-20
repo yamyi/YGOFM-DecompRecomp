@@ -2044,6 +2044,9 @@ QTreeWidget::item {height:20px;} QCheckBox,QRadioButton {color:#dce9fa;backgroun
            </item>
            <item>
             <widget class="QLabel" name="cardCanvas">
+             <property name="alignment">
+              <set>Qt::AlignLeft|Qt::AlignVCenter</set>
+             </property>
              <property name="sizePolicy">
               <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
                <horstretch>0</horstretch>

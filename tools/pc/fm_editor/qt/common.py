@@ -167,6 +167,25 @@ def type_name(project, type_id: int) -> str:
     return f"Unknown type {type_id}"
 
 
+def is_monster_card_type(project, type_id: int) -> bool:
+    """Whether a type uses a monster card record.
+
+    The retail binary encodes its distinction through the fixed type-ID range:
+    IDs below ``TYPE_MAGIC`` are monsters and the four remaining IDs are
+    spell/trap kinds.  A project-defined type has no retail range to inherit,
+    so every named custom type is a monster by default.  This keeps its
+    attribute, level, combat values, and Guardian Stars intact throughout the
+    editor without asking authors to assign a second category.
+    """
+    if gamedata.is_monster_type(type_id):
+        return True
+    names = getattr(project, "type_names", None) or TYPE_NAMES
+    return (isinstance(type_id, int)
+            and type_id >= len(TYPE_NAMES)
+            and type_id < len(names)
+            and bool(names[type_id]))
+
+
 def declared_type_choices(project, monster_only: bool = False) -> list[tuple[int, str]]:
     """The project's named types as ``(id, label)`` pairs.
 
@@ -176,7 +195,26 @@ def declared_type_choices(project, monster_only: bool = False) -> list[tuple[int
     """
     names = getattr(project, "type_names", None) or TYPE_NAMES
     return [(type_id, name) for type_id, name in enumerate(names)
-            if name and (not monster_only or gamedata.is_monster_type(type_id))]
+            if name and (not monster_only or is_monster_card_type(project, type_id))]
+
+
+def declared_attribute_choices(project) -> list[tuple[int, str]]:
+    """The project's named monster attributes as stable ``(id, label)`` pairs.
+
+    Magic and Trap use reserved internal values 6 and 7 and therefore do not
+    belong in monster filters.  Custom attributes retain their sparse numeric
+    IDs instead of being confused with their visual row in a Qt list.
+    """
+    names, _ = manifest._attribute_registry(
+        project.other.get("attributes") if project is not None else None)
+    return [(attribute_id, name) for attribute_id, name in enumerate(names) if name]
+
+
+def declared_guardian_star_choices(project) -> list[tuple[int, str]]:
+    """Every selectable Guardian Star, preserving its star number."""
+    names = guardian_stars.choices(
+        project.other.get("guardian_stars") if project is not None else None)
+    return [(star_id, name) for star_id, name in enumerate(names) if star_id]
 
 
 def attribute_name(project, attribute_id: int) -> str:
@@ -384,28 +422,38 @@ def decorate_type_items(editor, widget, names=TYPE_NAMES[:20]):
 
 
 def decorate_attribute_items(editor, widget, names=ATTRIBUTE_NAMES):
-    """Set attribute-ball icons on a combo box or checkable list."""
-    for index, name in enumerate(names):
-        icon = attribute_icon(editor, index)
+    """Set icons from each item's attribute ID, not its list position."""
+    for index in range(widget.count()):
         if isinstance(widget, QComboBox):
-            found = widget.findText(name)
-            if found >= 0:
-                widget.setItemIcon(found, icon)
-        elif index < widget.count():
+            attribute_id = widget.itemData(index, int(Qt.ItemDataRole.UserRole) + 1)
+            if not isinstance(attribute_id, int):
+                attribute_id = widget.itemData(index)
+        else:
+            attribute_id = widget.item(index).data(Qt.ItemDataRole.UserRole)
+        if not isinstance(attribute_id, int):
+            attribute_id = index
+        icon = attribute_icon(editor, attribute_id)
+        if isinstance(widget, QComboBox):
+            widget.setItemIcon(index, icon)
+        else:
             widget.item(index).setIcon(icon)
 
 
 def decorate_guardian_star_items(editor, widget, first_star: int = 1):
-    """Set symbols on sequential guardian-star choices, excluding '(none)'."""
+    """Set symbols from each item's Guardian Star number."""
     for index in range(widget.count()):
         star = index + first_star
         if isinstance(widget, QComboBox):
             data = widget.itemData(index)
-            if isinstance(data, int) and data >= 0:
-                star = data
-            widget.setItemIcon(index, guardian_star_icon(editor, star))
         else:
-            widget.item(index).setIcon(guardian_star_icon(editor, star))
+            data = widget.item(index).data(Qt.ItemDataRole.UserRole)
+        if isinstance(data, int) and data >= 0:
+            star = data
+        icon = guardian_star_icon(editor, star)
+        if isinstance(widget, QComboBox):
+            widget.setItemIcon(index, icon)
+        else:
+            widget.item(index).setIcon(icon)
 
 
 def _line_count(text: str) -> int:

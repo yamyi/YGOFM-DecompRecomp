@@ -111,6 +111,9 @@ class CardsMixin:
         self.fields["password"].setEchoMode(
             QLineEdit.EchoMode.Normal if visible else QLineEdit.EchoMode.Password)
     def _build_cards(self, parent):
+        # Set only by user-originated form signals. Selection uses it to avoid
+        # serialising a card merely because the display form normalised it.
+        self._card_form_edited = False
         ui_path = UI_DIR / "cards_page.ui"
         ui_file = QFile(str(ui_path))
         if not ui_file.open(QIODevice.OpenModeFlag.ReadOnly):
@@ -256,12 +259,8 @@ class CardsMixin:
 
         self._populate_filter_box()
         self._populate_type_box()
-        self.attribute_box.addItems(ATTRIBUTE_NAMES + ["6 (magic)", "7 (trap)"])
-        star_choices = guardian_stars.choices(self.project.other.get("guardian_stars"))
-        self.star1_box.addItems(star_choices)
-        self.star2_box.addItems(star_choices)
-        decorate_guardian_star_items(self, self.star1_box, first_star=0)
-        decorate_guardian_star_items(self, self.star2_box, first_star=0)
+        self._populate_attribute_box()
+        self._populate_star_boxes()
         self.frame_box.addItems(["By card type"] + FRAME_NAMES)
         self.listing.setColumnCount(6)
         self.listing.setHorizontalHeaderLabels(["ID", "Name", "Type", "ATK", "DEF", "State"])
@@ -334,6 +333,11 @@ class CardsMixin:
         self.filter.currentTextChanged.connect(self.refresh_cards)
         self.advanced_filter_button.clicked.connect(self._open_advanced_card_filter)
         self.listing.itemSelectionChanged.connect(self.select_card)
+        # A click can make the details refresh before Qt finishes painting the
+        # table's row selection (especially while a preview is being redrawn).
+        # Reassert the clicked row after the form accepts that card, so the
+        # card shown in Card Data and the highlighted list row never diverge.
+        self.listing.cellClicked.connect(self._select_clicked_card_row)
         self.add_button.clicked.connect(self.add_card)
         self.description.textChanged.connect(self.update_text_count)
         self.apply_button.clicked.connect(self.apply_card)
@@ -453,9 +457,12 @@ class CardsMixin:
         layout.setSpacing(10)
         lists = QHBoxLayout()
         type_list = self._checkable_list(declared_type_choices(self.project), dialog, height=8)
-        attribute_list = self._checkable_list(ATTRIBUTE_NAMES, dialog, height=8)
+        attribute_choices = self._attribute_choices()
+        attribute_list = self._checkable_list([name for _id, name in attribute_choices], dialog, height=8)
+        for row, (attribute_id, _name) in enumerate(attribute_choices):
+            attribute_list.item(row).setData(Qt.ItemDataRole.UserRole, attribute_id)
+            attribute_list.item(row).setIcon(attribute_icon(self, attribute_id))
         decorate_type_items(self, type_list, TYPE_NAMES)
-        decorate_attribute_items(self, attribute_list, ATTRIBUTE_NAMES)
         type_list.setMaximumHeight(164)
         attribute_list.setMaximumHeight(164)
         for title, listing in (("Card type", type_list), ("Attribute", attribute_list)):
@@ -523,7 +530,7 @@ class CardsMixin:
         self.advanced_card_filters = {
             "types": {type_list.item(i).data(Qt.ItemDataRole.UserRole) for i in range(type_list.count())
                       if type_list.item(i).checkState() == Qt.CheckState.Checked},
-            "attributes": {i for i in range(attribute_list.count())
+            "attributes": {attribute_list.item(i).data(Qt.ItemDataRole.UserRole) for i in range(attribute_list.count())
                            if attribute_list.item(i).checkState() == Qt.CheckState.Checked},
             "bounds": new_bounds,
         }
@@ -547,6 +554,64 @@ class CardsMixin:
             if found >= 0:
                 box.setCurrentIndex(found)
         box.blockSignals(False)
+
+    def _attribute_choices(self):
+        """All card attributes, with the two non-monster sentinel values."""
+        return [*declared_attribute_choices(self.project),
+                (6, "6 (magic)"), (7, "7 (trap)")]
+
+    def _current_attribute_id(self) -> int:
+        value = self.attribute_box.currentData()
+        return value if isinstance(value, int) else 0
+
+    def _populate_attribute_box(self):
+        """Rebuild the card attribute selector without treating sparse IDs as rows."""
+        box = self.attribute_box
+        current = self._current_attribute_id() if box.count() else None
+        box.blockSignals(True)
+        box.clear()
+        for attribute_id, name in self._attribute_choices():
+            box.addItem(name, attribute_id)
+            box.setItemIcon(box.count() - 1, attribute_icon(self, attribute_id))
+        if current is not None:
+            found = box.findData(current)
+            if found >= 0:
+                box.setCurrentIndex(found)
+        box.blockSignals(False)
+
+    def _populate_star_boxes(self, stars=None):
+        """Keep the two Guardian Star selectors current while retaining IDs."""
+        if stars is None:
+            stars = (self.star1_box.currentIndex() if self.star1_box.count() else 0,
+                     self.star2_box.currentIndex() if self.star2_box.count() else 0)
+        choices = guardian_stars.choices(self.project.other.get("guardian_stars"))
+        while len(choices) <= max(stars):
+            choices.append(str(len(choices)))
+        for key, star in zip(("star1", "star2"), stars):
+            box = self.fields[key]
+            box.blockSignals(True)
+            box.clear()
+            box.addItems(choices)
+            decorate_guardian_star_items(self, box, first_star=0)
+            box.setCurrentIndex(star if 0 <= star < box.count() else 0)
+            box.blockSignals(False)
+
+    def _refresh_card_catalogs(self):
+        """Refresh lists shared with Types, Attributes and Guardian Stars.
+
+        Registry pages mutate the project directly, so a user should be able
+        to return to Card Data and choose the new declaration immediately,
+        without changing cards or reopening the editor.
+        """
+        if not hasattr(self, "type_box") or self.project is None:
+            return
+        self._populate_type_box()
+        self._populate_filter_box()
+        self._populate_attribute_box()
+        self._populate_star_boxes()
+        if self.current:
+            self._render_preview()
+            self._render_card_text()
 
     def _current_type_id(self) -> int:
         """type_box's chosen id (its userData, not its on-screen position --
@@ -617,10 +682,28 @@ class CardsMixin:
         item = self.listing.item(row, 0)
         cid = item.data(Qt.ItemDataRole.UserRole) if item else None
         if cid == self.current: return
-        if self.current and not self.apply_card(quiet=True):
+        # Navigation is not an Apply action. Imported games can contain
+        # values that the form normalises for display, so blindly applying
+        # each outgoing card turned browsing into an edit and queued a costly
+        # recovery copy.
+        if self.current and self._card_form_edited and not self.apply_card(quiet=True):
             self.refresh_cards(select_id=self.current)
             return
         self.show_card(cid)
+
+    def _select_clicked_card_row(self, row, _column):
+        """Keep the visible Card List selection in sync with clicked details."""
+        if self._loading or row < 0:
+            return
+        item = self.listing.item(row, 0)
+        cid = item.data(Qt.ItemDataRole.UserRole) if item is not None else None
+        if cid is None:
+            return
+        self.select_card()
+        # Do not override the old card if it could not be left (for example,
+        # an invalid pending edit); select_card has restored that row instead.
+        if self.current == cid:
+            self.listing.selectRow(row)
     def goto_card(self, cid):
         """Show a card whatever the list is filtered to (CardsTab.goto)."""
         self.advanced_card_filters = {"types": set(), "attributes": set(), "bounds": {}}
@@ -641,6 +724,7 @@ class CardsMixin:
                          self.fields["equip_attack"], self.fields["equip_defense"]):
                 part.setVisible(False)
             self._loading = False
+            self._card_form_edited = False
             return
         for widget in self._card_form_widgets():
             widget.setEnabled(True)
@@ -649,18 +733,13 @@ class CardsMixin:
         self.fields["name"].setText(card.name)
         self.fields["type"].setCurrentIndex(self.fields["type"].findData(card.type))
         self._last_type_index = card.type
-        self.fields["attribute"].setCurrentIndex(card.attribute)
+        self.fields["attribute"].setCurrentIndex(self.fields["attribute"].findData(card.attribute))
         self.fields["level"].setValue(card.level)
         self.fields["attack"].setValue(card.attack)
         self.fields["defense"].setValue(card.defense)
-        choices = guardian_stars.choices(self.project.other.get("guardian_stars"))
-        # Keep even undefined imported IDs intact so validation can report them.
-        while len(choices) <= max(card.star1, card.star2):
-            choices.append(str(len(choices)))
-        for key in ("star1", "star2"):
-            self.fields[key].clear()
-            self.fields[key].addItems(choices)
-            self.fields[key].setCurrentIndex(getattr(card, key))
+        # Keep even undefined imported IDs intact so validation can report
+        # them, while preserving current labels from a newly added star.
+        self._populate_star_boxes((card.star1, card.star2))
         threshold = self.project.trap_threshold_override(cid)
         # Anything else written there is the modder's: shown as the default,
         # and left alone unless the box is changed.
@@ -706,6 +785,7 @@ class CardsMixin:
         self.update_text_count()
         self.validation.setText("")
         self._loading = False
+        self._card_form_edited = False
         self._render_preview()
         if self.model_preview_button.isChecked():
             self.model_preview.show_card(self.project, self.files, cid)
@@ -767,7 +847,7 @@ class CardsMixin:
         """The monster's fields for a monster, the effect for the rest
         (tabs.CardsTab.show_kind)."""
         kind = self._current_type_id()
-        monster = gamedata.is_monster_type(kind)
+        monster = is_monster_card_type(self.project, kind)
         combo = self.fields["effect"]
         self._set_monster_fields_enabled(monster)
         # An equip needs none: a monster copied into one is played as an
@@ -978,7 +1058,7 @@ QLabel#referenceValue[changed="true"] { color: #8ab4f8; border-color: #3f6ea8; }
         """Fill it from the disc's card, or from the base of an added one."""
         reference = self.project.retail.cards.get(cid) or self.project.cards[self.project.base_of(cid)]
         self.reference_title.setText("Base card" if added else "Retail card")
-        attributes = ATTRIBUTE_NAMES + ["6 (magic)", "7 (trap)"]
+        attributes = [attribute_name(self.project, index) for index in range(256)]
         stars = guardian_stars.choices(self.project.other.get("guardian_stars"))
         star = lambda n: stars[n] if 0 <= n < len(stars) else str(n)
         shown = {
@@ -1018,6 +1098,7 @@ QLabel#referenceValue[changed="true"] { color: #8ab4f8; border-color: #3f6ea8; }
 
     def _marks_follow(self, *_):
         if not self._loading:
+            self._card_form_edited = True
             self._mark_card_fields()
 
     def _form_value(self, key):
@@ -1099,6 +1180,8 @@ QLabel#referenceValue[changed="true"] { color: #8ab4f8; border-color: #3f6ea8; }
         elif key in ("level", "attack", "defense"):
             self.fields[key].setValue(getattr(reference, "attack" if key == "attack" else
                                               "defense" if key == "defense" else "level"))
+        elif key == "attribute":
+            self.fields[key].setCurrentIndex(self.fields[key].findData(reference.attribute))
         else:
             self.fields[key].setCurrentIndex(getattr(reference, key))
         self._mark_card_fields()
@@ -1113,8 +1196,8 @@ QLabel#referenceValue[changed="true"] { color: #8ab4f8; border-color: #3f6ea8; }
             card = self.project.cards[self.current].copy()
             card.name = self.fields["name"].text()
             card.type = self._current_type_id()
-            monster = gamedata.is_monster_type(card.type)
-            card.attribute = self.fields["attribute"].currentIndex()
+            monster = is_monster_card_type(self.project, card.type)
+            card.attribute = self._current_attribute_id()
             card.level = self.fields["level"].value()
             card.attack = self.fields["attack"].value()
             card.defense = self.fields["defense"].value()
@@ -1144,7 +1227,7 @@ QLabel#referenceValue[changed="true"] { color: #8ab4f8; border-color: #3f6ea8; }
                 self.preview_image.contentsRect().size(), Qt.AspectRatioMode.KeepAspectRatio, interpolation))
             card = preview_project.cards[self.current]
             kind = type_name(preview_project, card.type)
-            attribute = ATTRIBUTE_NAMES[card.attribute] if 0 <= card.attribute < len(ATTRIBUTE_NAMES) else ""
+            attribute = attribute_name(self.project, card.attribute)
         except (IndexError, ValueError, OSError, art.pngio.PngError) as problem:
             self.preview_image.clear()
     def _set_preview_scale(self, scale):
@@ -1344,9 +1427,11 @@ QLabel#referenceValue[changed="true"] { color: #8ab4f8; border-color: #3f6ea8; }
         only_type.setCurrentIndex(max(0, only_type.findData(effect.get("only_type", ""))))
         only_attribute = row(5, "Only attribute", short_popup(QComboBox(dialog)))
         only_attribute.addItem("Any", "")
-        for name in ATTRIBUTE_NAMES:
+        for attribute_id, name in declared_attribute_choices(self.project):
             only_attribute.addItem(name, name)
-        decorate_attribute_items(self, only_attribute, ATTRIBUTE_NAMES)
+            only_attribute.setItemData(only_attribute.count() - 1, attribute_id,
+                                       int(Qt.ItemDataRole.UserRole) + 1)
+        decorate_attribute_items(self, only_attribute)
         only_attribute.setCurrentIndex(max(0, only_attribute.findData(effect.get("only_attribute", ""))))
         points = {}
         for index, key in enumerate(("atk", "def")):
@@ -1450,7 +1535,7 @@ QLabel#referenceValue[changed="true"] { color: #8ab4f8; border-color: #3f6ea8; }
             font = self._retail_font()
             kind = self._current_type_id()
             type_label = type_name(self.project, kind)
-            monster = gamedata.is_monster_type(kind)
+            monster = is_monster_card_type(self.project, kind)
             # The four non-monster symbols follow the twenty monster-type
             # symbols in the same text-icon page. A custom monster type
             # (24-255) has no retail icon code of its own there, so it
@@ -1585,8 +1670,8 @@ QLabel#referenceValue[changed="true"] { color: #8ab4f8; border-color: #3f6ea8; }
         card = self.project.cards[cid].copy()
         card.name = self.fields["name"].text()
         card.type = self._current_type_id()
-        monster = card.type < gamedata.TYPE_MAGIC
-        card.attribute = self.fields["attribute"].currentIndex()
+        monster = is_monster_card_type(self.project, card.type)
+        card.attribute = self._current_attribute_id()
         card.level = self.fields["level"].value()
         card.attack = self.fields["attack"].value()
         card.defense = self.fields["defense"].value()

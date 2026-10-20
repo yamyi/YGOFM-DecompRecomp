@@ -255,8 +255,9 @@ def install() -> None:
     def type_supports_effects(self, cid=None):
         """Whether the selected type can own Monster or Magic/Trap effects."""
         kind = selected_card_type(self, cid)
-        return kind is not None and (kind < gamedata.TYPE_MAGIC or
-                                     kind in (gamedata.TYPE_MAGIC, gamedata.TYPE_TRAP))
+        return kind is not None and (
+            qt_common.is_monster_card_type(self.project, kind)
+            or kind in (gamedata.TYPE_MAGIC, gamedata.TYPE_TRAP))
 
     def uses_card_effects(self, cid=None):
         """Whether the current form is authoring Magic/Trap card effects.
@@ -362,8 +363,14 @@ def install() -> None:
             if "attack" not in result and "defense" not in result:
                 return None
         elif action == "destroy":
-            for key, names in (("type", effects.TYPE_NAMES[:gamedata.TYPE_MAGIC]),
-                               ("attribute", effects.ATTRIBUTE_NAMES)):
+            # These names are saved in the effect rule.  Use the project's
+            # live registries rather than the retail-only constants so a
+            # declared custom type or attribute remains selectable after the
+            # rule is re-opened.
+            for key, names in (("type", [name for _id, name in qt_common.declared_type_choices(
+                                             self.project, monster_only=True)]),
+                               ("attribute", [name for _id, name in qt_common.declared_attribute_choices(
+                                             self.project)])):
                 if effect.get(key) in names:
                     result[key] = effect[key]
         else:
@@ -468,9 +475,11 @@ def install() -> None:
         for box in (only_attribute, each_attribute):
             box.clear()
             box.addItem("Any", None)
-            for name in effects.ATTRIBUTE_NAMES:
+            for attribute_id, name in qt_common.declared_attribute_choices(self.project):
                 box.addItem(name, name)
-            decorate_attribute_items(self, box, effects.ATTRIBUTE_NAMES)
+                box.setItemData(box.count() - 1, attribute_id,
+                                int(Qt.ItemDataRole.UserRole) + 1)
+            decorate_attribute_items(self, box)
         each.clear()
         each.addItem(effects.NO_EACH, None)
         for value, caption in zip(effects.EACH, effects.EACH_LABELS):
@@ -656,6 +665,8 @@ def install() -> None:
         self.name_colour.setItemData(0, None)
         for index in range(1, self.name_colour.count()):
             self.name_colour.setItemData(index, index - 1)
+        self.name_colour.currentIndexChanged.connect(self._marks_follow)
+        self.card_notes.textChanged.connect(self._marks_follow)
         field_icons(self)
 
     def update_effects_tab(self):
@@ -686,9 +697,9 @@ def install() -> None:
         # save instead of labelling a Magic card as a Trap.
         card = self.project.cards.get(cid) if self.project else None
         update_effects_tab(self)
-        if card is not None and not gamedata.is_monster_type(card.type):
-            self.attribute_box.setCurrentIndex(
-                7 if card.type == gamedata.TYPE_TRAP else 6)
+        if card is not None and not qt_common.is_monster_card_type(self.project, card.type):
+            attribute_id = 7 if card.type == gamedata.TYPE_TRAP else 6
+            self.attribute_box.setCurrentIndex(self.attribute_box.findData(attribute_id))
         if hasattr(self, "card_notes"):
             self.card_notes.setPlainText(self.project.notes.get(cid, "") if cid else "")
         if hasattr(self, "name_colour"):
@@ -728,6 +739,10 @@ def install() -> None:
             self.base_card_info.setText(
                 f"Copy of {self.project.card_label(copy.base)};\n identity {self.project.identity(cid)}")
         field_icons(self)
+        # This wrapper fills compatibility controls after the base Cards form
+        # has finished loading. Their signals are real user-edit signals, so
+        # make the completed programmatic fill the new clean baseline.
+        self._card_form_edited = False
 
     def card_name_colour(self, cid):
         """The effective own-mod name ramp for one card, or the retail ramp."""
@@ -879,7 +894,8 @@ def install() -> None:
             image = cached[1].render(
                 kind, self.star1_box.currentIndex(), self.star2_box.currentIndex(), self.description.toPlainText(),
                 scale=2, star_names=star_names, type_name=qt_common.type_name(self.project, kind),
-                type_icon=declared_type_picture(self, kind), monster=gamedata.is_monster_type(kind))
+                type_icon=declared_type_picture(self, kind),
+                monster=qt_common.is_monster_card_type(self.project, kind))
             label.setText("")
             label.setPixmap(QPixmap.fromImage(_qimage(image.width, image.height, image.rgba)))
         except (IndexError, KeyError, OSError, ValueError, struct.error, pngio.PngError) as problem:
@@ -1060,9 +1076,11 @@ def install() -> None:
         decorate_type_items(self, type_box)
         attribute = line(5, "Only attribute", QComboBox(dialog))
         attribute.addItem("Any", None)
-        for name in effects.ATTRIBUTE_NAMES:
+        for attribute_id, name in qt_common.declared_attribute_choices(self.project):
             attribute.addItem(name, name)
-        decorate_attribute_items(self, attribute, effects.ATTRIBUTE_NAMES)
+            attribute.setItemData(attribute.count() - 1, attribute_id,
+                                  int(Qt.ItemDataRole.UserRole) + 1)
+        decorate_attribute_items(self, attribute)
         attack = line(6, "ATK", QSpinBox(dialog))
         defense = line(7, "DEF", QSpinBox(dialog))
         amount = line(8, "LP", QSpinBox(dialog))
