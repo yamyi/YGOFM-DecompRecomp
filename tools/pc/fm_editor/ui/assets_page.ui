@@ -332,6 +332,25 @@
             </layout>
            </item>
            <item>
+            <widget class="QGroupBox" name="titleStartupGroup">
+             <property name="title">
+              <string>Start-up</string>
+             </property>
+             <layout class="QVBoxLayout" name="titleStartupLayout">
+              <item>
+               <widget class="QCheckBox" name="titleSkipIntroCheck">
+                <property name="toolTip">
+                 <string>Go directly to the title screen instead of playing the intro movie.</string>
+                </property>
+                <property name="text">
+                 <string>Skip the intro movie</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
             <widget class="QStackedWidget" name="titlePropertiesStack">
              <property name="currentIndex">
               <number>0</number>

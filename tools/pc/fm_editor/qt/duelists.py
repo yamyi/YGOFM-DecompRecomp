@@ -660,7 +660,7 @@ QPushButton#ruleDrop:hover { color: #ffffff; }
         note_column = QVBoxLayout(note)
         note_column.setContentsMargins(12, 10, 12, 10)
         note_column.setSpacing(4)
-        note_title = QLabel("Any of them, or all of them")
+        note_title = QLabel("All of them")
         note_title.setObjectName("noteTitle")
         note_body = QLabel("Every condition that is on must hold. With none on, the duelist is there "
                            "from the start.")

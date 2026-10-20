@@ -1821,6 +1821,7 @@ def _wire_ui_tabs(editor, shell, controls):
     for key, name in {
         "title_tree": "titleElementsTree", "title_stack": "titlePropertiesStack",
         "title_preview": "titlePreviewCanvas", "title_menu_up": "titleWithMenuCheck",
+        "title_skip_intro": "titleSkipIntroCheck",
         "title_x": "titleXSpin", "title_y": "titleYSpin", "title_tint": "titleTintEdit",
         "title_show": "titleShownCombo", "title_image": "titleImagePathEdit", "title_hidden": "titleHiddenCheck",
         "title_bg_color": "titleBackgroundColorEdit", "title_bg_picture": "titleBackgroundPictureCheck",
@@ -1860,6 +1861,7 @@ def _wire_ui_tabs(editor, shell, controls):
 
     c["title_tree"].currentItemChanged.connect(lambda item, _: _title_select(editor, item))
     c["title_menu_up"].toggled.connect(lambda _: _draw_title(editor))
+    c["title_skip_intro"].toggled.connect(lambda _: _title_startup_changed(editor))
     for widget in (c["title_x"], c["title_y"]): widget.valueChanged.connect(lambda _: _title_generic_changed(editor))
     c["title_tint"].editingFinished.connect(lambda: _title_generic_changed(editor))
     c["title_show"].currentIndexChanged.connect(lambda _: _title_generic_changed(editor))
@@ -1962,6 +1964,7 @@ def _refresh_title(editor):
     from PySide6.QtWidgets import QTreeWidgetItem
     c, tree = editor.workspace_controls["UI"], editor.workspace_controls["UI"]["title_tree"]
     title, selected = _ui_section(editor, "title"), c.get("title_selected", "background")
+    _set_value(c["title_skip_intro"], title.get("skip_intro") is True)
     valid = {"background", *(f"layer:{name}" for name in ("logo", "copyright", "prompt"))}
     images = title.get("images") if isinstance(title.get("images"), list) else []
     lines = title.get("text") if isinstance(title.get("text"), list) else []
@@ -2276,6 +2279,17 @@ def _title_generic_changed(editor):
     target = _title_target(editor, True)
     _put(target, "x", c["title_x"].value(), 160 if c["title_selected"].startswith("picture:") else 0); _put(target, "y", c["title_y"].value(), 120 if c["title_selected"].startswith("picture:") else 0)
     _put(target, "tint", _colour(c["title_tint"].text()), "#FFFFFF"); _put(target, "show", c["title_show"].currentData(), "always"); _put(target, "hide", c["title_hidden"].isChecked(), False); _commit_ui(editor)
+
+
+def _title_startup_changed(editor):
+    c = editor.workspace_controls["UI"]
+    if c.get("ui_loading"):
+        return
+    title = _ui_section(editor, "title", True)
+    _put(title, "skip_intro", c["title_skip_intro"].isChecked(), False)
+    if not title:
+        editor.project.other.pop("title", None)
+    _commit_ui(editor)
 
 
 def _title_background_changed(editor):

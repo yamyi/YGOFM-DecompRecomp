@@ -582,6 +582,27 @@ class CardsTest(unittest.TestCase):
         self.assertIn('title', w.project.other)
         w.hide()
 
+    def test_title_skip_intro_is_exposed_and_round_trips(self):
+        """The Title screen exposes the original editor's intro switch."""
+        from PySide6.QtWidgets import QCheckBox
+
+        w = self.window
+        w.select_workspace('UI')
+        toggle = w.workspace_controls['UI']['title_skip_intro']
+        self.assertIsInstance(toggle, QCheckBox)
+        self.assertFalse(toggle.isChecked())
+
+        toggle.setChecked(True)
+        self.assertTrue(w.project.other['title']['skip_intro'])
+
+        with tempfile.TemporaryDirectory() as folder:
+            manifest.save_mod(w.project, Path(folder))
+            reopened, _messages = manifest.open_mod(w.retail, Path(folder))
+        self.assertTrue(reopened.other['title']['skip_intro'])
+
+        toggle.setChecked(False)
+        self.assertNotIn('skip_intro', w.project.other.get('title', {}))
+
     def test_frame_style_edits_and_assignments_round_trip(self):
         """Frames is a Designer-backed editor for card_layout.frame_styles,
         including normal placement edits and the global fallback assignment."""
