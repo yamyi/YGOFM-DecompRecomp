@@ -1,7 +1,0 @@
-; H: file offset 0x2407c, 8 bytes, RAM 0x8003387c
-; PATCHED:
-8003387c:	08076c10 	j	0x801db040
-80033880:	24060000 	li	a2,0
-; STOCK:
-8003387c:	0c00ffb8 	jal	0x8003fee0
-80033880:	24040007 	li	a0,7

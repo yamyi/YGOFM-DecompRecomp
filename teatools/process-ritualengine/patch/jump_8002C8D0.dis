@@ -1,4 +1,0 @@
-; jump_8002C8D0  RAM 0x8002c8d0  8 bytes  -- SLUS file 0X1D0D0, inside Duel_FindRitualRecipe (table801a7ad8_recipe_lookup)
-; PATCHED
-8002c8d0:	0805e6d2 	j	0x80179b48
-8002c8d4:	258c000a 	addiu	t4,t4,10

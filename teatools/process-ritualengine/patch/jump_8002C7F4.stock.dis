@@ -1,4 +1,0 @@
-; jump_8002C7F4  RAM 0x8002c7f4  8 bytes  -- SLUS file 0X1CFF4, inside Duel_FindRitualRecipe (table801a7ad8_recipe_lookup)
-; STOCK
-8002c7f4:	95820000 	lhu	v0,0(t4)
-8002c7f8:	00000000 	nop

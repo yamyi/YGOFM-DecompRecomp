@@ -1,4 +1,0 @@
-; v1_800293FC  RAM 0x800293fc  8 bytes  -- SLUS file 0x19BFC -- v1 hook in init_container_entry_objs
-; PATCHED
-800293fc:	08076b78 	j	0x801dade0
-80029400:	2493ffff 	addiu	s3,a0,-1

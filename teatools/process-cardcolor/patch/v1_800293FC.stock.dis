@@ -1,4 +1,0 @@
-; v1_800293FC  RAM 0x800293fc  8 bytes  -- SLUS file 0x19BFC -- v1 hook in init_container_entry_objs
-; STOCK
-800293fc:	24130100 	li	s3,256
-80029400:	00008021 	move	s0,zero

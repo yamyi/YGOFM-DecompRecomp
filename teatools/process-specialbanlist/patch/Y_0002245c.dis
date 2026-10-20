@@ -1,7 +1,0 @@
-; Y: file offset 0x2245c, 8 bytes, RAM 0x80031c5c
-; PATCHED:
-80031c5c:	08004960 	j	0x80012580
-80031c60:	3c028009 	lui	v0,0x8009
-; STOCK:
-80031c5c:	0c00d5fa 	jal	0x800357e8
-80031c60:	a6020004 	sh	v0,4(s0)

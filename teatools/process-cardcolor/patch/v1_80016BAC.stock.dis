@@ -1,3 +1,0 @@
-; v1_80016BAC  RAM 0x80016bac  4 bytes  -- SLUS file 0x73AC -- v1 hook in func_80016784
-; STOCK
-80016bac:	2463fff8 	addiu	v1,v1,-8

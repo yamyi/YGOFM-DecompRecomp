@@ -1,7 +1,0 @@
-; patch: file offset 0x28d68, 8 bytes, RAM 0x80038568
-; PATCHED:
-80038568:	08004754 	j	0x80011d50
-8003856c:	00000000 	nop
-; STOCK:
-80038568:	3c01800a 	lui	at,0x800a
-8003856c:	a025b361 	sb	a1,-19615(at)

@@ -1,4 +1,0 @@
-; v2_8002940C  RAM 0x8002940c  8 bytes  -- SLUS file 0x19C0C -- hook at .L8002940C in init_container_entry_objs (big card)
-; PATCHED
-8002940c:	080048b0 	j	0x800122c0
-80029410:	2493ffff 	addiu	s3,a0,-1
