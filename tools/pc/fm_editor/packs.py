@@ -1247,7 +1247,12 @@ def pack_id(entry) -> str:
 
 def serif_path():
     """The face the game sets a pack's (and a card's) name plate in
-    (art.c serif_file): Times, or what the system has for it."""
+    (art.c serif_file): Times, or what the system has for it.
+
+    The editor's shared plate renderer reads TrueType outlines.  Fontconfig
+    can select a CFF Times substitute, so take a compatible serif fallback
+    when one is available.
+    """
     import os
     import shutil
     import subprocess
@@ -1260,10 +1265,16 @@ def serif_path():
     match = shutil.which("fc-match")
     if match:
         try:
-            path = subprocess.run([match, "-f", "%{file}", "Times:regular"], capture_output=True, text=True,
-                                  timeout=5).stdout.strip()
-            if path and os.path.exists(path):
-                return path
+            fallback = None
+            for family in ("Times:regular", "Liberation Serif:regular", "DejaVu Serif:regular"):
+                path = subprocess.run([match, "-f", "%{file}", family], capture_output=True, text=True,
+                                      timeout=5).stdout.strip()
+                if not path or not os.path.exists(path):
+                    continue
+                if path.lower().endswith((".ttf", ".ttc")):
+                    return path
+                fallback = fallback or path
+            return fallback
         except (OSError, subprocess.SubprocessError):
             pass
     return None

@@ -150,6 +150,7 @@ def native_sources(target, backend="sdl"):
         raise ValueError("Unsupported PC backend: " + str(backend))
 
     patterns = [
+        "campaign/*.c",
         "guest/*.c",
         "sdk/*.c",
         "platform/*.c",

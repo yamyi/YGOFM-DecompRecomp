@@ -10,6 +10,9 @@
 #include "campaign_scene_package.h"
 #include "../unmatched.h"
 #include "main_mode_state.h"
+#ifdef MEMORIES_PC
+#include "pc/campaign/scenes.h"
+#endif
 
 void Main_RunCampaign(void) {
     u8 flags = D_8009B26C;
@@ -17,12 +20,18 @@ void Main_RunCampaign(void) {
     if ((flags & 0x40) == 0) {
         D_8009B26C = flags | 0x40;
         Campaign_LoadScenePackage(gCampaignSceneIndex);
+#ifdef MEMORIES_PC
+        StoryGame_Start(gCampaignSceneIndex);
+#endif
         gDuel_bEffectState = 0;
         return;
     }
 
     SceneScript_UpdateSlots(D_800EAE98);
-    Script_RunTick();
+#ifdef MEMORIES_PC
+    if (!StoryGame_Tick())
+#endif
+        Script_RunTick();
     if (D_8009B26C & 0x40)
         return;
     SD_BGMFadeOut();

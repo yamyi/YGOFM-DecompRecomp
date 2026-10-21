@@ -47,6 +47,10 @@ if(MEMORIES_SANITIZERS)
 endif()
 
 if(BUILD_TESTING)
+    add_executable(memories_campaign_scenes_test tests/pc/campaign_scenes_test.c
+        src/pc/campaign/scenes.c src/pc/mods/json.c)
+    target_include_directories(memories_campaign_scenes_test PRIVATE src)
+    add_test(NAME pc_campaign_scenes COMMAND memories_campaign_scenes_test)
     add_executable(memories_game_files_test tests/pc/game_files_test.c src/pc/platform/game_files.c)
     target_include_directories(memories_game_files_test PRIVATE src tests/pc)
     if(NOT MSVC)

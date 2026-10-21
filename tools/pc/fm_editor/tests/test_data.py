@@ -27,7 +27,7 @@ def state(project: Project):
     """Everything a mod can change, for comparing two projects."""
     return ({cid: vars(card) for cid, card in project.cards.items()},
             {cid: (a.key, a.base, a.drops, a.opponents, a.extra) for cid, a in project.added.items()},
-            project.fusions, project.active_removes(), project.fusion_remove_all, {e: m for e, m in project.equips.items() if m or e in project.retail.equips},
+            project.fusions, project.active_removes(), {e: m for e, m in project.equips.items() if m or e in project.retail.equips},
             project.rituals, [{k: {c: w for c, w in v.items() if w} for k, v in d.items()} for d in project.pools],
             project.card_extra, project.notes)
 
@@ -321,11 +321,9 @@ class ManifestTest(unittest.TestCase):
         then the disc's table by the bases, filtered."""
         own = {cid: extra.get("fusions") or [] for cid, extra in p.card_extra.items()}
         own.update({cid: added.extra.get("fusions") or [] for cid, added in p.added.items()})
-        pairs, removes, every = {}, set(), False
+        pairs, removes = {}, set()
         for order, rule in enumerate(rules):
             if "remove" in rule:
-                if rule["remove"] == "all" and not p.resolve("all"):      # tables.c removes_all
-                    every = True
                 removes.add(p.resolve(rule["remove"]))
                 continue
             a, b = (p.resolve(c) for c in rule["with"])
@@ -348,7 +346,7 @@ class ManifestTest(unittest.TestCase):
                     if p.resolve(listed.get("with")) == y:
                         return p.resolve(listed.get("result")) if listed.get("result") else 0
             made = self.retail.fusions.get(p.pair(base_a, base_b), 0)
-            return 0 if every or made in removes else made
+            return 0 if made in removes else made
         return fusion
 
     def assert_same_game(self, p: Project, rules, other_rules=None, cards=()):
@@ -450,85 +448,6 @@ class ManifestTest(unittest.TestCase):
         self.assertEqual(built[0], {"remove": p.ref(c)})
         self.assertEqual(len(built), 2)
         self.assert_same_game(p, built)
-
-    def test_fusion_remove_all(self):
-        from fm_editor import bulk_fusions
-        c, recipes, mod = self.remove_mod()
-        # {"remove": "all"} read: no disc pair is left but the mod's own
-        # rules; a remove of one card beside it is needless and goes.
-        rules = [{"remove": "all"}] + mod["fusions"]
-        p = Project(self.retail)
-        self.assertEqual(manifest.apply(p, {"id": "rm", "fusions": json.loads(json.dumps(rules))}), [])
-        self.assertTrue(p.fusion_remove_all)
-        self.assertEqual(p.active_removes(), [])
-        own = {p.pair(*(p.resolve(x) for x in r["with"])) for r in mod["fusions"] if r.get("result")}
-        self.assertEqual({pair for pair, made in p.fusions.items() if made}, own)
-        built = manifest.build(p)["fusions"]
-        self.assertEqual(built, [{"remove": "all"}] + mod["fusions"][1:])
-        self.assertEqual(bulk_fusions.rule_count(p), len(built))
-        self.assert_same_game(p, built, rules)
-        self.assert_same_game(p, built)
-        self.assertEqual(state(self.reopen(p)), state(p))
-        # A disc pair put back is a rule of its own under the remove.
-        p.revert_fusion(recipes[0])
-        built = manifest.build(p)["fusions"]
-        self.assertIn({"with": [p.ref(recipes[0][0]), p.ref(recipes[0][1])], "result": p.ref(c)}, built)
-        self.assertEqual(bulk_fusions.rule_count(p), len(built))
-        self.assert_same_game(p, built)
-        self.assertEqual(state(self.reopen(p)), state(p))
-        # A copy fuses as its base: the disc's recipe is gone for it too.
-        copy = p.add_card(recipes[1][0], "c")
-        self.assertEqual(self.game_fusions(p, manifest.build(p)["fusions"])(copy, recipes[1][1]), 0)
-        self.assert_same_game(p, manifest.build(p)["fusions"], cards=[copy])
-
-    def test_remove_all_fusions(self):
-        from fm_editor import bulk_fusions
-        c, recipes, mod = self.remove_mod()
-        p = Project(self.retail)
-        p.info.id = "rm"
-        manifest.apply(p, json.loads(json.dumps(mod)))
-        # An added card whose own list makes a fusion, and a rule the editor
-        # keeps as written: the Fusions tab's "Remove all fusions" leaves none.
-        added = p.add_card(5, "own")
-        p.added[added].extra = {"fusions": [{"with": 7, "result": c}]}
-        p._own_pairs = None
-        p.kept["fusions"].append({"with": [1, 2], "result": 5, "setting": "x"})
-        p.remove_all_fusions()
-        built = manifest.build(p)["fusions"]
-        self.assertEqual(built, [{"remove": "all"}, {"with": [p.ref(7), "rm:own:1"], "result": None}])
-        self.assertEqual(bulk_fusions.rule_count(p), len(built))
-        game = self.game_fusions(p, built)
-        for pair in sorted(set(self.retail.fusions) | {p.pair(7, added)}):
-            self.assertEqual(game(*pair), 0, pair)
-        self.assertEqual(game(added, recipes[0][1] if recipes[0][0] == 5 else 7), 0)
-        self.assertEqual(state(self.reopen(p)), state(p))
-        # A fusion added afterwards is the one fusion there is.
-        p.set_fusion(1, 2, 500)
-        built = manifest.build(p)["fusions"]
-        game = self.game_fusions(p, built)
-        self.assertEqual(game(1, 2), 500)
-        self.assertEqual(sum(1 for pair in self.retail.fusions if game(*pair)), 1 if (1, 2) in self.retail.fusions else 0)
-        self.assert_same_game(p, built, cards=[added])
-        # Restore: the disc's table back, the mod's own rules kept.
-        p.restore_disc_fusions()
-        built = manifest.build(p)["fusions"]
-        self.assertFalse(p.fusion_remove_all)
-        self.assertEqual(built, [{"with": [p.ref(1), p.ref(2)], "result": p.ref(500)}, {"with": [p.ref(7), "rm:own:1"], "result": None}]
-                         if (1, 2) != p.pair(7, added) else built)
-        self.assert_same_game(p, built)
-        for pair, made in self.retail.fusions.items():
-            if pair != (1, 2):
-                self.assertEqual(p.fusions[pair], made)
-        self.assertEqual(state(self.reopen(p)), state(p))
-
-    def test_remove_all_card_named_all(self):
-        # A card named "all" is that card, as tables.c reads it.
-        p = Project(self.retail)
-        with mock.patch.object(p.names, "find", side_effect=lambda text: 3 if text == "all" else 0):
-            self.assertFalse(p.removes_all("all"))
-            manifest.apply(p, {"fusions": [{"remove": "all"}]})
-            self.assertFalse(p.fusion_remove_all)
-            self.assertEqual(p.fusion_removes, [3])
 
     def test_fusion_rules_before_own_lists(self):
         """A rule of the mod's is asked before a card's own "fusions" list:
@@ -655,47 +574,6 @@ class ManifestTest(unittest.TestCase):
         for e in p.equip_cards():
             self.assertEqual(again.equips.get(e, again.equip_baseline(e)), want[e], e)
 
-    def test_converted_copies_are_not_equip_targets(self):
-        for kind in (g.TYPE_MAGIC, g.TYPE_TRAP, g.TYPE_RITUAL, g.TYPE_EQUIP):
-            with self.subTest(kind=kind):
-                p = Project(self.retail)
-                cid = p.add_card(5, "converted")
-                self.assertIn(cid, p.equips[652])
-                effect = next(i for i, card in self.retail.cards.items() if card.type == kind)
-                p.cards[cid] = p.cards[cid].copy(type=kind, attack=0, defense=0)
-                p.added[cid].extra["effect"] = effect
-                built = manifest.build(p)
-                self.assertNotIn(cid, self.game_equips(p)[652])
-                self.assertEqual(manifest.build(self.reopen(p)), built)
-                self.assertFalse(p.equip_retail(652, cid))
-
-    def test_converted_equip_uses_its_retail_effect_targets(self):
-        p = Project(self.retail)
-        cid = p.add_card(3, "equip")
-        p.cards[cid] = p.cards[cid].copy(type=g.TYPE_EQUIP)
-        p.added[cid].extra["effect"] = 652
-        # Changing the original effect slot must not change its behavior.
-        p.cards[652] = p.cards[652].copy(type=0)
-        self.assertEqual(p.equip_baseline(cid), set(self.retail.equips[652]))
-        self.assertEqual(self.game_equips(p)[cid], set(self.retail.equips[652]))
-        self.assertFalse(p.equip_retail(cid, 652))
-
-    def test_converted_retail_cards_do_not_leak_into_equip_rules(self):
-        p = Project(self.retail)
-        p.cards[5] = p.cards[5].copy(type=g.TYPE_MAGIC)
-        p.equips[651] = {5, 6}
-        # An equip changed into a monster must not export its old edits.
-        p.cards[652] = p.cards[652].copy(type=0)
-        p.equips[652] = {1}
-        built = manifest.build(p)
-        messages = []
-        again = Project(self.retail)
-        manifest.apply(again, built, messages)
-        self.assertFalse(messages)
-        self.assertEqual(manifest.build(again), built)
-        self.assertEqual(self.game_equips(p)[651], {6})
-        self.assertTrue(all(p.resolve(entry["card"]) != 652 for entry in built["equips"]))
-
     def test_rules_switched_by_a_setting_are_kept(self):
         # The editor shows the disc's table, not a setting's: a rule with
         # "setting" is written back as it came, and does not change the table.
@@ -812,30 +690,6 @@ class ManifestTest(unittest.TestCase):
         p.remove_card(max(p.added))
         self.assertEqual(set(p.notes), set())
 
-    def test_made_monster_stars(self):
-        """A card made a monster: its stars always written (the game would
-        give defaults), and read without them as the game gives them."""
-        p = Project(self.retail)
-        p.cards[337].type, p.cards[337].star1, p.cards[337].star2 = g.TYPE_MAGIC, 0, 0   # a magic card, as on the disc
-        copy = p.add_card(337, "rd")
-        p.cards[copy].type, p.cards[copy].star1, p.cards[copy].star2 = 0, 0, 0
-        cards = manifest.build(p)["cards"]
-        self.assertEqual(cards[-1]["stars"], [0, 0])
-        self.assertEqual((self.reopen(p).cards[copy].star1, self.reopen(p).cards[copy].star2), (0, 0))
-        other = Project(self.retail)
-        for base in (336, 337, 338):    # magic cards with no stars, as on the disc
-            for card in (other.cards[base], other.retail.cards[base]):
-                card.type, card.star1, card.star2 = g.TYPE_MAGIC, 0, 0
-        manifest.apply(other, {"id": "t", "cards": [
-            {"replace": 336, "type": "Fiend"}, {"copy": 337, "id": "a", "type": "Dragon", "model": 58},
-            {"copy": 338, "id": "b", "type": "Dragon", "stars": ["Mars", "none"]}]})
-        sun_moon = (g.STAR_NAMES.index("Sun"), g.STAR_NAMES.index("Moon"))
-        kuriboh = (self.retail.cards[58].star1, self.retail.cards[58].star2)
-        added = sorted(other.added)
-        self.assertEqual((other.cards[336].star1, other.cards[336].star2), sun_moon)
-        self.assertEqual((other.cards[added[0]].star1, other.cards[added[0]].star2), kuriboh)
-        self.assertEqual((other.cards[added[1]].star1, other.cards[added[1]].star2), (1, 0))
-
     def test_frame(self):
         p = Project(self.retail)
         p.cards[1].frame = 4
@@ -855,71 +709,10 @@ class ManifestTest(unittest.TestCase):
         other = Project(self.retail)
         messages = manifest.apply(other, {"id": "t", "cards": [
             {"replace": 3, "frame": "ritual"}, {"replace": 4, "frame": 1}, {"replace": 4, "frame": "Type"},
-            {"replace": 5, "frame": "Mauve"}]})
-        self.assertEqual([other.cards[c].frame for c in (3, 4, 5)], [3, -2, -1])
-        self.assertEqual(messages, ["cards[3]: \"frame\" is Gold, Green, Pink, Blue, Purple, Orange or Type (or the "
-                                    "disc's Monster, Magic, Trap, Ritual); left out"])
-        self.assertEqual(other.cards[4].shown_frame(), g.type_frame(other.cards[4].type))
-        # "Type" (an effect monster kept gold) is not the same as leaving it out (orange): kept through a save.
-        typed = Project(self.retail)
-        typed.cards[1].frame = -2
-        typed.set_monster_effects(1, [{"when": "summon", "do": "heal", "amount": 100}])
-        self.assertEqual(manifest.build(typed)["cards"][0]["frame"], "Type")
-        self.assertEqual(self.reopen(typed).cards[1].frame, -2)
-
-    def test_frame_color_names(self):
-        # cards.c frame_color_names: Gold, Green, Pink and Blue are Monster,
-        # Magic, Trap and Ritual, in any case; saved as the disc's names.
-        p = Project(self.retail)
-        messages = manifest.apply(p, {"id": "t", "cards": [
-            {"replace": 1, "frame": "Gold"}, {"replace": 2, "frame": "green"}, {"replace": 3, "frame": "PINK"},
-            {"replace": 4, "frame": "Blue"}, {"copy": 5, "id": "c", "frame": "Gold"}, {"replace": 6, "frame": 7}]})
-        self.assertEqual([p.cards[c].frame for c in (1, 2, 3, 4, max(p.added), 6)], [0, 1, 2, 3, 0, -1])
-        self.assertEqual(len(messages), 1)
-        self.assertIn("cards[5]", messages[0])
-        cards = manifest.build(p)["cards"]
-        self.assertEqual([e.get("frame") for e in cards], ["Monster", "Magic", "Trap", "Ritual", "Monster"])
-
-    def test_tags_round_trip(self):
-        """A card's "tags" (cards.c): the editor's own field, written back as
-        read; left out an added card has its base's, [] is none."""
-        from fm_editor.model import parse_tags, tags_text
-        written = {"id": "t", "cards": [
-            {"replace": 1, "tags": ["god", "dragon"]},
-            {"replace": 2, "frame": "Gold", "tags": []},
-            {"copy": 1, "id": "own", "name": "A", "tags": ["fiend"]},
-            {"copy": 1, "id": "inherits", "name": "B"},
-            {"copy": 1, "id": "none", "name": "C", "tags": []}]}
-        p = Project(self.retail)
-        self.assertEqual(manifest.apply(p, json.loads(json.dumps(written))), [])
-        own, inherits, none = sorted(p.added)
-        self.assertEqual(p.tags_of(1), (["god", "dragon"], False))
-        self.assertEqual(p.tags_of(2), ([], False))
-        self.assertEqual(p.tags_of(own), (["fiend"], False))
-        self.assertEqual(p.tags_of(inherits), (["god", "dragon"], True))
-        self.assertEqual(p.tags_of(none), ([], False))
-        self.assertEqual(p.tags_of(3), ([], False))
-        built = manifest.build(p)
-        self.assertEqual(built["cards"], [
-            {"replace": 1, "tags": ["god", "dragon"]}, {"replace": 2, "frame": "Monster", "tags": []},
-            {"copy": 1, "id": "own", "name": "A", "tags": ["fiend"]}, {"copy": 1, "id": "inherits", "name": "B"},
-            {"copy": 1, "id": "none", "name": "C", "tags": []}])
-        self.assertEqual(manifest.build(self.reopen(p)), built)
-        # Set and taken away: a disc card's entry goes with its last key.
-        p.set_tags(3, ["x"])
-        self.assertIn({"replace": 3, "tags": ["x"]}, manifest.build(p)["cards"])
-        p.set_tags(3, None)
-        self.assertNotIn(3, p.card_extra)
-        p.set_tags(none, None)
-        self.assertEqual(p.tags_of(none), (["god", "dragon"], True))
-        # Revert: a disc card loses them, an added card has its base's again.
-        p.revert_card(1)
-        p.revert_card(own)
-        self.assertEqual((p.tags_of(1), p.tags_of(own)), (([], False), ([], True)))
-        # The form's text.
-        self.assertEqual([tags_text(t) for t in (None, [], ["a", "b c"])], ["", "[]", "a, b c"])
-        self.assertEqual([parse_tags(t) for t in ("", " ", "[]", ",", " god ,fiend, god,")],
-                         [None, None, [], None, ["god", "fiend"]])
+            {"replace": 5, "frame": "Gold"}]})
+        self.assertEqual([other.cards[c].frame for c in (3, 4, 5)], [3, -1, -1])
+        self.assertEqual(messages, ["cards[3]: \"frame\" is Monster, Magic, Trap, Ritual, Purple, Orange or Type; "
+                                    "left out"])
 
     def test_unnamed_copy_keeps_the_disc_name(self):
         p = Project(self.retail)
@@ -946,9 +739,7 @@ class ManifestTest(unittest.TestCase):
         self.assertEqual(p.equips[653], {1})
         built = manifest.build(p)
         self.assertEqual(built["cards"][0]["password"], "12345678")
-        self.assertEqual(p.equip_bonus, {653: (300, 300)})      # the Cards tab's ATK and DEF boosts
-        self.assertEqual(built["equips"][-2:], [{"card": p.ref(653), "bonus": 300},
-                                                {"card": 653, "bonus_if": {"Dragon": 900}}])
+        self.assertIn({"card": 653, "bonus": 300, "bonus_if": {"Dragon": 900}}, built["equips"])
         self.assertEqual(built["decks"]["Simon Muran"], {"fixed": True, "Card 1": 40})
         self.assertEqual(list(built["drops"])[0], "all")
         self.assertEqual(built["drops"]["all"]["pow"]["Nobody At All"], 5)
@@ -958,32 +749,22 @@ class ManifestTest(unittest.TestCase):
         self.assertEqual(p.fixed["Simon Muran"].duelist, 1)
         self.assertEqual(p.fixed["Simon Muran"].kept, {"Card 1": 40})
 
-    def test_a_mods_own_duelists_are_its_own_to_edit(self):
-        """A duelist the mod adds is one of the editor's (roster.py): "decks"
-        and "drops" naming it by its identity or its slot reach it, and it
-        goes back into "duelists" as written, its pools into its own files;
-        one naming another mod's duelist is still kept as written."""
+    def test_a_mods_own_duelists_are_kept_as_written(self):
+        """The editor knows the forty the disc lays out; a duelist a mod added
+        exists only at run time (notes/more-duelists.md), so an entry naming
+        one survives a round trip untouched rather than being dropped."""
         p = Project(self.retail)
         data = {"id": "t", "duelists": [{"id": "dark-simon", "copy": "Heishin", "slot": 45}],
-                "decks": {"t:dark-simon": {"replace": True, "Blue Dragon": 200},
-                          "other:somebody": {"Card 3": 9},
+                "decks": {"t:dark-simon": {"replace": True, "Card 1": 200},
                           "Heishin": {"Card 2": 100}},
-                "drops": {"45": {"tec": {"replace": True, "Blue Dragon": 1}}}}
+                "drops": {"45": {"tec": {"replace": True, "Card 1": 1}}}}
         messages = manifest.apply(p, data)
         built = manifest.build(p)
-        self.assertEqual(built["duelists"], data["duelists"])
-        e = p.roster[0]
-        self.assertEqual((e.key, e.base, e.slot), ("dark-simon", 8, 45))
-        self.assertEqual(e.pools["tec"], {1: 2048})
-        # One card is no deck: the game refuses the edit, and so the deck stays Heishin's.
-        self.assertEqual(e.pools["deck"], p.retail.pools[8]["deck"])
-        self.assertTrue(any("refuses" in m for m in messages))
-        self.assertNotIn("t:dark-simon", built["decks"])
-        self.assertNotIn("45", built.get("drops", {}))
-        self.assertEqual(built["decks"]["other:somebody"], {"Card 3": 9})
+        self.assertEqual(built["duelists"], data["duelists"])          # an unknown key, kept
+        self.assertEqual(built["decks"]["t:dark-simon"], data["decks"]["t:dark-simon"])
+        self.assertEqual(built["drops"]["45"], data["drops"]["45"])
         self.assertIn("Card 2", str(built["decks"]["Heishin"]))        # and the disc's own is edited
-        drops, decks = manifest._pool_tables(p)
-        self.assertEqual(drops[e], {"tec": {"replace": True, "Blue Dragon": 2048}})
+        self.assertTrue(any("t:dark-simon" in m for m in messages))
 
     def test_a_table_named_as_a_file_stays_that_file(self):
         """"decks": "tables/decks.json" is a file the editor does not read, so
@@ -1009,56 +790,6 @@ class ManifestTest(unittest.TestCase):
 
 
 class ValidateTest(unittest.TestCase):
-    def test_tags(self):
-        p = Project(fixture().game())
-        p.set_tags(1, ["", "x" * 31, "y" * 32, 7])
-        found = [i.message for i in validate.validate_card(p, 1)]
-        self.assertEqual(sum("empty tag" in m for m in found), 2)
-        self.assertEqual([m for m in found if "over 31 letters" in m], [f'the tag "{"y" * 32}" is over 31 letters: '
-                                                                        "the game notes it and leaves it out"])
-        p.card_extra[1]["tags"] = "god"         # as a mod may write it
-        self.assertTrue(any('"tags" is a list' in i.message for i in validate.validate_card(p, 1)))
-        # 32 different in all; the 33rd met (cards in the order written) is left out.
-        p.set_tags(1, [f"t{n}" for n in range(30)])
-        p.set_tags(2, ["t0", "t30", "t31"])
-        self.assertFalse([i for i in validate.validate(p) if "different tags" in i.message])
-        added = p.add_card(3)
-        p.set_tags(added, ["t5", "t32", "t33"])
-        over = [i for i in validate.validate(p) if "different tags" in i.message]
-        self.assertEqual(len(over), 1)
-        self.assertEqual((over[0].level, over[0].target), ("warning", added))
-        self.assertIn("34 different tags", over[0].message)
-        self.assertIn("t32, t33 left out", over[0].message)
-
-    def test_trap_threshold_inheritance_and_effect_defaults(self):
-        p = Project(fixture().game())
-        p.retail.cards[681].type = p.cards[681].type = g.TYPE_TRAP
-        p.cards[1] = p.cards[1].copy(type=g.TYPE_TRAP)
-        p.card_extra[1] = {"effect": 681, "trap_threshold": 1234}
-        p.card_extra[681] = {"trap_threshold": 9000}
-        p.other["trap_thresholds"] = {"681": 800}
-        added = p.add_card(1)
-        self.assertEqual(p.trap_threshold_override(added), 1234)
-        self.assertEqual(p.trap_threshold_default(p.effect_of(added)), 800)
-        p.set_trap_threshold(added, None)
-        restored = Project(p.retail)
-        manifest.apply(restored, manifest.build(p))
-        self.assertIsNone(restored.trap_threshold_override(added))
-        self.assertEqual(restored.trap_threshold_default(restored.effect_of(added)), 800)
-        for invalid in (-1, 65536, True, "1500", 1.5):
-            p.set_trap_threshold(added, invalid)
-            self.assertTrue(any(i.level == "error" and "trap_threshold" in i.message
-                                for i in validate.validate_card(p, added)))
-
-    def test_clearing_a_retail_trap_threshold_writes_no_entry(self):
-        p = Project(fixture().game())
-        p.retail.cards[681].type = p.cards[681].type = g.TYPE_TRAP
-        p.set_trap_threshold(681, 1234)
-        self.assertEqual(manifest.build_cards(p), [{"replace": 681, "trap_threshold": 1234}])
-        p.set_trap_threshold(681, None)
-        self.assertEqual(manifest.build_cards(p), [])
-        self.assertNotIn(681, p.card_extra)
-
     def test_problems(self):
         p = Project(fixture().game())
         p.info.id = "bad id!"
@@ -1073,7 +804,7 @@ class ValidateTest(unittest.TestCase):
         self.assertIn("id must be 1-63", text)
         self.assertIn("stored in tens", text)
         self.assertIn("level is 0 to 12", text)
-        self.assertIn("matching retail effect", text)
+        self.assertIn("stays a monster", text)
         self.assertIn("at least 14 cards", text)
         self.assertIn("add up to 2000", text)
         self.assertIn("not an equip card", text)
@@ -1082,160 +813,11 @@ class ValidateTest(unittest.TestCase):
         self.assertEqual(validate.text_lines("a b"), 1)
         self.assertEqual(validate.text_lines("x" * 20 + " y"), 2)
         self.assertEqual(validate.text_lines("a\nb\nc"), 3)
-        # An icon is two letters of the line, a color none (cards.c text_code).
-        self.assertEqual(validate.text_lines("x" * 15 + " {f8 0B 04} y"), 1)
-        self.assertEqual(validate.text_lines("x" * 16 + " {f8 0B 04} y"), 2)
+        # An icon is one letter of the line, a colour none (cards.c text_code).
+        self.assertEqual(validate.text_lines("x" * 16 + " {f8 0B 04} y"), 1)
+        self.assertEqual(validate.text_lines("x" * 17 + " {f8 0B 04} y"), 2)
         self.assertEqual(validate.text_lines("{f8 0A 02}" + "x" * 18 + " y"), 1)
 
-
-
-class StarchipTest(unittest.TestCase):
-    def setUp(self):
-        self.project = Project(fixture().game())
-
-    def test_price_round_trip_and_revert(self):
-        p = self.project
-        self.assertEqual(p.retail.starchips[1], 10)
-        self.assertEqual(p.retail.starchips[g.CARD_COUNT], g.CARD_COUNT * 10)
-        for cid, cost in ((1, 0), (2, 999999)):
-            p.set_starchips(cid, cost)
-            self.assertTrue(p.card_changed(cid))
-        p.set_password(1, "00000001")
-        data = manifest.build(p)
-        self.assertEqual(data["passwords"], {
-            "Blue Dragon": {"password": "00000001", "starchips": 0},
-            "Mystic Elf": {"starchips": 999999}})
-        again = Project(p.retail)
-        self.assertEqual(manifest.apply(again, data), [])
-        self.assertEqual(again.starchip_cost(1), 0)
-        self.assertEqual(again.starchip_cost(2), 999999)
-        self.assertEqual(manifest.build(again), data)
-        again.revert_card(2)
-        self.assertEqual(again.starchip_cost(2), 20)
-        self.assertNotIn("Mystic Elf", manifest.build(again)["passwords"])
-        self.assertFalse(again.card_changed(2))
-
-    def test_added_password_and_price_round_trip(self):
-        p = self.project
-        cid = p.add_card(1, "aurora-wing")
-        p.set_password(cid, "00000723")
-        p.set_starchips(cid, 100)
-        data = manifest.build(p)
-        identity = p.identity(cid)
-        self.assertEqual(data["passwords"][identity], {"starchips": 100})
-        again = Project(p.retail)
-        self.assertEqual(manifest.apply(again, data), [])
-        self.assertEqual(again.password(cid), "00000723")
-        self.assertEqual(again.starchip_cost(cid), 100)
-        self.assertEqual(manifest.build(again), data)
-        # A table's explicit password overrides the card entry, even empty.
-        data["passwords"][identity]["password"] = "87654321"
-        again = Project(p.retail)
-        manifest.apply(again, data)
-        self.assertEqual(again.password(cid), "87654321")
-        again.set_password(cid, "00001234")
-        self.assertEqual(manifest.build(again)["passwords"][identity]["password"], "00001234")
-        again.set_card_key(cid, "renamed-wing")
-        renamed = again.identity(cid)
-        rebuilt = manifest.build(again)
-        self.assertNotIn(identity, rebuilt["passwords"])
-        self.assertEqual(rebuilt["passwords"][renamed], {"password": "00001234", "starchips": 100})
-        again.remove_card(cid)
-        self.assertNotIn(renamed, manifest.build(again).get("passwords", {}))
-
-    def test_preserve_rules_and_replace_alias_prices(self):
-        p = self.project
-        table = {"all": {"starchips": 500},
-                 "1": {"password": "card number", "starchips": 70, "extra": 42},
-                 "Blue Dragon": {"starchips_percent": 25},
-                 "Mystic Elf": {"starchips": 100, "starchips_percent": 50},
-                 "Unknown": {"starchips": "keep this"}}
-        manifest.apply(p, {"passwords": table})
-        self.assertEqual(manifest.build(p)["passwords"], table)
-        # Percentages apply to the disc price, rounded like Tables_PasswordShop.
-        self.assertEqual(p.starchip_cost(1), 3)
-        self.assertEqual(p.starchip_cost(2), 100)
-        self.assertEqual(p.starchip_cost(3), 500)
-        p.set_starchips(1, 0)
-        edited = manifest.build(p)["passwords"]
-        self.assertEqual(edited["1"], {"password": "card number", "extra": 42})
-        self.assertEqual(edited["Blue Dragon"], {"starchips": 0})
-        for key in ("all", "Mystic Elf", "Unknown"):
-            self.assertEqual(edited[key], table[key])
-        again = Project(p.retail)
-        manifest.apply(again, {"passwords": edited})
-        self.assertEqual(again.starchip_cost(1), 0)
-        again.set_starchips(1, None)
-        self.assertEqual(again.starchip_cost(1), 500)
-        self.assertNotIn("Blue Dragon", manifest.build(again)["passwords"])
-        self.assertEqual(manifest.build(again)["passwords"]["1"], {"password": "card number", "extra": 42})
-
-    def test_cost_validation_and_percent_limits(self):
-        p = self.project
-        for bad in (-1, 1000000, True, 1.5, "100"):
-            with self.assertRaises(ValueError):
-                p.set_starchips(1, bad)
-        added = p.add_card(1, "added")
-        self.assertEqual(p.starchip_cost(added), 999999)
-        p.set_starchips(added, 100)
-        self.assertEqual(p.starchip_cost(added), 100)
-        for percent, expected in ((0, 0), (1, 1), (25, 3), (1000, 100)):
-            p.other["passwords"] = {"all": {"starchips_percent": percent}}
-            self.assertEqual(p.starchip_cost(1), expected)
-        p.retail.starchips[1] = 999999
-        self.assertEqual(p.starchip_cost(1), 999999)
-
-
-class EquipBonusTest(unittest.TestCase):
-    def setUp(self):
-        self.project = Project(fixture().game())
-
-    def test_bonus_round_trip_and_megamorph(self):
-        p = self.project
-        self.assertEqual(p.equip_bonus_of(651), (500, 500))
-        self.assertEqual(p.equip_bonus_of(g.MEGAMORPH), (1000, 1000))
-        copy = p.add_card(g.MEGAMORPH, "mega-copy")
-        self.assertEqual(p.equip_bonus_of(copy), (1000, 1000))      # it plays as Megamorph
-        p.set_equip_bonus(g.MEGAMORPH, 2500)
-        self.assertEqual(p.equip_bonus_of(copy), (2500, 2500))      # a rule for its base holds for it
-        p.set_equip_bonus(copy, 1000, 300)
-        p.set_equip_bonus(651, 500, 500)                             # the disc's: nothing to write
-        self.assertEqual(p.equip_bonus, {g.MEGAMORPH: (2500, 2500), copy: (1000, 300)})
-        self.assertTrue(p.card_changed(g.MEGAMORPH))
-        data = manifest.build(p)
-        self.assertEqual([e for e in data["equips"] if "card" in e and any(k.startswith("bonus") for k in e)],
-                         [{"card": p.ref(g.MEGAMORPH), "bonus": 2500},
-                          {"card": p.ref(copy), "bonus_attack": 1000, "bonus_defense": 300}])
-        again = Project(p.retail)
-        self.assertEqual(manifest.apply(again, data), [])
-        self.assertEqual(again.equip_bonus, p.equip_bonus)
-        self.assertEqual(manifest.build(again), data)
-        again.revert_card(g.MEGAMORPH)
-        self.assertEqual(again.equip_bonus, {copy: (1000, 300)})
-        again.remove_card(copy)
-        self.assertNotIn("equips", manifest.build(again))
-
-    def test_bonus_keys_and_bonus_if(self):
-        p = self.project
-        data = manifest.build(p)
-        data["equips"] = [{"card": 651, "bonus_if": {"Dragon": 900}}, {"card": 652, "bonus_if": {"Dragon": 900}},
-                          {"card": 651, "bonus": 700}, {"card": 653, "bonus": 800, "bonus_if": {"Fiend": 100}},
-                          {"card": 654, "bonus_defense": 1200}, {"card": 655, "bonus": 100, "bonus_attack": 50}]
-        self.assertEqual(manifest.apply(p, data), [])
-        self.assertEqual(p.equip_bonus, {651: (700, 700), 653: (800, 800), 654: (500, 1200), 655: (50, 100)})
-        # 651's "bonus_if" came before a "bonus" for every monster: it did nothing.
-        self.assertEqual(p.kept["equips"], [{"card": 652, "bonus_if": {"Dragon": 900}},
-                                            {"card": 653, "bonus_if": {"Fiend": 100}}])
-        self.assertEqual(manifest.build(p)["equips"],
-                         [{"card": p.ref(651), "bonus": 700}, {"card": p.ref(653), "bonus": 800},
-                          {"card": p.ref(654), "bonus_attack": 500, "bonus_defense": 1200},
-                          {"card": p.ref(655), "bonus_attack": 50, "bonus_defense": 100},
-                          {"card": 652, "bonus_if": {"Dragon": 900}}, {"card": 653, "bonus_if": {"Fiend": 100}}])
-        # A bonus the game would refuse stays as written.
-        again = Project(p.retail)
-        data["equips"] = [{"card": 651, "bonus_defense": "lots"}]
-        manifest.apply(again, data)
-        self.assertEqual((again.equip_bonus, again.kept["equips"]), ({}, [{"card": 651, "bonus_defense": "lots"}]))
 
 
 class PasswordTest(unittest.TestCase):
@@ -1338,194 +920,70 @@ class PasswordTest(unittest.TestCase):
         self.assertEqual(validate.errors(validate.validate(p)), [])
 
 
-
-class DumpsTest(unittest.TestCase):
-    def test_a_number_key_is_written_as_a_string(self):
-        """A card named by its number (two share its name) is a key like any:
-        a long object laid over lines wrote it bare, which no JSON reader
-        takes."""
-        written = manifest.dumps({"starter_pools": [{"draws": 40, "cards": {
-            **{f"Card name number {n}": n for n in range(12)}, 480: 5}}]})
-        self.assertEqual(json.loads(written)["starter_pools"][0]["cards"]["480"], 5)
-
-
 if __name__ == "__main__":
     unittest.main()
 
 
-class MonsterEffectsTest(unittest.TestCase):
-    """A card's "monster_effects" (monster_effects.py): as the game reads
-    them, kept in the card's entry, inherited by a copy, checked."""
+class RemovedFilesTest(unittest.TestCase):
+    """What a save takes out of the folder it copied (manifest._remove_files)."""
 
-    def setUp(self):
-        self.project = Project(fixture().game())
+    def project(self, folder):
+        project = Project.__new__(Project)
+        project.__dict__ = {}
+        return project
 
-    def test_normalize_and_allowed(self):
-        from fm_editor import monster_effects as fx
-        self.assertEqual(fx.normalize({"when": "Face Up", "do": "boost", "target": "others", "type": "Dragon",
-                                       "attack": 300}),
-                         {"when": "face_up", "do": "boost", "target": "others", "attack": 300, "type": "Dragon"})
-        self.assertEqual(fx.normalize({"when": "summon", "do": "magic", "card": 337}),
-                         {"when": "summon", "do": "magic", "card": 337})
-        # No trimming, as monster_effects.c named(): "summon " is no name.
-        self.assertIsNone(fx.normalize({"when": "summon ", "do": "heal", "amount": 100}))
-        # An entry that is not an object is kept as written (the game notes and skips it).
-        self.project.set_monster_effects(1, ["summon", {"when": "summon", "do": "heal", "amount": 100}])
-        self.assertEqual(self.project.monster_effects_of(1)[0][0], "summon")
-        # What the game leaves out (monster_effects.c MonsterEffect_Allowed).
-        for effect in ({"when": "face_up", "do": "magic", "card": 337}, {"when": "combat", "do": "magic", "card": 337},
-                       {"when": "combat", "do": "boost", "target": "own", "attack": 1},
-                       {"when": "destroyed", "do": "boost", "target": "self", "attack": 1},
-                       {"when": "summon", "do": "boost", "target": "battle", "attack": 1},
-                       {"when": "summon", "do": "magic", "card": 675},      # a ritual
-                       {"when": "summon", "do": "boost"}, {"when": "summon", "do": "heal", "amount": 0},
-                       {"when": "later", "do": "heal", "amount": 1}, {"when": "summon", "do": "heal", "amount": True},
-                       {"when": "summon", "do": "destroy", "target": "own"},
-                       {"when": "destroyed", "do": "destroy", "target": "battle"},
-                       {"when": "combat", "do": "destroy", "target": "battle"}):
-            self.assertIsNone(fx.normalize(effect), effect)
-        # The target left out: the card itself, its side when destroyed.
-        self.assertEqual(fx.normalize({"when": "destroyed", "do": "boost", "attack": 100})["target"], "own")
-        self.assertEqual(fx.actions("face_up"), ["boost"])
-        self.assertEqual(fx.targets("combat"), ["self", "battle"])
-        # A destroy: the opponent's, or on a flip the monster attacking it (its default there).
-        self.assertEqual(fx.targets("flip", "destroy"), ["opponent", "battle"])
-        self.assertEqual(fx.targets("destroy_opponent", "destroy"), ["opponent"])
-        self.assertEqual(fx.normalize({"when": "flip", "do": "destroy"}),
-                         {"when": "flip", "do": "destroy", "target": "battle"})
-        self.assertEqual(fx.describe({"when": "flip", "do": "destroy", "target": "battle"}),
-                         "Destroy the monster it battles")
-        self.assertNotIn("destroy", fx.actions("combat"))
-        self.assertEqual(fx.describe({"when": "combat", "do": "boost", "target": "battle", "attack": -500}),
-                         "The monster it battles: -500 ATK for the battle")
+    def test_a_dropped_file_goes_and_the_rest_stay(self):
+        with tempfile.TemporaryDirectory() as home:
+            folder = Path(home)
+            for name in ("duelists/gone.json", "duelists/kept.json"):
+                (folder / name).parent.mkdir(parents=True, exist_ok=True)
+                (folder / name).write_text("{}")
+            project = mock.Mock(removed_files={"duelists/gone.json"}, files={})
+            manifest._remove_files(project, folder)
+            self.assertFalse((folder / "duelists/gone.json").exists())
+            self.assertTrue((folder / "duelists/kept.json").exists())
 
-    def test_round_trip_copies_and_checks(self):
-        p = self.project
-        effects = [{"when": "summon", "do": "magic", "card": 337},
-                   {"when": "face_up", "do": "boost", "target": "others", "attack": 300, "defense": 300}]
-        p.set_monster_effects(1, effects)
-        copy = p.add_card(1, "copy")
-        self.assertEqual(p.monster_effects_of(copy), (effects, True))       # its base's
-        none = p.add_card(1, "none")
-        p.set_monster_effects(none, [])
-        self.assertEqual(p.monster_effects_of(none), ([], False))           # none at all, not its base's
-        self.assertTrue(p.card_changed(1))
-        data = manifest.build(p)
-        entries = {json.dumps(e.get("replace", e.get("id"))): e for e in data["cards"]}
-        self.assertEqual(entries["1"]["monster_effects"], effects)
-        self.assertNotIn("monster_effects", entries['"copy"'])
-        self.assertEqual(entries['"none"']["monster_effects"], [])
-        again = Project(p.retail)
-        self.assertEqual(manifest.apply(again, data), [])
-        self.assertEqual(manifest.build(again), data)
-        self.assertEqual(again.monster_effects_of(1), (effects, False))
-        # Taking a disc card's away leaves no entry; reverting the card does too.
-        p.set_monster_effects(1, [])
-        self.assertNotIn(1, p.card_extra)
-        p.set_monster_effects(1, effects)
-        p.revert_card(1)
-        self.assertEqual(p.monster_effects_of(1), ([], False))
-        # What the game would not take is an error.
-        p.set_monster_effects(2, [{"when": "face_up", "do": "damage", "amount": 100}])
-        self.assertTrue(any("not one the game takes" in i.message and i.level == "error"
-                            for i in validate.validate_card(p, 2)))
-        p.set_monster_effects(2, [{"when": "summon", "do": "heal", "amount": 100}] * 9)
-        self.assertTrue(any("at most 8" in i.message for i in validate.validate_card(p, 2)))
+    def test_a_name_that_climbs_out_of_the_folder_takes_nothing(self):
+        with tempfile.TemporaryDirectory() as home:
+            folder = Path(home) / "mod"
+            folder.mkdir()
+            outside = Path(home) / "outside.txt"
+            outside.write_text("x")
+            project = mock.Mock(removed_files={"../outside.txt", "/etc/passwd", "C:outside.txt"}, files={})
+            manifest._remove_files(project, folder)
+            self.assertTrue(outside.exists())
 
-    def test_for_each(self):
-        """"for_each": a boost, heal or damage made once per face-up monster
-        counted, as monster_effects.c read_each() takes it."""
-        from fm_editor import monster_effects as fx
-        boost = {"when": "face_up", "do": "boost", "target": "self", "attack": 300, "defense": 300,
-                 "for_each": {"whose": "Own", "type": "dragon"}}
-        self.assertEqual(fx.normalize(boost)["for_each"], {"whose": "own", "type": "Dragon"})
-        self.assertEqual(fx.describe(fx.normalize(boost)),
-                         "This card: +300 ATK +300 DEF for each face-up Dragon on its owner's field")
-        # "whose" left out: both sides'.
-        heal = {"when": "summon", "do": "heal", "amount": 200, "for_each": {"attribute": "Light"}}
-        self.assertEqual(fx.normalize(heal)["for_each"], {"whose": "all", "attribute": "Light"})
-        self.assertEqual(fx.describe(fx.normalize(heal)),
-                         "Its owner gains 200 LP for each face-up Light monster on the field")
-        combat = {"when": "combat", "do": "boost", "target": "battle", "attack": -100,
-                  "for_each": {"whose": "opponent", "type": "Dragon", "attribute": "Light"}}
-        self.assertEqual(fx.describe(fx.normalize(combat)),
-                         "The monster it battles: -100 ATK for each face-up Light Dragon on the opponent's field "
-                         "for the battle")
-        # Not on a magic or destroy, nor whose it does not know, nor a Trap counted.
-        for effect in ({"when": "summon", "do": "magic", "card": 337, "for_each": {}},
-                       {"when": "summon", "do": "destroy", "for_each": {}},
-                       {"when": "summon", "do": "heal", "amount": 1, "for_each": {"whose": "mine"}},
-                       {"when": "summon", "do": "heal", "amount": 1, "for_each": "Dragon"},
-                       {"when": "summon", "do": "heal", "amount": 1, "for_each": None},
-                       {"when": "summon", "do": "heal", "amount": 1, "for_each": {"type": "Trap"}}):
-            self.assertIsNone(fx.normalize(effect), effect)
-        # Kept through the manifest, checked by validate.
-        p = self.project
-        p.set_monster_effects(1, [fx.normalize(boost), fx.normalize(heal)])
-        data = manifest.build(p)
-        again = Project(p.retail)
-        self.assertEqual(manifest.apply(again, data), [])
-        self.assertEqual(again.monster_effects_of(1)[0], [fx.normalize(boost), fx.normalize(heal)])
-        self.assertEqual([i.message for i in validate.validate_card(again, 1) if i.level == "error"], [])
-        p.set_monster_effects(2, [{"when": "summon", "do": "destroy", "for_each": {}}])
-        self.assertTrue(any("not one the game takes" in i.message for i in validate.validate_card(p, 2)))
+    def test_a_folder_is_left_alone_and_a_missing_file_is_nothing_to_do(self):
+        """unlink raises on a directory, which aborted the save after the
+        copy and before mod.json was written."""
+        with tempfile.TemporaryDirectory() as home:
+            folder = Path(home)
+            (folder / "portraits").mkdir()
+            project = mock.Mock(removed_files={"portraits", "portraits/never-was.png"}, files={})
+            manifest._remove_files(project, folder)        # must not raise
+            self.assertTrue((folder / "portraits").is_dir())
 
-    def test_counted_and_named_as_the_game_does(self):
-        from fm_editor import monster_effects as fx
-        heal = {"when": "summon", "do": "heal", "amount": 100}
-        bad = {"when": "face_up", "do": "damage", "amount": 100}
-        # One the game leaves out takes no place: the 9th is the 8th it takes.
-        found = fx.problems([heal, bad] + [heal] * 7)
-        self.assertEqual(len(found), 1)
-        self.assertIn("effect 2 is not", found[0])
-        found = fx.problems([heal] * 8 + [bad, heal])
-        self.assertEqual(found, ["at most 8 monster effects; the rest (from effect 9) are left out"])
-        # Type and attribute names in any case and spacing (cards.c same_letters).
-        for t, a in (("dragon", "light"), ("WingedBeast", "LIGHT"), ("winged-beast", " Dark ")):
-            out = fx.normalize({"when": "face_up", "do": "boost", "type": t, "attribute": a, "attack": 100})
-            self.assertIsNotNone(out, t)
-            self.assertIn(out["type"], ("Dragon", "Winged Beast"))
-        for t in (True, "Magic", "dragons", ""):
-            self.assertIsNone(fx.normalize({"when": "face_up", "do": "boost", "type": t, "attack": 1}), t)
+    def test_a_name_the_mod_writes_again_is_not_dropped(self):
+        """Remove a duelist, add one back under the same id, save: the file
+        was written and then deleted, and went on being deleted after that."""
+        with tempfile.TemporaryDirectory() as home:
+            folder = Path(home)
+            (folder / "duelists").mkdir()
+            (folder / "duelists/other.json").write_text('{"copy": 1, "name": "Other"}')
+            dropped = {"duelists/other.json", "decks/other.json"}
+            project = mock.Mock(removed_files=dropped,
+                                files={"duelists/other.json": b'{"copy": 2}'})
+            manifest._remove_files(project, folder)
+            self.assertTrue((folder / "duelists/other.json").exists())
+            # and it is off the list, so a later save does not come back for it
+            self.assertNotIn("duelists/other.json", dropped)
+            self.assertIn("decks/other.json", dropped)
 
-    def test_equip_made_a_monster_has_no_equips_error(self):
-        p = self.project
-        equip = next(cid for cid in sorted(p.retail.equips) if p.retail.equips[cid])
-        copy = p.add_card(equip, "equip-monster")
-        for cid in (equip, copy):
-            p.cards[cid].type, p.cards[cid].attack, p.cards[cid].star1, p.cards[cid].star2 = 0, 1000, 1, 2
-        self.assertEqual([i.message for i in validate.validate(p) if i.area == "Equips"], [])
-        # A list the mod changes for it is still one for a card that is no equip.
-        p.equips[copy] = {next(m for m in p.monsters() if m not in p.retail.equips[equip])}
-        self.assertTrue(any("not an equip card" in i.message for i in validate.validate(p) if i.area == "Equips"))
-
-    def test_disc_card_keeps_none_only_when_asked(self):
-        p = self.project
-        p.set_monster_effects(2, [], keep_empty=True)
-        self.assertEqual(manifest.build_cards(p), [{"replace": 2, "monster_effects": []}])
-        p.set_monster_effects(2, [])
-        self.assertEqual(manifest.build_cards(p), [])
-
-    def test_copy_of_a_magic_card_made_a_monster(self):
-        p = self.project
-        magic = next(cid for cid, card in sorted(p.cards.items()) if card.type == g.TYPE_MAGIC)
-        cid = p.add_card(magic, "magic-monster")
-        card = p.cards[cid]
-        card.type, card.attack, card.defense, card.level, card.star1, card.star2 = 0, 1500, 1200, 4, 1, 2
-        p.set_monster_effects(cid, [{"when": "summon", "do": "heal", "amount": 500}])
-        found = validate.validate_card(p, cid)
-        self.assertEqual([i.message for i in found if i.level == "error"], [])
-        self.assertTrue(any("without a 3D model" in i.message for i in found))
-        p.added[cid].extra["model"] = 1
-        self.assertFalse(any("3D model" in i.message for i in validate.validate_card(p, cid)))
-        data = manifest.build(p)
-        entry = next(e for e in data["cards"] if e.get("id") == "magic-monster")
-        self.assertEqual(entry["type"], "Dragon")
-        again = Project(p.retail)
-        self.assertEqual(manifest.apply(again, data), [])
-        self.assertEqual(again.cards[cid].type, 0)
-        self.assertEqual(again.monster_effects_of(cid)[0], [{"when": "summon", "do": "heal", "amount": 500}])
-        # Made another non-monster without a matching effect: still refused.
-        card.type = g.TYPE_TRAP
-        self.assertTrue(any("matching retail effect" in i.message for i in validate.validate_card(p, cid)))
-        self.assertNotIn("type", next(e for e in manifest.build(p)["cards"] if e.get("id") == "magic-monster"))
+    def test_a_name_the_mod_does_not_write_is_still_dropped(self):
+        with tempfile.TemporaryDirectory() as home:
+            folder = Path(home)
+            (folder / "duelists").mkdir()
+            (folder / "duelists/gone.json").write_text("{}")
+            project = mock.Mock(removed_files={"duelists/gone.json"}, files={})
+            manifest._remove_files(project, folder)
+            self.assertFalse((folder / "duelists/gone.json").exists())

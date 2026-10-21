@@ -4,6 +4,7 @@
 #include "pc/cards/cards.h"
 #include "pc/free_duel/duelists.h"
 #include "pc/text/text.h"
+#include "pc/campaign/scenes.h"
 #endif
 
 #ifdef MEMORIES_PC
@@ -30,6 +31,8 @@ u32 Text_LookupString(s32 arg0, s32 arg1)
 #ifdef MEMORIES_PC
 u32 Text_LookupString(s32 arg0, s32 arg1)
 {
+    const unsigned char *story = StoryGame_Text(arg1);
+    if (story) return (u32)story;
     return (u32)Duelists_Text(arg1,
                Cards_Text(arg1, Text_Resolve(arg1, (const u8 *)Text_LookupStringRetail(arg0, arg1))));
 }

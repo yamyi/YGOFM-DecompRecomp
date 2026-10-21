@@ -67,7 +67,10 @@ def main() -> int:
     build = ["--noconfirm", "--clean", "--distpath", str(dist), "--workpath", str(work)]
     program = ["--name", "fm-editor", "--specpath", str(work), "--paths", str(HERE.parent),
                "--hidden-import", "text_listing", "--collect-submodules", "fm_editor",
-               "--add-data", f"{identity}{os.pathsep}fm_editor"]
+               "--add-data", f"{identity}{os.pathsep}fm_editor",
+               # Qt loads designer forms by path, so ship the campaign page
+               # and the rest of the editor UI with the application.
+               "--add-data", f"{HERE / 'ui'}{os.pathsep}fm_editor/ui"]
     if sys.platform == "win32":
         version_file = work / "version.txt"
         version_file.write_text(version_info(arguments.version), encoding="utf-8")

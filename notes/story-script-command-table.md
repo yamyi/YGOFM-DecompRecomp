@@ -38,3 +38,18 @@ only the generic first-entry latch, slot 8's mode-5 consumer is not yet named,
 and slots 14 and 15 are indistinguishable empty placeholders. Naming any of
 them by table position alone would assert semantics not established by a
 consumer, script operand, or observed behavior.
+
+## Retail-editor parity
+
+The framework deliberately separates the two retail byte streams that the
+Hextext web tool edits:
+
+| Retail data | Framework source editor | Safe output |
+| --- | --- | --- |
+| `SLUS_014.11` text, glyphs, dialogue controls, choices and text branches | `tools/pc/text_listing.py` | a text listing in a story mod; the PC runtime compiles it without changing the retail executable |
+| `WA_MRG.MRG` campaign stream, including every command in this table | `tools/pc/story_listing.py` | a story-framework override, or `story_listing.py patch -i campaign.story -o WA_MRG.MRG` for an explicit standalone archive copy |
+
+`story_listing.py check` round-trips the original bank byte-for-byte.
+`patch` first parses, resolves all labels and branch targets, and checks the
+fixed 4096-byte bank size; it then writes only the campaign-bank span of a
+new archive. It never overwrites the input retail archive.

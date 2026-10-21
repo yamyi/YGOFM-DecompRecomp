@@ -1,0 +1,15 @@
+{
+  "source_filename": "yu-gi-oh! forbidden memories (15 card mod).chd",
+  "chd_data_sha1": "8ca6f770a54857dd2e01c3a0ccc4895101bd23d3",
+  "slus_sha256": "853ad8c222caf41473edf6d58109adfc13826bbd8f4e87cda291d411a8fdf4af",
+  "wa_sha256": "182177a235ffef6b598703c6227873b9cc813f484ca68a021d5830cf078ab2f2",
+  "drop_pools": 120,
+  "changed_drop_pools": 117,
+  "nonzero_drop_entries": 8727,
+  "all_pool_totals": 2048,
+  "decoding_notes": [],
+  "recognized_cards_per_win": null,
+  "validation_errors": 0,
+  "validation_warnings": [],
+  "roundtrip_all_pools_match": true
+}

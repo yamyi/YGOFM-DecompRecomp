@@ -1,0 +1,294 @@
+<ui version="4.0"><class>timelineTab</class><widget class="QWidget" name="timelineTab">
+      <layout class="QVBoxLayout" name="timelinePageLayout">
+       <property name="spacing">
+        <number>8</number>
+       </property>
+       <item>
+        <widget class="QSplitter" name="timelineMainSplitter">
+         <property name="orientation">
+          <enum>Qt::Orientation::Horizontal</enum>
+         </property>
+         <property name="childrenCollapsible">
+          <bool>false</bool>
+         </property>
+         <widget class="QFrame" name="timelineScenesPanel">
+          <layout class="QVBoxLayout" name="timelineScenesLayout">
+           <property name="spacing">
+            <number>6</number>
+           </property>
+           <property name="leftMargin">
+            <number>10</number>
+           </property>
+           <property name="topMargin">
+            <number>10</number>
+           </property>
+           <property name="rightMargin">
+            <number>10</number>
+           </property>
+           <property name="bottomMargin">
+            <number>10</number>
+           </property>
+           <item>
+            <widget class="QLabel" name="timelineScenesTitle">
+             <property name="text">
+              <string>Scenes</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLineEdit" name="timelineSceneSearchEdit">
+             <property name="placeholderText">
+              <string>Find scene…</string>
+             </property>
+             <property name="clearButtonEnabled">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QTreeWidget" name="timelineSceneTree">
+             <property name="headerHidden">
+              <bool>true</bool>
+             </property>
+             <column>
+              <property name="text">
+               <string>Scene</string>
+              </property>
+             </column>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="timelineExportButton">
+             <property name="text">
+              <string>Export this flow as JSON…</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+         <widget class="QSplitter" name="timelineWorkSplitter">
+          <property name="orientation">
+           <enum>Qt::Orientation::Vertical</enum>
+          </property>
+          <property name="childrenCollapsible">
+           <bool>false</bool>
+          </property>
+          <widget class="QFrame" name="timelinePreviewPanel">
+           <layout class="QVBoxLayout" name="timelinePreviewLayout">
+            <property name="spacing">
+             <number>6</number>
+            </property>
+            <property name="leftMargin">
+             <number>10</number>
+            </property>
+            <property name="topMargin">
+             <number>10</number>
+            </property>
+            <property name="rightMargin">
+             <number>10</number>
+            </property>
+            <property name="bottomMargin">
+             <number>10</number>
+            </property>
+            <item>
+             <layout class="QHBoxLayout" name="timelinePreviewHeader">
+              <item>
+               <widget class="QLabel" name="timelinePreviewTitle">
+                <property name="text">
+                 <string>Stock game preview · selected event</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <spacer name="timelinePreviewSpacer">
+                <property name="orientation">
+                 <enum>Qt::Orientation::Horizontal</enum>
+                </property>
+                <property name="sizeHint" stdset="0">
+                 <size>
+                  <width>20</width>
+                  <height>20</height>
+                 </size>
+                </property>
+               </spacer>
+              </item>
+              <item>
+               <widget class="QCheckBox" name="timelineShowFrameCheck">
+                <property name="text">
+                 <string>Dialogue frame</string>
+                </property>
+                <property name="checked">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QLabel" name="timelinePreviewImage">
+              <property name="minimumSize">
+               <size>
+                <width>540</width>
+                <height>290</height>
+               </size>
+              </property>
+              <property name="text">
+               <string>Select a scene and event to inspect its in-game state.</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignmentFlag::AlignCenter</set>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+          <widget class="QFrame" name="timelineTrackPanel">
+           <layout class="QVBoxLayout" name="timelineTrackLayout">
+            <property name="spacing">
+             <number>4</number>
+            </property>
+            <property name="leftMargin">
+             <number>10</number>
+            </property>
+            <property name="topMargin">
+             <number>8</number>
+            </property>
+            <property name="rightMargin">
+             <number>10</number>
+            </property>
+            <property name="bottomMargin">
+             <number>8</number>
+            </property>
+            <item>
+             <layout class="QHBoxLayout" name="timelineTrackHeader">
+              <item>
+               <widget class="QLabel" name="timelineTrackTitle">
+                <property name="text">
+              <string>Story path · follow the numbered cards; gold arrows are branches</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <spacer name="timelineTrackSpacer">
+                <property name="orientation">
+                 <enum>Qt::Orientation::Horizontal</enum>
+                </property>
+                <property name="sizeHint" stdset="0">
+                 <size>
+                  <width>20</width>
+                  <height>20</height>
+                 </size>
+                </property>
+               </spacer>
+              </item>
+              <item>
+               <widget class="QLabel" name="timelineTrackLegend">
+                <property name="text">
+                 <string>Click a block to inspect that event</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QGraphicsView" name="timelineTrackView">
+              <property name="minimumSize">
+               <size>
+                <width>0</width>
+                <height>190</height>
+               </size>
+              </property>
+              <property name="verticalScrollBarPolicy">
+               <enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOff</enum>
+              </property>
+              <property name="horizontalScrollBarPolicy">
+               <enum>Qt::ScrollBarPolicy::ScrollBarAsNeeded</enum>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </widget>
+         <widget class="QFrame" name="timelineEventsPanel">
+          <layout class="QVBoxLayout" name="timelineEventsLayout">
+           <property name="spacing">
+            <number>6</number>
+           </property>
+           <property name="leftMargin">
+            <number>10</number>
+           </property>
+           <property name="topMargin">
+            <number>10</number>
+           </property>
+           <property name="rightMargin">
+            <number>10</number>
+           </property>
+           <property name="bottomMargin">
+            <number>10</number>
+           </property>
+           <item>
+            <layout class="QHBoxLayout" name="timelineEventsHeader">
+             <item>
+              <widget class="QLabel" name="timelineEventsTitle">
+               <property name="text">
+              <string>Story events in play order</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <spacer name="timelineEventsSpacer">
+               <property name="orientation">
+                <enum>Qt::Orientation::Horizontal</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>20</width>
+                 <height>20</height>
+                </size>
+               </property>
+              </spacer>
+             </item>
+             <item>
+              <widget class="QLabel" name="timelineFlowContext">
+               <property name="text">
+                <string>Choose a scene</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <widget class="QTableWidget" name="timelineEventTable">
+             <property name="editTriggers">
+              <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
+             </property>
+             <property name="alternatingRowColors">
+              <bool>true</bool>
+             </property>
+             <property name="selectionBehavior">
+              <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
+             </property>
+             <column>
+              <property name="text">
+               <string>#</string>
+              </property>
+             </column>
+             <column>
+              <property name="text">
+               <string>Type</string>
+              </property>
+             </column>
+             <column>
+              <property name="text">
+               <string>Command / branch details</string>
+              </property>
+             </column>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     </ui>

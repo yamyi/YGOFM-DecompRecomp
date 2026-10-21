@@ -1,0 +1,51 @@
+{
+    "id": "my-mod",
+    "name": "My mod",
+    "version": "1.0",
+    "guardian_stars": {
+        "stars": [{"id": 7, "icon": "icons/star-7.png", "palette": "own"}]
+    },
+    "passwords": {
+        "Blue-eyes White Dragon": {"password": "89631100"}
+    },
+    "packs": [
+        {
+            "name": "Pack 1",
+            "cards": {
+                "Blue-eyes White Dragon": 100,
+                "Baby Dragon": 100,
+                "Winged Dragon #1": 100,
+                "Blackland Fire Dragon": 100,
+                "Koumori Dragon": 100,
+                "Gaia the Dragon Champion": 100,
+                "Curse of Dragon": 100,
+                "Thousand Dragon": 100,
+                "Red-eyes B. Dragon": 100,
+                "Crawling Dragon": 100,
+                "Yamatano Dragon Scroll": 100,
+                "Darkfire Dragon": 100,
+                "Petit Dragon": 100,
+                "B. Skull Dragon": 100,
+                "One-eyed Shield Dragon": 100,
+                "Wicked Dragon with the Ersatz Head": 100,
+                "Yamadron": 100,
+                "Seiyaryu": 100,
+                "Blue-eyes Ultimate Dragon": 100,
+                "Parrot Dragon": 100,
+                "Harpie's Pet Dragon": 100,
+                "Sky Dragon": 100,
+                "Kaiser Dragon": 100,
+                "Tyhone #2": 100,
+                "Lesser Dragon": 100,
+                "B. Dragon Jungle King": 100,
+                "Fairy Dragon": 100,
+                "Tri-horned Dragon": 100,
+                "Serpent Night Dragon": 100,
+                "Mikazukinoyaiba": 100,
+                "Meteor Dragon": 100,
+                "Meteor B. Dragon": 100
+            },
+            "image": "packs/pack-1.png"
+        }
+    ]
+}

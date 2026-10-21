@@ -1,0 +1,1105 @@
+<ui version="4.0"><class>sceneEditorTab</class><widget class="QWidget" name="sceneEditorTab">
+      <layout class="QVBoxLayout" name="sceneEditorLayout">
+       <property name="spacing">
+        <number>10</number>
+       </property>
+       <item>
+        <widget class="QSplitter" name="sceneColumnsSplitter">
+         <property name="orientation">
+          <enum>Qt::Orientation::Horizontal</enum>
+         </property>
+         <property name="childrenCollapsible">
+          <bool>false</bool>
+         </property>
+         <widget class="QWidget" name="sceneListColumn">
+          <layout class="QVBoxLayout" name="sceneListColumnLayout">
+           <property name="spacing">
+            <number>10</number>
+           </property>
+           <property name="leftMargin">
+            <number>0</number>
+           </property>
+           <property name="topMargin">
+            <number>0</number>
+           </property>
+           <property name="rightMargin">
+            <number>0</number>
+           </property>
+           <property name="bottomMargin">
+            <number>0</number>
+           </property>
+           <item>
+            <widget class="QFrame" name="scenesPanel">
+             <layout class="QVBoxLayout" name="scenesPanelLayout">
+              <property name="spacing">
+               <number>8</number>
+              </property>
+              <item>
+               <layout class="QHBoxLayout" name="scenesPanelHeader">
+                <item>
+                 <widget class="QLabel" name="scenesTitle">
+                  <property name="text">
+                  <string>1. Choose a scene</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <spacer name="scenesPanelHeaderSpacer">
+                  <property name="orientation">
+                   <enum>Qt::Orientation::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>20</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <widget class="QLineEdit" name="sceneSearchEdit">
+                <property name="placeholderText">
+                 <string>Search by ID, name, or text…</string>
+                </property>
+                <property name="clearButtonEnabled">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QComboBox" name="sceneChapterFilter" />
+              </item>
+              <item>
+               <widget class="QTreeWidget" name="sceneTree">
+                <property name="uniformRowHeights">
+                 <bool>true</bool>
+                </property>
+                <property name="headerHidden">
+                 <bool>true</bool>
+                </property>
+                <column>
+                 <property name="text">
+                  <string>Scene</string>
+                 </property>
+                </column>
+               </widget>
+              </item>
+              <item>
+               <layout class="QHBoxLayout" name="row0">
+                <property name="spacing">
+                 <number>6</number>
+                </property>
+                <item>
+                 <widget class="QPushButton" name="addSceneButton">
+                  <property name="text">
+                   <string>New scene</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="duplicateSceneButton">
+                  <property name="text">
+                   <string>Edit override</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="removeSceneButton">
+                  <property name="text">
+                   <string>Remove</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="renameSceneButton">
+                  <property name="text">
+                   <string>Rename</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <spacer name="spacer1">
+                  <property name="orientation">
+                   <enum>Qt::Orientation::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>10</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
+               </layout>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
+            <widget class="QFrame" name="sceneInfoPanel">
+             <layout class="QVBoxLayout" name="sceneInfoPanelLayout">
+              <property name="spacing">
+               <number>8</number>
+              </property>
+              <item>
+               <layout class="QHBoxLayout" name="sceneInfoPanelHeader">
+                <item>
+                 <widget class="QLabel" name="sceneInfoTitle">
+                  <property name="text">
+                   <string>Scene information</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <spacer name="sceneInfoPanelHeaderSpacer">
+                  <property name="orientation">
+                   <enum>Qt::Orientation::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>20</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <layout class="QFormLayout" name="sceneInfoForm">
+                <property name="horizontalSpacing">
+                 <number>14</number>
+                </property>
+                <property name="verticalSpacing">
+                 <number>6</number>
+                </property>
+                <item row="0" column="0">
+                 <widget class="QLabel" name="muted">
+                  <property name="text">
+                   <string>ID</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="0" column="1">
+                 <widget class="QLabel" name="sceneInfoId">
+                  <property name="text">
+                   <string>—</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="1" column="0">
+                 <widget class="QLabel" name="muted">
+                  <property name="text">
+                   <string>Name</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="1" column="1">
+                 <widget class="QLabel" name="sceneInfoName">
+                  <property name="text">
+                   <string>—</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="2" column="0">
+                 <widget class="QLabel" name="muted">
+                  <property name="text">
+                   <string>Total commands</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="2" column="1">
+                 <widget class="QLabel" name="sceneInfoCommands">
+                  <property name="text">
+                   <string>—</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="3" column="0">
+                 <widget class="QLabel" name="muted">
+                  <property name="text">
+                   <string>Estimated duration</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="3" column="1">
+                 <widget class="QLabel" name="sceneInfoDuration">
+                  <property name="text">
+                   <string>—</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+             </layout>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+         <widget class="QWidget" name="sceneEditColumn">
+          <layout class="QVBoxLayout" name="sceneEditColumnLayout">
+           <property name="spacing">
+            <number>10</number>
+           </property>
+           <property name="leftMargin">
+            <number>0</number>
+           </property>
+           <property name="topMargin">
+            <number>0</number>
+           </property>
+           <property name="rightMargin">
+            <number>0</number>
+           </property>
+           <property name="bottomMargin">
+            <number>0</number>
+           </property>
+           <item>
+            <widget class="QFrame" name="sceneEditorPanel">
+             <layout class="QVBoxLayout" name="sceneEditorPanelLayout">
+              <property name="spacing">
+               <number>8</number>
+              </property>
+              <item>
+               <layout class="QHBoxLayout" name="sceneEditorPanelHeader">
+                <item>
+                 <widget class="QLabel" name="sceneEditorTitle">
+                  <property name="text">
+                   <string>Scene editor</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <spacer name="sceneEditorPanelHeaderSpacer">
+                  <property name="orientation">
+                   <enum>Qt::Orientation::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>20</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <layout class="QFormLayout" name="sceneMetadataForm">
+                <property name="horizontalSpacing">
+                 <number>6</number>
+                </property>
+                <property name="verticalSpacing">
+                 <number>4</number>
+                </property>
+                <item row="0" column="0">
+                 <widget class="QLabel" name="sceneIdLabel">
+                  <property name="text">
+                   <string>ID</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="0" column="1">
+                 <widget class="QLineEdit" name="sceneIdEdit">
+                  <property name="readOnly">
+                   <bool>true</bool>
+                  </property>
+                 </widget>
+                </item>
+                <item row="1" column="0">
+                 <widget class="QLabel" name="sceneNameLabel">
+                  <property name="text">
+                   <string>Name</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="1" column="1">
+                 <widget class="QLineEdit" name="sceneNameEdit" />
+                </item>
+               </layout>
+              </item>
+              <item>
+               <widget class="QLabel" name="muted">
+                <property name="text">
+                 <string>0 / 256</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
+            <widget class="QFrame" name="sceneStepsPanel">
+             <layout class="QVBoxLayout" name="sceneStepsPanelLayout">
+              <property name="spacing">
+               <number>6</number>
+              </property>
+              <property name="leftMargin">
+               <number>10</number>
+              </property>
+              <property name="topMargin">
+               <number>8</number>
+              </property>
+              <property name="rightMargin">
+               <number>10</number>
+              </property>
+              <property name="bottomMargin">
+               <number>8</number>
+              </property>
+              <item>
+               <layout class="QHBoxLayout" name="sceneStepsHeader">
+                <item>
+                 <widget class="QLabel" name="sceneStepsTitle">
+                  <property name="text">
+                  <string>2. What happens in this scene</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <spacer name="sceneStepsSpacer">
+                  <property name="orientation">
+                   <enum>Qt::Orientation::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>30</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <widget class="QTableWidget" name="sceneStepTable">
+                <property name="minimumSize">
+                 <size>
+                  <width>0</width>
+                  <height>150</height>
+                 </size>
+                </property>
+                <property name="editTriggers">
+                 <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
+                </property>
+                <property name="alternatingRowColors">
+                 <bool>true</bool>
+                </property>
+                <property name="selectionBehavior">
+                 <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
+                </property>
+                <column>
+                 <property name="text">
+                  <string>#</string>
+                 </property>
+                </column>
+                <column>
+                 <property name="text">
+                  <string>Type</string>
+                 </property>
+                </column>
+                <column>
+                 <property name="text">
+                  <string>Description / branch target</string>
+                 </property>
+                </column>
+               </widget>
+              </item>
+              <item>
+               <layout class="QHBoxLayout" name="stepActionsLayout">
+                <item>
+                 <widget class="QPushButton" name="addStepButton">
+                  <property name="text">
+                   <string>＋ Add command</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="moveStepUpButton">
+                  <property name="text">
+                   <string>Move earlier ↑</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="moveStepDownButton">
+                  <property name="text">
+                   <string>Move later ↓</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="duplicateStepButton">
+                  <property name="text">
+                   <string>Duplicate</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="removeStepButton">
+                  <property name="text">
+                   <string>Remove</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+             </layout>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+         <widget class="QWidget" name="scenePreviewColumn">
+          <layout class="QVBoxLayout" name="scenePreviewColumnLayout">
+           <property name="spacing">
+            <number>10</number>
+           </property>
+           <property name="leftMargin">
+            <number>0</number>
+           </property>
+           <property name="topMargin">
+            <number>0</number>
+           </property>
+           <property name="rightMargin">
+            <number>0</number>
+           </property>
+           <property name="bottomMargin">
+            <number>0</number>
+           </property>
+           <item>
+            <widget class="QFrame" name="scenePreviewPanel">
+             <layout class="QVBoxLayout" name="scenePreviewLayout">
+              <property name="spacing">
+               <number>6</number>
+              </property>
+              <property name="leftMargin">
+               <number>10</number>
+              </property>
+              <property name="topMargin">
+               <number>10</number>
+              </property>
+              <property name="rightMargin">
+               <number>10</number>
+              </property>
+              <property name="bottomMargin">
+               <number>10</number>
+              </property>
+              <item>
+               <layout class="QHBoxLayout" name="scenePreviewHeader">
+                <item>
+                 <widget class="QLabel" name="scenePreviewTitle">
+                  <property name="text">
+                   <string>Scene preview</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <spacer name="scenePreviewSpacer">
+                  <property name="orientation">
+                   <enum>Qt::Orientation::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>20</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <widget class="QLabel" name="scenePreviewImage">
+                <property name="minimumSize">
+                 <size>
+                  <width>360</width>
+                  <height>240</height>
+                 </size>
+                </property>
+                <property name="text">
+                 <string>Select a scene event to preview it.</string>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignmentFlag::AlignCenter</set>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <layout class="QHBoxLayout" name="previewDetailLayout" />
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
+            <widget class="QFrame" name="stepEditorPanel">
+             <property name="minimumSize">
+              <size>
+               <width>0</width>
+               <height>0</height>
+              </size>
+             </property>
+             <layout class="QVBoxLayout" name="stepEditorPanelLayout">
+              <property name="spacing">
+               <number>6</number>
+              </property>
+              <property name="leftMargin">
+               <number>10</number>
+              </property>
+              <property name="topMargin">
+               <number>10</number>
+              </property>
+              <property name="rightMargin">
+               <number>10</number>
+              </property>
+              <property name="bottomMargin">
+               <number>10</number>
+              </property>
+              <item>
+               <layout class="QHBoxLayout" name="stepEditorHeader">
+                <item>
+                 <widget class="QLabel" name="stepEditorTitle">
+                  <property name="text">
+                  <string>3. Edit the selected event</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <spacer name="stepHeaderSpacer">
+                  <property name="orientation">
+                   <enum>Qt::Orientation::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>20</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <widget class="QScrollArea" name="stepEditorScroll">
+                <property name="frameShape">
+                 <enum>QFrame::Shape::NoFrame</enum>
+                </property>
+                <property name="widgetResizable">
+                 <bool>true</bool>
+                </property>
+                <widget class="QWidget" name="stepEditorContents">
+                 <property name="geometry">
+                  <rect>
+                   <x>0</x>
+                   <y>0</y>
+                   <width>459</width>
+                   <height>553</height>
+                  </rect>
+                 </property>
+                 <layout class="QFormLayout" name="stepEditorForm">
+                  <property name="fieldGrowthPolicy">
+                   <enum>QFormLayout::FieldGrowthPolicy::ExpandingFieldsGrow</enum>
+                  </property>
+                  <item row="0" column="0">
+                   <widget class="QLabel" name="stepTypeLabel">
+                    <property name="text">
+                     <string>Event</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="0" column="1">
+                   <widget class="QLabel" name="stepTypeDisplayLabel">
+                    <property name="text">
+                     <string>No event selected</string>
+                    </property>
+                    <property name="wordWrap">
+                     <bool>true</bool>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="1" column="0">
+                   <widget class="QLabel" name="stepCharacterLabel">
+                    <property name="text">
+                     <string>Speaker</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="1" column="1">
+                   <widget class="QComboBox" name="stepCharacterCombo" />
+                  </item>
+                  <item row="2" column="0">
+                   <widget class="QLabel" name="stepPortraitLabel">
+                    <property name="text">
+                     <string>Portrait</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="2" column="1">
+                   <layout class="QHBoxLayout" name="stepPortraitLayout">
+                    <item>
+                     <widget class="QPushButton" name="previousPortraitButton">
+                      <property name="text">
+                       <string>‹</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item>
+                     <widget class="QLabel" name="stepPortraitPreview">
+                      <property name="minimumSize">
+                       <size>
+                        <width>64</width>
+                        <height>64</height>
+                       </size>
+                      </property>
+                      <property name="maximumSize">
+                       <size>
+                        <width>64</width>
+                        <height>64</height>
+                       </size>
+                      </property>
+                      <property name="text">
+                       <string>—</string>
+                      </property>
+                      <property name="alignment">
+                       <set>Qt::AlignmentFlag::AlignCenter</set>
+                      </property>
+                     </widget>
+                    </item>
+                    <item>
+                     <widget class="QPushButton" name="nextPortraitButton">
+                      <property name="text">
+                       <string>›</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item>
+                     <widget class="QComboBox" name="stepPoseCombo" />
+                    </item>
+                   </layout>
+                  </item>
+                  <item row="3" column="0">
+                   <widget class="QLabel" name="stepPositionLabel">
+                    <property name="text">
+                     <string>Portrait position</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="3" column="1">
+                   <widget class="QComboBox" name="stepPositionCombo" />
+                  </item>
+                  <item row="4" column="0">
+                   <widget class="QLabel" name="stepBackgroundLabel">
+                    <property name="text">
+                     <string>Background</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="4" column="1">
+                   <layout class="QHBoxLayout" name="stepBackgroundLayout">
+                    <item>
+                     <widget class="QLabel" name="stepBackgroundPreview">
+                      <property name="minimumSize">
+                       <size>
+                        <width>96</width>
+                        <height>54</height>
+                       </size>
+                      </property>
+                      <property name="maximumSize">
+                       <size>
+                        <width>96</width>
+                        <height>54</height>
+                       </size>
+                      </property>
+                      <property name="text">
+                       <string>—</string>
+                      </property>
+                      <property name="alignment">
+                       <set>Qt::AlignmentFlag::AlignCenter</set>
+                      </property>
+                     </widget>
+                    </item>
+                    <item>
+                     <widget class="QComboBox" name="stepBackgroundCombo" />
+                    </item>
+                    <item>
+                     <widget class="QPushButton" name="browseBackgroundButton">
+                      <property name="text">
+                       <string>Browse…</string>
+                      </property>
+                     </widget>
+                    </item>
+                   </layout>
+                  </item>
+                  <item row="5" column="0">
+                   <widget class="QLabel" name="stepDialogueLabel">
+                    <property name="text">
+                     <string>Text</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="5" column="1">
+                   <widget class="QPlainTextEdit" name="stepDialogueEdit">
+                    <property name="minimumSize">
+                     <size>
+                      <width>0</width>
+                      <height>120</height>
+                     </size>
+                    </property>
+                    <property name="placeholderText">
+                     <string>Dialogue text or advanced command JSON…</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="6" column="0">
+                   <widget class="QLabel" name="stepDialogueCountLabel">
+                    <property name="text">
+                     <string>0 characters</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="6" column="1">
+                   <widget class="QPushButton" name="insertDialogueTokenButton">
+                    <property name="text">
+                     <string>Insert dialogue token…</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="7" column="0">
+                   <widget class="QLabel" name="stepTextSpeedLabel">
+                    <property name="text">
+                     <string>Text speed</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="7" column="1">
+                   <widget class="QSpinBox" name="stepTextSpeedSpin">
+                    <property name="maximum">
+                     <number>65535</number>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="8" column="0">
+                   <widget class="QLabel" name="stepAutoContinueLabel">
+                    <property name="text">
+                     <string>Auto-advance</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="8" column="1">
+                   <widget class="QCheckBox" name="stepAutoContinueCheck" />
+                  </item>
+                  <item row="9" column="0" colspan="2">
+                   <layout class="QVBoxLayout" name="stepStructuredFieldsLayout">
+                    <property name="spacing">
+                     <number>6</number>
+                    </property>
+                    <property name="leftMargin">
+                     <number>0</number>
+                    </property>
+                    <property name="topMargin">
+                     <number>4</number>
+                    </property>
+                    <property name="rightMargin">
+                     <number>0</number>
+                    </property>
+                    <property name="bottomMargin">
+                     <number>0</number>
+                    </property>
+                   </layout>
+                  </item>
+                 </layout>
+                </widget>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+         <widget class="QWidget" name="sceneAssetsColumn">
+          <layout class="QVBoxLayout" name="sceneAssetsColumnLayout">
+           <property name="spacing">
+            <number>10</number>
+           </property>
+           <property name="leftMargin">
+            <number>0</number>
+           </property>
+           <property name="topMargin">
+            <number>0</number>
+           </property>
+           <property name="rightMargin">
+            <number>0</number>
+           </property>
+           <property name="bottomMargin">
+            <number>0</number>
+           </property>
+           <item>
+            <widget class="QFrame" name="sceneAssetsPanel">
+             <layout class="QVBoxLayout" name="sceneAssetsPanelLayout">
+              <property name="spacing">
+               <number>8</number>
+              </property>
+              <item>
+               <layout class="QHBoxLayout" name="sceneAssetsPanelHeader">
+                <item>
+                 <widget class="QLabel" name="sceneAssetsTitle">
+                  <property name="text">
+                   <string>Assets</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <spacer name="sceneAssetsPanelHeaderSpacer">
+                  <property name="orientation">
+                   <enum>Qt::Orientation::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>20</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <widget class="QLabel" name="muted">
+                <property name="text">
+                 <string>The pictures and sounds a scene may name. The mod's own come from its assets.json and the files beside it.</string>
+                </property>
+                <property name="wordWrap">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QTabWidget" name="sceneAssetTabs">
+                <widget class="QWidget" name="sceneAssetBackgroundsTab">
+                 <attribute name="title">
+                  <string>Backgrounds</string>
+                 </attribute>
+                 <layout class="QVBoxLayout" name="sceneAssetBackgroundsLayout">
+                  <item>
+                   <widget class="QLineEdit" name="sceneAssetBackgroundsSearch">
+                    <property name="placeholderText">
+                     <string>Search backgrounds...</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QListWidget" name="sceneAssetBackgroundsList" />
+                  </item>
+                 </layout>
+                </widget>
+                <widget class="QWidget" name="sceneAssetPortraitsTab">
+                 <attribute name="title">
+                  <string>Portraits</string>
+                 </attribute>
+                 <layout class="QVBoxLayout" name="sceneAssetPortraitsLayout">
+                  <item>
+                   <widget class="QLineEdit" name="sceneAssetPortraitsSearch">
+                    <property name="placeholderText">
+                     <string>Search portraits...</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QListWidget" name="sceneAssetPortraitsList" />
+                  </item>
+                 </layout>
+                </widget>
+                <widget class="QWidget" name="sceneAssetFontsTab">
+                 <attribute name="title">
+                  <string>Fonts</string>
+                 </attribute>
+                 <layout class="QVBoxLayout" name="sceneAssetFontsLayout">
+                  <item>
+                   <widget class="QLineEdit" name="sceneAssetFontsSearch">
+                    <property name="placeholderText">
+                     <string>Search fonts...</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QListWidget" name="sceneAssetFontsList" />
+                  </item>
+                 </layout>
+                </widget>
+                <widget class="QWidget" name="sceneAssetAudioTab">
+                 <attribute name="title">
+                  <string>Audio</string>
+                 </attribute>
+                 <layout class="QVBoxLayout" name="sceneAssetAudioLayout">
+                  <item>
+                   <widget class="QLineEdit" name="sceneAssetAudioSearch">
+                    <property name="placeholderText">
+                     <string>Search audio...</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QListWidget" name="sceneAssetAudioList" />
+                  </item>
+                 </layout>
+                </widget>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
+            <widget class="QFrame" name="commandReferencePanel">
+             <layout class="QVBoxLayout" name="commandReferencePanelLayout">
+              <property name="spacing">
+               <number>8</number>
+              </property>
+              <item>
+               <layout class="QHBoxLayout" name="commandReferencePanelHeader">
+                <item>
+                 <widget class="QLabel" name="commandReferenceTitle">
+                  <property name="text">
+                   <string>Command type reference</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <spacer name="commandReferencePanelHeaderSpacer">
+                  <property name="orientation">
+                   <enum>Qt::Orientation::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>20</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <widget class="QTabWidget" name="commandReferenceTabs">
+                <widget class="QWidget" name="commandRefVisualTab">
+                 <attribute name="title">
+                  <string>Visual</string>
+                 </attribute>
+                 <layout class="QVBoxLayout" name="commandRefVisualLayout">
+                  <item>
+                   <widget class="QTableWidget" name="commandRefVisualTable" />
+                  </item>
+                 </layout>
+                </widget>
+                <widget class="QWidget" name="commandRefAudioTab">
+                 <attribute name="title">
+                  <string>Audio</string>
+                 </attribute>
+                 <layout class="QVBoxLayout" name="commandRefAudioLayout">
+                  <item>
+                   <widget class="QTableWidget" name="commandRefAudioTable" />
+                  </item>
+                 </layout>
+                </widget>
+                <widget class="QWidget" name="commandRefFlowTab">
+                 <attribute name="title">
+                  <string>Flow</string>
+                 </attribute>
+                 <layout class="QVBoxLayout" name="commandRefFlowLayout">
+                  <item>
+                   <widget class="QTableWidget" name="commandRefFlowTable" />
+                  </item>
+                 </layout>
+                </widget>
+                <widget class="QWidget" name="commandRefSystemTab">
+                 <attribute name="title">
+                  <string>System</string>
+                 </attribute>
+                 <layout class="QVBoxLayout" name="commandRefSystemLayout">
+                  <item>
+                   <widget class="QTableWidget" name="commandRefSystemTable" />
+                  </item>
+                 </layout>
+                </widget>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </widget>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="sceneToolsRow">
+         <property name="spacing">
+          <number>8</number>
+         </property>
+         <item>
+          <widget class="QLabel" name="muted">
+           <property name="text">
+            <string>Scene tools</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="importSceneButton">
+           <property name="text">
+            <string>Import scene…</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="exportSceneFlowButton">
+           <property name="text">
+            <string>Export flow JSON</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="copyToNewSceneButton">
+           <property name="text">
+            <string>Copy to new scene…</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="previewFromHereButton">
+           <property name="text">
+            <string>Preview from here…</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <spacer name="sceneToolsSpacer">
+           <property name="orientation">
+            <enum>Qt::Orientation::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>40</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+         <item>
+          <widget class="QPushButton" name="revertToRetailButton">
+           <property name="toolTip">
+            <string>Remove the selected retail-scene override and return to the stock scene</string>
+           </property>
+           <property name="text">
+            <string>Revert to retail</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="applyCampaignButton">
+           <property name="text">
+            <string>Apply story changes…</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
+     </ui>

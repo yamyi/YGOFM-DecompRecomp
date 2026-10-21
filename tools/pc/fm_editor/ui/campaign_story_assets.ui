@@ -1,0 +1,21 @@
+<ui version="4.0"><class>storyAssetsTab</class><widget class="QWidget" name="storyAssetsTab">
+      <layout class="QVBoxLayout" name="storyAssetsLayout">
+       <item>
+        <widget class="QGroupBox" name="campaignRawGroup">
+         <property name="title">
+          <string>Story assets (assets.json)</string>
+         </property>
+         <layout class="QVBoxLayout" name="campaignRawLayout">
+          <item>
+           <widget class="QPlainTextEdit" name="campaignDataEdit">
+            <property name="placeholderText">
+             <string>{ "backgrounds": {}, "sprites": {}, "portraits": {}, "music": {}, "sounds": {}, "places": {}, "flags": {} }</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </ui>
